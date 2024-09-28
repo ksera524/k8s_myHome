@@ -1,53 +1,67 @@
-provider "k3d" {
-    version = "3.0.0"
+# Configure the Kubernetes provider
+terraform {
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.0.0"
+    }
+  }
 }
 
-# クラスタの作成
-resource "k3d_cluster" "k3d" {
-    name = "k3d"
-    api_port = 6443
-    ports = [8080]
-    servers = 1
-    agents = 1
+provider "kubernetes" {
+  config_path    = "~/.kube/config"
+  config_context = "minikube"
 }
 
-# namespaceの作成
+# Create a namespace
 resource "kubernetes_namespace" "sandbox" {
-    metadata {
-        name = "sandbox"
-    }
+  metadata {
+    name = "sandbox"
+  }
 }
 
-#外部SSD
-resource "kubernetes_persistent_volume" "ssd_pv" {
-    metadata {
-        name = "ssd-pv"
+# Define the Persistent Volume
+resource "kubernetes_persistent_volume" "external_ssd_pv" {
+  metadata {
+    name = "external-ssd-pv"
+  }
+
+  spec {
+    capacity = {
+      storage = "3.4Ti"
     }
 
-    spec {
-        capacity {
-            storage = "1Ti"
-        }
-        access_modes = ["ReadWriteOnce"]
-        persistent_volume_reclaim_policy = "Retain"
-        host_path {
-            path = "/tmp"
-        }
+    access_modes = ["ReadWriteOnce"]
+
+    persistent_volume_reclaim_policy = "Retain"
+
+    storage_class_name = "manual"
+
+    # This is the correct block structure
+    persistent_volume_source {
+      host_path {
+        path = "/mnt/external-ssd"
+      }
     }
+  }
 }
 
-resource "kubernetes_persistent_volume_claim" "ssd_pvc" {
-    metadata {
-        name = "ssd-pvc"
+# Define a Persistent Volume Claim
+resource "kubernetes_persistent_volume_claim" "external_ssd_pvc" {
+  metadata {
+    name      = "external-ssd-pvc"
+    namespace = kubernetes_namespace.sandbox.metadata[0].name
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+
+    resources {
+      requests = {
+        storage = "3.4Ti"
+      }
     }
 
-    spec {
-        access_modes = ["ReadWriteOnce"]
-        resources {
-            requests {
-                storage = "1Ti"
-            }
-        }
-    }
+    storage_class_name = "manual"
+  }
 }
-
