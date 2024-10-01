@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/ksera524/k8s_myHome.git
+    repoURL: https://helm.goharbor.io
     targetRevision: 1.8.1 
     chart: harbor 
     helm:
