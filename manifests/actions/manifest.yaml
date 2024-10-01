@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://actions-runner-controller.github.io/actions-runner-controller
     targetRevision: HEAD
-    path: actions-runner-controller
+    path: https://raw.githubusercontent.com/ksera524/k8s_myHome/main/manifests/actions/actions-runner-controller
     helm:
       parameters:
         - name: replicaCount
