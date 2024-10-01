@@ -11,7 +11,7 @@ spec:
     chart: harbor 
     helm:
       valueFiles:
-      - values.yaml  
+      - https://raw.githubusercontent.com/ksera524/k8s_myHome/main/manifests/harbor/values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: harbor
