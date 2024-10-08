@@ -2,7 +2,10 @@
 [helm](https://artifacthub.io/packages/helm/argo/argo-workflows)
 
 ## 各種コマンド
-```
+```bash
+#workflowの起動
+curl -sk localhost:30001/api/v1/events/${namespace}/${discriminator} -H "Authorization: $TOKEN" -d  '{"message": "s3s"}'
+
 sudo kubectl delete clusterrole argowork
 sudo kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
