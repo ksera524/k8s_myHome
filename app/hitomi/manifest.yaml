@@ -16,7 +16,7 @@ spec:
         spec:
           containers:
             - name: hitomi-monitor
-              image: 192.168.10.11:30003/sandbox/hitomi:latest
+              image: harbor.qroksera.com/sandbox/hitomi:latest
               imagePullPolicy: IfNotPresent
               env:
                 - name: TOKEN
