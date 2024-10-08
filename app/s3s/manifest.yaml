@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+ name: s3s
+ namespace: sandbox
+spec:
+ schedule: "0 2,14 * * *"
+ successfulJobsHistoryLimit: 1
+ failedJobsHistoryLimit: 1
+ jobTemplate:
+   spec:
+     template:
+       spec:
+         containers:
+           - name: s3s
+             image: https://192.168.10.11//sandbox/s3s:latest
+             imagePullPolicy: IfNotPresent
+             env:
+               - name: TOKEN
+                 valueFrom:
+                   secretKeyRef:
+                     name: slack
+                     key: token
+         imagePullSecrets:
+           - name: harbor
+         restartPolicy: OnFailure
