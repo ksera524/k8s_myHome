@@ -21,7 +21,7 @@ spec:
             apk add --no-cache git && \
             git clone https://ksera524:$GITHUB_TOKEN@github.com/ksera524/{{inputs.parameters.message}}.git /src && \
             docker build -t 192.168.10.11:30003/sandbox/{{inputs.parameters.message}}:latest -f /src/Dockerfile /src && \
-            echo "Harbor12345" | docker login https://192.168.10.11:30003 -u admin --password-stdin && \
+            echo $PASSWORD | docker login https://192.168.10.11:30003 -u $USER --password-stdin && \
             docker push 192.168.10.11:30003/sandbox/{{inputs.parameters.message}}:latest
         volumeMounts:
           - name: workdir
@@ -34,6 +34,16 @@ spec:
               secretKeyRef:
                 name: git-secret
                 key: GITHUB_TOKEN
+          - name: USER
+            valueFrom:
+              secretKeyRef:
+                name: harbor
+                key: USER
+          - name: PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: harbor
+                key: PASSWORD
 
   volumes:
     - name: workdir
