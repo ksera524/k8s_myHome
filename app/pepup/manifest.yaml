@@ -5,6 +5,8 @@ metadata:
   namespace: sandbox
 spec:
   schedule: "15 9-23 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       template:
