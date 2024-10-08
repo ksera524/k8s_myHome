@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowEventBinding
+metadata:
+  name: argo-workflow-event-binding
+  namespace: argoworkflow
+spec:
+  event:
+    selector: payload.message != "" && discriminator == "workflow"
+  submit: 
+    workflowTemplateRef:
+      name: docker-build-and-push
+    arguments:
+      parameters:
+        - name: message
+          valueFrom: 
+            event: payload.message
