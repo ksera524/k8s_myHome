@@ -13,7 +13,7 @@ spec:
         spec:
           containers:
             - name: pepup
-              image: 192.168.10.11/sandbox/pepup:latest
+              image: harbor.qroksera.com/sandbox/pepup:latest
               imagePullPolicy: IfNotPresent
               env:
                 - name: USERNAME
