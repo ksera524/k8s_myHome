@@ -42,7 +42,7 @@ EOF
 ARGO_TOKEN="Bearer $(kubectl get secret argowork.service-account-token -n argoworkflow -o=jsonpath='{.data.token}' | base64 --decode)"
 
 sudo kubectl get pods -n argoworkflow
-sudo kubectl exec -it argo-workflow-argo-workflows-server-589ddfc7d-xrn4c -n argoworkflow -- argo auth token
+sudo kubectl exec -it argo-workflow-argo-workflows-server-58f545c74-b46kg -n argoworkflow -- argo auth token
 
 sudo kubectl get deployment -n argoworkflow
 
