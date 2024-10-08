@@ -22,7 +22,7 @@ spec:
                 - name: TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: slack-secret
+                      name: slack
                       key: token
                 - name: CHANNEL
                   value: image
