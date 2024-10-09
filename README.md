@@ -3,4 +3,4 @@
 
 ## 構成図
 
-![](./diagrams/構成図.svg)
+![](./diagrams/diagram.svg)
