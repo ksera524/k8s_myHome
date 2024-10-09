@@ -14,7 +14,7 @@ spec:
          containers:
            - name: s3s
              image: 192.168.10.11/sandbox/s3s:latest
-             imagePullPolicy: IfNotPresent
+             imagePullPolicy: Always
              env:
                - name: TOKEN
                  valueFrom:
