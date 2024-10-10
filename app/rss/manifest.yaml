@@ -4,7 +4,7 @@ metadata:
   name: rss-monitor-cronjob
   namespace: sandbox
 spec:
-  schedule: "0 */6 * * *"
+  schedule: "0 10 * * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
