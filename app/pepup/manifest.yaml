@@ -31,8 +31,6 @@ spec:
                     secretKeyRef:
                       name: slack
                       key: token
-                - name: CHANNEL
-                  value: "random"
                 - name: DATABASE_USER
                   valueFrom:
                     secretKeyRef:

@@ -13,7 +13,7 @@ spec:
        spec:
          containers:
            - name: s3s
-             image: 192.168.10.11/sandbox/s3s:latest
+             image: 192.168.10.11:30003/sandbox/s3s:latest
              imagePullPolicy: Always
              env:
                - name: TOKEN
