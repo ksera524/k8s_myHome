@@ -22,10 +22,8 @@ spec:
                 - name: TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: slack
+                      name: slack1
                       key: token
-                - name: CHANNEL
-                  value: rss
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:

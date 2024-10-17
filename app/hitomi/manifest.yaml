@@ -22,10 +22,8 @@ spec:
                 - name: TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: slack
+                      name: slack1
                       key: token
-                - name: CHANNEL
-                  value: image
                 - name: DATABASE_USER
                   valueFrom:
                     secretKeyRef:
