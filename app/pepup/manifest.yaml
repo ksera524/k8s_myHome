@@ -31,6 +31,8 @@ spec:
                     secretKeyRef:
                       name: slack1
                       key: token
+                - name: EVENT_MODE
+                  value: "true"
                 - name: DATABASE_USER
                   valueFrom:
                     secretKeyRef:
