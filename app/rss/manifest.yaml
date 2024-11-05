@@ -23,7 +23,7 @@ spec:
                 - name: TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: slack
+                      name: slack2
                       key: token
                 - name: DATABASE_URL
                   valueFrom:
