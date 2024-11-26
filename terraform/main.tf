@@ -17,6 +17,11 @@ provider "kubernetes" {
   config_context = "default"
 }
 
+variable "localhost" {
+  type        = string
+  default     = "192.168.10.11"
+}
+
 # Create a namespace
 resource "kubernetes_namespace" "namespaces" {
   for_each = toset(["sandbox", "argocd", "cloudflared", "harbor","cert-manager","argoworkflow"])
@@ -129,7 +134,7 @@ resource "helm_release" "harbor" {
 
   set {
     name  = "externalURL"
-    value = "https://192.168.10.11:30003"
+    value = "https://${var.localhost}:30003"
   }
 
   set {
@@ -144,7 +149,7 @@ resource "helm_release" "harbor" {
 
   set {
     name  = "expose.tls.auto.commonName"
-    value = "192.168.10.11"
+    value = "${var.localhost}"
   }
 
   set {
