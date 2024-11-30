@@ -219,7 +219,7 @@ spec:
       port: 34197
       protocol: UDP
       targetPort: 34197
-      nodePort: 34197
+      nodePort: 31000
   selector:
     app: factorio
 ---
