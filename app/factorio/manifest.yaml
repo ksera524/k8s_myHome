@@ -1,5 +1,5 @@
+apiVersion: apps/v1
 kind: Deployment
-apiVersion: extensions/v1beta1
 metadata:
   name: factorio
   namespace: factorio
@@ -16,7 +16,6 @@ spec:
       containers:
       - name: app
         image: docker.io/dtandersen/factorio:stable
-        imagePullPolicy: Always
         ports:
           - containerPort: 34197
             protocol: UDP
@@ -26,18 +25,18 @@ spec:
         - name: TZ
           value: Asia/Tokyo
         volumeMounts:
-          - name: factorio-savedata
-            mountPath: /factorio/saves
-          - name: factorio-config
-            mountPath: /factorio/config
-            readOnly: true
-      volumes:
         - name: factorio-savedata
-          persistentVolumeClaim:
-            claimName: factorio-external-ssd-pvc
+          mountPath: /factorio/saves
         - name: factorio-config
-          persistentVolumeClaim:
-            claimName: factorio-external-ssd-pvc
+          mountPath: /factorio/config
+          readOnly: true
+      volumes:
+      - name: factorio-savedata
+        persistentVolumeClaim:
+          claimName: factorio-external-ssd-pvc
+      - name: factorio-config
+        persistentVolumeClaim:
+          claimName: factorio-external-ssd-pvc
 ---
 apiVersion: v1
 kind: ConfigMap
