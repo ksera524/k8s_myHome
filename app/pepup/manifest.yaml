@@ -29,7 +29,7 @@ spec:
                 - name: TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: slack
+                      name: slack3
                       key: token
                 - name: EVENT_MODE
                   value: "false"

@@ -1,3 +1,32 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: factorio-external-ssd-pv
+  namespace: factorio
+spec:
+  capacity:
+    storage: 50Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /mnt/external-ssd/factorio
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: factorio-external-ssd-pvc-3
+  namespace: factorio
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: manual
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +44,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: docker.io/dtandersen/factorio:stable
+        image: factoriotools/factorio:stable
         ports:
           - containerPort: 34197
             protocol: UDP
@@ -33,10 +62,10 @@ spec:
       volumes:
       - name: factorio-savedata
         persistentVolumeClaim:
-          claimName: factorio-external-ssd-pvc
+          claimName: factorio-external-ssd-pvc-3
       - name: factorio-config
         persistentVolumeClaim:
-          claimName: factorio-external-ssd-pvc
+          claimName: factorio-external-ssd-pvc-3
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -200,38 +229,10 @@ data:
       "allow_commands": "admins-only",
       "autosave_interval": 10,
       "autosave_slots": 5,
-      "afk_autokick_interval": 0,
-      "auto_pause": true,
-      "only_admins_can_pause_the_game": true,
-      "autosave_only_on_server": true,
+      "afk_autokick_interval": 600,
+      "auto_pause": false,
+      "limit_fps": false,
+      "autosave_only_on_server_activity": true,
+      "minimum_activity_seconds_for_autosave": 30,
+      "save_filter": "none"
     }
----
-kind: Service
-apiVersion: v1
-metadata:
-  labels:
-    app: factorio-udp
-  name: factorio-udp
-spec:
-  type: NodePort
-  ports:
-    - name: udp
-      port: 34197
-      protocol: UDP
-      targetPort: 34197
-      nodePort: 31000
-  selector:
-    app: factorio
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: factorio-external-ssd-pvc
-  namespace: factorio
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi 
-  volumeName: external-ssd-pv  
