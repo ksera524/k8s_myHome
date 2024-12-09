@@ -10,6 +10,7 @@ spec:
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      backoffLimit: 0 
       template:
         metadata:
           labels:
@@ -50,6 +51,6 @@ spec:
                     secretKeyRef:
                       name: tidb
                       key: port
-          restartPolicy: OnFailure
+          restartPolicy: Never
           imagePullSecrets:
             - name: harbor
