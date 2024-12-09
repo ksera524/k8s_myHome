@@ -1,16 +1,17 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: external-ssd-pv-factorio
+  name: external-ssd-pv-factorio-large
 spec:
   capacity:
-    storage: 5Gi
+    storage: 50Gi
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: /mnt/external-ssd/factorio
+    path: /mnt/external-ssd/factorio-large
+
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
