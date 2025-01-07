@@ -1,43 +1,35 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-ssd-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: external-ssd-pv-factorio-large
+  name: factorio-pv
 spec:
   capacity:
-    storage: 50Gi
+    storage: 10Gi
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: manual
-  hostPath:
-    path: /mnt/external-ssd/factorio-large
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: factorio-external-ssd-pvc-3
-  namespace: factorio
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 50Gi
-  storageClassName: manual
+  storageClassName: local-ssd-storage
+  local:
+    path: /mnt/external-ssd/factorio
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: factorio-pvc
-  namespace: factorio
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: manual
+  storageClassName: local-ssd-storage
   resources:
     requests:
-      storage: 5Gi
+      storage: 10Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -55,16 +47,36 @@ spec:
       labels:
         app: factorio
     spec:
+      securityContext:
+        fsGroup: 845
+        runAsUser: 845
+        runAsGroup: 845
       containers:
         - name: factorio-container
-          image: factoriotools/factorio:stable
+          image: factoriotools/factorio:stable-2.0.28
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
           env:
-            - name: UPDATE_MODS_ON_START
+            - name: GENERATE_NEW_SAVE
+              value: 'false'
+            - name: LOAD_LATEST_SAVE
               value: 'true'
+            - name: DLC_SPACE_AGE
+              value: 'false'
+            - name: SAVE_NAME
+              value: "replaceme"
           ports:
             - containerPort: 34197
               protocol: UDP
-              name: "factorio-port"
+              name: "game"
+            - containerPort: 27015
+              protocol: TCP
+              name: "rcon"
           volumeMounts:
             - mountPath: "/factorio"
               name: factorio-storage
@@ -76,14 +88,21 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: factorio-udp-service
-  namespace: factorio
+  name: factorio
+  labels:
+    app: factorio
 spec:
   type: NodePort
+  ports:
+    - port: 34197        
+      nodePort: 32000
+      targetPort: game
+      protocol: UDP
+      name: game
+    - port: 27015
+      nodePort: 27015
+      targetPort: rcon
+      protocol: TCP
+      name: rcon
   selector:
     app: factorio
-  ports:
-    - protocol: UDP
-      port: 34197
-      targetPort: 34197
-      nodePort: 30097
