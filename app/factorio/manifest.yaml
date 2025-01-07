@@ -108,7 +108,7 @@ spec:
       protocol: UDP
       name: game
     - port: 27015
-      nodePort: 27015
+      nodePort: 30015
       targetPort: rcon
       protocol: TCP
       name: rcon
