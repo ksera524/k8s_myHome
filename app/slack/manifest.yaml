@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: slack
-        image: 192.168.10.11:30003/sandbox/slack:latest
+        image: 192.168.10.11:30003/sandbox/slack.rs:latest
         env:
         - name: SLACK_BOT_TOKEN
           valueFrom:
