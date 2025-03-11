@@ -24,6 +24,8 @@ spec:
             secretKeyRef:
               name: slack3
               key: token
+      imagePullSecrets:
+        - name: harbor
 
 ---
 apiVersion: v1
