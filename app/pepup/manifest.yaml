@@ -32,7 +32,7 @@ spec:
                       name: slack3
                       key: token
                 - name: EVENT_MODE
-                  value: "false"
+                  value: "true"
                 - name: DATABASE_USER
                   valueFrom:
                     secretKeyRef:
