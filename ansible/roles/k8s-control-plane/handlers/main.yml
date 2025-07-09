@@ -1,0 +1,6 @@
+---
+# Handlers for control plane role
+- name: restart nfs-server
+  systemd:
+    name: nfs-kernel-server
+    state: restarted

@@ -1,0 +1,200 @@
+name: Deploy to Kubernetes Cluster
+
+on:
+  push:
+    branches: [ main, migration-to-k8s-cluster ]
+    paths:
+      - 'k8s-manifests/**'
+      - 'app/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'k8s-manifests/**'
+      - 'app/**'
+  workflow_dispatch:
+
+env:
+  KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+
+jobs:
+  validate:
+    runs-on: [self-hosted, kubernetes]
+    name: Validate Kubernetes Manifests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Validate YAML syntax
+      run: |
+        find k8s-manifests -name "*.yaml" -o -name "*.yml" | while read file; do
+          echo "Validating $file"
+          kubectl apply --dry-run=client -f "$file" || exit 1
+        done
+    
+    - name: Validate application manifests
+      run: |
+        find app -name "*.yaml" -o -name "*.yml" | while read file; do
+          echo "Validating $file"
+          kubectl apply --dry-run=client -f "$file" || exit 1
+        done
+
+  deploy-infrastructure:
+    runs-on: [self-hosted, kubernetes]
+    name: Deploy Infrastructure
+    needs: validate
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/migration-to-k8s-cluster'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Deploy namespaces
+      run: |
+        kubectl apply -f k8s-manifests/infrastructure/namespaces.yaml
+    
+    - name: Deploy storage configuration
+      run: |
+        # Replace placeholders with actual values
+        sed -i 's/REPLACE_WITH_NFS_SERVER_IP/${{ secrets.NFS_SERVER_IP }}/g' k8s-manifests/infrastructure/nfs-storage.yaml
+        kubectl apply -f k8s-manifests/infrastructure/nfs-storage.yaml
+    
+    - name: Deploy GitHub Runner
+      run: |
+        # Replace placeholders with actual values
+        sed -i 's|REPLACE_WITH_YOUR_REPO|${{ github.repository }}|g' k8s-manifests/infrastructure/github-runner.yaml
+        kubectl apply -f k8s-manifests/infrastructure/github-runner.yaml
+    
+    - name: Wait for infrastructure to be ready
+      run: |
+        kubectl wait --for=condition=ready pod -l app=github-runner -n github-runners --timeout=300s || true
+
+  deploy-applications:
+    runs-on: [self-hosted, kubernetes]
+    name: Deploy Applications
+    needs: deploy-infrastructure
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/migration-to-k8s-cluster'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Deploy Factorio
+      run: |
+        kubectl apply -f k8s-manifests/applications/factorio-new.yaml
+        kubectl rollout status deployment/factorio -n sandbox --timeout=300s
+    
+    - name: Deploy Slack application
+      run: |
+        # Replace Harbor URL placeholder
+        sed -i 's|REPLACE_WITH_HARBOR_URL|${{ secrets.HARBOR_URL }}|g' k8s-manifests/applications/slack-new.yaml
+        kubectl apply -f k8s-manifests/applications/slack-new.yaml
+        kubectl rollout status deployment/slack -n sandbox --timeout=300s
+    
+    - name: Deploy other applications
+      run: |
+        # Deploy remaining applications from app directory
+        for app_dir in app/*/; do
+          app_name=$(basename "$app_dir")
+          if [ -f "$app_dir/manifest.yaml" ] && [ "$app_name" != "factorio" ] && [ "$app_name" != "slack" ]; then
+            echo "Deploying $app_name"
+            kubectl apply -f "$app_dir/manifest.yaml"
+          fi
+        done
+
+  health-check:
+    runs-on: [self-hosted, kubernetes]
+    name: Health Check
+    needs: deploy-applications
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/migration-to-k8s-cluster'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Check cluster status
+      run: |
+        echo "=== Cluster Nodes ==="
+        kubectl get nodes -o wide
+        
+        echo "=== All Pods Status ==="
+        kubectl get pods --all-namespaces -o wide
+        
+        echo "=== Services ==="
+        kubectl get services --all-namespaces
+        
+        echo "=== Storage ==="
+        kubectl get pv,pvc --all-namespaces
+    
+    - name: Check application health
+      run: |
+        echo "=== Application Health Check ==="
+        
+        # Check Factorio
+        if kubectl get deployment factorio -n sandbox >/dev/null 2>&1; then
+          kubectl get deployment factorio -n sandbox
+          replicas=$(kubectl get deployment factorio -n sandbox -o jsonpath='{.status.readyReplicas}')
+          if [ "$replicas" = "1" ]; then
+            echo "✅ Factorio is healthy"
+          else
+            echo "❌ Factorio is not healthy"
+          fi
+        fi
+        
+        # Check Slack
+        if kubectl get deployment slack -n sandbox >/dev/null 2>&1; then
+          kubectl get deployment slack -n sandbox
+          replicas=$(kubectl get deployment slack -n sandbox -o jsonpath='{.status.readyReplicas}')
+          if [ "$replicas" = "2" ]; then
+            echo "✅ Slack is healthy"
+          else
+            echo "❌ Slack is not healthy"
+          fi
+        fi
+    
+    - name: Generate deployment report
+      run: |
+        echo "# Deployment Report" > deployment-report.md
+        echo "" >> deployment-report.md
+        echo "## Deployment Summary" >> deployment-report.md
+        echo "- **Date**: $(date)" >> deployment-report.md
+        echo "- **Commit**: ${{ github.sha }}" >> deployment-report.md
+        echo "- **Branch**: ${{ github.ref_name }}" >> deployment-report.md
+        echo "" >> deployment-report.md
+        
+        echo "## Cluster Status" >> deployment-report.md
+        echo '```' >> deployment-report.md
+        kubectl get nodes -o wide >> deployment-report.md
+        echo '```' >> deployment-report.md
+        echo "" >> deployment-report.md
+        
+        echo "## Application Status" >> deployment-report.md
+        echo '```' >> deployment-report.md
+        kubectl get deployments --all-namespaces >> deployment-report.md
+        echo '```' >> deployment-report.md
+    
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-report
+        path: deployment-report.md

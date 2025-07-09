@@ -1,0 +1,46 @@
+---
+# Main playbook for Kubernetes cluster setup
+- name: Setup Kubernetes Cluster
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - common
+
+- name: Setup Control Plane
+  hosts: control_plane
+  become: yes
+  roles:
+    - k8s-control-plane
+
+- name: Setup Worker Nodes
+  hosts: workers
+  become: yes
+  roles:
+    - k8s-worker
+
+- name: Post-installation tasks
+  hosts: control_plane
+  become: yes
+  tasks:
+    - name: Wait for all nodes to be ready
+      shell: kubectl get nodes --no-headers | grep -v NotReady | wc -l
+      register: ready_nodes
+      until: ready_nodes.stdout|int == groups['k8s_cluster']|length
+      retries: 30
+      delay: 10
+      
+    - name: Display cluster status
+      shell: kubectl get nodes -o wide
+      register: cluster_status
+      
+    - name: Show cluster status
+      debug:
+        var: cluster_status.stdout_lines

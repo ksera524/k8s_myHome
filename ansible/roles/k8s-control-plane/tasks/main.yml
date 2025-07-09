@@ -1,0 +1,94 @@
+---
+# Control plane specific tasks
+- name: Install NFS server packages
+  apt:
+    name:
+      - nfs-kernel-server
+    state: present
+
+- name: Create external storage directory
+  file:
+    path: "{{ external_storage_path }}"
+    state: directory
+    owner: nobody
+    group: nogroup
+    mode: '0777'
+
+- name: Configure NFS exports
+  copy:
+    content: |
+      {{ external_storage_path }} *(rw,sync,no_subtree_check,no_root_squash)
+    dest: /etc/exports
+    mode: '0644'
+  notify: restart nfs-server
+
+- name: Start and enable NFS server
+  systemd:
+    name: nfs-kernel-server
+    state: started
+    enabled: yes
+
+- name: Initialize Kubernetes cluster
+  command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+    --service-cidr={{ service_subnet }}
+    --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+    --control-plane-endpoint={{ ansible_default_ipv4.address }}:6443
+  register: kubeadm_init
+  run_once: true
+  changed_when: "'Your Kubernetes control-plane has initialized successfully!' in kubeadm_init.stdout"
+
+- name: Create .kube directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Copy admin.conf to ubuntu user kube config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+    remote_src: yes
+
+- name: Copy admin.conf to root kube config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    owner: root
+    group: root
+    mode: '0644'
+    remote_src: yes
+
+- name: Create .kube directory for root
+  file:
+    path: /root/.kube
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install Flannel CNI
+  command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+  become_user: ubuntu
+  run_once: true
+
+- name: Generate join token
+  command: kubeadm token create --print-join-command
+  register: join_command
+  run_once: true
+
+- name: Set join command as fact
+  set_fact:
+    kubernetes_join_command: "{{ join_command.stdout }}"
+  run_once: true
+
+- name: Display join command
+  debug:
+    msg: "{{ kubernetes_join_command }}"
+  run_once: true

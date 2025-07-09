@@ -1,0 +1,178 @@
+name: Infrastructure Management
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform-new/**'
+      - 'ansible/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'terraform-new/**'
+      - 'ansible/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+        - plan
+        - apply
+        - destroy
+
+env:
+  TF_VAR_external_storage_path: ${{ secrets.EXTERNAL_STORAGE_PATH }}
+
+jobs:
+  terraform-plan:
+    runs-on: [self-hosted, kubernetes]
+    name: Terraform Plan
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.6.0"
+    
+    - name: Terraform Init
+      working-directory: terraform-new
+      run: terraform init
+    
+    - name: Terraform Format Check
+      working-directory: terraform-new
+      run: terraform fmt -check
+    
+    - name: Terraform Validate
+      working-directory: terraform-new
+      run: terraform validate
+    
+    - name: Terraform Plan
+      working-directory: terraform-new
+      run: |
+        terraform plan -out=tfplan
+        terraform show -json tfplan > tfplan.json
+    
+    - name: Upload Terraform Plan
+      uses: actions/upload-artifact@v3
+      with:
+        name: terraform-plan
+        path: |
+          terraform-new/tfplan
+          terraform-new/tfplan.json
+
+  terraform-apply:
+    runs-on: [self-hosted, kubernetes]
+    name: Terraform Apply
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.6.0"
+    
+    - name: Terraform Init
+      working-directory: terraform-new
+      run: terraform init
+    
+    - name: Terraform Plan
+      working-directory: terraform-new
+      run: terraform plan -out=tfplan
+    
+    - name: Terraform Apply
+      working-directory: terraform-new
+      run: terraform apply -auto-approve tfplan
+    
+    - name: Get Terraform Outputs
+      working-directory: terraform-new
+      run: |
+        echo "CONTROL_PLANE_IP=$(terraform output -raw control_plane_ip)" >> $GITHUB_ENV
+        echo "WORKER_NODE_IPS=$(terraform output -json worker_node_ips)" >> $GITHUB_ENV
+    
+    - name: Update Ansible Inventory
+      run: |
+        # Update Ansible inventory with actual IP addresses
+        sed -i "s/192.168.122.10/${{ env.CONTROL_PLANE_IP }}/g" ansible/inventory/hosts.yml
+        
+        # Extract worker IPs from JSON and update inventory
+        WORKER_1_IP=$(echo '${{ env.WORKER_NODE_IPS }}' | jq -r '.[0]')
+        WORKER_2_IP=$(echo '${{ env.WORKER_NODE_IPS }}' | jq -r '.[1]')
+        
+        sed -i "s/192.168.122.11/$WORKER_1_IP/g" ansible/inventory/hosts.yml
+        sed -i "s/192.168.122.12/$WORKER_2_IP/g" ansible/inventory/hosts.yml
+    
+    - name: Run Ansible Playbook
+      working-directory: ansible
+      run: |
+        # Wait for VMs to be ready
+        sleep 120
+        
+        # Run the main playbook
+        ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+    
+    - name: Verify Cluster
+      run: |
+        # SSH to control plane and check cluster status
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ env.CONTROL_PLANE_IP }} "kubectl get nodes -o wide"
+
+  terraform-destroy:
+    runs-on: [self-hosted, kubernetes]
+    name: Terraform Destroy
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    environment: 
+      name: destruction
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.6.0"
+    
+    - name: Terraform Init
+      working-directory: terraform-new
+      run: terraform init
+    
+    - name: Terraform Destroy
+      working-directory: terraform-new
+      run: terraform destroy -auto-approve
+
+  ansible-lint:
+    runs-on: [self-hosted, kubernetes]
+    name: Ansible Lint
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Ansible and ansible-lint
+      run: |
+        pip install ansible ansible-lint
+    
+    - name: Run ansible-lint
+      working-directory: ansible
+      run: |
+        ansible-lint playbooks/site.yml
+    
+    - name: Syntax check
+      working-directory: ansible
+      run: |
+        ansible-playbook -i inventory/hosts.yml playbooks/site.yml --syntax-check

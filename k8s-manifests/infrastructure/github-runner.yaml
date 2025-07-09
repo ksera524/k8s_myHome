@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-runner
+  namespace: github-runners
+  labels:
+    app: github-runner
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: github-runner
+  template:
+    metadata:
+      labels:
+        app: github-runner
+    spec:
+      serviceAccountName: github-runner
+      containers:
+      - name: runner
+        image: myoung34/github-runner:latest
+        env:
+        - name: REPO_URL
+          value: "https://github.com/REPLACE_WITH_YOUR_REPO/k8s_myHome"
+        - name: RUNNER_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: RUNNER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-runner-token
+              key: token
+        - name: RUNNER_WORKDIR
+          value: "/tmp/github-runner"
+        - name: RUNNER_GROUP
+          value: "k8s-cluster"
+        - name: LABELS
+          value: "kubernetes,self-hosted,linux,x64"
+        - name: EPHEMERAL
+          value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        - name: runner-tmp
+          mountPath: /tmp/github-runner
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+      - name: runner-tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-runner
+  namespace: github-runners
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: github-runner
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["extensions"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: github-runner
+subjects:
+- kind: ServiceAccount
+  name: github-runner
+  namespace: github-runners

@@ -1,0 +1,50 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-external
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: "REPLACE_WITH_NFS_SERVER_IP"
+  share: "/mnt/external-ssd"
+  mountPermissions: "0755"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: harbor-pv
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-external
+  nfs:
+    path: /mnt/external-ssd/harbor
+    server: "REPLACE_WITH_NFS_SERVER_IP"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: harbor-pvc
+  namespace: harbor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-external
+  resources:
+    requests:
+      storage: 100Gi

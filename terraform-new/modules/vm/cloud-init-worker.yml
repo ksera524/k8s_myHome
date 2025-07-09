@@ -1,0 +1,70 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.local
+
+users:
+  - name: ubuntu
+    ssh_authorized_keys:
+      - ${ssh_key}
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: sudo
+    shell: /bin/bash
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - docker.io
+  - nfs-common
+
+package_update: true
+package_upgrade: true
+
+write_files:
+  - path: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+
+  - path: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "100m"
+        },
+        "storage-driver": "overlay2"
+      }
+
+runcmd:
+  # Load kernel modules
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl --system
+
+  # Configure Docker
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker ubuntu
+
+  # Install kubeadm, kubelet, kubectl
+  - curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+  - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
+  - apt-get update
+  - apt-get install -y kubelet kubeadm kubectl
+  - apt-mark hold kubelet kubeadm kubectl
+
+  # Disable swap
+  - swapoff -a
+  - sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+final_message: "Worker node ${hostname} setup completed"
