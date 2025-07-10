@@ -1,5 +1,5 @@
-# Phase 2: VM構築用Terraformコード
-# Control Plane 1台 + Worker Node 2台のVM構築
+# Phase 2: 改善されたVM構築用Terraformコード
+# ランダムIDを使用してリソース重複を回避
 
 terraform {
   required_version = ">= 1.0"
@@ -8,7 +8,16 @@ terraform {
       source  = "dmacvicar/libvirt"
       version = "~> 0.7.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1"
+    }
   }
+}
+
+# ランダムIDでユニークなリソース名を生成
+resource "random_id" "cluster" {
+  byte_length = 4
 }
 
 # libvirt provider設定
@@ -16,9 +25,9 @@ provider "libvirt" {
   uri = "qemu:///system"
 }
 
-# Ubuntu 22.04 LTS Server イメージのダウンロード
+# Ubuntu 22.04 LTS Server イメージ
 resource "libvirt_volume" "ubuntu_base" {
-  name   = "ubuntu-22.04-server-cloudimg-amd64.img"
+  name   = "ubuntu-base-${random_id.cluster.hex}.img"
   source = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
   pool   = "default"
   format = "qcow2"
@@ -26,97 +35,66 @@ resource "libvirt_volume" "ubuntu_base" {
 
 # Control Plane VM用ディスク
 resource "libvirt_volume" "control_plane_disk" {
-  name           = "k8s-control-plane-disk.qcow2"
+  name           = "k8s-control-plane-${random_id.cluster.hex}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_base.id
   pool           = "default"
   size           = 53687091200  # 50GB
 }
 
-# Worker Node 1用ディスク
-resource "libvirt_volume" "worker1_disk" {
-  name           = "k8s-worker1-disk.qcow2"
+# Worker Node ディスク
+resource "libvirt_volume" "worker_disk" {
+  count          = 2
+  name           = "k8s-worker${count.index + 1}-${random_id.cluster.hex}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_base.id
   pool           = "default"
   size           = 32212254720  # 30GB
 }
 
-# Worker Node 2用ディスク
-resource "libvirt_volume" "worker2_disk" {
-  name           = "k8s-worker2-disk.qcow2"
-  base_volume_id = libvirt_volume.ubuntu_base.id
-  pool           = "default"
-  size           = 32212254720  # 30GB
+# 簡素化されたcloud-init設定
+data "template_file" "user_data" {
+  template = file("${path.module}/cloud-init/user-data.yaml")
+  vars = {
+    username = var.vm_user
+    ssh_key  = var.ssh_public_key
+  }
 }
 
-# ブリッジネットワーク（既存のdefaultネットワークを使用）
-data "libvirt_network" "default" {
-  name = "default"
+data "template_file" "network_config" {
+  count = 3
+  template = file("${path.module}/cloud-init/network-config.yaml")
+  vars = {
+    ip_address = count.index == 0 ? var.control_plane_ip : var.worker_ips[count.index - 1]
+    gateway    = var.network_gateway
+  }
 }
 
-# Control Plane VM用cloud-init設定
+# Control Plane cloud-init
 resource "libvirt_cloudinit_disk" "control_plane_init" {
-  name = "k8s-control-plane-init.iso"
-  pool = "default"
-
-  user_data = templatefile("${path.module}/cloud-init/control-plane-user-data.yaml", {
-    hostname = "k8s-control-plane"
-    username = var.vm_user
-    ssh_key  = var.ssh_public_key
-  })
-
-  network_config = templatefile("${path.module}/cloud-init/network-config.yaml", {
-    ip_address = var.control_plane_ip
-    gateway    = var.network_gateway
-    dns_servers = var.dns_servers
-  })
+  name           = "k8s-control-plane-init-${random_id.cluster.hex}.iso"
+  pool           = "default"
+  user_data      = data.template_file.user_data.rendered
+  network_config = data.template_file.network_config.0.rendered
 }
 
-# Worker Node 1用cloud-init設定
-resource "libvirt_cloudinit_disk" "worker1_init" {
-  name = "k8s-worker1-init.iso"
-  pool = "default"
-
-  user_data = templatefile("${path.module}/cloud-init/worker-user-data.yaml", {
-    hostname = "k8s-worker1"
-    username = var.vm_user
-    ssh_key  = var.ssh_public_key
-  })
-
-  network_config = templatefile("${path.module}/cloud-init/network-config.yaml", {
-    ip_address = var.worker1_ip
-    gateway    = var.network_gateway
-    dns_servers = var.dns_servers
-  })
-}
-
-# Worker Node 2用cloud-init設定
-resource "libvirt_cloudinit_disk" "worker2_init" {
-  name = "k8s-worker2-init.iso"
-  pool = "default"
-
-  user_data = templatefile("${path.module}/cloud-init/worker-user-data.yaml", {
-    hostname = "k8s-worker2"
-    username = var.vm_user
-    ssh_key  = var.ssh_public_key
-  })
-
-  network_config = templatefile("${path.module}/cloud-init/network-config.yaml", {
-    ip_address = var.worker2_ip
-    gateway    = var.network_gateway
-    dns_servers = var.dns_servers
-  })
+# Worker Node cloud-init
+resource "libvirt_cloudinit_disk" "worker_init" {
+  count          = 2
+  name           = "k8s-worker${count.index + 1}-init-${random_id.cluster.hex}.iso"
+  pool           = "default"
+  user_data      = data.template_file.user_data.rendered
+  network_config = data.template_file.network_config[count.index + 1].rendered
 }
 
 # Control Plane VM
 resource "libvirt_domain" "control_plane" {
-  name   = "k8s-control-plane"
-  memory = 8192  # 8GB
-  vcpu   = 4
+  name   = "k8s-control-plane-${random_id.cluster.hex}"
+  memory = var.control_plane_memory
+  vcpu   = var.control_plane_vcpu
 
   cloudinit = libvirt_cloudinit_disk.control_plane_init.id
 
   network_interface {
-    network_id     = data.libvirt_network.default.id
+    network_name   = "default"
     wait_for_lease = true
     addresses      = [var.control_plane_ip]
   }
@@ -136,31 +114,25 @@ resource "libvirt_domain" "control_plane" {
     listen_type = "address"
     autoport    = true
   }
-
-  # 外部ストレージをマウントするためのディスク
-  filesystem {
-    source   = "/mnt/k8s-storage"
-    target   = "k8s-storage"
-    readonly = false
-  }
 }
 
-# Worker Node 1 VM
-resource "libvirt_domain" "worker1" {
-  name   = "k8s-worker1"
-  memory = 4096  # 4GB
-  vcpu   = 2
+# Worker Node VMs
+resource "libvirt_domain" "worker" {
+  count  = 2
+  name   = "k8s-worker${count.index + 1}-${random_id.cluster.hex}"
+  memory = var.worker_memory
+  vcpu   = var.worker_vcpu
 
-  cloudinit = libvirt_cloudinit_disk.worker1_init.id
+  cloudinit = libvirt_cloudinit_disk.worker_init[count.index].id
 
   network_interface {
-    network_id     = data.libvirt_network.default.id
+    network_name   = "default"
     wait_for_lease = true
-    addresses      = [var.worker1_ip]
+    addresses      = [var.worker_ips[count.index]]
   }
 
   disk {
-    volume_id = libvirt_volume.worker1_disk.id
+    volume_id = libvirt_volume.worker_disk[count.index].id
   }
 
   console {
@@ -173,50 +145,5 @@ resource "libvirt_domain" "worker1" {
     type        = "spice"
     listen_type = "address"
     autoport    = true
-  }
-
-  # 外部ストレージをマウントするためのディスク
-  filesystem {
-    source   = "/mnt/k8s-storage"
-    target   = "k8s-storage"
-    readonly = false
-  }
-}
-
-# Worker Node 2 VM
-resource "libvirt_domain" "worker2" {
-  name   = "k8s-worker2"
-  memory = 4096  # 4GB
-  vcpu   = 2
-
-  cloudinit = libvirt_cloudinit_disk.worker2_init.id
-
-  network_interface {
-    network_id     = data.libvirt_network.default.id
-    wait_for_lease = true
-    addresses      = [var.worker2_ip]
-  }
-
-  disk {
-    volume_id = libvirt_volume.worker2_disk.id
-  }
-
-  console {
-    type        = "pty"
-    target_port = "0"
-    target_type = "serial"
-  }
-
-  graphics {
-    type        = "spice"
-    listen_type = "address"
-    autoport    = true
-  }
-
-  # 外部ストレージをマウントするためのディスク
-  filesystem {
-    source   = "/mnt/k8s-storage"
-    target   = "k8s-storage"
-    readonly = false
   }
 }
