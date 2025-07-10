@@ -1,0 +1,111 @@
+#cloud-config
+# Control Plane VM用cloud-init設定
+
+hostname: ${hostname}
+manage_etc_hosts: true
+
+# ユーザー設定
+users:
+  - name: ${username}
+    groups: [adm, cdrom, dip, plugdev, lxd, sudo]
+    lock_passwd: false
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_key}
+
+# システム更新とパッケージインストール
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - net-tools
+  - nfs-common
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - apt-transport-https
+  - software-properties-common
+
+# Docker インストール
+runcmd:
+  # Docker GPGキー追加
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  # Docker リポジトリ追加
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  # パッケージ更新とDocker インストール
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  # Docker サービス開始
+  - systemctl enable docker
+  - systemctl start docker
+  # ユーザーをdockerグループに追加
+  - usermod -aG docker ${username}
+  
+  # Kubernetes パッケージリポジトリ追加
+  - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  - echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+  # Kubernetes コンポーネントインストール
+  - apt-get update
+  - apt-get install -y kubelet kubeadm kubectl
+  - apt-mark hold kubelet kubeadm kubectl
+  
+  # containerd設定
+  - mkdir -p /etc/containerd
+  - containerd config default | tee /etc/containerd/config.toml
+  - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+  - systemctl restart containerd
+  
+  # カーネルモジュール設定
+  - modprobe overlay
+  - modprobe br_netfilter
+  - echo 'overlay' >> /etc/modules-load.d/k8s.conf
+  - echo 'br_netfilter' >> /etc/modules-load.d/k8s.conf
+  
+  # sysctl設定
+  - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.d/k8s.conf
+  - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.d/k8s.conf
+  - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.d/k8s.conf
+  - sysctl --system
+  
+  # swap無効化
+  - swapoff -a
+  - sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  
+  # NFSマウントポイント作成
+  - mkdir -p /mnt/nfs-storage
+  
+  # システム設定完了の印
+  - touch /var/log/cloud-init-complete
+
+# ファイル作成
+write_files:
+  - path: /etc/systemd/system/nfs-mount.service
+    content: |
+      [Unit]
+      Description=Mount NFS Storage
+      After=network.target
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/mount -t nfs 192.168.122.1:/mnt/k8s-storage/nfs-share /mnt/nfs-storage
+      RemainAfterExit=yes
+      
+      [Install]
+      WantedBy=multi-user.target
+    permissions: '0644'
+
+# サービス有効化
+runcmd:
+  - systemctl enable nfs-mount.service
+
+# タイムゾーン設定
+timezone: Asia/Tokyo
+
+# ログ出力
+final_message: "Control Plane VM setup complete after $UPTIME seconds"

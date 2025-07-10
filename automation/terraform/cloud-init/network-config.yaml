@@ -1,0 +1,10 @@
+# VM用ネットワーク設定
+version: 2
+ethernets:
+  enp1s0:
+    addresses:
+      - ${ip_address}/24
+    gateway4: ${gateway}
+    nameservers:
+      addresses: ${jsonencode(dns_servers)}
+    dhcp4: false
