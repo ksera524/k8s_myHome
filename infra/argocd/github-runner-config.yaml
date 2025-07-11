@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: controller-manager
+  namespace: actions-runner-system
+type: Opaque
+data:
+  # Base64 encoded GitHub token - Replace with your actual token
+  # echo -n "YOUR_GITHUB_TOKEN" | base64
+  github_token: WU9VUl9HSVRIVUJfVE9LRU4=
+---
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: k8s-myhome-runners
+  namespace: actions-runner-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      repository: YOUR_USERNAME/k8s_myHome
+      # organization: YOUR_ORG_NAME  # Use this instead of repository for org-level runners
+      labels:
+        - self-hosted
+        - linux
+        - k8s
+        - docker
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+      dockerdWithinRunnerContainer: true
+      dockerEnabled: true
+      env:
+        - name: DOCKER_HOST
+          value: unix:///var/run/docker.sock
+---
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: HorizontalRunnerAutoscaler
+metadata:
+  name: k8s-myhome-runners-autoscaler
+  namespace: actions-runner-system
+spec:
+  scaleTargetRef:
+    name: k8s-myhome-runners
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: TotalNumberOfQueuedAndInProgressWorkflowRuns
+    repositoryNames:
+    - YOUR_USERNAME/k8s_myHome
+  scaleDownDelaySecondsAfterScaleOut: 300
+  scaleUpTriggers:
+  - githubEvent:
+      workflowJob: {}
+    amount: 1
+    duration: "5m"

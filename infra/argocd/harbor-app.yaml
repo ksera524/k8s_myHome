@@ -1,0 +1,129 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://helm.goharbor.io'
+    targetRevision: 1.13.1
+    chart: harbor
+    helm:
+      values: |
+        expose:
+          type: ingress
+          tls:
+            enabled: true
+            certSource: secret
+            secret:
+              secretName: "harbor-tls"
+          ingress:
+            hosts:
+              core: harbor.local
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+        
+        externalURL: https://harbor.local
+        
+        harborAdminPassword: "Harbor12345"
+        
+        persistence:
+          enabled: true
+          resourcePolicy: "keep"
+          persistentVolumeClaim:
+            registry:
+              size: 10Gi
+              storageClass: "local-storage"
+            chartmuseum:
+              size: 5Gi
+              storageClass: "local-storage"
+            jobservice:
+              size: 1Gi
+              storageClass: "local-storage"
+            database:
+              size: 1Gi
+              storageClass: "local-storage"
+            redis:
+              size: 1Gi
+              storageClass: "local-storage"
+            trivy:
+              size: 5Gi
+              storageClass: "local-storage"
+        
+        database:
+          type: internal
+        
+        redis:
+          type: internal
+        
+        trivy:
+          enabled: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+        
+        core:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        
+        portal:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        
+        registry:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        
+        chartmuseum:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        
+        jobservice:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

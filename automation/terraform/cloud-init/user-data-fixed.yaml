@@ -1,0 +1,64 @@
+#cloud-config
+# 修正版cloud-init設定（パスワード認証付き）
+
+hostname: ${vm_hostname}
+manage_etc_hosts: true
+
+# ユーザー設定
+users:
+  - name: ${username}
+    groups: [adm, cdrom, dip, plugdev, lxd, sudo]
+    lock_passwd: false
+    passwd: $6$rounds=4096$saltsalt$L9tjczoIXdNY.Oqc/VKJ5F.YwC7U9zFcHWYR0.GhA1l2LhqRl2FfT3G8XN2QfwK9s5oLlrOXwKfjN1.21h2j31
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${ssh_key}
+
+# rootユーザーのパスワード設定（テスト用）
+chpasswd:
+  list: |
+    ${username}:password
+    root:password
+  expire: false
+
+# システム更新とパッケージインストール
+package_update: true
+package_upgrade: false  # 時間短縮のため無効
+
+packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - net-tools
+  - nfs-common
+  - openssh-server
+
+# SSH設定
+ssh_pwauth: true
+disable_root: false
+
+# 基本設定のみ
+runcmd:
+  # SSH サービス有効化
+  - systemctl enable ssh
+  - systemctl start ssh
+  
+  # swap無効化
+  - swapoff -a
+  - sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  
+  # NFS共有のマウント
+  - mkdir -p /mnt/nfs-storage
+  - echo "192.168.122.1:/mnt/k8s-storage/nfs-share /mnt/nfs-storage nfs defaults 0 0" >> /etc/fstab
+  - mount -a || true
+  
+  # 完了マーカー
+  - touch /var/log/cloud-init-complete
+
+# タイムゾーン設定
+timezone: Asia/Tokyo
+
+# ログ出力
+final_message: "VM setup complete after $UPTIME seconds"

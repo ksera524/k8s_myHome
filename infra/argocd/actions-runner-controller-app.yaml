@@ -1,0 +1,67 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: actions-runner-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://actions-runner-controller.github.io/actions-runner-controller'
+    targetRevision: 0.23.7
+    chart: actions-runner-controller
+    helm:
+      values: |
+        replicaCount: 1
+        
+        image:
+          repository: summerwind/actions-runner-controller
+          tag: v0.27.5
+          pullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        
+        env:
+          - name: GITHUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: controller-manager
+                key: github_token
+                optional: false
+        
+        authSecret:
+          create: false
+          name: "controller-manager"
+        
+        serviceAccount:
+          create: true
+          name: actions-runner-controller
+        
+        rbac:
+          create: true
+        
+        metrics:
+          enabled: true
+          port: 8080
+          serviceMonitor:
+            enabled: false
+        
+        webhook:
+          enabled: false
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: actions-runner-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

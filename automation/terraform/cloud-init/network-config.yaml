@@ -1,0 +1,12 @@
+# 修正版ネットワーク設定（実際のインターフェース名とモダンな設定を使用）
+version: 2
+ethernets:
+  ens3:
+    addresses:
+      - ${ip_address}/24
+    routes:
+      - to: default
+        via: ${gateway}
+    nameservers:
+      addresses: ["8.8.8.8", "8.8.4.4"]
+    dhcp4: false
