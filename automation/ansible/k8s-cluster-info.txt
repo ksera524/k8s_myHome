@@ -1,0 +1,7 @@
+=== kubectl 接続情報 ===
+Control Plane: 192.168.122.10
+kubectl config: /home/k8suser/.kube/config
+
+=== 外部接続用 ===
+scp k8suser@192.168.122.10:/home/k8suser/.kube/config ~/.kube/config-k8s-cluster
+export KUBECONFIG=~/.kube/config-k8s-cluster
