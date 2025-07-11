@@ -1,7 +1,8 @@
-#cloud-config
-# 簡素化されたcloud-init設定
 
-hostname: ${hostname}
+#cloud-config
+# 修正版cloud-init設定（パスワード認証付き）
+
+hostname: ${vm_hostname}
 manage_etc_hosts: true
 
 # ユーザー設定
@@ -9,10 +10,18 @@ users:
   - name: ${username}
     groups: [adm, cdrom, dip, plugdev, lxd, sudo]
     lock_passwd: false
+    passwd: $6$rounds=4096$saltsalt$L9tjczoIXdNY.Oqc/VKJ5F.YwC7U9zFcHWYR0.GhA1l2LhqRl2FfT3G8XN2QfwK9s5oLlrOXwKfjN1.21h2j31
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
       - ${ssh_key}
+
+# rootユーザーのパスワード設定（テスト用）
+chpasswd:
+  list: |
+    ${username}:password
+    root:password
+  expire: false
 
 # システム更新とパッケージインストール
 package_update: true
@@ -25,9 +34,18 @@ packages:
   - vim
   - net-tools
   - nfs-common
+  - openssh-server
+
+# SSH設定
+ssh_pwauth: true
+disable_root: false
 
 # 基本設定のみ
 runcmd:
+  # SSH サービス有効化
+  - systemctl enable ssh
+  - systemctl start ssh
+  
   # swap無効化
   - swapoff -a
   - sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
@@ -43,5 +61,5 @@ runcmd:
 # タイムゾーン設定
 timezone: Asia/Tokyo
 
-# 最小限のログ出力
+# ログ出力
 final_message: "VM setup complete after $UPTIME seconds"

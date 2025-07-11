@@ -52,8 +52,10 @@ resource "libvirt_volume" "worker_disk" {
 
 # 簡素化されたcloud-init設定
 data "template_file" "user_data" {
+  count = 3
   template = file("${path.module}/cloud-init/user-data.yaml")
   vars = {
+    vm_hostname = count.index == 0 ? "k8s-control-plane" : "k8s-worker&{count.index}"
     username = var.vm_user
     ssh_key  = var.ssh_public_key
   }
@@ -72,7 +74,7 @@ data "template_file" "network_config" {
 resource "libvirt_cloudinit_disk" "control_plane_init" {
   name           = "k8s-control-plane-init-${random_id.cluster.hex}.iso"
   pool           = "default"
-  user_data      = data.template_file.user_data.rendered
+  user_data      = data.template_file.user_data.0.rendered
   network_config = data.template_file.network_config.0.rendered
 }
 
@@ -81,7 +83,7 @@ resource "libvirt_cloudinit_disk" "worker_init" {
   count          = 2
   name           = "k8s-worker${count.index + 1}-init-${random_id.cluster.hex}.iso"
   pool           = "default"
-  user_data      = data.template_file.user_data.rendered
+  user_data      = data.template_file.user_data[count.index + 1].rendered
   network_config = data.template_file.network_config[count.index + 1].rendered
 }
 
@@ -95,7 +97,7 @@ resource "libvirt_domain" "control_plane" {
 
   network_interface {
     network_name   = "default"
-    wait_for_lease = true
+    wait_for_lease = false
     addresses      = [var.control_plane_ip]
   }
 
@@ -127,7 +129,7 @@ resource "libvirt_domain" "worker" {
 
   network_interface {
     network_name   = "default"
-    wait_for_lease = true
+    wait_for_lease = false
     addresses      = [var.worker_ips[count.index]]
   }
 
