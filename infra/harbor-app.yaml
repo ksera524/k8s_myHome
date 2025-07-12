@@ -18,6 +18,8 @@ spec:
           tls:
             enabled: true
             certSource: auto
+            ayto: 
+              commonName: qroksera.com
           loadBalancer:
             name: harbor
             ports:
