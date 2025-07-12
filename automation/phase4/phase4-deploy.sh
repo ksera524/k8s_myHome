@@ -259,7 +259,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra/argocd
+    path: infra
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
@@ -324,7 +324,7 @@ cat > phase4-info.txt << EOF
 
 ArgoCD App of Apps デプロイ済み:
 - リポジトリ: https://github.com/ksera524/k8s_myHome.git
-- 管理対象: infra/argocd/*.yaml
+- 管理対象: infra/*.yaml
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10

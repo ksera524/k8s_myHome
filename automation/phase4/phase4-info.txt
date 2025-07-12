@@ -1,19 +1,22 @@
-=== Phase 4 基本インフラ構築完了 ===
+=== Phase 4 基本インフラ構築完了 (GitOps対応版) ===
 
 構築完了コンポーネント:
-- MetalLB (LoadBalancer): 4 Pod(s)
-- NGINX Ingress Controller: 1 Pod(s)  
-- cert-manager: 3 Pod(s)
+- MetalLB (LoadBalancer)
+- NGINX Ingress Controller  
+- cert-manager
 - ArgoCD: 0
-0 Pod(s)
+0 Pod(s) Running
 - LoadBalancer IP: 192.168.122.100
+
+ArgoCD App of Apps デプロイ済み:
+- リポジトリ: https://github.com/ksera524/k8s_myHome.git
+- 管理対象: infra/argocd/*.yaml
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10
+- ArgoCD UI: kubectl port-forward svc/argocd-server -n argocd 8080:443
 - LoadBalancer経由: http://192.168.122.100 (Ingressルーティング)
 
-確認コマンド:
-kubectl get pods --all-namespaces
-kubectl -n ingress-nginx get service
-kubectl get clusterissuer
-kubectl -n argocd get service argocd-server
+手動セットアップ必要項目:
+1. Cloudflared Secret作成
+2. GitHub Actions Runner Token設定
