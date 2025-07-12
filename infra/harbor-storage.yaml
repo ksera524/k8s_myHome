@@ -18,7 +18,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - worker-1
+          - k8s-worker1
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -40,7 +40,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - worker-1
+          - k8s-worker1
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -62,7 +62,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - worker-1
+          - k8s-worker1
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -84,7 +84,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - worker-1
+          - k8s-worker1
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -106,4 +106,4 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - worker-1
+          - k8s-worker1
