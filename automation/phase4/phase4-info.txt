@@ -10,7 +10,7 @@
 
 ArgoCD App of Apps デプロイ済み:
 - リポジトリ: https://github.com/ksera524/k8s_myHome.git
-- 管理対象: infra/argocd/*.yaml
+- 管理対象: infra/*.yaml
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10

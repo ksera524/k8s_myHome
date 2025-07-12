@@ -37,7 +37,7 @@ if [[ ! -d "$MOUNT_BASE/local-volumes" ]]; then
 fi
 
 # Create application directories if missing
-for app in factorio cloudflared hitomi pepup rss s3s slack; do
+for app in cloudflared hitomi pepup rss slack; do
     if [[ ! -d "$MOUNT_BASE/local-volumes/$app" ]]; then
         sudo mkdir -p "$MOUNT_BASE/local-volumes/$app"
         print_status "Created $app directory"

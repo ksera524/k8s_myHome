@@ -14,12 +14,17 @@ spec:
     helm:
       values: |
         expose:
-          type: ingress
+          type: loadBalancer
           tls:
             enabled: true
-            certSource: secret
-            secret:
-              secretName: "harbor-tls"
+            certSource: auto
+          loadBalancer:
+            name: harbor
+            ports:
+              httpPort: 80
+              httpsPort: 443
+            annotations:
+              metallb.universe.tf/loadBalancerIPs: "192.168.122.101"
           ingress:
             hosts:
               core: harbor.local
@@ -30,7 +35,7 @@ spec:
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
         
-        externalURL: https://harbor.local
+        externalURL: https://192.168.122.101
         
         harborAdminPassword: "Harbor12345"
         
