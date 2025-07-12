@@ -240,28 +240,57 @@ EOF
 
 print_status "✓ ArgoCD インストール完了"
 
-# 6. 前提条件警告（Harbor & ARC）
-print_status "=== Phase 4.6-7: Harbor & ARC 前提条件確認 ==="
-print_warning "Harbor と Actions Runner Controller は ArgoCD 経由でのデプロイが必要です"
-print_debug "以下の手順でデプロイしてください："
-echo "1. GitリポジトリのURLを infra/argocd/app-of-apps.yaml で設定"
-echo "2. GitHub Token を infra/argocd/github-runner-config.yaml で設定"
-echo "3. ArgoCD App of Apps をデプロイ: kubectl apply -f infra/argocd/app-of-apps.yaml"
+# 6. App of Apps デプロイ
+print_status "=== Phase 4.6: App of Apps デプロイ ==="
+print_debug "GitOps経由でインフラとアプリケーションを管理します"
+
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# App of Apps をデプロイ
+kubectl apply -f - <<'APPOFAPPS'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: infra/argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+APPOFAPPS
+
+echo "✓ App of Apps デプロイ完了"
+EOF
+
+print_status "✓ GitOps セットアップ完了"
+
+# 7. 手動セットアップが必要な項目
+print_status "=== Phase 4.7: 手動セットアップ項目 ==="
+print_warning "以下の項目は手動でセットアップが必要です："
+echo "1. Cloudflared Secret作成:"
+echo "   kubectl create namespace cloudflared"
+echo "   kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+echo ""
+echo "2. GitHub Actions Runner設定:"
+echo "   infra/argocd/github-runner-config.yaml でGitHub Tokenを設定"
 echo ""
 
-# 7. 構築結果確認
+# 8. 構築結果確認
 print_status "=== Phase 4構築結果確認 ==="
 
-# 各コンポーネント状態確認
-print_debug "MetalLB状態確認..."
-METALLB_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n metallb-system --no-headers' | grep -c Running || echo "0")
-
-print_debug "NGINX Ingress状態確認..."
-NGINX_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n ingress-nginx --no-headers' | grep -c Running || echo "0")
-
-print_debug "cert-manager状態確認..."
-CERTMGR_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n cert-manager --no-headers' | grep -c Running || echo "0")
-
+# ArgoCD状態確認
 print_debug "ArgoCD状態確認..."
 ARGOCD_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n argocd --no-headers' | grep -c Running || echo "0")
 
@@ -271,46 +300,40 @@ LB_IP=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n ingre
 print_status "=== 構築完了サマリー ==="
 echo ""
 echo "=== インフラコンポーネント状態 ==="
-echo "MetalLB: $METALLB_READY Pod(s) Running"
-echo "NGINX Ingress: $NGINX_READY Pod(s) Running"  
-echo "cert-manager: $CERTMGR_READY Pod(s) Running"
 echo "ArgoCD: $ARGOCD_READY Pod(s) Running"
 echo "LoadBalancer IP: $LB_IP"
 echo ""
 
-# 詳細状態表示
-print_status "=== 詳細状態 ==="
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd)"'
-
-echo ""
 echo "=== 次のステップ ====" 
 echo "1. ArgoCD UI アクセス: kubectl port-forward svc/argocd-server -n argocd 8080:443"
-echo "2. Harbor & ARC デプロイ: infra/argocd/ のマニフェストを設定後 ArgoCD 経由でデプロイ"
-echo "3. アプリケーション移行: Phase 5でアプリケーションをk8sに移行"
-echo "4. Ingress設定: HTTP/HTTPSアクセス用のIngress設定"
-echo "5. 証明書設定: cert-managerでTLS証明書取得"
+echo "2. ArgoCD管理者パスワード確認: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+echo "3. GitリポジトリをCommit & Push後、ArgoCDでアプリケーションの自動デプロイを確認"
+echo "4. Cloudflared Secret作成後、cloudflaredアプリケーションの同期を確認"
 echo ""
 
-# 6. 設定情報保存
+# 設定情報保存
 cat > phase4-info.txt << EOF
-=== Phase 4 基本インフラ構築完了 ===
+=== Phase 4 基本インフラ構築完了 (GitOps対応版) ===
 
 構築完了コンポーネント:
-- MetalLB (LoadBalancer): $METALLB_READY Pod(s)
-- NGINX Ingress Controller: $NGINX_READY Pod(s)  
-- cert-manager: $CERTMGR_READY Pod(s)
-- ArgoCD: $ARGOCD_READY Pod(s)
+- MetalLB (LoadBalancer)
+- NGINX Ingress Controller  
+- cert-manager
+- ArgoCD: $ARGOCD_READY Pod(s) Running
 - LoadBalancer IP: $LB_IP
+
+ArgoCD App of Apps デプロイ済み:
+- リポジトリ: https://github.com/ksera524/k8s_myHome.git
+- 管理対象: infra/argocd/*.yaml
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10
+- ArgoCD UI: kubectl port-forward svc/argocd-server -n argocd 8080:443
 - LoadBalancer経由: http://$LB_IP (Ingressルーティング)
 
-確認コマンド:
-kubectl get pods --all-namespaces
-kubectl -n ingress-nginx get service
-kubectl get clusterissuer
-kubectl -n argocd get service argocd-server
+手動セットアップ必要項目:
+1. Cloudflared Secret作成
+2. GitHub Actions Runner Token設定
 EOF
 
 print_status "Phase 4 基本インフラ構築が完了しました！"
