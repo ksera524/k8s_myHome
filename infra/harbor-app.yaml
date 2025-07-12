@@ -14,19 +14,12 @@ spec:
     helm:
       values: |
         expose:
-          type: loadBalancer
+          type: ingress
           tls:
             enabled: true
             certSource: auto
             auto: 
               commonName: qroksera.com
-          loadBalancer:
-            name: harbor
-            ports:
-              httpPort: 80
-              httpsPort: 443
-            annotations:
-              metallb.universe.tf/loadBalancerIPs: "192.168.122.100"
           ingress:
             hosts:
               core: harbor.local
@@ -37,7 +30,7 @@ spec:
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
         
-        externalURL: https://192.168.122.100
+        externalURL: https://harbor.local
         
         harborAdminPassword: "Harbor12345"
         
