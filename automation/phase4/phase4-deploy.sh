@@ -276,18 +276,37 @@ EOF
 
 print_status "✓ GitOps セットアップ完了"
 
-# 7. 手動セットアップが必要な項目
-print_status "=== Phase 4.7: 手動セットアップ項目 ==="
+# 7. GitHub Actions Runner Controller (ARC) セットアップ
+print_status "=== Phase 4.7: GitHub Actions Runner Controller (ARC) セットアップ ==="
+print_debug "GitHub Actions Self-hosted Runnerをk8s上にデプロイします"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]] && [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${GITHUB_USERNAME:-}" ]]; then
+    print_debug "ARC セットアップスクリプトを実行中..."
+    bash "$SCRIPT_DIR/setup-arc.sh"
+else
+    print_warning "ARC セットアップをスキップしました"
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        print_warning "GITHUB_TOKEN環境変数が設定されていません"
+    fi
+    if [[ -z "${GITHUB_USERNAME:-}" ]]; then
+        print_warning "GITHUB_USERNAME環境変数が設定されていません"
+    fi
+    print_warning "手動でセットアップする場合："
+    echo "  export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+    echo "  export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
+    echo "  bash $SCRIPT_DIR/setup-arc.sh"
+fi
+
+# 8. 手動セットアップが必要な項目
+print_status "=== Phase 4.8: 手動セットアップ項目 ==="
 print_warning "以下の項目は手動でセットアップが必要です："
 echo "1. Cloudflared Secret作成:"
 echo "   kubectl create namespace cloudflared"
 echo "   kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
 echo ""
-echo "2. GitHub Actions Runner設定:"
-echo "   infra/argocd/github-runner-config.yaml でGitHub Tokenを設定"
-echo ""
 
-# 8. 構築結果確認
+# 9. 構築結果確認
 print_status "=== Phase 4構築結果確認 ==="
 
 # ArgoCD状態確認
