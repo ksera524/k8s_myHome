@@ -349,7 +349,9 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     # 設定確認とARC実行
     if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${GITHUB_USERNAME:-}" ]]; then
         print_debug "ARC セットアップスクリプトを実行中..."
-        bash "$SCRIPT_DIR/setup-arc.sh"
+        print_debug "渡される値: HARBOR_USERNAME=$HARBOR_USERNAME, HARBOR_PASSWORD=${HARBOR_PASSWORD:0:3}..."
+        # 環境変数を明示的に渡して実行
+        GITHUB_TOKEN="$GITHUB_TOKEN" GITHUB_USERNAME="$GITHUB_USERNAME" HARBOR_USERNAME="$HARBOR_USERNAME" HARBOR_PASSWORD="$HARBOR_PASSWORD" bash "$SCRIPT_DIR/setup-arc.sh"
     else
         print_warning "GitHub設定が不完全のため、ARC セットアップをスキップしました"
         print_warning "後で手動セットアップする場合："
