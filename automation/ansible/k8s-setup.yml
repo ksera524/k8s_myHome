@@ -322,6 +322,18 @@
     - name: join結果表示
       debug:
         msg: "{{ join_result.stdout }}"
+        
+    - name: Harbor用ストレージディレクトリ作成
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0777'
+      loop:
+        - /tmp/harbor-registry
+        - /tmp/harbor-database
+        - /tmp/harbor-redis
+        - /tmp/harbor-trivy
+        - /tmp/harbor-jobservice
 
 - name: "Phase 3.3: CNI (Flannel) インストール"
   hosts: control_plane

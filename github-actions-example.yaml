@@ -1,0 +1,62 @@
+# GitHub Actions workflow example for building and pushing to Harbor
+# .github/workflows/build-and-push.yml
+
+name: Build and Push to Harbor
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, harbor-enabled]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Harbor
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.HARBOR_URL }}
+        username: admin
+        password: Harbor12345
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.HARBOR_URL }}/${{ env.HARBOR_PROJECT }}/${{ github.event.repository.name }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Image scan with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.HARBOR_URL }}/${{ env.HARBOR_PROJECT }}/${{ github.event.repository.name }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

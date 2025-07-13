@@ -1,0 +1,445 @@
+# Actions Runner Controller System - All in One
+# GitHub Personal Access Token Secret
+# 手動で設定する必要があります:
+# kubectl create secret generic controller-manager \
+#   --from-literal=github_token=YOUR_GITHUB_TOKEN \
+#   -n actions-runner-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: actions-runner-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: controller-manager
+  namespace: actions-runner-system
+type: Opaque
+data:
+  github_token: # Base64エンコードされたGitHub Personal Access Tokenを設定
+---
+# Harbor認証用Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-registry-secret
+  namespace: actions-runner-system
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: # Base64エンコードされたDocker config.jsonを設定
+  # 生成方法:
+  # kubectl create secret docker-registry harbor-registry-secret \
+  #   --docker-server=192.168.122.100 \
+  #   --docker-username=admin \
+  #   --docker-password=Harbor12345 \
+  #   -n actions-runner-system --dry-run=client -o yaml
+---
+# 環境変数用ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: runner-config
+  namespace: actions-runner-system
+data:
+  HARBOR_URL: "192.168.122.100"
+  HARBOR_PROJECT: "sandbox"
+---
+# Actions Runner Controller Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actions-runner-controller
+  namespace: actions-runner-system
+  labels:
+    app: actions-runner-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: actions-runner-controller
+  template:
+    metadata:
+      labels:
+        app: actions-runner-controller
+    spec:
+      serviceAccountName: actions-runner-controller
+      containers:
+      - name: manager
+        image: sumologic/actions-runner-controller:v0.27.4
+        command:
+        - /manager
+        args:
+        - --enable-leader-election
+        - --sync-period=1m
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: controller-manager
+              key: github_token
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
+      terminationGracePeriodSeconds: 10
+---
+# ServiceAccount for Actions Runner Controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: actions-runner-controller
+  namespace: actions-runner-system
+---
+# ClusterRole for Actions Runner Controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: actions-runner-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - persistentvolumeclaims
+  - pods
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - actions.sumologic.com
+  resources:
+  - horizontalrunnerautoscalers
+  - runnerdeployments
+  - runnerreplicasets
+  - runners
+  - runnersets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - actions.sumologic.com
+  resources:
+  - horizontalrunnerautoscalers/finalizers
+  - runnerdeployments/finalizers
+  - runnerreplicasets/finalizers
+  - runners/finalizers
+  - runnersets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - actions.sumologic.com
+  resources:
+  - horizontalrunnerautoscalers/status
+  - runnerdeployments/status
+  - runnerreplicasets/status
+  - runners/status
+  - runnersets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+---
+# ClusterRoleBinding for Actions Runner Controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: actions-runner-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: actions-runner-controller
+subjects:
+- kind: ServiceAccount
+  name: actions-runner-controller
+  namespace: actions-runner-system
+---
+# Service for Actions Runner Controller
+apiVersion: v1
+kind: Service
+metadata:
+  name: actions-runner-controller-webhook-service
+  namespace: actions-runner-system
+spec:
+  ports:
+  - port: 443
+    targetPort: 9443
+  selector:
+    app: actions-runner-controller
+---
+# Service for metrics
+apiVersion: v1
+kind: Service
+metadata:
+  name: actions-runner-controller-metrics-service
+  namespace: actions-runner-system
+  labels:
+    app: actions-runner-controller
+spec:
+  ports:
+  - name: https
+    port: 8443
+    targetPort: 8080
+  selector:
+    app: actions-runner-controller
+---
+# Self-signed certificate for webhook
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-server-cert
+  namespace: actions-runner-system
+type: kubernetes.io/tls
+data:
+  tls.crt: # Base64エンコードされた自己署名証明書
+  tls.key: # Base64エンコードされた秘密鍵
+---
+# Custom Resource Definitions
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runnerdeployments.actions.sumologic.com
+spec:
+  group: actions.sumologic.com
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              template:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                    properties:
+                      repository:
+                        type: string
+                      group:
+                        type: string
+                      labels:
+                        type: array
+                        items:
+                          type: string
+                      image:
+                        type: string
+                      dockerdWithinRunnerContainer:
+                        type: boolean
+                      resources:
+                        type: object
+                      env:
+                        type: array
+                      volumeMounts:
+                        type: array
+                      volumes:
+                        type: array
+                      nodeSelector:
+                        type: object
+                      tolerations:
+                        type: array
+                      securityContext:
+                        type: object
+              replicas:
+                type: integer
+                minimum: 0
+          status:
+            type: object
+  scope: Namespaced
+  names:
+    plural: runnerdeployments
+    singular: runnerdeployment
+    kind: RunnerDeployment
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runners.actions.sumologic.com
+spec:
+  group: actions.sumologic.com
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              repository:
+                type: string
+              group:
+                type: string
+              labels:
+                type: array
+                items:
+                  type: string
+              image:
+                type: string
+              dockerdWithinRunnerContainer:
+                type: boolean
+              resources:
+                type: object
+              env:
+                type: array
+              volumeMounts:
+                type: array
+              volumes:
+                type: array
+              nodeSelector:
+                type: object
+              tolerations:
+                type: array
+              securityContext:
+                type: object
+          status:
+            type: object
+  scope: Namespaced
+  names:
+    plural: runners
+    singular: runner
+    kind: Runner
+---
+# ユーザーレベルのRunner Deployment
+apiVersion: actions.sumologic.com/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: user-runners
+  namespace: actions-runner-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      repository: ksera524  # GitHubユーザー名に変更
+      labels:
+        - self-hosted
+        - linux
+        - harbor-enabled
+      
+      image: sumologic/actions-runner:ubuntu-20.04
+      
+      # Docker-in-Dockerサポート
+      dockerdWithinRunnerContainer: true
+      
+      # リソース制限
+      resources:
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      
+      # 環境変数
+      env:
+        - name: HARBOR_URL
+          valueFrom:
+            configMapKeyRef:
+              name: runner-config
+              key: HARBOR_URL
+        - name: HARBOR_PROJECT
+          valueFrom:
+            configMapKeyRef:
+              name: runner-config
+              key: HARBOR_PROJECT
+        - name: DOCKER_HOST
+          value: tcp://localhost:2376
+        - name: DOCKER_TLS_VERIFY
+          value: "1"
+        - name: DOCKER_CERT_PATH
+          value: /certs/client
+      
+      # 永続ボリューム（ビルドキャッシュ用）
+      volumeMounts:
+        - name: docker-cache
+          mountPath: /var/lib/docker
+        - name: work-volume
+          mountPath: /home/runner/_work
+        - name: docker-certs
+          mountPath: /certs/client
+          readOnly: true
+        - name: docker-auth
+          mountPath: /home/runner/.docker
+          readOnly: true
+      
+      volumes:
+        - name: docker-cache
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: work-volume
+          emptyDir:
+            sizeLimit: 5Gi
+        - name: docker-certs
+          emptyDir: {}
+        - name: docker-auth
+          secret:
+            secretName: harbor-registry-secret
+            items:
+              - key: .dockerconfigjson
+                path: config.json
+      
+      # Node配置制御
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      
+      tolerations: []
