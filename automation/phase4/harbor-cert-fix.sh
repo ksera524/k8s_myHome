@@ -21,6 +21,54 @@ fi
 
 echo "✓ k8sクラスタ接続OK"
 
+# Harborのデプロイ状況確認
+echo "Harbor namespaceとデプロイ状況を確認中..."
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get namespace harbor' >/dev/null 2>&1; then
+    echo "⚠️  Harbor namespaceが見つかりません"
+    echo "Phase 4のApp of Apps (ArgoCD)でHarborがデプロイされるまで待機中..."
+    
+    # 最大5分間Harborデプロイを待機
+    for i in {1..30}; do
+        echo "  待機中... ($i/30)"
+        sleep 10
+        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get namespace harbor' >/dev/null 2>&1; then
+            echo "✓ Harbor namespaceが作成されました"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "❌ Harbor namespace作成のタイムアウト"
+            echo "ArgoCD経由でのHarborデプロイが完了していない可能性があります"
+            echo "手動確認: kubectl get applications -n argocd"
+            exit 1
+        fi
+    done
+fi
+
+# Harborポッドの稼働確認
+echo "Harborポッドの稼働状況を確認中..."
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n harbor | grep harbor-core | grep Running' >/dev/null 2>&1; then
+    echo "⚠️  HarborのCoreポッドがまだ稼働していません"
+    echo "Harborポッドの起動を待機中..."
+    
+    # 最大5分間Harbor稼働を待機
+    for i in {1..30}; do
+        echo "  ポッド起動待機... ($i/30)"
+        sleep 10
+        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n harbor | grep harbor-core | grep Running' >/dev/null 2>&1; then
+            echo "✓ Harbor Coreポッドが稼働中です"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "❌ Harbor稼働のタイムアウト"
+            echo "Harborポッドが正常に起動していない可能性があります"
+            echo "手動確認: kubectl get pods -n harbor"
+            exit 1
+        fi
+    done
+fi
+
+echo "✓ Harbor稼働確認完了"
+
 echo "1. IP SANを含むHarbor証明書を適用中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../infra/cert-manager/harbor-certificate.yaml
 
@@ -162,4 +210,4 @@ echo "- 認証: admin / Harbor12345"
 
 echo ""
 echo "テスト方法:"
-echo "kubectl exec -it \$(kubectl get pods -n arc-systems | grep runner | head -1 | awk '{print \$1}') -n arc-systems -- curl -k https://192.168.122.100/v2/_catalog -u admin:Harbor12345"
+echo "kubectl exec -it \$(kubectl get pods -n arc-systems | grep runner | head -1 | awk '{print \$1}') -n arc-systems -- curl -k https://192.168.122.100/v2/_catalog -u \${HARBOR_USERNAME:-admin}:\${HARBOR_PASSWORD:-Harbor12345}"

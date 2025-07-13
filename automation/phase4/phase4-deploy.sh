@@ -276,30 +276,93 @@ EOF
 
 print_status "✓ GitOps セットアップ完了"
 
-# 7. GitHub Actions Runner Controller (ARC) セットアップ
-print_status "=== Phase 4.7: GitHub Actions Runner Controller (ARC) セットアップ ==="
+# 8. GitHub Actions Runner Controller (ARC) セットアップ
+print_status "=== Phase 4.8: GitHub Actions Runner Controller (ARC) セットアップ ==="
 print_debug "GitHub Actions Self-hosted Runnerをk8s上にデプロイします"
 
+# GitHub設定の確認・入力
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]] && [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${GITHUB_USERNAME:-}" ]]; then
-    print_debug "ARC セットアップスクリプトを実行中..."
-    bash "$SCRIPT_DIR/setup-arc.sh"
+if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
+    # GitHub設定の対話式確認
+    if [[ -z "${GITHUB_TOKEN:-}" ]] || [[ -z "${GITHUB_USERNAME:-}" ]]; then
+        echo ""
+        print_status "GitHub Actions設定に必要な情報を入力してください"
+        print_debug "スキップしたい場合は空エンターを押してください"
+        
+        # GITHUB_TOKEN入力
+        if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+            echo "GitHub Personal Access Token (repo, workflow, admin:org権限必要):"
+            echo "取得方法: https://github.com/settings/tokens"
+            echo -n "GITHUB_TOKEN (空でスキップ): "
+            read -s GITHUB_TOKEN_INPUT
+            echo ""
+            if [[ -n "$GITHUB_TOKEN_INPUT" ]]; then
+                export GITHUB_TOKEN="$GITHUB_TOKEN_INPUT"
+                print_debug "GITHUB_TOKEN設定完了"
+            fi
+        fi
+        
+        # GITHUB_USERNAME入力
+        if [[ -z "${GITHUB_USERNAME:-}" ]]; then
+            echo -n "GITHUB_USERNAME (空でスキップ): "
+            read GITHUB_USERNAME_INPUT
+            if [[ -n "$GITHUB_USERNAME_INPUT" ]]; then
+                export GITHUB_USERNAME="$GITHUB_USERNAME_INPUT"
+                print_debug "GITHUB_USERNAME設定完了: $GITHUB_USERNAME"
+            fi
+        fi
+    fi
+    
+    # Harbor認証情報の対話式確認
+    if [[ -z "${HARBOR_USERNAME:-}" ]] || [[ -z "${HARBOR_PASSWORD:-}" ]]; then
+        echo ""
+        print_status "Harbor認証情報を設定してください"
+        
+        # HARBOR_USERNAME入力
+        if [[ -z "${HARBOR_USERNAME:-}" ]]; then
+            echo "Harbor Registry Username (default: admin):"
+            echo -n "HARBOR_USERNAME [admin]: "
+            read HARBOR_USERNAME_INPUT
+            if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
+                export HARBOR_USERNAME="admin"
+            else
+                export HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
+            fi
+            print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
+        fi
+        
+        # HARBOR_PASSWORD入力
+        if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
+            echo "Harbor Registry Password (default: Harbor12345):"
+            echo -n "HARBOR_PASSWORD [Harbor12345]: "
+            read -s HARBOR_PASSWORD_INPUT
+            echo ""
+            if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
+                export HARBOR_PASSWORD="Harbor12345"
+            else
+                export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+            fi
+            print_debug "HARBOR_PASSWORD設定完了"
+        fi
+    fi
+    
+    # 設定確認とARC実行
+    if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${GITHUB_USERNAME:-}" ]]; then
+        print_debug "ARC セットアップスクリプトを実行中..."
+        bash "$SCRIPT_DIR/setup-arc.sh"
+    else
+        print_warning "GitHub設定が不完全のため、ARC セットアップをスキップしました"
+        print_warning "後で手動セットアップする場合："
+        echo "  export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+        echo "  export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
+        echo "  bash $SCRIPT_DIR/setup-arc.sh"
+    fi
 else
-    print_warning "ARC セットアップをスキップしました"
-    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-        print_warning "GITHUB_TOKEN環境変数が設定されていません"
-    fi
-    if [[ -z "${GITHUB_USERNAME:-}" ]]; then
-        print_warning "GITHUB_USERNAME環境変数が設定されていません"
-    fi
-    print_warning "手動でセットアップする場合："
-    echo "  export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
-    echo "  export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
-    echo "  bash $SCRIPT_DIR/setup-arc.sh"
+    print_warning "setup-arc.shが見つかりません。ARCセットアップをスキップしました。"
 fi
 
-# 8. 手動セットアップが必要な項目
-print_status "=== Phase 4.8: 手動セットアップ項目 ==="
+# 9. 手動セットアップが必要な項目
+print_status "=== Phase 4.9: 手動セットアップ項目 ==="
 print_warning "以下の項目は手動でセットアップが必要です："
 echo "1. Cloudflared Secret作成:"
 echo "   kubectl create namespace cloudflared"
@@ -355,19 +418,26 @@ ArgoCD App of Apps デプロイ済み:
 2. GitHub Actions Runner Token設定
 EOF
 
-# 7. Harbor証明書修正とGitHub Actions対応
-print_status "=== Phase 4.7: Harbor証明書修正 + GitHub Actions対応 ==="
-print_debug "GitHub Actionsからの証明書エラーを解決するため、自動修正を実行します"
+# 7. ArgoCD同期待機とHarbor確認
+print_status "=== Phase 4.7: ArgoCD同期とHarborデプロイ確認 ==="
+print_debug "ArgoCD App of AppsによるHarborデプロイを確認します"
 
-# Harbor証明書修正スクリプトを実行
-if [[ -f "./harbor-cert-fix.sh" ]]; then
-    print_debug "Harbor証明書修正スクリプトを実行中..."
-    ./harbor-cert-fix.sh
-    print_status "✓ Harbor証明書修正完了"
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+echo "ArgoCD Applicationの同期状況確認中..."
+kubectl get applications -n argocd
+
+echo -e "\nHarbor namespace確認中..."
+if kubectl get namespace harbor >/dev/null 2>&1; then
+    echo "✓ Harbor namespaceが存在します"
+    echo "Harbor ポッド状況:"
+    kubectl get pods -n harbor 2>/dev/null || echo "Harborポッドはまだ作成されていません"
 else
-    print_warning "harbor-cert-fix.shが見つかりません。手動でHarbor証明書修正を実行してください。"
-    print_debug "詳細: automation/phase4/harbor-cert-fix.sh を実行"
+    echo "⚠️ Harbor namespaceがまだ作成されていません"
+    echo "ArgoCD App of Appsの同期を待機してください"
 fi
+EOF
+
+print_status "✓ ArgoCD同期状況確認完了"
 
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"

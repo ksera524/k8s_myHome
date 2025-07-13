@@ -28,21 +28,98 @@ print_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-# GitHub Personal Access Token確認
+# GitHub Personal Access Token確認・入力
 if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-    print_error "GITHUB_TOKEN環境変数が設定されていません"
-    print_error "以下のコマンドを実行してからスクリプトを再実行してください："
-    print_error "export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+    print_status "GitHub Personal Access Tokenが必要です"
+    echo "GitHub Personal Access Token (repo, workflow, admin:org権限必要):"
+    echo "取得方法: https://github.com/settings/tokens"
+    echo -n "GITHUB_TOKEN: "
+    read -s GITHUB_TOKEN
+    echo ""
+    
+    if [[ -z "$GITHUB_TOKEN" ]]; then
+        print_error "GITHUB_TOKENが入力されませんでした"
+        exit 1
+    fi
+    
+    export GITHUB_TOKEN
+    print_debug "GITHUB_TOKEN設定完了"
+else
+    print_debug "GITHUB_TOKEN環境変数を使用"
+fi
+
+# GitHubユーザー名確認・入力
+if [[ -z "${GITHUB_USERNAME:-}" ]]; then
+    print_status "GitHubユーザー名を入力してください"
+    echo -n "GITHUB_USERNAME: "
+    read GITHUB_USERNAME
+    
+    if [[ -z "$GITHUB_USERNAME" ]]; then
+        print_error "GITHUB_USERNAMEが入力されませんでした"
+        exit 1
+    fi
+    
+    export GITHUB_USERNAME
+    print_debug "GITHUB_USERNAME設定完了: $GITHUB_USERNAME"
+else
+    print_debug "GITHUB_USERNAME環境変数を使用: $GITHUB_USERNAME"
+fi
+
+# Harbor認証情報確認・入力
+print_status "Harbor認証情報を設定してください"
+
+if [[ -z "${HARBOR_USERNAME:-}" ]]; then
+    echo "Harbor Registry Username (default: admin):"
+    echo -n "HARBOR_USERNAME [admin]: "
+    read HARBOR_USERNAME_INPUT
+    if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
+        HARBOR_USERNAME="admin"
+    else
+        HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
+    fi
+    export HARBOR_USERNAME
+    print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
+else
+    print_debug "HARBOR_USERNAME環境変数を使用: $HARBOR_USERNAME"
+fi
+
+if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
+    echo "Harbor Registry Password (default: Harbor12345):"
+    echo -n "HARBOR_PASSWORD [Harbor12345]: "
+    read -s HARBOR_PASSWORD_INPUT
+    echo ""
+    if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
+        HARBOR_PASSWORD="Harbor12345"
+    else
+        HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+    fi
+    export HARBOR_PASSWORD
+    print_debug "HARBOR_PASSWORD設定完了"
+else
+    print_debug "HARBOR_PASSWORD環境変数を使用"
+fi
+
+# 入力値検証
+print_status "GitHub設定を検証中..."
+
+# GitHubユーザー名の形式確認
+if [[ ! "$GITHUB_USERNAME" =~ ^[a-zA-Z0-9-]+$ ]]; then
+    print_error "無効なGitHubユーザー名形式: $GITHUB_USERNAME"
+    print_error "英数字とハイフンのみ使用可能です"
     exit 1
 fi
 
-# GitHubユーザー名確認
-if [[ -z "${GITHUB_USERNAME:-}" ]]; then
-    print_error "GITHUB_USERNAME環境変数が設定されていません"
-    print_error "以下のコマンドを実行してからスクリプトを再実行してください："
-    print_error "export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
+# GitHub APIアクセステスト
+print_debug "GitHub APIアクセステスト中..."
+if ! curl -s -f -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/user" > /dev/null 2>&1; then
+    print_error "GitHub API認証に失敗しました"
+    print_error "GITHUB_TOKENが正しく設定されているか確認してください"
+    print_error "必要な権限: repo, workflow, admin:org"
     exit 1
 fi
+
+print_status "✓ GitHub設定検証完了"
 
 print_status "=== Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ ==="
 
@@ -78,8 +155,15 @@ kubectl create secret generic github-token \
 # Harbor認証Secret作成
 kubectl create secret docker-registry harbor-registry-secret \
   --docker-server=192.168.122.100 \
-  --docker-username=admin \
-  --docker-password=Harbor12345 \
+  --docker-username=${HARBOR_USERNAME} \
+  --docker-password=${HARBOR_PASSWORD} \
+  -n arc-systems \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor認証Secret（GitHub Actions用）作成
+kubectl create secret generic harbor-auth \
+  --from-literal=HARBOR_USERNAME=${HARBOR_USERNAME} \
+  --from-literal=HARBOR_PASSWORD=${HARBOR_PASSWORD} \
   -n arc-systems \
   --dry-run=client -o yaml | kubectl apply -f -
 
@@ -149,15 +233,23 @@ print_status "✓ GitHub Actions Runner Controller (ARC) セットアップ完�
 print_status "=== Harbor証明書修正 + GitHub Actions対応 ==="
 print_debug "GitHub Actionsからの証明書エラーを自動解決します"
 
-# Harbor証明書修正スクリプトを実行
-if [[ -f "./harbor-cert-fix.sh" ]]; then
-    print_debug "Harbor証明書修正スクリプトを実行中..."
-    ./harbor-cert-fix.sh
-    print_status "✓ Harbor証明書修正完了"
+# Harbor存在確認
+print_debug "Harbor稼働状況を確認中..."
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get namespace harbor' >/dev/null 2>&1; then
+    # Harbor証明書修正スクリプトを実行
+    if [[ -f "./harbor-cert-fix.sh" ]]; then
+        print_debug "Harbor証明書修正スクリプトを実行中..."
+        ./harbor-cert-fix.sh
+        print_status "✓ Harbor証明書修正完了"
+    else
+        print_warning "harbor-cert-fix.shが見つかりません"
+        print_debug "手動実行: automation/phase4/harbor-cert-fix.sh"
+    fi
 else
-    print_warning "harbor-cert-fix.shが見つかりません"
-    print_debug "GitHub ActionsでのHarbor pushエラーが発生する可能性があります"
-    print_debug "手動実行: automation/phase4/harbor-cert-fix.sh"
+    print_warning "Harborがまだデプロイされていません"
+    print_debug "ArgoCD App of Appsでのデプロイ完了後に以下を実行してください："
+    print_debug "cd automation/phase4 && ./harbor-cert-fix.sh"
+    print_warning "この状態でもGitHub Actionsランナーは利用可能ですが、Harbor pushでエラーが発生する可能性があります"
 fi
 
 # 7. 使用方法の表示
@@ -176,7 +268,7 @@ echo "- HARBOR_URL: 192.168.122.100"
 echo "- HARBOR_PROJECT: sandbox"
 echo ""
 echo "Harbor認証："
-echo "  docker login 192.168.122.100 -u admin -p Harbor12345"
+echo "  docker login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD"
 echo ""
 
 # 8. GitHub Actions workflow例を保存 (最新のcrane方式)
@@ -201,24 +293,33 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Harbor接続確認
+      env:
+        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
+        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor API Connection Test ==="
-        curl -k -u admin:Harbor12345 https://192.168.122.100/v2/_catalog
-        curl -k -u admin:Harbor12345 https://192.168.122.100/api/v2.0/projects | jq '.[] | select(.name=="sandbox")'
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/v2/_catalog
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/api/v2.0/projects | jq '.[] | select(.name=="sandbox")'
         
     - name: Dockerイメージビルド
+      env:
+        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
+        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Docker Image Build ==="
         
         # Docker認証設定
         mkdir -p ~/.docker
-        echo '{"auths":{"192.168.122.100":{"auth":"'\$(echo -n 'admin:Harbor12345' | base64 -w 0)'"}}}' > ~/.docker/config.json
+        echo '{"auths":{"192.168.122.100":{"auth":"'\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)'"}}}' > ~/.docker/config.json
         
         # Dockerイメージビルド
         docker build -t 192.168.122.100/sandbox/\${{ github.event.repository.name }}:latest .
         docker build -t 192.168.122.100/sandbox/\${{ github.event.repository.name }}:\${{ github.sha }} .
         
     - name: Harborプッシュ（crane使用）
+      env:
+        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
+        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor Push with Crane ==="
         
@@ -231,7 +332,7 @@ jobs:
         
         # Crane認証（insecure registry対応）
         export CRANE_INSECURE=true
-        /tmp/crane auth login 192.168.122.100 -u admin -p Harbor12345 --insecure
+        /tmp/crane auth login 192.168.122.100 -u \$HARBOR_USERNAME -p \$HARBOR_PASSWORD --insecure
         
         # latestタグプッシュ
         docker save 192.168.122.100/sandbox/\${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
@@ -244,17 +345,47 @@ jobs:
         echo "✅ Harbor push completed successfully"
         
     - name: プッシュ結果確認
+      env:
+        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
+        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor Push Verification ==="
         
         # latestタグ確認
-        curl -k -u admin:Harbor12345 https://192.168.122.100/v2/sandbox/\${{ github.event.repository.name }}/tags/list
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/v2/sandbox/\${{ github.event.repository.name }}/tags/list
         
         # リポジトリ一覧確認
-        curl -k -u admin:Harbor12345 "https://192.168.122.100/api/v2.0/projects/sandbox/repositories"
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "https://192.168.122.100/api/v2.0/projects/sandbox/repositories"
         
         echo "=== Deployment completed successfully ==="
 EOF
 
 print_status "GitHub Actions workflow例をgithub-actions-example.ymlに保存しました"
-print_warning "リポジトリにコピーして使用してください"
+print_warning "リポジトリの.github/workflows/にコピーして使用してください"
+
+echo ""
+print_status "=== セットアップ完了 ==="
+echo ""
+echo "✅ 設定された認証情報:"
+echo "   GitHub ユーザー名: $GITHUB_USERNAME"
+echo "   GitHub Token: ${GITHUB_TOKEN:0:8}... (先頭8文字のみ表示)"
+echo "   Harbor ユーザー名: $HARBOR_USERNAME"
+echo "   Harbor パスワード: ${HARBOR_PASSWORD:0:3}... (先頭3文字のみ表示)"
+echo ""
+echo "✅ 作成されたRunner Scale Sets:"
+echo "   - k8s-myhome-runners (k8s_myHomeリポジトリ用)"
+echo "   - slack-rs-runners (slack.rsリポジトリ用、存在する場合)"
+echo ""
+echo "📝 次のステップ:"
+echo "1. GitHub Repository Secretsを設定:"
+echo "   - https://github.com/$GITHUB_USERNAME/k8s_myHome/settings/secrets/actions"
+echo "   - HARBOR_USERNAME: $HARBOR_USERNAME"
+echo "   - HARBOR_PASSWORD: (入力したパスワード)"
+echo "2. github-actions-example.yml をリポジトリの.github/workflows/にコピー"
+echo "3. ArgoCD App of AppsでのHarbor完全デプロイを確認"
+echo "   kubectl get applications -n argocd"
+echo "   kubectl get pods -n harbor"
+echo "4. Harbor証明書修正（まだ未実行の場合）:"
+echo "   cd automation/phase4 && ./harbor-cert-fix.sh"
+echo "5. GitHub ActionsでCI/CDテスト実行"
+echo "6. Harborでイメージ確認: https://192.168.122.100"
