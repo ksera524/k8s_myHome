@@ -19,7 +19,7 @@ spec:
             enabled: true
             certSource: secret
             secret:
-              secretName: harbor-tls-secrer
+              secretName: harbor-tls-secret
           ingress:
             hosts:
               core: harbor.local
