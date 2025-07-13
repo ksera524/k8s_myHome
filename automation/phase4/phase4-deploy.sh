@@ -355,5 +355,19 @@ ArgoCD App of Apps デプロイ済み:
 2. GitHub Actions Runner Token設定
 EOF
 
+# 7. Harbor証明書修正とGitHub Actions対応
+print_status "=== Phase 4.7: Harbor証明書修正 + GitHub Actions対応 ==="
+print_debug "GitHub Actionsからの証明書エラーを解決するため、自動修正を実行します"
+
+# Harbor証明書修正スクリプトを実行
+if [[ -f "./harbor-cert-fix.sh" ]]; then
+    print_debug "Harbor証明書修正スクリプトを実行中..."
+    ./harbor-cert-fix.sh
+    print_status "✓ Harbor証明書修正完了"
+else
+    print_warning "harbor-cert-fix.shが見つかりません。手動でHarbor証明書修正を実行してください。"
+    print_debug "詳細: automation/phase4/harbor-cert-fix.sh を実行"
+fi
+
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"

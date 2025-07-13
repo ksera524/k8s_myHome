@@ -145,6 +145,21 @@ EOF
 
 print_status "✓ GitHub Actions Runner Controller (ARC) セットアップ完了"
 
+# 6.5. Harbor証明書修正（GitHub Actions対応）
+print_status "=== Harbor証明書修正 + GitHub Actions対応 ==="
+print_debug "GitHub Actionsからの証明書エラーを自動解決します"
+
+# Harbor証明書修正スクリプトを実行
+if [[ -f "./harbor-cert-fix.sh" ]]; then
+    print_debug "Harbor証明書修正スクリプトを実行中..."
+    ./harbor-cert-fix.sh
+    print_status "✓ Harbor証明書修正完了"
+else
+    print_warning "harbor-cert-fix.shが見つかりません"
+    print_debug "GitHub ActionsでのHarbor pushエラーが発生する可能性があります"
+    print_debug "手動実行: automation/phase4/harbor-cert-fix.sh"
+fi
+
 # 7. 使用方法の表示
 print_status "=== 使用方法 ==="
 echo ""
