@@ -46,15 +46,7 @@ jobs:
         echo "認証文字列: ${AUTH_STRING:0:20}..."
         
         # JSON設定ファイルを作成
-        cat > ~/.docker/config.json << EOF
-{
-  "auths": {
-    "192.168.122.100": {
-      "auth": "${AUTH_STRING}"
-    }
-  }
-}
-EOF
+        echo "{\"auths\":{\"192.168.122.100\":{\"auth\":\"${AUTH_STRING}\"}}}" > ~/.docker/config.json
         
         # Dockerイメージビルド
         docker build -t 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest .
@@ -88,15 +80,7 @@ EOF
         echo "認証文字列: ${AUTH_STRING:0:20}..."
         
         # JSON設定ファイルを作成
-        cat > ~/.docker/config.json << EOF
-{
-  "auths": {
-    "192.168.122.100": {
-      "auth": "${AUTH_STRING}"
-    }
-  }
-}
-EOF
+        echo "{\"auths\":{\"192.168.122.100\":{\"auth\":\"${AUTH_STRING}\"}}}" > ~/.docker/config.json
         
         # 設定ファイルの確認
         echo "Docker config.json内容:"
