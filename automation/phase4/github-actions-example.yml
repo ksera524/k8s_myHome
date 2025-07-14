@@ -1,7 +1,7 @@
-# GitHub Actions ワークフロー例
+# GitHub Actions workflow例 - Harbor対応版
 # .github/workflows/build-and-push.yml として保存
 
-name: Harborへのビルドとプッシュ
+name: Build and Push to Harbor
 
 on:
   push:
@@ -10,144 +10,84 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-push:
     runs-on: k8s-myhome-runners  # Runner Scale Set名
     
     steps:
-    - name: コードをチェックアウト
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Harbor証明書の信頼確認
+    - name: Harbor接続確認
       run: |
-        # Harbor証明書が信頼されているか確認（Harbor CA Trust DaemonSetで処理済み）
-        echo "Harbor証明書の信頼状態を確認中..."
-        docker info | grep -i "insecure" || echo "非セキュアレジストリの設定なし（期待される状態）"
-        
-        # Harbor接続テスト（オプション）
-        curl -f https://192.168.122.100/api/v2.0/systeminfo || echo "Harbor接続テスト失敗、docker loginを続行"
-        
-    - name: Docker daemon設定とHarborログイン
-      env:
-        DOCKER_CONTENT_TRUST: "0"
-        DOCKER_TLS_VERIFY: "0"
-      run: |
-        # curlでのAPI接続確認（証明書検証なし）
         echo "=== Harbor API Connection Test ==="
-        curl -k -u admin:Harbor12345 https://192.168.122.100/v2/_catalog || echo "Harbor API unreachable"
+        echo "HARBOR_USERNAME: $HARBOR_USERNAME"
+        echo "HARBOR_PASSWORD: ${HARBOR_PASSWORD:0:5}..."
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://192.168.122.100/v2/_catalog
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://192.168.122.100/api/v2.0/projects | jq '.[] | select(.name=="sandbox")'
         
-        # Harborプロジェクト存在確認
-        curl -k -u admin:Harbor12345 https://192.168.122.100/api/v2.0/projects | jq '.[] | select(.name=="sandbox")' || echo "sandbox project not found"
+    - name: Dockerイメージビルド
+      run: |
+        echo "=== Docker Image Build ==="
         
-        # Docker login with auth token method
-        echo "=== Docker Login with Auth Token ==="
-        
-        # Harbor APIから認証トークンを取得
-        TOKEN=$(curl -k -s -u admin:Harbor12345 "https://192.168.122.100/service/token?service=harbor-registry&scope=repository:sandbox/slack.rs:pull,push" | jq -r '.token')
-        echo "Token obtained: ${TOKEN:0:20}..."
-        
-        # Docker configにトークンベース認証を直接設定
+        # Docker認証設定
         mkdir -p ~/.docker
+        echo '{"auths":{"192.168.122.100":{"auth":"'$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)'"}}}' > ~/.docker/config.json
         
-        # 空のCA証明書ファイルを作成してエラーを回避
-        touch ~/.docker/ca.pem
-        touch ~/.docker/cert.pem
-        touch ~/.docker/key.pem
-        
-        cat > ~/.docker/config.json << EOF
-        {
-          "auths": {
-            "192.168.122.100": {
-              "auth": "$(echo -n 'admin:Harbor12345' | base64 -w 0)"
-            }
-          },
-          "HttpHeaders": {
-            "User-Agent": "Docker-Client/28.3.0 (linux)"
-          }
-        }
-        EOF
-        
-        # DOCKER_HOST環境変数をクリア（証明書エラー回避）
-        unset DOCKER_TLS_VERIFY
-        unset DOCKER_CERT_PATH
-        export DOCKER_HOST=unix:///var/run/docker.sock
-        
-        echo "Docker config created with base64 auth"
-        
-    - name: Dockerイメージのビルドとプッシュ  
-      env:
-        DOCKER_CONTENT_TRUST: "0"
-        DOCKER_TLS_VERIFY: ""
-        DOCKER_CERT_PATH: ""
-        DOCKER_HOST: "unix:///var/run/docker.sock"
-      run: |
-        # Docker環境設定の確認と修正
-        echo "=== Docker Environment Setup ==="
-        echo "DOCKER_HOST: $DOCKER_HOST"
-        echo "DOCKER_TLS_VERIFY: $DOCKER_TLS_VERIFY"
-        
-        # 証明書ファイルが存在することを確認
-        ls -la ~/.docker/
-        
-        # イメージをローカルでビルド
-        echo "=== Building Docker Image ==="
+        # Dockerイメージビルド
         docker build -t 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest .
+        docker build -t 192.168.122.100/sandbox/${{ github.event.repository.name }}:${{ github.sha }} .
         
-        # Docker pushの代替手段としてcrane使用を試行
-        echo "=== Attempting Push with Various Methods ==="
-        
-        # 方式1: 標準push
-        docker push 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest 2>&1 || echo "Standard push failed"
-        
-        # 方式2: curlを使用してマニュアルでイメージをプッシュ
-        echo "=== Manual Image Push with curl ==="
-        
-        # Dockerイメージをtarファイルとして保存
-        docker save 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest -o /tmp/image.tar
-        
-        # イメージのmanifestとlayerを抽出してHarborにアップロード
-        echo "Attempting manual image upload..."
-        
-        # 方式2b: podmanが利用可能かチェック（insecure対応）
-        if command -v podman >/dev/null 2>&1; then
-          echo "Using podman for insecure push..."
-          podman load -i /tmp/image.tar
-          podman push --tls-verify=false --creds=admin:Harbor12345 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest || echo "Podman push failed"
-        else
-          echo "Podman not available"
-        fi
-        
-        # 方式2c: Docker daemon設定ファイルを動的作成
-        echo "Trying to configure Docker daemon for insecure registry..."
-        
-        # 一時的なDocker daemon設定作成（ランナー用）
-        mkdir -p /tmp/docker-config
-        cat > /tmp/docker-config/daemon.json << EOF
-        {
-          "insecure-registries": ["192.168.122.100"],
-          "hosts": ["unix:///var/run/docker.sock"]
-        }
-        EOF
-        
-        # DOCKER_CONFIG環境変数でカスタム設定を指定
-        export DOCKER_CONFIG=/tmp/docker-config
-        
-        echo "Docker daemon config created:"
-        cat /tmp/docker-config/daemon.json
-        
-        # 最終プッシュ試行
-        docker push 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest || echo "Final Docker push failed"
-        
-        # 方式3: curlでmanifest直接アップロード
-        echo "Checking final push result..."
-        curl -k -u admin:Harbor12345 https://192.168.122.100/v2/sandbox/${{ github.event.repository.name }}/tags/list || echo "Image verification failed"
-        
-    - name: Harbor プッシュ結果確認
+    - name: Harborプッシュ（crane使用）
       run: |
-        echo "=== Final Harbor Repository Check ==="
-        # Harborレポジトリの最終確認
-        curl -k -u admin:Harbor12345 https://192.168.122.100/v2/sandbox/${{ github.event.repository.name }}/tags/list
+        echo "=== Harbor Push with Crane ==="
         
-        # プロジェクト内のリポジトリ一覧確認
-        curl -k -u admin:Harbor12345 "https://192.168.122.100/api/v2.0/projects/sandbox/repositories"
+        # DNS設定でharbor.local解決を有効化
+        echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
         
-        echo "Harbor push workflow completed"
+        # Craneツールインストール
+        curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | tar xz -C /tmp
+        chmod +x /tmp/crane
+        
+        # Docker login（明示的な認証）
+        echo "Docker login実行中..."
+        echo $HARBOR_PASSWORD | docker login 192.168.122.100 -u $HARBOR_USERNAME --password-stdin
+        
+        # Crane認証（insecure registry対応）
+        export CRANE_INSECURE=true
+        echo "Crane認証 - Username: $HARBOR_USERNAME, Password: ${HARBOR_PASSWORD:0:5}..."
+        /tmp/crane auth login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD --insecure
+        
+        # 認証確認
+        echo "Docker config.json内容:"
+        cat ~/.docker/config.json
+        
+        # Harbor catalog確認
+        echo "Harbor catalog確認:"
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://192.168.122.100/v2/_catalog
+        
+        # Docker pushでテスト
+        echo "Docker pushでテスト中..."
+        docker push 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest || echo "Docker push失敗"
+        
+        # latestタグプッシュ（crane使用）
+        echo "Crane pushでテスト中..."
+        docker save 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
+        /tmp/crane push /tmp/image-latest.tar 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest --insecure
+        
+        # commitハッシュタグプッシュ
+        docker save 192.168.122.100/sandbox/${{ github.event.repository.name }}:${{ github.sha }} -o /tmp/image-commit.tar
+        /tmp/crane push /tmp/image-commit.tar 192.168.122.100/sandbox/${{ github.event.repository.name }}:${{ github.sha }} --insecure
+        
+        echo "✅ Harbor push completed successfully"
+        
+    - name: プッシュ結果確認
+      run: |
+        echo "=== Harbor Push Verification ==="
+        
+        # latestタグ確認
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://192.168.122.100/v2/sandbox/${{ github.event.repository.name }}/tags/list
+        
+        # リポジトリ一覧確認
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://192.168.122.100/api/v2.0/projects/sandbox/repositories"
+        
+        echo "=== Deployment completed successfully ==="
