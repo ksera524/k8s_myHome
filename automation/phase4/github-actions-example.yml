@@ -48,29 +48,16 @@ jobs:
         curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | tar xz -C /tmp
         chmod +x /tmp/crane
         
-        # Docker login（明示的な認証）
-        echo "Docker login実行中..."
-        echo $HARBOR_PASSWORD | docker login 192.168.122.100 -u $HARBOR_USERNAME --password-stdin
+        # Docker認証設定（非インタラクティブ対応）
+        echo "Docker認証情報を設定中..."
+        mkdir -p ~/.docker
+        echo "{\"auths\":{\"192.168.122.100\":{\"auth\":\"$(echo -n $HARBOR_USERNAME:$HARBOR_PASSWORD | base64 -w 0)\"}}}" > ~/.docker/config.json
         
         # Crane認証（insecure registry対応）
         export CRANE_INSECURE=true
-        echo "Crane認証 - Username: $HARBOR_USERNAME, Password: ${HARBOR_PASSWORD:0:5}..."
         /tmp/crane auth login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD --insecure
         
-        # 認証確認
-        echo "Docker config.json内容:"
-        cat ~/.docker/config.json
-        
-        # Harbor catalog確認
-        echo "Harbor catalog確認:"
-        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://192.168.122.100/v2/_catalog
-        
-        # Docker pushでテスト
-        echo "Docker pushでテスト中..."
-        docker push 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest || echo "Docker push失敗"
-        
-        # latestタグプッシュ（crane使用）
-        echo "Crane pushでテスト中..."
+        # latestタグプッシュ
         docker save 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
         /tmp/crane push /tmp/image-latest.tar 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest --insecure
         
