@@ -32,11 +32,13 @@ spec:
         
         externalURL: https://harbor.local
         
-        harborAdminPassword: "Harbor12345"
+        # harborAdminPassword is managed via external secret
+        # See harbor-admin-secret for actual password value
         
-        externalURL: https://harbor.local
-        
-        harborAdminPassword: "Harbor12345"
+        # External secret reference for admin password
+        # Harbor chart supports existingSecretAdminPassword and existingSecretAdminPasswordKey
+        existingSecretAdminPassword: harbor-admin-secret
+        existingSecretAdminPasswordKey: password
         
         persistence:
           enabled: true

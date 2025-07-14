@@ -240,8 +240,27 @@ EOF
 
 print_status "✓ ArgoCD インストール完了"
 
-# 6. App of Apps デプロイ
-print_status "=== Phase 4.6: App of Apps デプロイ ==="
+# 6. Harbor パスワード設定
+print_status "=== Phase 4.6: Harbor パスワード設定 ==="
+print_debug "Harbor管理者パスワードを設定します"
+
+echo ""
+print_status "Harbor管理者パスワードを設定してください"
+echo "デフォルトのパスワード（Harbor12345）を使用する場合は、空エンターを押してください"
+echo -n "Harbor管理者パスワード [Harbor12345]: "
+read -s HARBOR_PASSWORD_INPUT
+echo ""
+
+if [[ -n "$HARBOR_PASSWORD_INPUT" ]]; then
+    export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+    print_debug "✓ Harborパスワード設定完了: $HARBOR_PASSWORD"
+else
+    export HARBOR_PASSWORD="Harbor12345"
+    print_debug "デフォルトパスワード（Harbor12345）を使用します"
+fi
+
+# 7. App of Apps デプロイ
+print_status "=== Phase 4.7: App of Apps デプロイ ==="
 print_debug "GitOps経由でインフラとアプリケーションを管理します"
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
@@ -275,6 +294,32 @@ echo "✓ App of Apps デプロイ完了"
 EOF
 
 print_status "✓ GitOps セットアップ完了"
+
+# 7.5. Harbor アプリケーションのパスワード更新
+if [[ "$HARBOR_PASSWORD" != "Harbor12345" ]]; then
+    print_status "=== Phase 4.7.5: Harbor 管理者パスワード Secret作成 ==="
+    print_debug "Harborが使用するパスワードSecretを作成します"
+    
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
+# Harbor namespace作成（まだ存在しない場合）
+kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor管理者パスワードSecret作成/更新
+kubectl create secret generic harbor-admin-secret \\
+    --from-literal=password="$HARBOR_PASSWORD" \\
+    --namespace=harbor \\
+    --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✓ Harbor管理者パスワードSecret作成完了"
+
+# ArgoCD Harborアプリケーションの強制同期でSecret設定を反映
+kubectl patch application harbor -n argocd -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' --type=merge
+
+echo "✓ Harbor Secret作成・同期完了"
+EOF
+    
+    print_status "✓ Harbor パスワード更新完了"
+fi
 
 # 8. GitHub Actions Runner Controller (ARC) セットアップ
 print_status "=== Phase 4.8: GitHub Actions Runner Controller (ARC) セットアップ ==="
@@ -421,7 +466,7 @@ ArgoCD App of Apps デプロイ済み:
 EOF
 
 # 7. ArgoCD同期待機とHarbor確認
-print_status "=== Phase 4.7: ArgoCD同期とHarborデプロイ確認 ==="
+print_status "=== Phase 4.10: ArgoCD同期とHarborデプロイ確認 ==="
 print_debug "ArgoCD App of AppsによるHarborデプロイを確認します"
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
