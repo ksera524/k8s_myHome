@@ -30,8 +30,31 @@ jobs:
         echo "=== Docker Image Build ==="
         
         # Docker認証設定
+        echo "Docker認証情報を設定中..."
+        echo "HARBOR_USERNAME: $HARBOR_USERNAME"
+        echo "HARBOR_PASSWORD: ${HARBOR_PASSWORD:0:5}..."
+        
+        # 環境変数の存在確認
+        if [[ -z "$HARBOR_USERNAME" || -z "$HARBOR_PASSWORD" ]]; then
+            echo "エラー: HARBOR_USERNAME または HARBOR_PASSWORD が設定されていません"
+            exit 1
+        fi
+        
         mkdir -p ~/.docker
-        echo '{"auths":{"192.168.122.100":{"auth":"'$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)'"}}}' > ~/.docker/config.json
+        # Base64エンコーディングを段階的に実行
+        AUTH_STRING=$(echo -n "${HARBOR_USERNAME}:${HARBOR_PASSWORD}" | base64 -w 0)
+        echo "認証文字列: ${AUTH_STRING:0:20}..."
+        
+        # JSON設定ファイルを作成
+        cat > ~/.docker/config.json << EOF
+{
+  "auths": {
+    "192.168.122.100": {
+      "auth": "${AUTH_STRING}"
+    }
+  }
+}
+EOF
         
         # Dockerイメージビルド
         docker build -t 192.168.122.100/sandbox/${{ github.event.repository.name }}:latest .
@@ -50,8 +73,34 @@ jobs:
         
         # Docker認証設定（非インタラクティブ対応）
         echo "Docker認証情報を設定中..."
+        echo "HARBOR_USERNAME: $HARBOR_USERNAME"
+        echo "HARBOR_PASSWORD: ${HARBOR_PASSWORD:0:5}..."
+        
+        # 環境変数の存在確認
+        if [[ -z "$HARBOR_USERNAME" || -z "$HARBOR_PASSWORD" ]]; then
+            echo "エラー: HARBOR_USERNAME または HARBOR_PASSWORD が設定されていません"
+            exit 1
+        fi
+        
         mkdir -p ~/.docker
-        echo "{\"auths\":{\"192.168.122.100\":{\"auth\":\"$(echo -n $HARBOR_USERNAME:$HARBOR_PASSWORD | base64 -w 0)\"}}}" > ~/.docker/config.json
+        # Base64エンコーディングを段階的に実行
+        AUTH_STRING=$(echo -n "${HARBOR_USERNAME}:${HARBOR_PASSWORD}" | base64 -w 0)
+        echo "認証文字列: ${AUTH_STRING:0:20}..."
+        
+        # JSON設定ファイルを作成
+        cat > ~/.docker/config.json << EOF
+{
+  "auths": {
+    "192.168.122.100": {
+      "auth": "${AUTH_STRING}"
+    }
+  }
+}
+EOF
+        
+        # 設定ファイルの確認
+        echo "Docker config.json内容:"
+        cat ~/.docker/config.json
         
         # Crane認証（insecure registry対応）
         export CRANE_INSECURE=true
