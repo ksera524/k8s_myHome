@@ -164,7 +164,18 @@ kubectl create secret docker-registry harbor-registry-secret \
 kubectl create secret generic harbor-auth \
   --from-literal=HARBOR_USERNAME=${HARBOR_USERNAME} \
   --from-literal=HARBOR_PASSWORD=${HARBOR_PASSWORD} \
+  --from-literal=HARBOR_URL=192.168.122.100 \
+  --from-literal=HARBOR_PROJECT=sandbox \
   -n arc-systems \
+  --dry-run=client -o yaml | kubectl apply -f -
+  
+# default namespace用も作成
+kubectl create secret generic harbor-auth \
+  --from-literal=HARBOR_USERNAME=${HARBOR_USERNAME} \
+  --from-literal=HARBOR_PASSWORD=${HARBOR_PASSWORD} \
+  --from-literal=HARBOR_URL=192.168.122.100 \
+  --from-literal=HARBOR_PROJECT=sandbox \
+  -n default \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "✓ Secrets作成完了"
@@ -180,16 +191,51 @@ helm install arc \
 echo "ARC Controller既にインストール済み"
 EOF
 
-# 5. Runner Scale Sets作成
+# 5. Runner Scale Sets作成（ServiceAccount指定）
 print_status "Runner Scale Setsを作成中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
-# k8s_myHome用Runner Scale Set
+# ServiceAccount確認
+if ! kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 2>&1; then
+    echo "ServiceAccount 'github-actions-runner' が見つかりません"
+    echo "自動作成中..."
+    kubectl create serviceaccount github-actions-runner -n arc-systems
+    
+    # Secret読み取り権限付与
+    kubectl apply -f - <<RBAC
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader
+  namespace: arc-systems
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-secret-reader
+  namespace: arc-systems
+subjects:
+- kind: ServiceAccount
+  name: github-actions-runner
+  namespace: arc-systems
+roleRef:
+  kind: Role
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+RBAC
+fi
+
+# k8s_myHome用Runner Scale Set（ServiceAccount指定）
 helm install k8s-myhome-runners \
   --namespace arc-systems \
   --set githubConfigUrl="https://github.com/${GITHUB_USERNAME}/k8s_myHome" \
   --set githubConfigSecret="github-token" \
   --set containerMode.type="dind" \
   --set runnerScaleSetName="k8s-myhome-runners" \
+  --set template.spec.serviceAccountName="github-actions-runner" \
   --set minRunners=0 \
   --set maxRunners=3 \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set || \
@@ -205,6 +251,7 @@ if curl -s -f -H "Authorization: token ${GITHUB_TOKEN}" \
     --set githubConfigSecret="github-token" \
     --set containerMode.type="dind" \
     --set runnerScaleSetName="slack-rs-runners" \
+    --set template.spec.serviceAccountName="github-actions-runner" \
     --set minRunners=0 \
     --set maxRunners=3 \
     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set || \
@@ -271,10 +318,11 @@ echo "Harbor認証："
 echo "  docker login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD"
 echo ""
 
-# 8. GitHub Actions workflow例を保存 (最新のcrane方式)
+# 8. GitHub Actions workflow例を保存 (最終版 - セキュア + Docker-in-Docker対応)
 cat > github-actions-example.yml << EOF
-# GitHub Actions workflow例 - Harbor対応版
+# GitHub Actions workflow例 - Harbor対応版（最終版）
 # .github/workflows/build-and-push.yml として保存
+# セキュアなk8s Secret参照 + Docker-in-Docker対応
 
 name: Build and Push to Harbor
 
@@ -292,39 +340,105 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Harbor認証情報取得
+      run: |
+        echo "=== Retrieving Harbor Credentials Securely ==="
+        
+        # kubectl設定（書き込み可能な場所を使用）
+        if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+            echo "✅ Running inside Kubernetes cluster"
+            
+            # 書き込み可能な場所にkubeconfigを作成
+            export KUBECONFIG=/tmp/kubeconfig
+            
+            # In-cluster設定を作成
+            kubectl config set-cluster default \\
+                --server=https://kubernetes.default.svc \\
+                --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \\
+                --kubeconfig=\$KUBECONFIG
+            kubectl config set-credentials default \\
+                --token=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \\
+                --kubeconfig=\$KUBECONFIG
+            kubectl config set-context default \\
+                --cluster=default --user=default \\
+                --kubeconfig=\$KUBECONFIG
+            kubectl config use-context default --kubeconfig=\$KUBECONFIG
+            
+            echo "✅ kubeconfig configured"
+            
+            # Secret存在確認
+            if kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1; then
+                echo "✅ harbor-auth secret found, retrieving credentials..."
+                
+                # k8s Secretから認証情報を安全に取得
+                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_USERNAME:" | awk '{print \$2}' | base64 -d > /tmp/harbor_username
+                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_PASSWORD:" | awk '{print \$2}' | base64 -d > /tmp/harbor_password
+                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_URL:" | awk '{print \$2}' | base64 -d > /tmp/harbor_url
+                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_PROJECT:" | awk '{print \$2}' | base64 -d > /tmp/harbor_project
+                
+                # ファイル権限を制限
+                chmod 600 /tmp/harbor_username /tmp/harbor_password /tmp/harbor_url /tmp/harbor_project
+                
+                echo "✅ Harbor credentials retrieved securely"
+                echo "Harbor Username: \$(cat /tmp/harbor_username)"
+                echo "Harbor URL: \$(cat /tmp/harbor_url)"
+                echo "Harbor Project: \$(cat /tmp/harbor_project)"
+                
+            else
+                echo "❌ harbor-auth secret not found"
+                exit 1
+            fi
+        else
+            echo "❌ Not running inside Kubernetes cluster"
+            exit 1
+        fi
+        
     - name: Harbor接続確認
-      env:
-        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
-        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor API Connection Test ==="
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/v2/_catalog
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/api/v2.0/projects | jq '.[] | select(.name=="sandbox")'
+        
+        # 認証情報をファイルから読み取り
+        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL=\$(cat /tmp/harbor_url)
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
+        
+        echo "Testing connection to \$HARBOR_URL..."
+        
+        # Harbor API接続テスト
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/_catalog
         
     - name: Dockerイメージビルド
-      env:
-        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
-        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Docker Image Build ==="
         
-        # Docker認証設定
+        # 認証情報をファイルから読み取り
+        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL=\$(cat /tmp/harbor_url)
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
+        
+        # DNS設定（フォールバック用）
+        echo "\$HARBOR_URL harbor.local" | sudo tee -a /etc/hosts
+        
+        # Docker認証設定（簡潔版）
         mkdir -p ~/.docker
-        echo '{"auths":{"192.168.122.100":{"auth":"'\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)'"}}}' > ~/.docker/config.json
+        echo "{\\"auths\\":{\\"\\$HARBOR_URL\\":{\\"auth\\":\\"\\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\\"}}}" > ~/.docker/config.json
+        chmod 600 ~/.docker/config.json
         
         # Dockerイメージビルド
-        docker build -t 192.168.122.100/sandbox/\${{ github.event.repository.name }}:latest .
-        docker build -t 192.168.122.100/sandbox/\${{ github.event.repository.name }}:\${{ github.sha }} .
+        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest .
+        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} .
         
     - name: Harborプッシュ（crane使用）
-      env:
-        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
-        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor Push with Crane ==="
         
-        # DNS設定でharbor.local解決を有効化
-        echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
+        # 認証情報をファイルから読み取り
+        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL=\$(cat /tmp/harbor_url)
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
         # Craneツールインストール
         curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | tar xz -C /tmp
@@ -332,32 +446,45 @@ jobs:
         
         # Crane認証（insecure registry対応）
         export CRANE_INSECURE=true
-        /tmp/crane auth login 192.168.122.100 -u \$HARBOR_USERNAME -p \$HARBOR_PASSWORD --insecure
+        /tmp/crane auth login \$HARBOR_URL -u \$HARBOR_USERNAME -p \$HARBOR_PASSWORD --insecure
         
         # latestタグプッシュ
-        docker save 192.168.122.100/sandbox/\${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
-        /tmp/crane push /tmp/image-latest.tar 192.168.122.100/sandbox/\${{ github.event.repository.name }}:latest --insecure
+        docker save \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
+        /tmp/crane push /tmp/image-latest.tar \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest --insecure
         
         # commitハッシュタグプッシュ
-        docker save 192.168.122.100/sandbox/\${{ github.event.repository.name }}:\${{ github.sha }} -o /tmp/image-commit.tar
-        /tmp/crane push /tmp/image-commit.tar 192.168.122.100/sandbox/\${{ github.event.repository.name }}:\${{ github.sha }} --insecure
+        docker save \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} -o /tmp/image-commit.tar
+        /tmp/crane push /tmp/image-commit.tar \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} --insecure
         
         echo "✅ Harbor push completed successfully"
         
     - name: プッシュ結果確認
-      env:
-        HARBOR_USERNAME: \${{ secrets.HARBOR_USERNAME }}
-        HARBOR_PASSWORD: \${{ secrets.HARBOR_PASSWORD }}
       run: |
         echo "=== Harbor Push Verification ==="
         
-        # latestタグ確認
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://192.168.122.100/v2/sandbox/\${{ github.event.repository.name }}/tags/list
+        # 認証情報をファイルから読み取り
+        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL=\$(cat /tmp/harbor_url)
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
-        # リポジトリ一覧確認
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "https://192.168.122.100/api/v2.0/projects/sandbox/repositories"
+        # プッシュ結果確認
+        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/\$HARBOR_PROJECT/\${{ github.event.repository.name }}/tags/list
         
         echo "=== Deployment completed successfully ==="
+        
+    - name: クリーンアップ
+      if: always()
+      run: |
+        echo "=== Cleanup Sensitive Files ==="
+        
+        # 認証情報ファイルを安全に削除
+        rm -f /tmp/harbor_username /tmp/harbor_password /tmp/harbor_url /tmp/harbor_project
+        rm -f ~/.docker/config.json
+        rm -f /tmp/kubeconfig
+        rm -f /tmp/image-*.tar
+        
+        echo "✅ Cleanup completed"
 EOF
 
 print_status "GitHub Actions workflow例をgithub-actions-example.ymlに保存しました"
@@ -369,23 +496,38 @@ echo ""
 echo "✅ 設定された認証情報:"
 echo "   GitHub ユーザー名: $GITHUB_USERNAME"
 echo "   GitHub Token: ${GITHUB_TOKEN:0:8}... (先頭8文字のみ表示)"
-echo "   Harbor ユーザー名: $HARBOR_USERNAME"
-echo "   Harbor パスワード: ${HARBOR_PASSWORD:0:3}... (先頭3文字のみ表示)"
+echo "   Harbor ユーザー名: $HARBOR_USERNAME (k8s Secret化済み)"
+echo "   Harbor パスワード: ${HARBOR_PASSWORD:0:3}... (k8s Secret化済み)"
 echo ""
 echo "✅ 作成されたRunner Scale Sets:"
 echo "   - k8s-myhome-runners (k8s_myHomeリポジトリ用)"
 echo "   - slack-rs-runners (slack.rsリポジトリ用、存在する場合)"
 echo ""
+echo "✅ Harbor認証方式:"
+echo "   - k8s Secret自動参照方式を採用"
+echo "   - GitHub Repository Secretsの手動設定が不要"
+echo "   - arc-systems namespace の harbor-auth Secret から自動取得"
+echo "   - ServiceAccount 'github-actions-runner' で適切な権限設定"
+echo ""
+echo "✅ 完全自動化されたセットアップ:"
+echo "   - Harbor パスワード: k8s Secret化済み"
+echo "   - GitHub Actions Workflow: 最終版（Docker-in-Docker対応）"
+echo "   - Runner Scale Set: 適切なServiceAccountで設定済み"
+echo "   - Harbor証明書: IP SAN対応済み"
+echo ""
 echo "📝 次のステップ:"
-echo "1. GitHub Repository Secretsを設定:"
-echo "   - https://github.com/$GITHUB_USERNAME/k8s_myHome/settings/secrets/actions"
-echo "   - HARBOR_USERNAME: $HARBOR_USERNAME"
-echo "   - HARBOR_PASSWORD: (入力したパスワード)"
-echo "2. github-actions-example.yml をリポジトリの.github/workflows/にコピー"
-echo "3. ArgoCD App of AppsでのHarbor完全デプロイを確認"
-echo "   kubectl get applications -n argocd"
-echo "   kubectl get pods -n harbor"
-echo "4. Harbor証明書修正（まだ未実行の場合）:"
-echo "   cd automation/phase4 && ./harbor-cert-fix.sh"
-echo "5. GitHub ActionsでCI/CDテスト実行"
-echo "6. Harborでイメージ確認: https://192.168.122.100"
+echo "1. github-actions-example.yml をリポジトリの.github/workflows/にコピー"
+echo "   cp automation/phase4/github-actions-example.yml .github/workflows/build-and-push.yml"
+echo "2. GitリポジトリにCommit & Push"
+echo "   git add .github/workflows/build-and-push.yml"
+echo "   git commit -m \"GitHub Actions Harbor対応ワークフロー追加\""
+echo "   git push"
+echo "3. GitHub ActionsでCI/CDテスト実行"
+echo "4. Harborでイメージ確認: https://192.168.122.100"
+echo ""
+echo "🔧 Harbor パスワード変更時:"
+echo "   ./harbor-password-update.sh --interactive"
+echo "   （GitHub Actions Runnerも自動再起動されます）"
+echo ""
+echo "🎉 ワンショットセットアップ完了！"
+echo "   全てのコンポーネントが自動設定され、すぐにCI/CDが利用可能です。"

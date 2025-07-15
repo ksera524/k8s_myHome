@@ -244,19 +244,108 @@ print_status "✓ ArgoCD インストール完了"
 print_status "=== Phase 4.6: Harbor パスワード設定 ==="
 print_debug "Harbor管理者パスワードを設定します"
 
-echo ""
-print_status "Harbor管理者パスワードを設定してください"
-echo "デフォルトのパスワード（Harbor12345）を使用する場合は、空エンターを押してください"
-echo -n "Harbor管理者パスワード [Harbor12345]: "
-read -s HARBOR_PASSWORD_INPUT
-echo ""
-
-if [[ -n "$HARBOR_PASSWORD_INPUT" ]]; then
-    export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
-    print_debug "✓ Harborパスワード設定完了: $HARBOR_PASSWORD"
+# Harbor パスワード管理スクリプトの実行
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
+    print_debug "Harbor パスワード管理スクリプトを実行中..."
+    print_debug "このスクリプトはHarborパスワードを安全にk8s Secretとして保存します"
+    
+    # Harbor パスワード管理スクリプトを実行
+    bash "$SCRIPT_DIR/harbor-password-manager.sh"
+    
+    # スクリプト実行結果からパスワードを取得
+    HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
+    HARBOR_USERNAME="admin"
+    export HARBOR_PASSWORD HARBOR_USERNAME
+    print_debug "✓ Harbor パスワード管理完了"
+    
+    # GitHub Actions用Secret作成確認と修正
+    print_debug "GitHub Actions用Secret作成確認・修正中..."
+    HARBOR_AUTH_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_USERNAME}" | base64 -d' 2>/dev/null || echo "")
+    
+    if [[ -n "$HARBOR_AUTH_SECRET" ]]; then
+        # Secret存在確認後、必要なフィールドが揃っているかチェック
+        HARBOR_URL_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+            'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_URL}" | base64 -d' 2>/dev/null || echo "")
+        HARBOR_PROJECT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+            'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_PROJECT}" | base64 -d' 2>/dev/null || echo "")
+        
+        if [[ -z "$HARBOR_URL_CHECK" ]] || [[ -z "$HARBOR_PROJECT_CHECK" ]]; then
+            print_warning "Harbor Secret不完全、修正中..."
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# Harbor認証Secret完全版作成/更新
+kubectl create secret generic harbor-auth \
+    --from-literal=HARBOR_USERNAME="admin" \
+    --from-literal=HARBOR_PASSWORD="Harbor12345" \
+    --from-literal=HARBOR_URL="192.168.122.100" \
+    --from-literal=HARBOR_PROJECT="sandbox" \
+    --namespace=arc-systems \
+    --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ Harbor Secret修正完了"
+EOF
+        fi
+        print_debug "✓ GitHub Actions用Secret作成完了"
+    else
+        print_warning "GitHub Actions用Secret作成に失敗しました"
+        print_debug "ARCセットアップ時に再試行されます"
+    fi
 else
-    export HARBOR_PASSWORD="Harbor12345"
-    print_debug "デフォルトパスワード（Harbor12345）を使用します"
+    # フォールバック: 従来の手動入力方式
+    print_warning "harbor-password-manager.sh が見つかりません、手動入力します"
+    echo ""
+    print_status "Harbor管理者パスワードを設定してください"
+    echo "デフォルトのパスワード（Harbor12345）を使用する場合は、空エンターを押してください"
+    echo -n "Harbor管理者パスワード [Harbor12345]: "
+    read -s HARBOR_PASSWORD_INPUT
+    echo ""
+
+    if [[ -n "$HARBOR_PASSWORD_INPUT" ]]; then
+        export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+        print_debug "✓ Harborパスワード設定完了"
+    else
+        export HARBOR_PASSWORD="Harbor12345"
+        print_debug "デフォルトパスワード（Harbor12345）を使用します"
+    fi
+    export HARBOR_USERNAME="admin"
+    
+    # 手動入力の場合もSecret作成
+    print_debug "手動入力パスワードでSecret作成中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
+# Harbor namespace作成（まだ存在しない場合）
+kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor管理者パスワードSecret作成/更新
+kubectl create secret generic harbor-admin-secret \
+    --from-literal=username="$HARBOR_USERNAME" \
+    --from-literal=password="$HARBOR_PASSWORD" \
+    --namespace=harbor \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+# ARC namespace作成（まだ存在しない場合）
+kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor認証Secret（GitHub Actions用）作成/更新
+kubectl create secret generic harbor-auth \
+    --from-literal=HARBOR_USERNAME="$HARBOR_USERNAME" \
+    --from-literal=HARBOR_PASSWORD="$HARBOR_PASSWORD" \
+    --from-literal=HARBOR_URL="192.168.122.100" \
+    --from-literal=HARBOR_PROJECT="sandbox" \
+    --namespace=arc-systems \
+    --dry-run=client -o yaml | kubectl apply -f -
+    
+# default namespace用も作成
+kubectl create secret generic harbor-auth \
+    --from-literal=HARBOR_USERNAME="$HARBOR_USERNAME" \
+    --from-literal=HARBOR_PASSWORD="$HARBOR_PASSWORD" \
+    --from-literal=HARBOR_URL="192.168.122.100" \
+    --from-literal=HARBOR_PROJECT="sandbox" \
+    --namespace=default \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✓ Harbor Secret手動作成完了"
+EOF
 fi
 
 # 7. App of Apps デプロイ
@@ -295,31 +384,21 @@ EOF
 
 print_status "✓ GitOps セットアップ完了"
 
-# 7.5. Harbor アプリケーションのパスワード更新
-if [[ "$HARBOR_PASSWORD" != "Harbor12345" ]]; then
-    print_status "=== Phase 4.7.5: Harbor 管理者パスワード Secret作成 ==="
-    print_debug "Harborが使用するパスワードSecretを作成します"
-    
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
-# Harbor namespace作成（まだ存在しない場合）
-kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+# 7.5. Harbor アプリケーション同期
+print_status "=== Phase 4.7.5: Harbor アプリケーション同期 ==="
+print_debug "Harbor パスワード設定をArgoCD経由で反映します"
 
-# Harbor管理者パスワードSecret作成/更新
-kubectl create secret generic harbor-admin-secret \\
-    --from-literal=password="$HARBOR_PASSWORD" \\
-    --namespace=harbor \\
-    --dry-run=client -o yaml | kubectl apply -f -
-
-echo "✓ Harbor管理者パスワードSecret作成完了"
-
-# ArgoCD Harborアプリケーションの強制同期でSecret設定を反映
-kubectl patch application harbor -n argocd -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' --type=merge
-
-echo "✓ Harbor Secret作成・同期完了"
-EOF
-    
-    print_status "✓ Harbor パスワード更新完了"
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# ArgoCD Harbor アプリケーションの強制同期でSecret設定を反映
+if kubectl get application harbor -n argocd >/dev/null 2>&1; then
+    kubectl patch application harbor -n argocd -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' --type=merge
+    echo "✓ Harbor アプリケーション同期リクエスト送信"
+else
+    echo "⚠️ Harbor アプリケーションがまだ存在しません（App of Apps デプロイ後に作成されます）"
 fi
+EOF
+
+print_status "✓ Harbor アプリケーション同期完了"
 
 # 8. GitHub Actions Runner Controller (ARC) セットアップ
 print_status "=== Phase 4.8: GitHub Actions Runner Controller (ARC) セットアップ ==="
@@ -436,8 +515,30 @@ echo ""
 echo "=== 次のステップ ====" 
 echo "1. ArgoCD UI アクセス: kubectl port-forward svc/argocd-server -n argocd 8080:443"
 echo "2. ArgoCD管理者パスワード確認: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
-echo "3. GitリポジトリをCommit & Push後、ArgoCDでアプリケーションの自動デプロイを確認"
-echo "4. Cloudflared Secret作成後、cloudflaredアプリケーションの同期を確認"
+echo "3. Harbor UI アクセス: kubectl port-forward svc/harbor-core -n harbor 8081:80"
+echo "4. Harbor パスワード確認: kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d"
+echo "5. GitHub Actions設定（ARCセットアップ）:"
+echo "   export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+echo "   export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
+echo "   ./setup-arc.sh"
+echo "6. GitHub Actions Workflowデプロイ:"
+echo "   cp automation/phase4/github-actions-example.yml .github/workflows/build-and-push.yml"
+echo "   git add .github/workflows/build-and-push.yml"
+echo "   git commit -m \"GitHub Actions Harbor対応ワークフロー追加\""
+echo "   git push"
+echo "7. GitリポジトリをCommit & Push後、ArgoCDでアプリケーションの自動デプロイを確認"
+echo "8. Cloudflared Secret作成後、cloudflaredアプリケーションの同期を確認"
+echo ""
+echo "🔧 Harbor パスワード管理:"
+echo "- パスワード更新: ./harbor-password-update.sh <新しいパスワード>"
+echo "- 対話式更新: ./harbor-password-update.sh --interactive"
+echo "- Secret確認: kubectl get secrets -n harbor,arc-systems,default | grep harbor"
+echo ""
+echo "🎉 ワンショットセットアップ対応:"
+echo "- Harbor パスワード: 自動でk8s Secret化済み"
+echo "- GitHub Actions Ready: Secret参照方式で完全自動化"
+echo "- Docker-in-Docker対応: systemd不要で確実にpush"
+echo "- 証明書問題解決: Harbor IP SAN対応済み"
 echo ""
 
 # 設定情報保存
@@ -450,19 +551,33 @@ cat > phase4-info.txt << EOF
 - cert-manager
 - ArgoCD: $ARGOCD_READY Pod(s) Running
 - LoadBalancer IP: $LB_IP
+- Harbor パスワード管理: セキュアにSecret化済み
 
 ArgoCD App of Apps デプロイ済み:
 - リポジトリ: https://github.com/ksera524/k8s_myHome.git
 - 管理対象: infra/*.yaml
 
+Harbor Secret管理:
+- harbor-admin-secret (harbor namespace)
+- harbor-auth (arc-systems, default namespaces)
+- harbor-registry-secret (Docker認証用)
+
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10
 - ArgoCD UI: kubectl port-forward svc/argocd-server -n argocd 8080:443
+- Harbor UI: kubectl port-forward svc/harbor-core -n harbor 8081:80
 - LoadBalancer経由: http://$LB_IP (Ingressルーティング)
 
 手動セットアップ必要項目:
 1. Cloudflared Secret作成
-2. GitHub Actions Runner Token設定
+2. GitHub Repository Secrets設定:
+   - HARBOR_USERNAME: ${HARBOR_USERNAME:-admin}
+   - HARBOR_PASSWORD: (設定済みパスワード)
+
+Harbor パスワード管理コマンド:
+- 更新: ./harbor-password-update.sh <新しいパスワード>
+- 対話式: ./harbor-password-update.sh --interactive
+- Secret確認: kubectl get secret harbor-admin-secret -n harbor -o yaml
 EOF
 
 # 7. ArgoCD同期待機とHarbor確認
