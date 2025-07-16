@@ -21,7 +21,7 @@ spec:
       - name: slack
         image: 192.168.122.100/sandbox/slack.rs:latest
         ports:
-        - containerPort: 80
+        - containerPort: 3000
         env:
         - name: SLACK_BOT_TOKEN
           valueFrom:
@@ -42,6 +42,6 @@ spec:
     pod: slack
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 80
+      port: 3000
+      targetPort: 3000
       nodePort: 32001
