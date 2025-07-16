@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Phase 4: 基本インフラ自動構築スクリプト
-# MetalLB + Ingress Controller + cert-manager + ArgoCD
+# Kubernetes基盤構築スクリプト
+# MetalLB + Ingress Controller + cert-manager + ArgoCD + Harbor
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ print_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-print_status "=== Phase 4: 基本インフラ構築開始 ==="
+print_status "=== Kubernetes基盤構築開始 ==="
 
 # 0. 前提条件確認
 print_status "前提条件を確認中..."
@@ -517,6 +517,23 @@ fi
 print_status "=== Phase 4.10: Harbor sandboxプロジェクト作成 ==="
 print_debug "Harbor内にsandboxプライベートリポジトリを作成します"
 
+# port-forwardプロセスのクリーンアップ用トラップ
+cleanup_port_forward() {
+    if [[ -n "${PORT_FORWARD_PID:-}" ]]; then
+        kill $PORT_FORWARD_PID 2>/dev/null || true
+        wait $PORT_FORWARD_PID 2>/dev/null || true
+    fi
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+}
+
+# スクリプト終了時のクリーンアップ
+trap cleanup_port_forward EXIT
+
+# 変数初期化
+PORT_FORWARD_PID=""
+HARBOR_IP=""
+HARBOR_STATUS=""
+
 # Harbor稼働確認
 print_debug "Harbor稼働状況を確認中..."
 HARBOR_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n harbor --no-headers 2>/dev/null' | grep -c Running || echo "0")
@@ -542,9 +559,11 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
             
             # 既存のport-forwardを停止
             ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+            sleep 2
             
-            # バックグラウンドでport-forward開始
+            # バックグラウンドでport-forward開始（PIDを記録）
             ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl port-forward -n harbor svc/harbor-core 8080:80 > /dev/null 2>&1 &' &
+            PORT_FORWARD_PID=$!
             sleep 5
             HARBOR_URL="http://192.168.122.10:8080"
         fi
@@ -612,9 +631,19 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
         echo "  3. Projects > NEW PROJECT > sandbox (Private) を作成"
     fi
     
-    # port-forwardを使用した場合は停止
-    if [[ -z "$HARBOR_IP" ]]; then
+    # port-forwardプロセスを適切に終了
+    if [[ -z "$HARBOR_IP" ]] && [[ "$HARBOR_STATUS" != "200" ]]; then
+        print_debug "port-forwardプロセスを停止中..."
+        
+        # ローカルのport-forwardプロセスを停止
+        if [[ -n "${PORT_FORWARD_PID:-}" ]]; then
+            kill $PORT_FORWARD_PID 2>/dev/null || true
+            wait $PORT_FORWARD_PID 2>/dev/null || true
+        fi
+        
+        # リモートのport-forwardプロセスも停止
         ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+        sleep 1
     fi
     
 else
@@ -625,10 +654,36 @@ else
     echo "  3. Projects > NEW PROJECT > sandbox (Private) を作成"
 fi
 
+# 11. Kubernetes sandboxネームスペース作成
+print_status "=== Phase 4.11: Kubernetes sandboxネームスペース作成 ==="
+print_debug "Kubernetesクラスタ内にsandboxネームスペースを作成します"
+
+# sandboxネームスペース作成
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace sandbox" 2>/dev/null; then
+    print_status "✓ Kubernetes sandboxネームスペース作成完了"
+else
+    # 既存チェック
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get namespace sandbox" >/dev/null 2>&1; then
+        print_debug "sandboxネームスペースは既に存在しています"
+    else
+        print_warning "sandboxネームスペース作成に失敗しました"
+        print_debug "手動で作成する場合:"
+        echo "  kubectl create namespace sandbox"
+    fi
+fi
+
+# sandboxネームスペース確認
+SANDBOX_NS_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get namespace sandbox -o jsonpath='{.status.phase}'" 2>/dev/null || echo "NotFound")
+if [[ "$SANDBOX_NS_STATUS" == "Active" ]]; then
+    print_debug "sandboxネームスペースは正常に稼働中です"
+else
+    print_warning "sandboxネームスペースの状態が確認できません: $SANDBOX_NS_STATUS"
+fi
+
 echo ""
 
-# 11. 構築結果確認
-print_status "=== Phase 4構築結果確認 ==="
+# 12. 構築結果確認
+print_status "=== Kubernetes基盤構築結果確認 ==="
 
 # ArgoCD状態確認
 print_debug "ArgoCD状態確認..."

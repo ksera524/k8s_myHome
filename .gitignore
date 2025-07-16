@@ -30,3 +30,5 @@ crash.log
 # Ignore files for Terraform CLI configuration
 terraform.rc
 .terraformrc
+
+automation/phase4/.github/

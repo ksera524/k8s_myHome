@@ -146,13 +146,25 @@ echo "UUID=$UUID $MOUNT_BASE ext4 defaults,noatime 0 2" | sudo tee -a /etc/fstab
 # 6. Mount the storage
 print_status "Mounting storage..."
 sudo systemctl daemon-reload
-sudo mount "$MOUNT_BASE"
 
-# Verify mount
+# Check if already mounted
 if mountpoint -q "$MOUNT_BASE"; then
-    print_status "Storage successfully mounted at $MOUNT_BASE"
+    print_warning "Storage already mounted at $MOUNT_BASE"
 else
-    print_error "Failed to mount storage"
+    # Attempt to mount
+    if sudo mount "$MOUNT_BASE" 2>/dev/null; then
+        print_status "Storage successfully mounted at $MOUNT_BASE"
+    else
+        print_error "Failed to mount storage at $MOUNT_BASE"
+        exit 1
+    fi
+fi
+
+# Final verification
+if mountpoint -q "$MOUNT_BASE"; then
+    print_status "Storage is available at $MOUNT_BASE"
+else
+    print_error "Storage is not available at $MOUNT_BASE"
     exit 1
 fi
 
