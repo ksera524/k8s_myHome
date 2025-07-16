@@ -471,15 +471,163 @@ else
     print_warning "setup-arc.shが見つかりません。ARCセットアップをスキップしました。"
 fi
 
-# 9. 手動セットアップが必要な項目
-print_status "=== Phase 4.9: 手動セットアップ項目 ==="
-print_warning "以下の項目は手動でセットアップが必要です："
-echo "1. Cloudflared Secret作成:"
-echo "   kubectl create namespace cloudflared"
-echo "   kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+# 9. Cloudflaredセットアップ
+print_status "=== Phase 4.9: Cloudflaredセットアップ ==="
+print_debug "Cloudflare Tunnel用のSecret作成を行います"
+
+# Cloudflaredトークンの入力
+echo ""
+print_status "Cloudflared Token設定"
+echo "Cloudflare Tunnelのトークンを入力してください"
+echo "取得方法: https://one.dash.cloudflare.com/ > Access > Tunnels > Create Tunnel"
+echo "スキップしたい場合は空エンターを押してください"
 echo ""
 
-# 9. 構築結果確認
+read -s -p "Cloudflared Token (空でスキップ): " CLOUDFLARED_TOKEN
+echo ""
+
+if [[ -n "$CLOUDFLARED_TOKEN" ]]; then
+    print_debug "Cloudflared namespaceを作成中..."
+    
+    # Cloudflared namespace作成
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace cloudflared" 2>/dev/null; then
+        print_debug "✓ Cloudflared namespace作成完了"
+    else
+        print_debug "Cloudflared namespaceは既に存在しています"
+    fi
+    
+    # Cloudflared Secret作成
+    print_debug "Cloudflared Secret作成中..."
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN' --namespace=cloudflared" 2>/dev/null; then
+        print_status "✓ Cloudflared Secret作成完了"
+    else
+        print_warning "Cloudflared Secretは既に存在しているか、作成に失敗しました"
+        print_debug "手動で更新する場合:"
+        echo "  kubectl delete secret cloudflared -n cloudflared"
+        echo "  kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+    fi
+else
+    print_warning "Cloudflared Tokenが入力されませんでした"
+    print_warning "後で手動セットアップする場合："
+    echo "  kubectl create namespace cloudflared"
+    echo "  kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+fi
+
+# 10. Harbor sandboxプロジェクト作成
+print_status "=== Phase 4.10: Harbor sandboxプロジェクト作成 ==="
+print_debug "Harbor内にsandboxプライベートリポジトリを作成します"
+
+# Harbor稼働確認
+print_debug "Harbor稼働状況を確認中..."
+HARBOR_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n harbor --no-headers 2>/dev/null' | grep -c Running || echo "0")
+
+if [[ "$HARBOR_READY" -gt 0 ]]; then
+    print_debug "Harbor稼働中 (Running pods: $HARBOR_READY)"
+    
+    # Harbor LoadBalancer IP取得
+    HARBOR_IP=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n harbor get service harbor-core -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "")
+    
+    if [[ -z "$HARBOR_IP" ]]; then
+        # LoadBalancerが利用できない場合はMetalLB IPを使用
+        print_debug "LoadBalancer IPが取得できません。MetalLB IPを使用してHarborにアクセスします"
+        
+        # MetalLB範囲の最初のIP (192.168.122.100) を試行
+        HARBOR_URL="http://192.168.122.100"
+        
+        # 接続テスト
+        HARBOR_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' $HARBOR_URL/api/v2.0/systeminfo --connect-timeout 5" 2>/dev/null || echo "000")
+        
+        if [[ "$HARBOR_STATUS" != "200" ]]; then
+            print_debug "MetalLB IP接続失敗。port-forwardを使用します"
+            
+            # 既存のport-forwardを停止
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+            
+            # バックグラウンドでport-forward開始
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl port-forward -n harbor svc/harbor-core 8080:80 > /dev/null 2>&1 &' &
+            sleep 5
+            HARBOR_URL="http://192.168.122.10:8080"
+        fi
+    else
+        HARBOR_URL="http://$HARBOR_IP"
+    fi
+    
+    print_debug "Harbor URL: $HARBOR_URL"
+    
+    # Harbor認証情報の取得（既に設定済みの場合）
+    HARBOR_USERNAME="${HARBOR_USERNAME:-admin}"
+    HARBOR_PASSWORD="${HARBOR_PASSWORD:-Harbor12345}"
+    
+    # Harbor接続確認
+    print_debug "Harbor接続確認中..."
+    HARBOR_TEST=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' '$HARBOR_URL/api/v2.0/systeminfo' --connect-timeout 10" 2>/dev/null || echo "000")
+    
+    if [[ "$HARBOR_TEST" == "200" ]]; then
+        print_debug "Harbor接続成功"
+        
+        # 既存プロジェクト確認
+        print_debug "既存sandboxプロジェクト確認中..."
+        EXISTING_PROJECT=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s '$HARBOR_URL/api/v2.0/projects?name=sandbox' -u '$HARBOR_USERNAME:$HARBOR_PASSWORD' --connect-timeout 10" 2>/dev/null || echo "error")
+        
+        if [[ "$EXISTING_PROJECT" == *'"name":"sandbox"'* ]]; then
+            print_debug "sandboxプロジェクトは既に存在しています"
+        else
+            # Harbor APIを使用してsandboxプロジェクト作成
+            print_debug "sandboxプロジェクト作成中..."
+            
+            # プロジェクト作成APIリクエスト
+            PROJECT_JSON='{
+                "project_name": "sandbox",
+                "public": false,
+                "metadata": {
+                    "public": "false"
+                }
+            }'
+            
+            # curlを使用してHarbor APIにリクエスト送信
+            CREATE_RESULT=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -X POST '$HARBOR_URL/api/v2.0/projects' \
+                -H 'Content-Type: application/json' \
+                -u '$HARBOR_USERNAME:$HARBOR_PASSWORD' \
+                -d '$PROJECT_JSON' \
+                -w '%{http_code}' \
+                --connect-timeout 10" 2>/dev/null || echo "000")
+            
+            if [[ "$CREATE_RESULT" == *"201"* ]]; then
+                print_status "✓ Harbor sandboxプロジェクト作成完了"
+            elif [[ "$CREATE_RESULT" == *"409"* ]]; then
+                print_debug "sandboxプロジェクトは既に存在しています"
+            else
+                print_warning "Harbor sandboxプロジェクト作成に失敗しました (HTTP: $CREATE_RESULT)"
+                print_debug "手動で作成する場合:"
+                echo "  1. Harbor UI ($HARBOR_URL) にアクセス"
+                echo "  2. admin/$HARBOR_PASSWORD でログイン"
+                echo "  3. Projects > NEW PROJECT > sandbox (Private) を作成"
+            fi
+        fi
+    else
+        print_warning "Harbor接続に失敗しました (HTTP: $HARBOR_TEST)"
+        print_debug "手動で作成する場合:"
+        echo "  1. Harbor UI ($HARBOR_URL) にアクセス"
+        echo "  2. admin/$HARBOR_PASSWORD でログイン"
+        echo "  3. Projects > NEW PROJECT > sandbox (Private) を作成"
+    fi
+    
+    # port-forwardを使用した場合は停止
+    if [[ -z "$HARBOR_IP" ]]; then
+        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+    fi
+    
+else
+    print_warning "Harborがまだ稼働していません"
+    print_debug "ArgoCD App of Appsでのデプロイ完了後に以下を手動実行してください："
+    echo "  1. Harbor UI (http://192.168.122.100) にアクセス"
+    echo "  2. admin/Harbor12345 でログイン"
+    echo "  3. Projects > NEW PROJECT > sandbox (Private) を作成"
+fi
+
+echo ""
+
+# 11. 構築結果確認
 print_status "=== Phase 4構築結果確認 ==="
 
 # ArgoCD状態確認
