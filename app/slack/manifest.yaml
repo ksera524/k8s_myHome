@@ -9,11 +9,11 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      pod: slack
+      app: slack
   template:
     metadata:
       labels:
-        pod: slack
+        app: slack
     spec:
       imagePullSecrets:
         - name: harbor-http
