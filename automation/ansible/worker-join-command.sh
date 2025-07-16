@@ -1,1 +1,0 @@
-sudo kubeadm join 192.168.122.10:6443 --token trg32v.5y1zcd199ggzxhhc --discovery-token-ca-cert-hash sha256:6cb723ed768297b7f04ab97e4af7c2fcafd7713d4bd28f51aad061a110ea7ac4 
