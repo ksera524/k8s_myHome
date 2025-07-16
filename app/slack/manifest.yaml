@@ -16,16 +16,16 @@ spec:
         pod: slack
     spec:
       imagePullSecrets:
-        - name: harbor
+        - name: harbor-http
       containers:
       - name: slack
-        image: nginx:latest
-        # env:
-        # - name: SLACK_BOT_TOKEN
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: slack3
-        #       key: token
+        image: 192.168.122.100/sandbox/slack.rs:latest
+        env:
+        - name: SLACK_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: slack3
+              key: token
 
 
 ---
