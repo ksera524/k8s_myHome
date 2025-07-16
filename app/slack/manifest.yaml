@@ -19,13 +19,13 @@ spec:
         - name: harbor
       containers:
       - name: slack
-        image: 192.168.122.100/sandbox/slack.rs:latest
-        env:
-        - name: SLACK_BOT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: slack3
-              key: token
+        image: nginx:latest
+        # env:
+        # - name: SLACK_BOT_TOKEN
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: slack3
+        #       key: token
 
 
 ---
