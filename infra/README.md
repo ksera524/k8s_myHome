@@ -16,11 +16,11 @@ ArgoCDによるGitOpsアプローチで以下のコンポーネントを管理�
 ## ファイル構成
 
 - `app-of-apps.yaml`: メインアプリケーション（App of Apps パターン）
-- `metallb-app.yaml`: MetalLBアプリケーション定義
-- `metallb-config.yaml`: MetalLB設定
+- `metallb-complete.yaml`: MetalLBアプリケーション定義と設定
 - `ingress-nginx-app.yaml`: NGINX Ingress Controllerアプリケーション定義
-- `cert-manager-app.yaml`: cert-managerアプリケーション定義
-- `harbor-app.yaml`: Harborアプリケーション定義
+- `cert-manager-complete.yaml`: cert-managerアプリケーション定義と設定
+- `harbor-complete.yaml`: Harborアプリケーション定義と証明書設定
+- `storage-complete.yaml`: ストレージクラス設定
 - `actions-runner-controller-app.yaml`: ARCアプリケーション定義
 - `github-runner-config.yaml`: GitHub Runner設定
 

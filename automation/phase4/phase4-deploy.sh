@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# GitHub認証情報管理ユーティリティを読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/github-auth-utils.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -405,36 +409,15 @@ print_status "=== Phase 4.8: GitHub Actions Runner Controller (ARC) セットア
 print_debug "GitHub Actions Self-hosted Runnerをk8s上にデプロイします"
 
 # GitHub設定の確認・入力
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     # GitHub設定の対話式確認
-    if [[ -z "${GITHUB_TOKEN:-}" ]] || [[ -z "${GITHUB_USERNAME:-}" ]]; then
-        echo ""
-        print_status "GitHub Actions設定に必要な情報を入力してください"
-        print_debug "スキップしたい場合は空エンターを押してください"
-        
-        # GITHUB_TOKEN入力
-        if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-            echo "GitHub Personal Access Token (repo, workflow, admin:org権限必要):"
-            echo "取得方法: https://github.com/settings/tokens"
-            echo -n "GITHUB_TOKEN (空でスキップ): "
-            read -s GITHUB_TOKEN_INPUT
-            echo ""
-            if [[ -n "$GITHUB_TOKEN_INPUT" ]]; then
-                export GITHUB_TOKEN="$GITHUB_TOKEN_INPUT"
-                print_debug "GITHUB_TOKEN設定完了"
-            fi
-        fi
-        
-        # GITHUB_USERNAME入力
-        if [[ -z "${GITHUB_USERNAME:-}" ]]; then
-            echo -n "GITHUB_USERNAME (空でスキップ): "
-            read GITHUB_USERNAME_INPUT
-            if [[ -n "$GITHUB_USERNAME_INPUT" ]]; then
-                export GITHUB_USERNAME="$GITHUB_USERNAME_INPUT"
-                print_debug "GITHUB_USERNAME設定完了: $GITHUB_USERNAME"
-            fi
-        fi
+    echo ""
+    print_status "GitHub Actions設定を確認中..."
+    
+    # GitHub認証情報を取得（保存済みを利用または新規入力）
+    if ! get_github_credentials; then
+        print_warning "GitHub認証情報の取得に失敗しました"
+        print_debug "ARCセットアップをスキップします"
     fi
     
     # Harbor認証情報の対話式確認
@@ -474,8 +457,9 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${GITHUB_USERNAME:-}" ]]; then
         print_debug "ARC セットアップスクリプトを実行中..."
         print_debug "渡される値: HARBOR_USERNAME=$HARBOR_USERNAME, HARBOR_PASSWORD=${HARBOR_PASSWORD:0:3}..."
-        # 環境変数を明示的に渡して実行
-        GITHUB_TOKEN="$GITHUB_TOKEN" GITHUB_USERNAME="$GITHUB_USERNAME" HARBOR_USERNAME="$HARBOR_USERNAME" HARBOR_PASSWORD="$HARBOR_PASSWORD" bash "$SCRIPT_DIR/setup-arc.sh"
+        # 環境変数をエクスポートして実行
+        export GITHUB_TOKEN GITHUB_USERNAME HARBOR_USERNAME HARBOR_PASSWORD
+        "$SCRIPT_DIR/setup-arc.sh"
     else
         print_warning "GitHub設定が不完全のため、ARC セットアップをスキップしました"
         print_warning "後で手動セットアップする場合："

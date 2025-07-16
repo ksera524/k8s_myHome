@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# GitHub認証情報管理ユーティリティを読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/github-auth-utils.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -28,41 +32,11 @@ print_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-# GitHub Personal Access Token確認・入力
-if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-    print_status "GitHub Personal Access Tokenが必要です"
-    echo "GitHub Personal Access Token (repo, workflow, admin:org権限必要):"
-    echo "取得方法: https://github.com/settings/tokens"
-    echo -n "GITHUB_TOKEN: "
-    read -s GITHUB_TOKEN
-    echo ""
-    
-    if [[ -z "$GITHUB_TOKEN" ]]; then
-        print_error "GITHUB_TOKENが入力されませんでした"
-        exit 1
-    fi
-    
-    export GITHUB_TOKEN
-    print_debug "GITHUB_TOKEN設定完了"
-else
-    print_debug "GITHUB_TOKEN環境変数を使用"
-fi
-
-# GitHubユーザー名確認・入力
-if [[ -z "${GITHUB_USERNAME:-}" ]]; then
-    print_status "GitHubユーザー名を入力してください"
-    echo -n "GITHUB_USERNAME: "
-    read GITHUB_USERNAME
-    
-    if [[ -z "$GITHUB_USERNAME" ]]; then
-        print_error "GITHUB_USERNAMEが入力されませんでした"
-        exit 1
-    fi
-    
-    export GITHUB_USERNAME
-    print_debug "GITHUB_USERNAME設定完了: $GITHUB_USERNAME"
-else
-    print_debug "GITHUB_USERNAME環境変数を使用: $GITHUB_USERNAME"
+# GitHub認証情報の確認・取得（保存済みを利用または新規入力）
+print_status "GitHub認証情報を確認中..."
+if ! get_github_credentials; then
+    print_error "GitHub認証情報の取得に失敗しました"
+    exit 1
 fi
 
 # Harbor認証情報確認・入力
@@ -227,38 +201,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 RBAC
 fi
-
-# k8s_myHome用Runner Scale Set（ServiceAccount指定）
-helm install k8s-myhome-runners \
-  --namespace arc-systems \
-  --set githubConfigUrl="https://github.com/${GITHUB_USERNAME}/k8s_myHome" \
-  --set githubConfigSecret="github-token" \
-  --set containerMode.type="dind" \
-  --set runnerScaleSetName="k8s-myhome-runners" \
-  --set template.spec.serviceAccountName="github-actions-runner" \
-  --set minRunners=0 \
-  --set maxRunners=3 \
-  oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set || \
-echo "k8s-myhome-runners既にインストール済み"
-
-# slack.rs用Runner Scale Set (存在する場合)
-if curl -s -f -H "Authorization: token ${GITHUB_TOKEN}" \
-  "https://api.github.com/repos/${GITHUB_USERNAME}/slack.rs" > /dev/null 2>&1; then
-  
-  helm install slack-rs-runners \
-    --namespace arc-systems \
-    --set githubConfigUrl="https://github.com/${GITHUB_USERNAME}/slack.rs" \
-    --set githubConfigSecret="github-token" \
-    --set containerMode.type="dind" \
-    --set runnerScaleSetName="slack-rs-runners" \
-    --set template.spec.serviceAccountName="github-actions-runner" \
-    --set minRunners=0 \
-    --set maxRunners=3 \
-    oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set || \
-  echo "slack-rs-runners既にインストール済み"
-else
-  echo "slack.rsリポジトリが見つからない、スキップします"
-fi
 EOF
 
 # 6. ARC状態確認
@@ -317,179 +259,6 @@ echo ""
 echo "Harbor認証："
 echo "  docker login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD"
 echo ""
-
-# 8. GitHub Actions workflow例を保存 (最終版 - セキュア + Docker-in-Docker対応)
-cat > github-actions-example.yml << EOF
-# GitHub Actions workflow例 - Harbor対応版（最終版）
-# .github/workflows/build-and-push.yml として保存
-# セキュアなk8s Secret参照 + Docker-in-Docker対応
-
-name: Build and Push to Harbor
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  build-and-push:
-    runs-on: k8s-myhome-runners  # Runner Scale Set名
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Harbor認証情報取得
-      run: |
-        echo "=== Retrieving Harbor Credentials Securely ==="
-        
-        # kubectl設定（書き込み可能な場所を使用）
-        if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
-            echo "✅ Running inside Kubernetes cluster"
-            
-            # 書き込み可能な場所にkubeconfigを作成
-            export KUBECONFIG=/tmp/kubeconfig
-            
-            # In-cluster設定を作成
-            kubectl config set-cluster default \\
-                --server=https://kubernetes.default.svc \\
-                --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \\
-                --kubeconfig=\$KUBECONFIG
-            kubectl config set-credentials default \\
-                --token=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \\
-                --kubeconfig=\$KUBECONFIG
-            kubectl config set-context default \\
-                --cluster=default --user=default \\
-                --kubeconfig=\$KUBECONFIG
-            kubectl config use-context default --kubeconfig=\$KUBECONFIG
-            
-            echo "✅ kubeconfig configured"
-            
-            # Secret存在確認
-            if kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1; then
-                echo "✅ harbor-auth secret found, retrieving credentials..."
-                
-                # k8s Secretから認証情報を安全に取得
-                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_USERNAME:" | awk '{print \$2}' | base64 -d > /tmp/harbor_username
-                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_PASSWORD:" | awk '{print \$2}' | base64 -d > /tmp/harbor_password
-                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_URL:" | awk '{print \$2}' | base64 -d > /tmp/harbor_url
-                kubectl get secret harbor-auth -n arc-systems -o yaml | grep "HARBOR_PROJECT:" | awk '{print \$2}' | base64 -d > /tmp/harbor_project
-                
-                # ファイル権限を制限
-                chmod 600 /tmp/harbor_username /tmp/harbor_password /tmp/harbor_url /tmp/harbor_project
-                
-                echo "✅ Harbor credentials retrieved securely"
-                echo "Harbor Username: \$(cat /tmp/harbor_username)"
-                echo "Harbor URL: \$(cat /tmp/harbor_url)"
-                echo "Harbor Project: \$(cat /tmp/harbor_project)"
-                
-            else
-                echo "❌ harbor-auth secret not found"
-                exit 1
-            fi
-        else
-            echo "❌ Not running inside Kubernetes cluster"
-            exit 1
-        fi
-        
-    - name: Harbor接続確認
-      run: |
-        echo "=== Harbor API Connection Test ==="
-        
-        # 認証情報をファイルから読み取り
-        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
-        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
-        HARBOR_URL=\$(cat /tmp/harbor_url)
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-        
-        echo "Testing connection to \$HARBOR_URL..."
-        
-        # Harbor API接続テスト
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/_catalog
-        
-    - name: Dockerイメージビルド
-      run: |
-        echo "=== Docker Image Build ==="
-        
-        # 認証情報をファイルから読み取り
-        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
-        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
-        HARBOR_URL=\$(cat /tmp/harbor_url)
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-        
-        # DNS設定（フォールバック用）
-        echo "\$HARBOR_URL harbor.local" | sudo tee -a /etc/hosts
-        
-        # Docker認証設定（簡潔版）
-        mkdir -p ~/.docker
-        echo "{\\"auths\\":{\\"\\$HARBOR_URL\\":{\\"auth\\":\\"\\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\\"}}}" > ~/.docker/config.json
-        chmod 600 ~/.docker/config.json
-        
-        # Dockerイメージビルド
-        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest .
-        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} .
-        
-    - name: Harborプッシュ（crane使用）
-      run: |
-        echo "=== Harbor Push with Crane ==="
-        
-        # 認証情報をファイルから読み取り
-        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
-        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
-        HARBOR_URL=\$(cat /tmp/harbor_url)
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-        
-        # Craneツールインストール
-        curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | tar xz -C /tmp
-        chmod +x /tmp/crane
-        
-        # Crane認証（insecure registry対応）
-        export CRANE_INSECURE=true
-        /tmp/crane auth login \$HARBOR_URL -u \$HARBOR_USERNAME -p \$HARBOR_PASSWORD --insecure
-        
-        # latestタグプッシュ
-        docker save \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest -o /tmp/image-latest.tar
-        /tmp/crane push /tmp/image-latest.tar \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:latest --insecure
-        
-        # commitハッシュタグプッシュ
-        docker save \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} -o /tmp/image-commit.tar
-        /tmp/crane push /tmp/image-commit.tar \$HARBOR_URL/\$HARBOR_PROJECT/\${{ github.event.repository.name }}:\${{ github.sha }} --insecure
-        
-        echo "✅ Harbor push completed successfully"
-        
-    - name: プッシュ結果確認
-      run: |
-        echo "=== Harbor Push Verification ==="
-        
-        # 認証情報をファイルから読み取り
-        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
-        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
-        HARBOR_URL=\$(cat /tmp/harbor_url)
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-        
-        # プッシュ結果確認
-        curl -k -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/\$HARBOR_PROJECT/\${{ github.event.repository.name }}/tags/list
-        
-        echo "=== Deployment completed successfully ==="
-        
-    - name: クリーンアップ
-      if: always()
-      run: |
-        echo "=== Cleanup Sensitive Files ==="
-        
-        # 認証情報ファイルを安全に削除
-        rm -f /tmp/harbor_username /tmp/harbor_password /tmp/harbor_url /tmp/harbor_project
-        rm -f ~/.docker/config.json
-        rm -f /tmp/kubeconfig
-        rm -f /tmp/image-*.tar
-        
-        echo "✅ Cleanup completed"
-EOF
-
-print_status "GitHub Actions workflow例をgithub-actions-example.ymlに保存しました"
-print_warning "リポジトリの.github/workflows/にコピーして使用してください"
-
 echo ""
 print_status "=== セットアップ完了 ==="
 echo ""

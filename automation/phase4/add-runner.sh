@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# GitHub認証情報管理ユーティリティを読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/github-auth-utils.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,40 +48,11 @@ print_status "=== GitHub Actions Runner追加スクリプト ==="
 print_debug "対象リポジトリ: $REPOSITORY_NAME"
 print_debug "Runner名: $RUNNER_NAME"
 
-# GitHub設定の確認
-if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-    print_status "GitHub Personal Access Tokenを入力してください"
-    echo "GitHub Personal Access Token (repo, workflow, admin:org権限必要):"
-    echo "取得方法: https://github.com/settings/tokens"
-    echo -n "GITHUB_TOKEN: "
-    read -s GITHUB_TOKEN
-    echo ""
-    
-    if [[ -z "$GITHUB_TOKEN" ]]; then
-        print_error "GITHUB_TOKENが入力されませんでした"
-        exit 1
-    fi
-    
-    export GITHUB_TOKEN
-    print_debug "GITHUB_TOKEN設定完了"
-else
-    print_debug "GITHUB_TOKEN環境変数を使用"
-fi
-
-if [[ -z "${GITHUB_USERNAME:-}" ]]; then
-    print_status "GitHubユーザー名を入力してください"
-    echo -n "GITHUB_USERNAME: "
-    read GITHUB_USERNAME
-    
-    if [[ -z "$GITHUB_USERNAME" ]]; then
-        print_error "GITHUB_USERNAMEが入力されませんでした"
-        exit 1
-    fi
-    
-    export GITHUB_USERNAME
-    print_debug "GITHUB_USERNAME設定完了: $GITHUB_USERNAME"
-else
-    print_debug "GITHUB_USERNAME環境変数を使用: $GITHUB_USERNAME"
+# GitHub設定の確認・取得（保存済みを利用または新規入力）
+print_status "GitHub認証情報を確認中..."
+if ! get_github_credentials; then
+    print_error "GitHub認証情報の取得に失敗しました"
+    exit 1
 fi
 
 # GitHubリポジトリ存在確認
