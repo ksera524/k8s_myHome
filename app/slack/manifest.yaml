@@ -39,7 +39,7 @@ metadata:
 spec:
   type: NodePort
   selector:
-    pod: slack
+    app: slack
   ports:
     - protocol: TCP
       port: 3000
