@@ -118,23 +118,13 @@ jobs:
         export DOCKER_API_VERSION=1.40
         export DOCKER_CONTENT_TRUST=0
         
-        # Docker認証設定（config.jsonに直接書き込み）
-        echo "Docker認証設定を更新中..."
-        mkdir -p ~/.docker
-        echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
-        chmod 600 ~/.docker/config.json
-        
-        # Docker loginも併用（確実な認証のため）
+        # Docker loginで認証（最も確実な方法）
         echo "Docker loginを実行中..."
         echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u $HARBOR_USERNAME --password-stdin
         
-        # Docker認証設定を再度確認
+        # Docker認証設定を確認
         echo "Docker認証設定の確認:"
-        docker system info | grep -A 10 "Registry:"
-        
-        # Docker config.jsonの内容を確認
-        echo "Docker config.jsonの内容:"
-        cat ~/.docker/config.json
+        docker system info | grep -A 10 "Registry:" || echo "Registry情報なし"
         
         # HTTPプロトコルを強制するためのデバッグ情報
         echo "Docker daemon insecure registries設定確認:"
