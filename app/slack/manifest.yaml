@@ -34,7 +34,9 @@ spec:
         - name: RUST_BACKTRACE
           value: "1"
         - name: RUST_LOG
-          value: "debug"
+          value: "slack=debug,info"
+        command: ["/bin/bash", "-c"]
+        args: ["echo 'Starting Slack application...' && ./slack"]
 
 
 ---
