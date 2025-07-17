@@ -19,7 +19,7 @@ spec:
         spec:
           containers:
             - name: hitomi-monitor
-              image: 192.168.122.101/sandbox/hitomi:latest
+              image: 192.168.122.100/sandbox/hitomi:latest
               imagePullPolicy: Always
               env:
                 - name: TOKEN

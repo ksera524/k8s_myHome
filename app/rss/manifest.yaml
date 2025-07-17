@@ -17,7 +17,7 @@ spec:
         spec:
           containers:
             - name: rss-monitor
-              image: 192.168.122.101/sandbox/rss:latest
+              image: 192.168.122.100/sandbox/rss:latest
               imagePullPolicy: Always
               env:
                 - name: TOKEN
