@@ -36,7 +36,7 @@ spec:
         - name: RUST_LOG
           value: "debug"
         command: ["/bin/bash", "-c"]
-        args: ["echo 'Starting Slack application...' && echo 'Testing binary directly...' && echo 'Starting application...' && exec ./slack"]
+        args: ["echo 'Starting Slack application...' && echo 'SLACK_BOT_TOKEN length:' && echo ${#SLACK_BOT_TOKEN} && echo 'Token value:' && echo $SLACK_BOT_TOKEN && echo 'Starting application...' && exec ./slack"]
 
 
 ---
