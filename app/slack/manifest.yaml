@@ -32,11 +32,11 @@ spec:
               name: slack3
               key: token
         - name: RUST_BACKTRACE
-          value: "1"
+          value: "full"
         - name: RUST_LOG
-          value: "slack=debug,info"
+          value: "debug"
         command: ["/bin/bash", "-c"]
-        args: ["echo 'Starting Slack application...' && echo 'Environment check:' && env | grep -E '(SLACK|RUST)' && echo 'Binary check:' && ls -la /app/slack && echo 'Executing binary with stdout/stderr redirect...' && (timeout 10 ./slack 2>&1 | head -20) || echo 'Binary execution failed with exit code:' $?"]
+        args: ["echo 'Starting Slack application...' && echo 'Testing binary directly...' && echo 'Starting application...' && exec ./slack"]
 
 
 ---
