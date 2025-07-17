@@ -30,9 +30,9 @@ spec:
         pathType: Prefix
       - backend:
           service:
-            name: harbor-registry
+            name: harbor-core
             port:
-              number: 5000
+              number: 80
         path: /v2/
         pathType: Prefix
       - backend:
