@@ -31,4 +31,4 @@ crash.log
 terraform.rc
 .terraformrc
 
-automation/phase4/.github/
+automation/k8s-infrastructure/.github/
