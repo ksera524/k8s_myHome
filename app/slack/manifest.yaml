@@ -36,7 +36,7 @@ spec:
         - name: RUST_LOG
           value: "slack=debug,info"
         command: ["/bin/bash", "-c"]
-        args: ["echo 'Starting Slack application...' && echo 'Environment check:' && env | grep -E '(SLACK|RUST)' && echo 'Binary check:' && ls -la /app/slack && echo 'Library check:' && ldd /app/slack && echo 'Executing binary...' && timeout 10 ./slack || echo 'Binary execution failed with exit code:' $?"]
+        args: ["echo 'Starting Slack application...' && echo 'Environment check:' && env | grep -E '(SLACK|RUST)' && echo 'Binary check:' && ls -la /app/slack && echo 'Executing binary with stdout/stderr redirect...' && (timeout 10 ./slack 2>&1 | head -20) || echo 'Binary execution failed with exit code:' $?"]
 
 
 ---
