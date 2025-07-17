@@ -21,28 +21,22 @@ spec:
       containers:
       - name: slack
         image: 192.168.122.100/sandbox/slack.rs:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         workingDir: /app
-        command:
-        - /bin/sh
-        args:
-        - -c
-        - echo '[STARTING SLACK APP]' && ls -al && chmod +x ./slack && env | grep SLACK && env | grep RUST && echo '[EXECUTING SLACK BINARY]' && exec ./slack
         env:
         - name: SLACK_BOT_TOKEN
           valueFrom:
             secretKeyRef:
               name: slack3
               key: token
-        - name: RUST_LOG
-          value: trace
         - name: RUST_BACKTRACE
           value: "1"
-        - name: HOST
-          value: "0.0.0.0"
-        - name: PORT
-          value: "3000"
+        - name: RUST_LOG
+          value: "trace"
+        command: ["/bin/bash", "-c"]
+        args: ["cd /app && ./slack"]
 
 
 ---
