@@ -788,5 +788,141 @@ EOF
 
 print_status "✓ ArgoCD同期状況確認完了"
 
+# 13. Harbor証明書修正とIngress設定の自動適用
+print_status "=== Phase 4.12: Harbor証明書修正とIngress設定の自動適用 ==="
+print_debug "Harbor Docker Registry API対応とGitHub Actions対応を自動実行します"
+
+# Harbor証明書修正スクリプトの実行
+if [[ -f "$SCRIPT_DIR/harbor-cert-fix.sh" ]]; then
+    print_debug "Harbor証明書修正スクリプトを実行中..."
+    print_debug "- IP SAN対応Harbor証明書作成"
+    print_debug "- CA信頼配布DaemonSet展開"
+    print_debug "- Worker nodeのinsecure registry設定"
+    print_debug "- GitHub Actions Runner再起動"
+    
+    # Harbor証明書修正スクリプトを実行
+    if "$SCRIPT_DIR/harbor-cert-fix.sh"; then
+        print_status "✓ Harbor証明書修正完了"
+    else
+        print_warning "Harbor証明書修正に失敗しました"
+        print_debug "手動実行: cd automation/k8s-infrastructure && ./harbor-cert-fix.sh"
+    fi
+else
+    print_warning "harbor-cert-fix.shが見つかりません"
+    print_debug "Harbor証明書修正を手動実行してください"
+fi
+
+# Harbor HTTP Ingress設定の修正
+print_debug "Harbor HTTP Ingress設定を修正中..."
+print_debug "- /v2/ パスをharbor-coreサービス経由に設定"
+print_debug "- Docker Registry API認証を正常化"
+
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' << 'HARBOR_INGRESS_EOF'
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor-http-ingress
+  namespace: harbor
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /api/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /service/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /v2/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /chartrepo/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /c/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-portal
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+HARBOR_INGRESS_EOF
+
+print_status "✓ Harbor HTTP Ingress設定完了"
+
+# ARC Scale Setのinsecure registry設定の自動適用
+print_debug "ARC Scale Setのinsecure registry設定を確認・修正中..."
+
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_PATCH_EOF'
+# 既存のARC Scale Setを確認してinsecure registry設定を適用
+for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
+    echo "ARC Scale Set '$runner_set' にinsecure registry設定を適用中..."
+    
+    # insecure registry設定をパッチ適用
+    if kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
+        --type=json \
+        -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100"]}]' 2>/dev/null; then
+        echo "✓ '$runner_set' のinsecure registry設定完了"
+    else
+        echo "⚠️ '$runner_set' のinsecure registry設定に失敗しました（設定済みまたは存在しません）"
+    fi
+done
+
+# GitHub Actions Runner Podの再起動
+echo "GitHub Actions Runner Podを再起動中..."
+for pod in $(kubectl get pods -n arc-systems -o name 2>/dev/null | grep runner | sed 's|.*/||'); do
+    echo "ランナーポッド再起動: $pod"
+    kubectl delete pod "$pod" -n arc-systems 2>/dev/null || echo "ポッド削除失敗: $pod"
+done
+
+echo "新しいランナーポッドの起動を待機中..."
+sleep 15
+ARC_PATCH_EOF
+
+print_status "✓ ARC Scale Set insecure registry設定完了"
+
+# Docker login動作確認
+print_debug "Harbor Docker login動作確認中..."
+DOCKER_LOGIN_TEST=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+    "docker login 192.168.122.100 -u ${HARBOR_USERNAME:-admin} -p ${HARBOR_PASSWORD:-Harbor12345} 2>&1" || echo "login_failed")
+
+if [[ "$DOCKER_LOGIN_TEST" == *"Login Succeeded"* ]]; then
+    print_status "✓ Harbor Docker login動作確認完了"
+else
+    print_warning "Harbor Docker login確認に失敗しました"
+    print_debug "GitHub Actions実行時に認証エラーが発生する可能性があります"
+fi
+
+print_status "✓ Harbor証明書修正とIngress設定の自動適用完了"
+
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"
