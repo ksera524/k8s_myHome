@@ -25,6 +25,8 @@ spec:
         ports:
         - containerPort: 3000
         workingDir: /app
+        tty: true
+        stdin: true
         env:
         - name: SLACK_BOT_TOKEN
           valueFrom:
@@ -36,7 +38,7 @@ spec:
         - name: RUST_LOG
           value: "trace"
         command: ["/bin/bash", "-c"]
-        args: ["cd /app && ./slack"]
+        args: ["cd /app && exec ./slack"]
 
 
 ---
