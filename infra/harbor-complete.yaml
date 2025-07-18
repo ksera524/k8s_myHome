@@ -14,7 +14,7 @@ spec:
     helm:
       values: |
         expose:
-          type: ingress
+          type: clusterIP
           tls:
             enabled: false
           ingress:
