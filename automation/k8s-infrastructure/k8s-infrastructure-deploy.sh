@@ -924,5 +924,85 @@ fi
 
 print_status "✓ Harbor証明書修正とIngress設定の自動適用完了"
 
+# 14. Harbor HTTP設定の自動適用
+print_status "=== Phase 4.13: Harbor HTTP設定の自動適用 ==="
+print_debug "Harbor Docker push用のHTTP設定を自動適用します"
+
+# Harbor Core ConfigMap修正
+print_debug "Harbor Core ConfigMapのEXT_ENDPOINTをHTTPに修正中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'HARBOR_HTTP_CONFIG_EOF'
+# Harbor Core ConfigMapをHTTP設定に修正
+kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"http://192.168.122.100"}}'
+
+# Harbor Core Pod再起動で設定反映
+echo "Harbor Core Pod再起動中..."
+kubectl delete pod -n harbor -l app=harbor,component=core 2>/dev/null || echo "Harbor Core Pod未発見"
+kubectl wait --for=condition=ready pod -l app=harbor,component=core -n harbor --timeout=120s
+
+# Harbor HTTP接続確認
+echo "Harbor HTTP接続確認中..."
+HTTP_TEST=$(curl -s -o /dev/null -w '%{http_code}' http://192.168.122.100/v2/ --connect-timeout 10 || echo "000")
+if [[ "$HTTP_TEST" == "401" ]]; then
+    echo "✓ Harbor HTTP API接続正常（401 Unauthorized - 認証待ち）"
+else
+    echo "⚠️ Harbor HTTP API接続異常（HTTP: $HTTP_TEST）"
+fi
+
+# Harbor HTTP認証realmを確認
+REALM_TEST=$(curl -s -I http://192.168.122.100/v2/ | grep -i "www-authenticate" | grep -o 'realm="[^"]*"' || echo "")
+if [[ "$REALM_TEST" == *"http://192.168.122.100"* ]]; then
+    echo "✓ Harbor HTTP認証realm設定正常"
+else
+    echo "⚠️ Harbor HTTP認証realm設定要確認: $REALM_TEST"
+fi
+HARBOR_HTTP_CONFIG_EOF
+
+print_status "✓ Harbor HTTP設定の自動適用完了"
+
+# 15. GitHub Actions Runner insecure registry設定の自動適用
+print_status "=== Phase 4.14: GitHub Actions Runner insecure registry設定の自動適用 ==="
+print_debug "GitHub Actions RunnerのDocker daemon insecure registry設定を自動適用します"
+
+# GitHub Actions Runner存在確認と設定適用
+print_debug "GitHub Actions Runner設定確認・修正中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_INSECURE_REGISTRY_EOF'
+# AutoscalingRunnerSet存在確認
+RUNNER_SETS=$(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | wc -l)
+if [[ "$RUNNER_SETS" -gt 0 ]]; then
+    echo "GitHub Actions Runner設定を修正中..."
+    
+    # 各AutoscalingRunnerSetにinsecure registry設定を適用
+    for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
+        echo "Runner Set '$runner_set' にinsecure registry設定を適用中..."
+        
+        # dind initContainer にinsecure registry設定を追加
+        if kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
+            --type=json \
+            -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100"]}]' 2>/dev/null; then
+            echo "✓ '$runner_set' のinsecure registry設定完了"
+            
+            # Runner Pod再起動で設定反映
+            echo "Runner Pod再起動中..."
+            kubectl delete pod -n arc-systems -l app.kubernetes.io/name="$runner_set" 2>/dev/null || echo "Runner Pod未発見"
+            sleep 10
+            
+            # 設定反映確認
+            NEW_PODS=$(kubectl get pods -n arc-systems -l app.kubernetes.io/name="$runner_set" --no-headers 2>/dev/null | wc -l)
+            if [[ "$NEW_PODS" -gt 0 ]]; then
+                echo "✓ '$runner_set' Runner Pod再起動完了"
+            else
+                echo "⚠️ '$runner_set' Runner Pod再起動要確認"
+            fi
+        else
+            echo "⚠️ '$runner_set' のinsecure registry設定に失敗しました"
+        fi
+    done
+else
+    echo "GitHub Actions Runnerが設定されていません（後で設定時に自動適用されます）"
+fi
+ARC_INSECURE_REGISTRY_EOF
+
+print_status "✓ GitHub Actions Runner insecure registry設定の自動適用完了"
+
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"

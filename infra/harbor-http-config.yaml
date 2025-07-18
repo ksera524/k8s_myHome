@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: harbor-core
+  name: harbor-core-http-patch
   namespace: harbor
   labels:
     app: harbor
@@ -12,21 +12,64 @@ metadata:
 data:
   EXT_ENDPOINT: "http://192.168.122.100"  # HTTPアクセス用IP設定
   TOKEN_SERVICE_URL: "http://harbor-core:80/service/token"  # Internal token service
-  # 他の設定値は既存のまま保持される
 ---
-# Harbor Registry内部設定用ConfigMap
-apiVersion: v1
-kind: ConfigMap
+# Harbor HTTP Ingress設定強化
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: harbor-registry
+  name: harbor-http-ingress-patch
   namespace: harbor
-  labels:
-    app: harbor
-    chart: harbor
-    heritage: Helm
-    release: harbor
-data:
-  # Registry用設定（必要に応じて）
-  REGISTRY_HTTP_SECRET: "not-a-secure-secret"
-  REGISTRY_REDIS_ADDR: "harbor-redis:6379"
-  REGISTRY_REDIS_DB: "1"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /api/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /service/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /v2/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /chartrepo/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+        path: /c/
+        pathType: Prefix
+      - backend:
+          service:
+            name: harbor-portal
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
