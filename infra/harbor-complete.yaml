@@ -14,19 +14,20 @@ spec:
     helm:
       values: |
         expose:
-          type: nodePort
+          type: ingress
           tls:
             enabled: false
-          nodePort:
-            ports:
-              http:
-                port: 80
-                nodePort: 30002
-              https:
-                port: 443
-                nodePort: 30003
+          ingress:
+            hosts:
+              core: harbor.local
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
         
-        externalURL: http://192.168.122.100:30002
+        externalURL: http://192.168.122.100
         
         # harborAdminPassword is managed via external secret
         # See harbor-admin-secret for actual password value

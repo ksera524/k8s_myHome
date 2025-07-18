@@ -58,7 +58,7 @@ data:
           - dockerd
           - --host=unix:///var/run/docker.sock
           - --group=$(DOCKER_GROUP_GID)
-          - --insecure-registry=192.168.122.100:30002
+          - --insecure-registry=192.168.122.100
           env:
           - name: DOCKER_GROUP_GID
             value: "123"
@@ -110,7 +110,7 @@ metadata:
 data:
   daemon.json: |
     {
-      "insecure-registries": ["192.168.122.100:30002"],
+      "insecure-registries": ["192.168.122.100"],
       "log-driver": "json-file",
       "log-opts": {
         "max-size": "10m",

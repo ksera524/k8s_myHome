@@ -21,8 +21,8 @@ jobs:
       run: |
         echo "=== kubectl インストール ==="
         
-        # kubectl の最新版をインストール（タイムアウト設定付き）
-        curl -LO --connect-timeout 30 --max-time 300 "https://dl.k8s.io/release/$(curl -L -s --connect-timeout 10 --max-time 30 https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        # kubectl の最新版をインストール
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
         

@@ -1,0 +1,35 @@
+=== Phase 4 基本インフラ構築完了 (GitOps対応版) ===
+
+構築完了コンポーネント:
+- MetalLB (LoadBalancer)
+- NGINX Ingress Controller  
+- cert-manager
+- ArgoCD: 7 Pod(s) Running
+- LoadBalancer IP: 192.168.122.100
+- Harbor パスワード管理: セキュアにSecret化済み
+
+ArgoCD App of Apps デプロイ済み:
+- リポジトリ: https://github.com/ksera524/k8s_myHome.git
+- 管理対象: infra/*.yaml
+
+Harbor Secret管理:
+- harbor-admin-secret (harbor namespace)
+- harbor-auth (arc-systems, default namespaces)
+- harbor-registry-secret (Docker認証用)
+
+接続情報:
+- k8sクラスタ: ssh k8suser@192.168.122.10
+- ArgoCD UI: kubectl port-forward svc/argocd-server -n argocd 8080:443
+- Harbor UI: kubectl port-forward svc/harbor-core -n harbor 8081:80
+- LoadBalancer経由: http://192.168.122.100 (Ingressルーティング)
+
+手動セットアップ必要項目:
+1. Cloudflared Secret作成
+2. GitHub Repository Secrets設定:
+   - HARBOR_USERNAME: admin
+   - HARBOR_PASSWORD: (設定済みパスワード)
+
+Harbor パスワード管理コマンド:
+- 更新: ./harbor-password-update.sh <新しいパスワード>
+- 対話式: ./harbor-password-update.sh --interactive
+- Secret確認: kubectl get secret harbor-admin-secret -n harbor -o yaml
