@@ -32,7 +32,7 @@ spec:
                 echo "HTTPS設定を検出 - HTTPに変更中..."
                 
                 # Harbor Core ConfigMapのEXT_ENDPOINTをHTTPに変更
-                kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"http://192.168.122.100"}}'
+                kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"http://192.168.122.100:30002"}}'
                 
                 # Harbor Core Pod再起動で設定反映
                 echo "Harbor Core Pod再起動中..."
@@ -57,11 +57,11 @@ spec:
                 for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
                   CURRENT_ARGS=$(kubectl get AutoscalingRunnerSet "$runner_set" -n arc-systems -o jsonpath='{.spec.template.spec.initContainers[1].args}' 2>/dev/null || echo "[]")
                   
-                  if [[ "$CURRENT_ARGS" != *"--insecure-registry=192.168.122.100"* ]]; then
+                  if [[ "$CURRENT_ARGS" != *"--insecure-registry=192.168.122.100:30002"* ]]; then
                     echo "Runner Set '$runner_set' にinsecure registry設定を追加中..."
                     kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
                       --type=json \
-                      -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100"]}]' 2>/dev/null || true
+                      -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100:30002"]}]' 2>/dev/null || true
                     echo "✓ '$runner_set' のinsecure registry設定完了"
                   fi
                 done

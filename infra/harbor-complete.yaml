@@ -14,20 +14,19 @@ spec:
     helm:
       values: |
         expose:
-          type: clusterIP
+          type: nodePort
           tls:
             enabled: false
-          ingress:
-            hosts:
-              core: harbor.local
-            className: nginx
-            annotations:
-              nginx.ingress.kubernetes.io/ssl-redirect: "false"
-              nginx.ingress.kubernetes.io/proxy-body-size: "0"
-              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+          nodePort:
+            ports:
+              http:
+                port: 80
+                nodePort: 30002
+              https:
+                port: 443
+                nodePort: 30003
         
-        externalURL: https://harbor.qroksera.com
+        externalURL: http://192.168.122.100:30002
         
         # harborAdminPassword is managed via external secret
         # See harbor-admin-secret for actual password value
