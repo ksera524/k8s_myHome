@@ -182,41 +182,6 @@ reclaimPolicy: Retain
 EOL
 
 echo "✓ StorageClass設定完了"
-
-# Harbor用PersistentVolume事前作成
-echo "Harbor用PersistentVolume作成中..."
-
-# 必要なディレクトリを作成
-echo "Harbor用ディレクトリを作成中..."
-sudo mkdir -p /tmp/harbor-jobservice && sudo chmod 777 /tmp/harbor-jobservice
-
-# Harbor jobservice用PV作成
-cat <<EOL | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: harbor-jobservice-pv-new
-spec:
-  capacity:
-    storage: 1Gi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  local:
-    path: /tmp/harbor-jobservice
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - k8s-control-plane-1
-EOL
-
-echo "✓ Harbor用PersistentVolume作成完了"
 EOF
 
 print_status "✓ StorageClass設定完了"
@@ -428,42 +393,12 @@ print_status "=== Phase 4.7.5: Harbor アプリケーション同期 ==="
 print_debug "Harbor パスワード設定をArgoCD経由で反映します"
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-# ArgoCD Harbor アプリケーションの存在確認と同期
-echo "Harbor アプリケーション作成を待機中..."
-for i in {1..30}; do
-    if kubectl get application harbor -n argocd >/dev/null 2>&1; then
-        echo "✓ Harbor アプリケーションが作成されました"
-        break
-    fi
-    echo "待機中... ($i/30)"
-    sleep 10
-done
-
-# Harbor アプリケーションの強制同期でSecret設定を反映
+# ArgoCD Harbor アプリケーションの強制同期でSecret設定を反映
 if kubectl get application harbor -n argocd >/dev/null 2>&1; then
-    echo "Harbor アプリケーション強制同期を実行中..."
-    kubectl patch application harbor -n argocd --type merge -p '{"operation":{"sync":{"syncStrategy":{"hook":{"force":true}}}}}'
-    
-    # 同期完了待機
-    echo "Harbor アプリケーション同期完了を待機中..."
-    for i in {1..30}; do
-        SYNC_STATUS=$(kubectl get application harbor -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
-        if [[ "$SYNC_STATUS" == "Synced" ]]; then
-            echo "✓ Harbor アプリケーション同期完了"
-            break
-        fi
-        echo "同期中... ($i/30) Status: $SYNC_STATUS"
-        sleep 10
-    done
-    
-    # Harbor jobservice Pod再起動（PV問題解決）
-    echo "Harbor jobservice Pod再起動中..."
-    kubectl delete pod -n harbor -l app=harbor,component=jobservice 2>/dev/null || echo "Harbor jobservice Pod未発見"
-    sleep 5
-    
-    echo "✓ Harbor アプリケーション同期処理完了"
+    kubectl patch application harbor -n argocd -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' --type=merge
+    echo "✓ Harbor アプリケーション同期リクエスト送信"
 else
-    echo "⚠️ Harbor アプリケーションの作成タイムアウト"
+    echo "⚠️ Harbor アプリケーションがまだ存在しません（App of Apps デプロイ後に作成されます）"
 fi
 EOF
 
@@ -757,22 +692,18 @@ ARGOCD_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl g
 # LoadBalancer IP取得
 LB_IP=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "pending")
 
-# Harbor管理者パスワード取得
-HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
-
 print_status "=== 構築完了サマリー ==="
 echo ""
 echo "=== インフラコンポーネント状態 ==="
 echo "ArgoCD: $ARGOCD_READY Pod(s) Running"
 echo "LoadBalancer IP: $LB_IP"
-echo "Harbor管理者パスワード: $HARBOR_PASSWORD"
 echo ""
 
 echo "=== 次のステップ ====" 
-echo "1. ArgoCD UI アクセス: http://argocd.local (LoadBalancer経由) または http://$LB_IP"
+echo "1. ArgoCD UI アクセス: kubectl port-forward svc/argocd-server -n argocd 8080:443"
 echo "2. ArgoCD管理者パスワード確認: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
-echo "3. Harbor UI アクセス: http://$LB_IP (LoadBalancer経由)"
-echo "4. Harbor ログイン: admin / $HARBOR_PASSWORD"
+echo "3. Harbor UI アクセス: kubectl port-forward svc/harbor-core -n harbor 8081:80"
+echo "4. Harbor パスワード確認: kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d"
 echo "5. GitHub Actions設定（ARCセットアップ）:"
 echo "   export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
 echo "   export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
