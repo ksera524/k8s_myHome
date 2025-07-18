@@ -199,12 +199,16 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 echo "ArgoCD起動を待機中..."
 kubectl wait --namespace argocd --for=condition=ready pod --selector=app.kubernetes.io/component=server --timeout=300s
 
+# ArgoCD insecureモード設定（HTTPアクセス対応）
+echo "ArgoCD insecureモード設定中..."
+kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data":{"server.insecure":"true"}}'
+
 # ArgoCD管理者パスワード取得・表示
 echo "ArgoCD管理者パスワード:"
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 echo ""
 
-# ArgoCD Ingress設定
+# ArgoCD Ingress設定（HTTP対応）
 cat <<EOL | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -212,8 +216,8 @@ metadata:
   name: argocd-server-ingress
   namespace: argocd
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
   ingressClassName: nginx
   rules:
@@ -226,17 +230,13 @@ spec:
           service:
             name: argocd-server
             port:
-              number: 443
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: argocd-server
-            port:
-              number: 443
+              number: 80
 EOL
+
+# ArgoCD サーバー再起動（insecure設定反映）
+echo "ArgoCD サーバー再起動中..."
+kubectl rollout restart deployment argocd-server -n argocd
+kubectl rollout status deployment argocd-server -n argocd --timeout=300s
 
 echo "✓ ArgoCD Ingress設定完了"
 echo "✓ ArgoCD設定完了"
