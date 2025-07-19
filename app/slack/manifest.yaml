@@ -35,7 +35,23 @@ spec:
           value: "full"
         - name: RUST_LOG
           value: "debug"
-        command: ["./slack"]
+        command: ["sh", "-c", "while true; do ./slack; echo 'Slack process exited, restarting in 5 seconds...'; sleep 5; done"]
+        # GitHub Actionsでビルドしたイメージの即時終了対策
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "pgrep -f slack || test -f /app/slack"
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          tcpSocket:
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
 
 
 ---
