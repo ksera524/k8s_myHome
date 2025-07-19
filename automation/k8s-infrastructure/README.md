@@ -34,8 +34,14 @@ k8s-worker2         Ready    <none>          1h    v1.29.0
 ### ワンコマンド実行（推奨）
 
 ```bash
-# Phase 4 基本インフラ自動構築
+# Phase 4 基本インフラ自動構築 + Harbor証明書修正 + イメージプルシークレット作成
 ./phase4-deploy.sh
+
+# または、Harbor関連の設定のみ実行
+./harbor-cert-fix.sh
+
+# または、イメージプルシークレットのみ作成
+./create-harbor-secrets.sh
 ```
 
 ### 手動実行
@@ -365,6 +371,15 @@ kubectl -n harbor get secret harbor-core -o jsonpath="{.data.HARBOR_ADMIN_PASSWO
 
 # Harbor Core ログ確認
 kubectl -n harbor logs -l app=harbor,component=core
+
+# Harbor イメージプルシークレット確認
+kubectl get secrets -n sandbox | grep harbor-http
+kubectl get secrets -n default | grep harbor-http
+
+# Harbor イメージプル権限テスト
+kubectl run test-harbor --image=192.168.122.100/sandbox/slack.rs:latest --dry-run=client -o yaml | \
+sed '/^metadata:/a\
+  namespace: sandbox' | kubectl apply -f -
 ```
 
 ### Actions Runner Controller問題

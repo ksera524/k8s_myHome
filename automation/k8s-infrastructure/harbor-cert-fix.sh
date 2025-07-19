@@ -138,8 +138,26 @@ echo "  - 新しいランナーポッドの起動を待機中..."
 sleep 15
 
 # 9. HTTP Ingress追加（フォールバック用）
-echo "9. Harbor HTTP Ingressを追加中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' << 'EOF' || echo "HTTP Ingress適用失敗"
+echo "9. Harbor イメージプルシークレットを作成中..."
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# create-harbor-secrets.sh スクリプトを実行
+if [[ -f "$SCRIPT_DIR/create-harbor-secrets.sh" ]]; then
+    echo "  - Harborイメージプルシークレット作成スクリプトを実行中..."
+    bash "$SCRIPT_DIR/create-harbor-secrets.sh"
+else
+    echo "  ⚠️  create-harbor-secrets.sh が見つかりません。手動作成が必要です。"
+fi
+
+echo "10. Harbor HTTP Ingressを追加中..."
+# 既存のharbor-http-ingressが存在するかチェック
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get ingress harbor-http-ingress -n harbor' >/dev/null 2>&1; then
+    echo "  ⚠️  harbor-http-ingress が既に存在します。スキップします。"
+elif ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get ingress harbor-http-ingress-patch -n harbor' >/dev/null 2>&1; then
+    echo "  ⚠️  harbor-http-ingress-patch が既に存在します。同じ機能のため追加をスキップします。"
+else
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' << 'EOF' || echo "HTTP Ingress適用失敗"
 # Harbor用一時的HTTP Ingress設定
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -199,6 +217,7 @@ spec:
         path: /
         pathType: Prefix
 EOF
+fi
 
 echo "=== Harbor証明書修正 + GitHub Actions対応が正常に完了しました ==="
 
@@ -208,7 +227,8 @@ echo "1. IP SAN（192.168.122.100）を含むHarbor証明書"
 echo "2. CA信頼配布DaemonSet（全ノード対応）"
 echo "3. Worker ノードのinsecure registry設定"
 echo "4. GitHub Actions Runner の再起動"
-echo "5. Harbor HTTP Ingress（フォールバック用）"
+echo "5. Harbor イメージプルシークレット（全ネームスペース）"
+echo "6. Harbor HTTP Ingress（フォールバック用）"
 
 echo ""
 echo "✅ GitHub Actionsで利用可能:"
