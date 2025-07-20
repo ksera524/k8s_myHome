@@ -35,14 +35,14 @@ spec:
           value: "full"
         - name: RUST_LOG
           value: "debug"
-        command: ["sh", "-c", "echo 'Starting slack with detailed error output...'; ls -la /app/slack; echo 'Environment variables:'; env | grep -E '(SLACK|RUST)'; while true; do echo '=== Attempting to start slack at $(date) ==='; timeout 30 ./slack 2>&1 || echo \"Exit code: $?\"; echo 'Process check:'; ps aux | grep slack || echo 'No slack process found'; echo 'Slack process exited, restarting in 5 seconds...'; sleep 5; done"]
+        command: ["sh", "-c", "echo 'Starting slack application...'; echo 'Environment check:'; env | grep -E '(SLACK|RUST)' || echo 'No SLACK/RUST env vars'; echo 'Binary check:'; ls -la /app/slack; echo 'Direct execution test:'; timeout 5 ./slack 2>&1 || echo \"Test execution completed with code: $?\"; echo 'Starting main loop...'; while true; do echo \"=== Starting slack at $(date) ===\"; ./slack 2>&1; echo \"Slack exited with code: $?\"; echo 'Restarting in 5 seconds...'; sleep 5; done"]
         # GitHub Actionsでビルドしたイメージの即時終了対策
         livenessProbe:
           exec:
             command:
             - sh
             - -c
-            - "pgrep -f slack || test -f /app/slack"
+            - "test -f /app/slack"
           initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
