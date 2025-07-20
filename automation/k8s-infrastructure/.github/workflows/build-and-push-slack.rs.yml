@@ -91,6 +91,42 @@ jobs:
         
         echo "✅ Harbor Login & Docker設定完了"
         
+    - name: ARC環境詳細調査
+      run: |
+        echo "=== ARC環境詳細調査 ==="
+        
+        # 実行環境の詳細情報
+        echo "▶ システム情報:"
+        uname -a
+        
+        echo "▶ CPU情報:"
+        lscpu | head -15
+        
+        echo "▶ CPU機能フラグ（重要）:"
+        cat /proc/cpuinfo | grep flags | head -1
+        
+        echo "▶ CPU種別:"
+        cat /proc/cpuinfo | grep "model name" | head -1
+        
+        echo "▶ メモリ情報:"
+        free -h
+        
+        echo "▶ Docker環境情報:"
+        docker info | head -20
+        
+        echo "▶ 環境変数（重要なもの）:"
+        env | grep -E "(DOCKER|RUNNER|KUBERNETES|PATH)" | head -20
+        
+        echo "▶ アーキテクチャ確認:"
+        arch
+        dpkg --print-architecture || echo "dpkg not available"
+        
+        echo "▶ 仮想化検出:"
+        systemd-detect-virt || echo "systemd-detect-virt not available"
+        
+        echo "▶ Rustターゲット確認:"
+        rustc --print target-list | grep x86_64 | head -5 || echo "rustc not available yet"
+
     - name: Docker Build
       run: |
         echo "=== Docker Build ==="
@@ -98,9 +134,39 @@ jobs:
         HARBOR_URL=$(cat /tmp/harbor_url)
         HARBOR_PROJECT=$(cat /tmp/harbor_project)
         
-        # Dockerイメージビルド（通常のタグ形式）
-        docker build -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
-        docker build -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
+        # Dockerイメージビルド前にDockerfileの確認
+        echo "Dockerfileの内容確認:"
+        cat Dockerfile | head -20
+        
+        # バイナリファイル情報デバッグ（存在する場合）
+        if [[ -f "./slack" ]]; then
+            echo "既存のslackバイナリファイル情報:"
+            file ./slack
+            ldd ./slack 2>/dev/null || echo "静的リンク済み、または ldd 利用不可"
+        fi
+        
+        # ビルド環境の詳細ログ
+        echo "=== ビルド環境詳細 ==="
+        echo "Docker version:"
+        docker version
+        echo "Docker daemon info:"
+        docker info | grep -E "(OS|Architecture|Kernel|Docker Root Dir)"
+        
+        # CPU機能互換性のためのビルド環境変数設定
+        export RUSTFLAGS="-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
+        echo "RUSTFLAGS設定: $RUSTFLAGS"
+        
+        # Dockerイメージビルド（アーキテクチャ指定と継続実行対策）
+        docker build --platform linux/amd64 --build-arg RUSTFLAGS="$RUSTFLAGS" -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
+        docker build --platform linux/amd64 --build-arg RUSTFLAGS="$RUSTFLAGS" -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
+        
+        # ビルド後のイメージ内バイナリ確認
+        echo "ビルド後のイメージ内バイナリ確認:"
+        docker run --rm --platform linux/amd64 $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest ls -la /app/slack
+        
+        # バイナリの詳細実行テスト
+        echo "=== バイナリ実行テスト（ARC環境内） ==="
+        docker run --rm --platform linux/amd64 $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest sh -c "echo 'Starting slack test in ARC container...'; timeout 10 /app/slack 2>&1 || echo 'Exit code: $?'; echo 'Test completed'"
         
         echo "✅ Docker Build完了"
         
@@ -144,6 +210,14 @@ jobs:
         # Docker pushを実行する前にHarborエンドポイントをテスト
         echo "Harbor HTTP エンドポイントをテスト中..."
         curl -s -I http://$HARBOR_URL/v2/ || echo "Harbor HTTP接続テスト失敗"
+        
+        # Harbor認証テスト（APIエンドポイント）
+        echo "Harbor API認証テスト中..."
+        curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD "http://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
+        
+        # Docker login実行（明示的な認証）
+        echo "Docker login実行中..."
+        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin
         
         # Docker pushを実行（insecure registryとして）
         echo "Docker pushでHarborにpush中..."

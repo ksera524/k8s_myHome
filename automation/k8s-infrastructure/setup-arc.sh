@@ -241,34 +241,58 @@ else
     print_warning "この状態でもGitHub Actionsランナーは利用可能ですが、Harbor pushでエラーが発生する可能性があります"
 fi
 
-# 6.6. GitHub Actions Runner insecure registry設定の自動適用
-print_status "=== GitHub Actions Runner insecure registry設定の自動適用 ==="
-print_debug "GitHub Actions RunnerのDocker daemon insecure registry設定を自動適用します"
+# 6.6. GitHub Actions Runner 設定の最適化（CPU互換性 + insecure registry）
+print_status "=== GitHub Actions Runner 設定の最適化 ==="
+print_debug "CPU互換性対応 + insecure registry設定を自動適用します"
 
 # AutoscalingRunnerSet存在確認と設定適用
 print_debug "GitHub Actions Runner設定確認・修正中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_INSECURE_REGISTRY_EOF'
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_OPTIMIZE_EOF'
 # AutoscalingRunnerSet存在確認
 RUNNER_SETS=$(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | wc -l)
 if [[ "$RUNNER_SETS" -gt 0 ]]; then
-    echo "GitHub Actions Runner insecure registry設定を適用中..."
+    echo "GitHub Actions Runner最適化設定を適用中..."
     
-    # 各AutoscalingRunnerSetにinsecure registry設定を適用
+    # 各AutoscalingRunnerSetに最適化設定を適用
     for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
-        echo "Runner Set '$runner_set' にinsecure registry設定を適用中..."
+        echo "Runner Set '$runner_set' に最適化設定を適用中..."
         
         # 現在の設定を確認
         CURRENT_ARGS=$(kubectl get AutoscalingRunnerSet "$runner_set" -n arc-systems -o jsonpath='{.spec.template.spec.initContainers[1].args}' 2>/dev/null || echo "[]")
         
-        # insecure registry設定が含まれているか確認
+        # 最適化設定が含まれているか確認
         if [[ "$CURRENT_ARGS" == *"--insecure-registry=192.168.122.100"* ]]; then
-            echo "✓ '$runner_set' は既にinsecure registry設定済み"
+            echo "✓ '$runner_set' は既に最適化設定済み"
         else
-            # dind initContainer にinsecure registry設定を追加
+            echo "最適化設定を適用中..."
+            
+            # CPU互換性環境変数設定
+            kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
+                --type=json \
+                -p='[
+                  {
+                    "op": "add",
+                    "path": "/spec/template/spec/containers/0/env/-",
+                    "value": {
+                      "name": "RUSTFLAGS",
+                      "value": "-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
+                    }
+                  },
+                  {
+                    "op": "add",
+                    "path": "/spec/template/spec/containers/0/env/-",
+                    "value": {
+                      "name": "DOCKER_BUILDKIT_INLINE_CACHE",
+                      "value": "1"
+                    }
+                  }
+                ]' 2>/dev/null || echo "環境変数設定スキップ"
+            
+            # dind initContainer に insecure registry + 最適化設定を追加
             if kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
                 --type=json \
-                -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100"]}]' 2>/dev/null; then
-                echo "✓ '$runner_set' のinsecure registry設定完了"
+                -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100","--storage-driver=overlay2","--default-runtime=runc"]}]' 2>/dev/null; then
+                echo "✓ '$runner_set' の最適化設定完了"
                 
                 # Runner Pod再起動で設定反映
                 echo "Runner Pod再起動中..."
@@ -277,18 +301,18 @@ if [[ "$RUNNER_SETS" -gt 0 ]]; then
                 
                 echo "✓ '$runner_set' Runner Pod再起動完了"
             else
-                echo "⚠️ '$runner_set' のinsecure registry設定に失敗しました"
+                echo "⚠️ '$runner_set' の最適化設定に失敗しました"
             fi
         fi
     done
     
-    echo "✓ GitHub Actions Runner insecure registry設定完了"
+    echo "✓ GitHub Actions Runner最適化設定完了"
 else
     echo "AutoscalingRunnerSetが見つかりません"
 fi
-ARC_INSECURE_REGISTRY_EOF
+ARC_OPTIMIZE_EOF
 
-print_status "✓ GitHub Actions Runner insecure registry設定の自動適用完了"
+print_status "✓ GitHub Actions Runner 設定の最適化完了"
 
 # 7. 使用方法の表示
 print_status "=== 使用方法 ==="

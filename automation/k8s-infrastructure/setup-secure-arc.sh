@@ -114,21 +114,21 @@ EOF
     echo "認証情報を安全に保存しました: $SECRETS_FILE"
 }
 
-# ARC設定生成
+# ARC設定生成（CPU互換性最適化対応）
 generate_arc_config() {
-    echo "=== ARC設定生成 ==="
+    echo "=== ARC設定生成（CPU互換性最適化対応） ==="
     
     # secrets.envから設定読み込み
     source "$SECRETS_FILE"
     
-    # RunnerScaleSet設定生成
+    # RunnerScaleSet設定生成（CPU互換性とDocker最適化を追加）
     cat > "$CONFIG_DIR/arc-runner-values.yaml" << EOF
-# GitHub Actions Runner Controller設定
+# GitHub Actions Runner Controller設定（CPU互換性対応）
 githubConfigUrl: https://github.com/$GITHUB_REPO
 githubConfigSecret:
   github_token: "$GITHUB_TOKEN"
 
-# Runner設定
+# Runner設定（CPU互換性 + Docker最適化）
 template:
   spec:
     containers:
@@ -141,6 +141,13 @@ template:
         value: "$HARBOR_URL"
       - name: HARBOR_PROJECT
         value: "$HARBOR_PROJECT"
+      # CPU互換性環境変数（QEMU Virtual CPU対応）
+      - name: RUSTFLAGS
+        value: "-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
+      - name: DOCKER_BUILDKIT_INLINE_CACHE
+        value: "1"
+      - name: DOCKER_CONTENT_TRUST
+        value: "0"
       volumeMounts:
       - name: docker-sock
         mountPath: /var/run/docker.sock
@@ -148,6 +155,26 @@ template:
         mountPath: /usr/local/share/ca-certificates/harbor-ca.crt
         subPath: ca.crt
         readOnly: true
+    # Docker-in-Docker initContainer に insecure registry設定を追加
+    initContainers:
+    - name: dind-config
+      image: docker:dind
+      command: ["sh", "-c"]
+      args: 
+      - |
+        echo "Docker daemon設定中（CPU互換性 + insecure registry）..."
+        mkdir -p /etc/docker
+        cat > /etc/docker/daemon.json << DOCKER_EOF
+        {
+          "insecure-registries": ["$HARBOR_URL", "192.168.122.100"],
+          "storage-driver": "overlay2",
+          "default-runtime": "runc"
+        }
+        DOCKER_EOF
+        echo "Docker daemon設定完了"
+      volumeMounts:
+      - name: docker-config
+        mountPath: /etc/docker
     volumes:
     - name: docker-sock
       hostPath:
@@ -156,12 +183,14 @@ template:
     - name: harbor-ca
       configMap:
         name: harbor-ca-bundle
+    - name: docker-config
+      emptyDir: {}
 
 # スケール設定
 maxRunners: 3
 minRunners: 1
 
-# リソース設定
+# リソース設定（CPU互換性考慮）
 resources:
   limits:
     cpu: 1000m
@@ -171,7 +200,7 @@ resources:
     memory: 1Gi
 EOF
     
-    echo "ARC設定を生成しました: $CONFIG_DIR/arc-runner-values.yaml"
+    echo "ARC設定（CPU互換性最適化対応）を生成しました: $CONFIG_DIR/arc-runner-values.yaml"
 }
 
 # セキュアなワークフロー生成
@@ -243,10 +272,15 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
-    - name: Configure Harbor Trust
+    - name: Configure Harbor Trust & CPU Compatibility
       run: |
-        # Harbor CA証明書の信頼設定（self-hosted runnerで必要）
-        echo "Harbor証明書信頼設定中..."
+        # Harbor CA証明書の信頼設定 + CPU互換性設定（self-hosted runnerで必要）
+        echo "Harbor証明書信頼設定 + CPU互換性設定中..."
+        
+        # CPU互換性環境変数設定（QEMU Virtual CPU対応）
+        export RUSTFLAGS="-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
+        export DOCKER_BUILDKIT_INLINE_CACHE=1
+        echo "CPU互換性設定: RUSTFLAGS=$RUSTFLAGS"
         
         # containerd設定確認
         if [ -f /etc/containerd/certs.d/192.168.122.100/hosts.toml ]; then
@@ -283,6 +317,9 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        # CPU互換性のためのビルド引数（QEMU Virtual CPU対応）
+        build-args: |
+          RUSTFLAGS=-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2
     
     - name: Security scan with Trivy
       run: |
@@ -470,6 +507,12 @@ main() {
     echo ""
     echo "設定ファイル場所: $CONFIG_DIR"
     echo "ワークフローテンプレート: $WORKFLOW_TEMPLATE_DIR"
+    echo ""
+    echo "✅ CPU互換性最適化機能:"
+    echo "   - RUSTFLAGS: -C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
+    echo "   - Docker BuildKit最適化対応"
+    echo "   - QEMU Virtual CPU環境との互換性確保"
+    echo "   - ARC Runner環境でのDocker-in-Docker最適化"
 }
 
 # スクリプト実行
