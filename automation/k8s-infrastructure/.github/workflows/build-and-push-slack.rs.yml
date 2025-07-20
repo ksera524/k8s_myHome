@@ -102,9 +102,9 @@ jobs:
         export RUSTFLAGS="-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
         echo "RUSTFLAGS設定: $RUSTFLAGS"
         
-        # Dockerイメージビルド（アーキテクチャ指定と継続実行対策）
-        docker build --platform linux/amd64 --build-arg RUSTFLAGS="$RUSTFLAGS" -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
-        docker build --platform linux/amd64 --build-arg RUSTFLAGS="$RUSTFLAGS" -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
+        # Dockerイメージビルド（環境変数でRUSTFLAGSを渡し、アーキテクチャ指定）
+        DOCKER_BUILDKIT=1 RUSTFLAGS="$RUSTFLAGS" docker build --platform linux/amd64 --build-arg BUILDKIT_INLINE_CACHE=1 -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
+        DOCKER_BUILDKIT=1 RUSTFLAGS="$RUSTFLAGS" docker build --platform linux/amd64 --build-arg BUILDKIT_INLINE_CACHE=1 -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
         
         # ビルド後のイメージ内バイナリ確認
         echo "ビルド後のイメージ内バイナリ確認:"
