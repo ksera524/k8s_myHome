@@ -31,10 +31,8 @@ spec:
             secretKeyRef:
               name: slack3
               key: token
-        - name: RUST_BACKTRACE
-          value: "full"
         - name: RUST_LOG
-          value: "debug"
+          value: "INFO"
         command: ["./slack"]
         # GitHub Actionsでビルドしたイメージの即時終了対策
         livenessProbe:
