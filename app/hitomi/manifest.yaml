@@ -4,7 +4,7 @@ metadata:
   name: hitomi-monitor
   namespace: sandbox
 spec:
-  schedule: "0 18 * * *"
+  schedule: "0 19 * * *"
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
@@ -54,4 +54,4 @@ spec:
                       key: port
           restartPolicy: Never
           imagePullSecrets:
-            - name: harbor
+            - name: harbor-http
