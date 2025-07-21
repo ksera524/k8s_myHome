@@ -321,8 +321,9 @@ jobs:
         echo "{\"auths\":{\"\$HARBOR_URL\":{\"auth\":\"\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
         
-        # Docker loginをスキップ（config.jsonを使用）
-        echo "Docker認証はconfig.jsonを使用します"
+        # Docker login実行（明示的な認証）
+        echo "Docker login実行中..."
+        echo "\$HARBOR_PASSWORD" | docker login \$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin
         
         # HTTPプロトコルを強制するためのデバッグ情報
         echo "Docker daemon insecure registries設定確認:"
@@ -331,6 +332,10 @@ jobs:
         # Docker pushを実行する前にHarborエンドポイントをテスト
         echo "Harbor HTTP エンドポイントをテスト中..."
         curl -s -I http://\$HARBOR_URL/v2/ || echo "Harbor HTTP接続テスト失敗"
+        
+        # Harbor認証テスト（APIエンドポイント）
+        echo "Harbor API認証テスト中..."
+        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "http://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
         
         # Docker pushを実行（insecure registryとして）
         echo "Docker pushでHarborにpush中..."
