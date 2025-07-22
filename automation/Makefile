@@ -14,7 +14,7 @@ TERRAFORM_DIR := $(PROJECT_ROOT)/terraform
 ANSIBLE_DIR := $(PROJECT_ROOT)/ansible
 K8S_INFRA_DIR := $(PROJECT_ROOT)/k8s-infrastructure
 
-.PHONY: help all deploy host-setup vm-deploy k8s-cluster k8s-infrastructure clean verify status logs
+.PHONY: help all deploy host-setup vm-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-vms wait-for-k8s-cluster
 
 # デフォルトターゲット
 help:
@@ -48,7 +48,7 @@ help:
 	@echo ""
 
 # 全自動デプロイ (全ステップ)
-all: host-setup vm-deploy k8s-cluster k8s-infrastructure
+all: check-automation-readiness host-setup vm-deploy k8s-cluster k8s-infrastructure
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
 	@echo ""
 	@$(MAKE) status
@@ -60,22 +60,32 @@ deploy: all
 host-setup:
 	@echo "$(GREEN)🚀 ホストマシンセットアップ開始$(NC)"
 	@cd $(HOST_SETUP_DIR) && ./setup-host.sh
-	@echo "$(YELLOW)⚠️  ログアウト/ログインが必要です。続行する場合はEnterを押してください$(NC)"
-	@bash -c 'read -r'
-	@cd $(HOST_SETUP_DIR) && ./setup-storage.sh
-	@cd $(HOST_SETUP_DIR) && ./verify-setup.sh
+	@echo "$(YELLOW)⚠️  グループメンバーシップの更新のため、権限を再確認します$(NC)"
+	@if ! groups | grep -q libvirt; then \
+		echo "$(YELLOW)libvirtグループが有効化されていません。sg libvirtで実行します...$(NC)"; \
+		sg libvirt -c "cd $(HOST_SETUP_DIR) && ./setup-storage.sh"; \
+		sg libvirt -c "cd $(HOST_SETUP_DIR) && ./verify-setup.sh"; \
+	else \
+		echo "$(GREEN)libvirtグループが有効です。続行します...$(NC)"; \
+		cd $(HOST_SETUP_DIR) && ./setup-storage.sh; \
+		cd $(HOST_SETUP_DIR) && ./verify-setup.sh; \
+	fi
 	@echo "$(GREEN)✅ ホストマシンセットアップ完了$(NC)"
 
 # VM作成 (Terraform)
 vm-deploy:
 	@echo "$(GREEN)🚀 VM作成開始$(NC)"
 	@cd $(TERRAFORM_DIR) && ./clean-and-deploy.sh
+	@echo "$(YELLOW)🕐 VM起動とcloud-init完了を待機しています...$(NC)"
+	@$(MAKE) wait-for-vms
 	@echo "$(GREEN)✅ VM作成完了$(NC)"
 
 # Kubernetesクラスタ構築
 k8s-cluster:
 	@echo "$(GREEN)🚀 Kubernetesクラスタ構築開始$(NC)"
 	@cd $(ANSIBLE_DIR) && ./k8s-deploy.sh
+	@echo "$(YELLOW)🕐 Kubernetesクラスタ準備完了を確認しています...$(NC)"
+	@$(MAKE) wait-for-k8s-cluster
 	@echo "$(GREEN)✅ Kubernetesクラスタ構築完了$(NC)"
 
 # Kubernetes基盤構築
@@ -155,6 +165,63 @@ logs:
 	@echo ""
 	@echo "$(YELLOW)■ 最近の重要なポッド状態$(NC)"
 	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
+
+# 自動化実行の事前チェック
+check-automation-readiness:
+	@echo "$(GREEN)🔍 自動化実行の事前チェック$(NC)"
+	@echo "$(YELLOW)■ 実行環境確認$(NC)"
+	@if [ "$(shell whoami)" = "root" ]; then \
+		echo "$(RED)❌ エラー: rootユーザーでは実行できません$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(PROJECT_ROOT)" ]; then \
+		echo "$(RED)❌ エラー: プロジェクトルートが見つかりません$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ 事前チェック完了$(NC)"
+
+# VM起動完了待機
+wait-for-vms:
+	@echo "$(YELLOW)🕐 全VM（3台）の起動完了を待機中...$(NC)"
+	@for i in 10 11 12; do \
+		echo "VM 192.168.122.$$i の起動確認中..."; \
+		timeout=300; \
+		while [ $$timeout -gt 0 ]; do \
+			if ping -c1 -W1 192.168.122.$$i >/dev/null 2>&1; then \
+				echo "$(GREEN)✅ VM 192.168.122.$$i 起動確認$(NC)"; \
+				break; \
+			fi; \
+			echo "あと $$timeout 秒待機..."; \
+			sleep 5; \
+			timeout=$$((timeout - 5)); \
+		done; \
+		if [ $$timeout -le 0 ]; then \
+			echo "$(RED)❌ VM 192.168.122.$$i の起動がタイムアウトしました$(NC)"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "$(YELLOW)🕐 cloud-init完了を追加で30秒待機...$(NC)"
+	@sleep 30
+	@echo "$(GREEN)✅ 全VM起動完了$(NC)"
+
+# Kubernetesクラスタ準備完了待機
+wait-for-k8s-cluster:
+	@echo "$(YELLOW)🕐 Kubernetesクラスタ準備完了を待機中...$(NC)"
+	@timeout=300; \
+	while [ $$timeout -gt 0 ]; do \
+		ready_nodes=$$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers 2>/dev/null | grep -c Ready' 2>/dev/null || echo "0"); \
+		if [ "$$ready_nodes" -ge 3 ]; then \
+			echo "$(GREEN)✅ Kubernetesクラスタ準備完了 ($$ready_nodes nodes Ready)$(NC)"; \
+			break; \
+		fi; \
+		echo "Ready ノード数: $$ready_nodes/3 - あと $$timeout 秒待機..."; \
+		sleep 10; \
+		timeout=$$((timeout - 10)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "$(RED)❌ Kubernetesクラスタ準備がタイムアウトしました$(NC)"; \
+		exit 1; \
+	fi
 
 # 全システムクリーンアップ
 clean:

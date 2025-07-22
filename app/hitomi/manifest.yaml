@@ -4,7 +4,7 @@ metadata:
   name: hitomi-monitor
   namespace: sandbox
 spec:
-  schedule: "0 19 * * *"
+  schedule: "0 3 * * *"
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
