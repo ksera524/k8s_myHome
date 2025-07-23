@@ -257,8 +257,10 @@ if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
     # Harbor パスワード管理スクリプトを実行
     bash "$SCRIPT_DIR/harbor-password-manager.sh"
     
-    # スクリプト実行結果からパスワードを取得
+    # スクリプト実行結果からパスワードを取得（複数ソースから試行）
     HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-registry-secret -n arc-systems -o jsonpath="{.data.\.dockerconfigjson}" | base64 -d | grep -o "\"password\":\"[^\"]*\"" | cut -d":" -f2 | tr -d "\""' 2>/dev/null || \
+        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
         'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
     HARBOR_USERNAME="admin"
     export HARBOR_PASSWORD HARBOR_USERNAME
@@ -282,7 +284,7 @@ if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
 # Harbor認証Secret完全版作成/更新
 kubectl create secret generic harbor-auth \
     --from-literal=HARBOR_USERNAME="admin" \
-    --from-literal=HARBOR_PASSWORD="Harbor12345" \
+    --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD:-Harbor12345}" \
     --from-literal=HARBOR_URL="192.168.122.100" \
     --from-literal=HARBOR_PROJECT="sandbox" \
     --namespace=arc-systems \

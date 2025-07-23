@@ -58,12 +58,22 @@ else
 fi
 
 if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
-    echo "Harbor Registry Password (default: Harbor12345):"
-    echo -n "HARBOR_PASSWORD [Harbor12345]: "
+    # Harbor管理者パスワードを動的取得
+    DYNAMIC_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-registry-secret -n arc-systems -o jsonpath="{.data.\.dockerconfigjson}" | base64 -d | grep -o "\"password\":\"[^\"]*\"" | cut -d":" -f2 | tr -d "\""' 2>/dev/null || echo "")
+    
+    if [[ -n "$DYNAMIC_PASSWORD" ]]; then
+        echo "Harbor Registry Password (動的取得: ${DYNAMIC_PASSWORD:0:8}...):"
+        echo -n "HARBOR_PASSWORD [動的パスワード使用]: "
+    else
+        echo "Harbor Registry Password (default: Harbor12345):"
+        echo -n "HARBOR_PASSWORD [Harbor12345]: "
+    fi
+    
     read -s HARBOR_PASSWORD_INPUT
     echo ""
     if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
-        HARBOR_PASSWORD="Harbor12345"
+        HARBOR_PASSWORD="${DYNAMIC_PASSWORD:-Harbor12345}"
     else
         HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
     fi
