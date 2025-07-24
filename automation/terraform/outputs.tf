@@ -31,3 +31,26 @@ output "vm_names" {
     workers       = libvirt_domain.worker[*].name
   }
 }
+
+output "kubeconfig_path" {
+  description = "kubeconfigファイルのパス"
+  value       = "/home/${var.vm_user}/.kube/config"
+}
+
+output "cluster_endpoint" {
+  description = "Kubernetesクラスターエンドポイント"
+  value       = "${var.control_plane_ip}:6443"
+}
+
+output "deployment_summary" {
+  description = "デプロイメント完了情報"
+  value = {
+    cluster_name      = "k8s-cluster-${random_id.cluster.hex}"
+    kubernetes_version = var.kubernetes_version
+    nodes_total       = 1 + length(var.worker_ips)
+    control_plane_ip  = var.control_plane_ip
+    worker_ips        = var.worker_ips
+    pod_network_cidr  = var.pod_network_cidr
+    kubeconfig_cmd    = "scp ${var.vm_user}@${var.control_plane_ip}:/home/${var.vm_user}/.kube/config ~/.kube/config-k8s-cluster"
+  }
+}

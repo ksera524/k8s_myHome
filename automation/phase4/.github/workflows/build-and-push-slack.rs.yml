@@ -98,21 +98,9 @@ jobs:
         HARBOR_URL=$(cat /tmp/harbor_url)
         HARBOR_PROJECT=$(cat /tmp/harbor_project)
         
-        # CPU機能互換性のためのビルド環境変数設定
-        export RUSTFLAGS="-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
-        echo "RUSTFLAGS設定: $RUSTFLAGS"
-        
-        # Dockerイメージビルド（環境変数でRUSTFLAGSを渡し、アーキテクチャ指定）
-        DOCKER_BUILDKIT=1 RUSTFLAGS="$RUSTFLAGS" docker build --platform linux/amd64 --build-arg BUILDKIT_INLINE_CACHE=1 -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
-        DOCKER_BUILDKIT=1 RUSTFLAGS="$RUSTFLAGS" docker build --platform linux/amd64 --build-arg BUILDKIT_INLINE_CACHE=1 -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
-        
-        # ビルド後のイメージ内バイナリ確認
-        echo "ビルド後のイメージ内バイナリ確認:"
-        docker run --rm --platform linux/amd64 $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest ls -la /app/slack
-        
-        # バイナリの詳細実行テスト
-        echo "=== バイナリ実行テスト（ARC環境内） ==="
-        docker run --rm --platform linux/amd64 $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest sh -c "echo 'Starting slack test in ARC container...'; timeout 10 /app/slack 2>&1 || echo 'Exit code: $?'; echo 'Test completed'"
+        # Dockerイメージビルド（通常のタグ形式）
+        docker build -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest .
+        docker build -t $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} .
         
         echo "✅ Docker Build完了"
         

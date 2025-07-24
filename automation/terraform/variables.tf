@@ -54,3 +54,28 @@ variable "worker_vcpu" {
   type        = number
   default     = 2
 }
+
+# Kubernetesクラスター設定
+variable "kubernetes_version" {
+  description = "Kubernetesバージョン"
+  type        = string
+  default     = "v1.33.0"
+}
+
+variable "pod_network_cidr" {
+  description = "Pod ネットワークCIDR（Flannel用）"
+  type        = string
+  default     = "10.244.0.0/16"
+}
+
+variable "service_network_cidr" {
+  description = "Service ネットワークCIDR"
+  type        = string
+  default     = "10.96.0.0/12"
+}
+
+variable "ssh_private_key_path" {
+  description = "SSH秘密鍵のパス"
+  type        = string
+  default     = "~/.ssh/id_rsa"
+}

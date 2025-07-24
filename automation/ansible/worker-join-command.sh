@@ -1,1 +1,0 @@
-sudo kubeadm join 192.168.122.10:6443 --token kotvd3.y1py57k0fe5edj6i --discovery-token-ca-cert-hash sha256:a3638cf681b7a36d001a9dfa73f88f471ca61ce71e655e603a5577cc26944862 

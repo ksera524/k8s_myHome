@@ -1,4 +1,4 @@
-# Phase 2: 改善されたVM構築用Terraformコード
+# Phase 2&3統合: VM構築+Kubernetesクラスター構築用Terraformコード
 # ランダムIDを使用してリソース重複を回避
 
 terraform {
@@ -10,6 +10,10 @@ terraform {
     }
     random = {
       source  = "hashicorp/random"
+      version = "~> 3.1"
+    }
+    null = {
+      source  = "hashicorp/null"
       version = "~> 3.1"
     }
   }
@@ -147,5 +151,249 @@ resource "libvirt_domain" "worker" {
     type        = "spice"
     listen_type = "address"
     autoport    = true
+  }
+}
+
+# VMの起動完了を待つためのリソース
+resource "null_resource" "wait_for_vms" {
+  depends_on = [
+    libvirt_domain.control_plane,
+    libvirt_domain.worker
+  ]
+
+  provisioner "local-exec" {
+    command = "sleep 60"  # VMの起動とcloud-init完了を待つ
+  }
+}
+
+# Kubernetes環境セットアップ（Control Plane）
+resource "null_resource" "k8s_control_plane_setup" {
+  depends_on = [null_resource.wait_for_vms]
+  
+  connection {
+    type        = "ssh"
+    host        = var.control_plane_ip
+    user        = var.vm_user
+    private_key = file(var.ssh_private_key_path)
+  }
+  
+  # cloud-init完了を待機
+  provisioner "remote-exec" {
+    inline = [
+      "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
+    ]
+  }
+  
+  # Kubernetesパッケージインストール
+  provisioner "remote-exec" {
+    inline = [
+      "sudo apt update",
+      "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd",
+      "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
+      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
+      "sudo apt update",
+      "sudo apt install -y kubelet=1.29.0-1.1 kubeadm=1.29.0-1.1 kubectl=1.29.0-1.1",
+      "sudo apt-mark hold kubelet kubeadm kubectl"
+    ]
+  }
+  
+  # カーネルモジュールとネットワーク設定
+  provisioner "remote-exec" {
+    inline = [
+      "sudo modprobe br_netfilter",
+      "sudo modprobe overlay",
+      "echo 'br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf",
+      "echo 'overlay' | sudo tee -a /etc/modules-load.d/k8s.conf",
+      "echo 'net.bridge.bridge-nf-call-iptables = 1' | sudo tee /etc/sysctl.d/k8s.conf",
+      "echo 'net.bridge.bridge-nf-call-ip6tables = 1' | sudo tee -a /etc/sysctl.d/k8s.conf",
+      "echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/k8s.conf",
+      "sudo sysctl --system"
+    ]
+  }
+  
+  # containerd設定
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p /etc/containerd",
+      "sudo containerd config default | sudo tee /etc/containerd/config.toml",
+      "sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml",
+      "sudo systemctl restart containerd",
+      "sudo systemctl enable containerd"
+    ]
+  }
+  
+  # kubeadm設定ファイル作成
+  provisioner "remote-exec" {
+    inline = [
+      <<-EOF
+        sudo tee /tmp/kubeadm-config.yaml > /dev/null <<EOL
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: ${var.control_plane_ip}
+  bindPort: 6443
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: ${var.kubernetes_version}
+controlPlaneEndpoint: "${var.control_plane_ip}:6443"
+networking:
+  podSubnet: "${var.pod_network_cidr}"
+  serviceSubnet: "${var.service_network_cidr}"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+EOL
+      EOF
+    ]
+  }
+  
+  # kubeadmクラスター初期化
+  provisioner "remote-exec" {
+    inline = [
+      "sudo kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs",
+      "mkdir -p /home/${var.vm_user}/.kube",
+      "sudo cp -i /etc/kubernetes/admin.conf /home/${var.vm_user}/.kube/config",
+      "sudo chown ${var.vm_user}:${var.vm_user} /home/${var.vm_user}/.kube/config",
+      "kubeadm token create --print-join-command > /tmp/worker-join-command.txt"
+    ]
+  }
+  
+  # Harbor用ストレージディレクトリ作成
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p /tmp/harbor-registry /tmp/harbor-database /tmp/harbor-redis /tmp/harbor-trivy /tmp/harbor-jobservice",
+      "sudo chmod 777 /tmp/harbor-*"
+    ]
+  }
+}
+
+# Worker Nodeセットアップ
+resource "null_resource" "k8s_worker_setup" {
+  count = length(var.worker_ips)
+  depends_on = [null_resource.k8s_control_plane_setup]
+  
+  connection {
+    type        = "ssh"
+    host        = var.worker_ips[count.index]
+    user        = var.vm_user
+    private_key = file(var.ssh_private_key_path)
+  }
+  
+  # cloud-init完了を待機
+  provisioner "remote-exec" {
+    inline = [
+      "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
+    ]
+  }
+  
+  # Kubernetesパッケージインストール
+  provisioner "remote-exec" {
+    inline = [
+      "sudo apt update",
+      "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd",
+      "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
+      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
+      "sudo apt update",
+      "sudo apt install -y kubelet=1.29.0-1.1 kubeadm=1.29.0-1.1 kubectl=1.29.0-1.1",
+      "sudo apt-mark hold kubelet kubeadm kubectl"
+    ]
+  }
+  
+  # カーネルモジュールとネットワーク設定
+  provisioner "remote-exec" {
+    inline = [
+      "sudo modprobe br_netfilter",
+      "sudo modprobe overlay",
+      "echo 'br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf",
+      "echo 'overlay' | sudo tee -a /etc/modules-load.d/k8s.conf",
+      "echo 'net.bridge.bridge-nf-call-iptables = 1' | sudo tee /etc/sysctl.d/k8s.conf",
+      "echo 'net.bridge.bridge-nf-call-ip6tables = 1' | sudo tee -a /etc/sysctl.d/k8s.conf",
+      "echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/k8s.conf",
+      "sudo sysctl --system"
+    ]
+  }
+  
+  # containerd設定
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p /etc/containerd",
+      "sudo containerd config default | sudo tee /etc/containerd/config.toml",
+      "sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml",
+      "sudo systemctl restart containerd",
+      "sudo systemctl enable containerd"
+    ]
+  }
+  
+  # Harbor用ストレージディレクトリ作成
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p /tmp/harbor-registry /tmp/harbor-database /tmp/harbor-redis /tmp/harbor-trivy /tmp/harbor-jobservice",
+      "sudo chmod 777 /tmp/harbor-*"
+    ]
+  }
+}
+
+# joinコマンドを取得してWorker Nodeに配布
+resource "null_resource" "worker_join" {
+  count = length(var.worker_ips)
+  depends_on = [null_resource.k8s_worker_setup]
+  
+  # joinコマンドをControl Planeから取得してローカルに保存
+  provisioner "local-exec" {
+    command = "ssh -o StrictHostKeyChecking=no -i ${var.ssh_private_key_path} ${var.vm_user}@${var.control_plane_ip} 'cat /tmp/worker-join-command.txt' > /tmp/worker-join-command.sh && chmod +x /tmp/worker-join-command.sh"
+  }
+  
+  # joinコマンドをWorker Nodeにコピー
+  provisioner "file" {
+    connection {
+      type        = "ssh"
+      host        = var.worker_ips[count.index]
+      user        = var.vm_user
+      private_key = file(var.ssh_private_key_path)
+    }
+    
+    source      = "/tmp/worker-join-command.sh"
+    destination = "/tmp/worker-join-command.sh"
+  }
+  
+  # Worker Nodeでjoin実行
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      host        = var.worker_ips[count.index]
+      user        = var.vm_user
+      private_key = file(var.ssh_private_key_path)
+    }
+    
+    inline = [
+      "chmod +x /tmp/worker-join-command.sh",
+      "sudo bash /tmp/worker-join-command.sh"
+    ]
+  }
+}
+
+# FlannelCNI インストール
+resource "null_resource" "flannel_install" {
+  depends_on = [null_resource.worker_join]
+  
+  connection {
+    type        = "ssh"
+    host        = var.control_plane_ip
+    user        = var.vm_user
+    private_key = file(var.ssh_private_key_path)
+  }
+  
+  provisioner "remote-exec" {
+    inline = [
+      "timeout 300 bash -c 'until kubectl get nodes; do sleep 10; done'",
+      "kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml",
+      "sleep 30",
+      "echo '=== Cluster Info ===' > /tmp/k8s-cluster-info.txt",
+      "kubectl get nodes -o wide >> /tmp/k8s-cluster-info.txt",
+      "echo '' >> /tmp/k8s-cluster-info.txt",
+      "kubectl get pods --all-namespaces >> /tmp/k8s-cluster-info.txt"
+    ]
   }
 }

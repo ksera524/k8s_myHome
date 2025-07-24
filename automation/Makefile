@@ -9,12 +9,11 @@ NC := \033[0m
 
 # 設定
 PROJECT_ROOT := $(shell pwd)
-HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
+SCRIPTS_DIR := $(PROJECT_ROOT)/scripts
 TERRAFORM_DIR := $(PROJECT_ROOT)/terraform
-ANSIBLE_DIR := $(PROJECT_ROOT)/ansible
-K8S_INFRA_DIR := $(PROJECT_ROOT)/k8s-infrastructure
+PHASE4_DIR := $(PROJECT_ROOT)/phase4
 
-.PHONY: help all deploy host-setup vm-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-vms wait-for-k8s-cluster
+.PHONY: help all deploy host-setup vm-k8s-deploy vm-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster
 
 # デフォルトターゲット
 help:
@@ -26,8 +25,7 @@ help:
 	@echo ""
 	@echo "$(YELLOW)■ ステップ別実行$(NC)"
 	@echo "  make host-setup          - ホストマシンセットアップ"
-	@echo "  make vm-deploy           - VM作成 (Terraform)"
-	@echo "  make k8s-cluster         - Kubernetesクラスタ構築"
+	@echo "  make vm-k8s-deploy       - VM作成+Kubernetesクラスタ構築 (Terraform統合)"
 	@echo "  make k8s-infrastructure  - Kubernetes基盤構築"
 	@echo ""
 	@echo "$(YELLOW)■ 個別操作$(NC)"
@@ -43,12 +41,12 @@ help:
 	@echo ""
 	@echo "$(YELLOW)■ 使用例$(NC)"
 	@echo "  make all                 # 完全自動デプロイ"
-	@echo "  make host-setup vm-deploy  # ホストセットアップとVM作成のみ"
+	@echo "  make host-setup vm-k8s-deploy  # ホストセットアップとVM+K8s構築のみ"
 	@echo "  make add-runner REPO=my-project  # Runner追加"
 	@echo ""
 
 # 全自動デプロイ (全ステップ)
-all: check-automation-readiness host-setup vm-deploy k8s-cluster k8s-infrastructure
+all: check-automation-readiness host-setup vm-k8s-deploy k8s-infrastructure
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
 	@echo ""
 	@$(MAKE) status
@@ -59,39 +57,39 @@ deploy: all
 # ホストマシンセットアップ
 host-setup:
 	@echo "$(GREEN)🚀 ホストマシンセットアップ開始$(NC)"
-	@cd $(HOST_SETUP_DIR) && ./setup-host.sh
+	@cd $(SCRIPTS_DIR) && ./setup-host.sh
 	@echo "$(YELLOW)⚠️  グループメンバーシップの更新のため、権限を再確認します$(NC)"
 	@if ! groups | grep -q libvirt; then \
 		echo "$(YELLOW)libvirtグループが有効化されていません。sg libvirtで実行します...$(NC)"; \
-		sg libvirt -c "cd $(HOST_SETUP_DIR) && ./setup-storage.sh"; \
-		sg libvirt -c "cd $(HOST_SETUP_DIR) && ./verify-setup.sh"; \
+		sg libvirt -c "cd $(SCRIPTS_DIR) && ./setup-storage.sh"; \
+		sg libvirt -c "cd $(SCRIPTS_DIR) && ./verify-setup.sh"; \
 	else \
 		echo "$(GREEN)libvirtグループが有効です。続行します...$(NC)"; \
-		cd $(HOST_SETUP_DIR) && ./setup-storage.sh; \
-		cd $(HOST_SETUP_DIR) && ./verify-setup.sh; \
+		cd $(SCRIPTS_DIR) && ./setup-storage.sh; \
+		cd $(SCRIPTS_DIR) && ./verify-setup.sh; \
 	fi
 	@echo "$(GREEN)✅ ホストマシンセットアップ完了$(NC)"
 
-# VM作成 (Terraform)
-vm-deploy:
-	@echo "$(GREEN)🚀 VM作成開始$(NC)"
+# VM作成+Kubernetesクラスタ構築 (Terraform統合)
+vm-k8s-deploy:
+	@echo "$(GREEN)🚀 VM作成+Kubernetesクラスタ構築開始 (Terraform統合)$(NC)"
 	@cd $(TERRAFORM_DIR) && ./clean-and-deploy.sh
-	@echo "$(YELLOW)🕐 VM起動とcloud-init完了を待機しています...$(NC)"
-	@$(MAKE) wait-for-vms
-	@echo "$(GREEN)✅ VM作成完了$(NC)"
-
-# Kubernetesクラスタ構築
-k8s-cluster:
-	@echo "$(GREEN)🚀 Kubernetesクラスタ構築開始$(NC)"
-	@cd $(ANSIBLE_DIR) && ./k8s-deploy.sh
-	@echo "$(YELLOW)🕐 Kubernetesクラスタ準備完了を確認しています...$(NC)"
+	@echo "$(YELLOW)🕐 クラスタ準備完了を確認しています...$(NC)"
 	@$(MAKE) wait-for-k8s-cluster
-	@echo "$(GREEN)✅ Kubernetesクラスタ構築完了$(NC)"
+	@echo "$(GREEN)✅ VM作成+Kubernetesクラスタ構築完了$(NC)"
+
+# 後方互換性用（非推奨）
+vm-deploy: vm-k8s-deploy
+	@echo "$(YELLOW)⚠️  vm-deployは非推奨です。vm-k8s-deployを使用してください$(NC)"
+
+k8s-cluster:
+	@echo "$(YELLOW)⚠️  k8s-clusterは非推奨です。Phase 2-3が統合されました$(NC)"
+	@echo "$(YELLOW)   vm-k8s-deployを使用してください$(NC)"
 
 # Kubernetes基盤構築
 k8s-infrastructure:
 	@echo "$(GREEN)🚀 Kubernetes基盤構築開始$(NC)"
-	@cd $(K8S_INFRA_DIR) && ./k8s-infrastructure-deploy.sh
+	@cd $(PHASE4_DIR) && ./phase4-deploy.sh
 	@echo "$(GREEN)✅ Kubernetes基盤構築完了$(NC)"
 
 # GitHub Actions Runner追加
@@ -102,19 +100,19 @@ add-runner:
 		exit 1; \
 	fi
 	@echo "$(GREEN)🚀 GitHub Actions Runner追加: $(REPO)$(NC)"
-	@cd $(K8S_INFRA_DIR) && ./add-runner.sh $(REPO)
+	@cd $(PHASE4_DIR) && ./add-runner.sh $(REPO)
 	@echo "$(GREEN)✅ Runner追加完了$(NC)"
 
 # Actions Runner Controller設定
 setup-arc:
 	@echo "$(GREEN)🚀 Actions Runner Controller設定開始$(NC)"
-	@cd $(K8S_INFRA_DIR) && ./setup-arc.sh
+	@cd $(PHASE4_DIR) && ./setup-arc.sh
 	@echo "$(GREEN)✅ ARC設定完了$(NC)"
 
 # Harbor証明書修正
 harbor-cert-fix:
 	@echo "$(GREEN)🚀 Harbor証明書修正開始$(NC)"
-	@cd $(K8S_INFRA_DIR) && ./harbor-cert-fix.sh
+	@cd $(PHASE4_DIR) && ./harbor-cert-fix.sh
 	@echo "$(GREEN)✅ Harbor証明書修正完了$(NC)"
 
 # 全システム状態確認
@@ -139,12 +137,12 @@ verify:
 	@echo "$(GREEN)🔍 全フェーズ検証開始$(NC)"
 	@echo ""
 	@echo "$(YELLOW)■ ホストセットアップ検証$(NC)"
-	@cd $(HOST_SETUP_DIR) && ./verify-setup.sh 2>/dev/null || echo "ホストセットアップ検証失敗"
+	@cd $(SCRIPTS_DIR) && ./verify-setup.sh 2>/dev/null || echo "ホストセットアップ検証失敗"
 	@echo ""
-	@echo "$(YELLOW)■ VM作成検証$(NC)"
+	@echo "$(YELLOW)■ VM+Kubernetesクラスタ検証$(NC)"
 	@cd $(TERRAFORM_DIR) && terraform plan -out=tfplan >/dev/null 2>&1 && echo "✅ Terraform状態正常" || echo "❌ Terraform状態異常"
 	@echo ""
-	@echo "$(YELLOW)■ Kubernetesクラスタ検証$(NC)"
+	@echo "$(YELLOW)■ Kubernetesクラスタ稼働検証$(NC)"
 	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers | grep -c Ready' 2>/dev/null | \
 		awk '{if($$1>=3) print "✅ Kubernetesクラスタ正常 ("$$1" nodes Ready)"; else print "❌ Kubernetesクラスタ異常"}' || echo "❌ Kubernetesクラスタ接続失敗"
 	@echo ""
@@ -161,7 +159,7 @@ logs:
 	@echo ""
 	@echo ""
 	@echo "$(YELLOW)■ GitHub認証情報状態$(NC)"
-	@cd $(K8S_INFRA_DIR) && source ./github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
+	@cd $(PHASE4_DIR) && source ./github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ 最近の重要なポッド状態$(NC)"
 	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
@@ -180,29 +178,6 @@ check-automation-readiness:
 	fi
 	@echo "$(GREEN)✅ 事前チェック完了$(NC)"
 
-# VM起動完了待機
-wait-for-vms:
-	@echo "$(YELLOW)🕐 全VM（3台）の起動完了を待機中...$(NC)"
-	@for i in 10 11 12; do \
-		echo "VM 192.168.122.$$i の起動確認中..."; \
-		timeout=300; \
-		while [ $$timeout -gt 0 ]; do \
-			if ping -c1 -W1 192.168.122.$$i >/dev/null 2>&1; then \
-				echo "$(GREEN)✅ VM 192.168.122.$$i 起動確認$(NC)"; \
-				break; \
-			fi; \
-			echo "あと $$timeout 秒待機..."; \
-			sleep 5; \
-			timeout=$$((timeout - 5)); \
-		done; \
-		if [ $$timeout -le 0 ]; then \
-			echo "$(RED)❌ VM 192.168.122.$$i の起動がタイムアウトしました$(NC)"; \
-			exit 1; \
-		fi; \
-	done
-	@echo "$(YELLOW)🕐 cloud-init完了を追加で30秒待機...$(NC)"
-	@sleep 30
-	@echo "$(GREEN)✅ 全VM起動完了$(NC)"
 
 # Kubernetesクラスタ準備完了待機
 wait-for-k8s-cluster:
@@ -237,18 +212,23 @@ clean:
 		sudo virsh list --all | grep k8s | awk '"'"'{print $$2}'"'"' | xargs -I {} sudo virsh destroy {} 2>/dev/null || true; \
 		sudo virsh list --all | grep k8s | awk '"'"'{print $$2}'"'"' | xargs -I {} sudo virsh undefine {} 2>/dev/null || true; \
 		cd $(TERRAFORM_DIR) && terraform destroy -auto-approve 2>/dev/null || true; \
-		cd $(K8S_INFRA_DIR) && source ./github-auth-utils.sh && clear_github_credentials 2>/dev/null || true; \
+		cd $(PHASE4_DIR) && source ./github-auth-utils.sh && clear_github_credentials 2>/dev/null || true; \
 		echo "$(GREEN)✅ クリーンアップ完了$(NC)"; \
 	else \
 		echo "$(YELLOW)クリーンアップをキャンセルしました$(NC)"; \
 	fi'
 
 # 後方互換性のためのエイリアス
-.PHONY: phase1 phase2 phase3 phase4
+.PHONY: phase1 phase2 phase3 phase4 phase2-3
 phase1: host-setup
-phase2: vm-deploy
-phase3: k8s-cluster
+phase2-3: vm-k8s-deploy
 phase4: k8s-infrastructure
+
+# 非推奨エイリアス
+phase2: phase2-3
+	@echo "$(YELLOW)⚠️  phase2は統合されました。phase2-3が実行されます$(NC)"
+phase3: phase2-3
+	@echo "$(YELLOW)⚠️  phase3は統合されました。phase2-3が実行されます$(NC)"
 
 # 開発用ターゲット
 .PHONY: dev-info dev-ssh dev-argocd dev-harbor
