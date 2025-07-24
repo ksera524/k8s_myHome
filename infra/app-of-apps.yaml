@@ -96,6 +96,31 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+---
+# External Secrets Operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: infra/external-secrets
+    directory:
+      include: "external-secrets-operator-app.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 # ARC system temporarily disabled due to CRD issues
 # ---
 # apiVersion: argoproj.io/v1alpha1
