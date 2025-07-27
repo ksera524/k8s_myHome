@@ -49,11 +49,38 @@ get_github_credentials() {
     
     # External Secretsから取得を試行（k8sクラスタに接続可能な場合）
     if command -v kubectl >/dev/null 2>&1 && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl version --client' >/dev/null 2>&1; then
-        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
+        # GitHub auth secretの存在確認（短時間のリトライ）
+        github_secret_found=false
+        for attempt in 1 2 3; do
+            if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
+                github_secret_found=true
+                break
+            fi
+            if [ $attempt -lt 3 ]; then
+                echo "GitHub auth secret確認中... (試行 $attempt/3)"
+                sleep 2
+            fi
+        done
+        
+        if [ "$github_secret_found" = "true" ]; then
             echo "External SecretsからGitHub認証情報を取得中..."
             
-            GITHUB_TOKEN_ES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d' 2>/dev/null || echo "")
-            GITHUB_USERNAME_ES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_USERNAME}" | base64 -d' 2>/dev/null || echo "")
+            # 認証情報取得のリトライ
+            GITHUB_TOKEN_ES=""
+            GITHUB_USERNAME_ES=""
+            for attempt in 1 2 3; do
+                GITHUB_TOKEN_ES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d' 2>/dev/null || echo "")
+                GITHUB_USERNAME_ES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_USERNAME}" | base64 -d' 2>/dev/null || echo "")
+                
+                if [[ -n "$GITHUB_TOKEN_ES" && -n "$GITHUB_USERNAME_ES" && "$GITHUB_TOKEN_ES" != "" && "$GITHUB_USERNAME_ES" != "" ]]; then
+                    break
+                fi
+                
+                if [ $attempt -lt 3 ]; then
+                    echo "GitHub認証情報取得中... (試行 $attempt/3)"
+                    sleep 2
+                fi
+            done
             
             if [[ -n "$GITHUB_TOKEN_ES" && -n "$GITHUB_USERNAME_ES" && "$GITHUB_TOKEN_ES" != "" && "$GITHUB_USERNAME_ES" != "" ]]; then
                 echo "✓ External SecretsからGitHub認証情報を取得しました"
@@ -67,7 +94,7 @@ get_github_credentials() {
                 return 0
             else
                 echo "⚠️ External SecretsからGitHub認証情報の取得に失敗しました"
-                echo "Pulumi ESCにgithub/github_usernameキーが存在しない可能性があります"
+                echo "Pulumi ESCにgithubキーが存在しない可能性があります"
             fi
         else
             echo "External Secrets github-auth secret が見つかりません (arc-systems namespace)"

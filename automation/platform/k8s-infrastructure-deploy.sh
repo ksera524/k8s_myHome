@@ -695,6 +695,35 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     echo ""
     print_status "GitHub Actions設定を確認中..."
     
+    # GitHub ExternalSecret最終確認（get_github_credentials直前）
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
+        # GitHub ExternalSecretが存在する場合、Ready状態を確認
+        github_es_ready=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
+        if [ "$github_es_ready" != "True" ]; then
+            print_warning "GitHub ExternalSecretが準備できていません。同期を待機中..."
+            # 60秒間待機
+            timeout=60
+            while [ $timeout -gt 0 ]; do
+                github_es_ready=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
+                if [ "$github_es_ready" = "True" ]; then
+                    print_status "✓ GitHub ExternalSecret準備完了"
+                    break
+                fi
+                echo "GitHub ExternalSecret同期待機中... (残り ${timeout}秒)"
+                sleep 5
+                timeout=$((timeout - 5))
+            done
+            
+            if [ $timeout -le 0 ]; then
+                print_warning "GitHub ExternalSecret同期がタイムアウトしました"
+            fi
+        else
+            print_debug "✓ GitHub ExternalSecret準備完了"
+        fi
+    else
+        print_debug "GitHub ExternalSecretが見つかりません（フォールバック動作）"
+    fi
+    
     # GitHub認証情報を取得（保存済みを利用または新規入力）
     if ! get_github_credentials; then
         print_warning "GitHub認証情報の取得に失敗しました"
