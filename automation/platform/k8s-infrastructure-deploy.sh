@@ -1074,72 +1074,22 @@ else
     print_debug "Harbor証明書修正を手動実行してください"
 fi
 
-# Harbor HTTP Ingress設定の修正
-print_debug "Harbor HTTP Ingress設定を修正中..."
-print_debug "- /v2/ パスをharbor-coreサービス経由に設定"
-print_debug "- Docker Registry API認証を正常化"
+# Harbor Ingress確認
+print_debug "Harbor Ingress設定を確認中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'HARBOR_INGRESS_CHECK_EOF'
+# 既存のHarbor Ingressを確認
+EXISTING_INGRESSES=$(kubectl get ingress -n harbor --no-headers | wc -l)
+echo "Harbor Ingress数: $EXISTING_INGRESSES"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' << 'HARBOR_INGRESS_EOF'
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: harbor-http-ingress
-  namespace: harbor
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:
-      paths:
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /api/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /service/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /v2/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /chartrepo/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /c/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-portal
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-HARBOR_INGRESS_EOF
+# harbor-internal-ingressが存在するか確認
+if kubectl get ingress harbor-internal-ingress -n harbor >/dev/null 2>&1; then
+    echo "✓ harbor-internal-ingress が存在します（Docker Registry API対応済み）"
+else
+    echo "⚠️ harbor-internal-ingress が見つかりません"
+fi
+HARBOR_INGRESS_CHECK_EOF
 
-print_status "✓ Harbor HTTP Ingress設定完了"
+print_status "✓ Harbor Ingress設定確認完了"
 
 # ARC Scale Setのinsecure registry設定の自動適用
 print_debug "ARC Scale Setのinsecure registry設定を確認・修正中..."
