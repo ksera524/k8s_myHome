@@ -388,6 +388,7 @@ print_status "=== 主要な External Secrets 確認 ==="
 print_debug "harbor-admin-secret (harbor namespace): $(kubectl get secret harbor-admin-secret -n harbor >/dev/null 2>&1 && echo "✓" || echo "❌")"
 print_debug "harbor-auth (arc-systems namespace): $(kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1 && echo "✓" || echo "❌")"
 print_debug "cloudflared (cloudflared namespace): $(kubectl get secret cloudflared -n cloudflared >/dev/null 2>&1 && echo "✓" || echo "❌")"
+print_debug "github-auth (arc-systems namespace): $(kubectl get secret github-auth -n arc-systems >/dev/null 2>&1 && echo "✓" || echo "❌")"
 
 print_status "=== Harbor 認証情報デプロイ完了 ==="
 
