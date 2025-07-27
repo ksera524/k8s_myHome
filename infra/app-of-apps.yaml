@@ -147,6 +147,31 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+---
+# Harbor完全設定 (Harbor + Certificate + CA trust)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-complete
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: infra
+    directory:
+      include: "harbor-complete.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 # ARC system temporarily disabled due to CRD issues
 # ---
 # apiVersion: argoproj.io/v1alpha1

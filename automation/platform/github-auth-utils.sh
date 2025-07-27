@@ -62,12 +62,18 @@ get_github_credentials() {
                 
                 export GITHUB_USERNAME="$GITHUB_USERNAME_ES"
                 export GITHUB_TOKEN="$GITHUB_TOKEN_ES"
+                
+                # External Secrets使用時はファイル保存済み認証情報のチェックをスキップ
                 return 0
             else
                 echo "⚠️ External SecretsからGitHub認証情報の取得に失敗しました"
                 echo "Pulumi ESCにgithub/github_usernameキーが存在しない可能性があります"
             fi
+        else
+            echo "External Secrets github-auth secret が見つかりません (arc-systems namespace)"
         fi
+    else
+        echo "k8sクラスタに接続できないか、kubectlがありません"
     fi
     
     # 保存済み認証情報を読み込み試行
