@@ -408,6 +408,54 @@ EOF
         fi
     fi
     
+    # ArgoCD App-of-Apps同期とExternal Secrets作成を待機
+    if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+        print_debug "ArgoCD App-of-Apps同期とExternal Secrets作成を待機中..."
+        
+        # ArgoCD infrastructure applicationが存在するかチェック
+        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application infrastructure -n argocd' >/dev/null 2>&1; then
+            print_debug "ArgoCD infrastructure application同期を促進中..."
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application infrastructure -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
+            
+            # external-secrets-config applicationの同期待機
+            timeout=120
+            while [ $timeout -gt 0 ]; do
+                if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application external-secrets-config -n argocd' >/dev/null 2>&1; then
+                    # external-secrets-config同期を促進
+                    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application external-secrets-config -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
+                    print_status "✓ ArgoCD external-secrets-config application同期完了"
+                    break
+                fi
+                echo "ArgoCD external-secrets-config application作成待機中... (残り ${timeout}秒)"
+                sleep 10
+                timeout=$((timeout - 10))
+            done
+            
+            if [ $timeout -le 0 ]; then
+                print_warning "ArgoCD external-secrets-config application作成がタイムアウトしました"
+                print_debug "External Secretsの手動作成を試行します"
+            else
+                # GitHub ExternalSecretの作成待機
+                timeout=60
+                while [ $timeout -gt 0 ]; do
+                    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
+                        print_status "✓ GitHub ExternalSecret作成完了"
+                        break
+                    fi
+                    echo "GitHub ExternalSecret作成待機中... (残り ${timeout}秒)"
+                    sleep 5
+                    timeout=$((timeout - 5))
+                done
+                
+                if [ $timeout -le 0 ]; then
+                    print_warning "GitHub ExternalSecret作成がタイムアウトしました"
+                fi
+            fi
+        else
+            print_debug "ArgoCD infrastructure applicationが見つかりません"
+        fi
+    fi
+    
     # External Secrets が利用可能な場合の処理
     if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
         # Pulumi Access Token の確認・設定

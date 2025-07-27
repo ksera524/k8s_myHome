@@ -13,7 +13,7 @@ HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
 INFRASTRUCTURE_DIR := $(PROJECT_ROOT)/infrastructure
 PLATFORM_DIR := $(PROJECT_ROOT)/platform
 
-.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster
+.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets
 
 # デフォルトターゲット
 help:
@@ -82,6 +82,8 @@ infrastructure:
 platform:
 	@echo "$(GREEN)🚀 Kubernetesプラットフォーム構築開始$(NC)"
 	@cd $(PLATFORM_DIR) && ./phase4-deploy.sh
+	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
+	@$(MAKE) wait-for-external-secrets
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
 
 # 後方互換性用（非推奨）
@@ -201,6 +203,28 @@ wait-for-k8s-cluster:
 	if [ $$timeout -le 0 ]; then \
 		echo "$(RED)❌ Kubernetesクラスタ準備がタイムアウトしました$(NC)"; \
 		exit 1; \
+	fi
+
+# External Secrets同期完了待機
+wait-for-external-secrets:
+	@echo "$(YELLOW)🕐 External Secrets同期完了を待機中...$(NC)"
+	@timeout=180; \
+	github_secret_ready=false; \
+	while [ $$timeout -gt 0 ]; do \
+		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
+			github_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			if [ "$$github_ready" = "True" ]; then \
+				echo "$(GREEN)✅ GitHub External Secret準備完了$(NC)"; \
+				github_secret_ready=true; \
+				break; \
+			fi; \
+		fi; \
+		echo "GitHub External Secret待機中... (残り $$timeout 秒)"; \
+		sleep 10; \
+		timeout=$$((timeout - 10)); \
+	done; \
+	if [ "$$github_secret_ready" = "false" ]; then \
+		echo "$(YELLOW)⚠️ GitHub External Secret準備がタイムアウトしました（フォールバック動作します）$(NC)"; \
 	fi
 
 # 全システムクリーンアップ
