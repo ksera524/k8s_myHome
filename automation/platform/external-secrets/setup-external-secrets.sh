@@ -142,27 +142,97 @@ echo ""
 print_debug "ESO Controller ログ確認（最新10行）:"
 kubectl logs -n external-secrets-system deployment/external-secrets --tail=10
 
-# Phase 6: 次のステップ案内
-print_status "Phase 6: セットアップ完了"
+# Phase 6: Pulumi ESC認証設定
+print_status "Phase 6: Pulumi ESC認証設定"
+
+# Pulumi Access Token の設定確認
+if kubectl get secret pulumi-access-token -n external-secrets-system >/dev/null 2>&1; then
+    print_status "✓ Pulumi Access Token は既に設定済みです"
+else
+    print_warning "Pulumi Access Token が設定されていません"
+    
+    # 対話的にPATを設定するかユーザーに確認
+    echo -n "今すぐPulumi Access Tokenを設定しますか？ [Y/n]: "
+    read -r response
+    case "$response" in
+        [nN][oO]|[nN])
+            print_debug "Pulumi Access Token設定をスキップします"
+            ;;
+        *)
+            print_status "Pulumi Access Token設定を開始します"
+            if [[ -f "setup-pulumi-pat.sh" ]]; then
+                ./setup-pulumi-pat.sh --interactive
+                if [ $? -eq 0 ]; then
+                    print_status "✓ Pulumi Access Token設定完了"
+                else
+                    print_warning "Pulumi Access Token設定に失敗しました"
+                fi
+            else
+                print_error "setup-pulumi-pat.sh が見つかりません"
+            fi
+            ;;
+    esac
+fi
+
+# Phase 7: SecretStore設定
+print_status "Phase 7: SecretStore設定"
+
+if kubectl get secret pulumi-access-token -n external-secrets-system >/dev/null 2>&1; then
+    print_debug "SecretStore設定を適用中..."
+    if kubectl apply -f secretstores/pulumi-esc-secretstore.yaml >/dev/null 2>&1; then
+        print_status "✓ SecretStore設定完了"
+        
+        # SecretStore接続確認
+        print_debug "SecretStore接続確認中..."
+        timeout=60
+        while [ $timeout -gt 0 ]; do
+            SECRETSTORE_STATUS=$(kubectl get secretstore pulumi-esc-store -n harbor -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+            if [ "$SECRETSTORE_STATUS" = "True" ]; then
+                print_status "✓ SecretStore接続確認完了"
+                break
+            fi
+            echo "SecretStore接続待機中... (残り ${timeout}秒)"
+            sleep 5
+            timeout=$((timeout - 5))
+        done
+        
+        if [ $timeout -le 0 ]; then
+            print_warning "SecretStore接続確認がタイムアウトしました"
+            print_debug "手動確認: kubectl describe secretstore pulumi-esc-store -n harbor"
+        fi
+    else
+        print_error "SecretStore設定に失敗しました"
+    fi
+else
+    print_warning "Pulumi Access Tokenが設定されていないため、SecretStore設定をスキップします"
+fi
+
+# Phase 8: セットアップ完了案内
+print_status "Phase 8: セットアップ完了"
 
 cat << EOF
 
 ${GREEN}✅ External Secrets Operatorセットアップ完了${NC}
 
 ${YELLOW}次のステップ:${NC}
-1. Pulumi ESC認証設定:
-   ${BLUE}./setup-pulumi-esc-auth.sh${NC}
+1. Harbor Secret自動デプロイ:
+   ${BLUE}./deploy-harbor-secrets.sh${NC}
 
-2. SecretStore設定:
-   ${BLUE}kubectl apply -f secretstores/pulumi-esc-secretstore.yaml${NC}
+2. 動作確認:
+   ${BLUE}./test-harbor-secrets.sh${NC}
 
-3. Harbor Secret移行:
-   ${BLUE}kubectl apply -f externalsecrets/harbor-externalsecret.yaml${NC}
+${YELLOW}automation統合:${NC}
+- k8s-infrastructure-deploy.sh が自動的に External Secrets を使用します
+- 従来の create-harbor-secrets.sh は不要になります
 
 ${YELLOW}確認コマンド:${NC}
 - ESO状態確認: ${BLUE}kubectl get pods -n external-secrets-system${NC}
-- CRD確認: ${BLUE}kubectl get crd | grep external-secrets${NC}
-- Application確認: ${BLUE}kubectl get applications -n argocd | grep external-secrets${NC}
+- PAT設定確認: ${BLUE}kubectl get secrets -A | grep pulumi-access-token${NC}
+- SecretStore確認: ${BLUE}kubectl get secretstores -A${NC}
+- Harbor Secrets確認: ${BLUE}kubectl get externalsecrets -A${NC}
+
+${YELLOW}手動でPulumi Access Tokenを設定する場合:${NC}
+${BLUE}./setup-pulumi-pat.sh --interactive${NC}
 
 EOF
 

@@ -5,11 +5,17 @@
 ```
 automation/platform/external-secrets/
 ├── README.md                           # このファイル
-├── setup-external-secrets.sh           # 自動セットアップスクリプト
+├── helm-deploy-eso.sh                  # Helm直接デプロイスクリプト（推奨）
+├── migrate-to-argocd.sh                # Helm→ArgoCD管理移行スクリプト
+├── setup-external-secrets.sh           # ArgoCD経由セットアップスクリプト
+├── setup-pulumi-pat.sh                 # Pulumi Personal Access Token設定スクリプト
+├── deploy-harbor-secrets.sh            # Harborシークレット自動デプロイスクリプト
+├── test-harbor-secrets.sh              # 動作確認テストスクリプト
 ├── secretstores/
 │   └── pulumi-esc-secretstore.yaml     # Pulumi ESC接続設定
 ├── externalsecrets/
-│   ├── harbor-externalsecret.yaml      # Harbor認証情報
+│   ├── harbor-externalsecret.yaml      # Harbor管理者認証情報
+│   ├── harbor-registry-externalsecret.yaml # Harbor Registry Secrets（全namespace対応）
 │   ├── github-actions-externalsecret.yaml # GitHub Actions（作成予定）
 │   └── applications/                   # アプリケーション別Secret（作成予定）
 └── monitoring/
@@ -22,30 +28,32 @@ automation/platform/external-secrets/
 ### 1. External Secrets Operator導入
 
 ```bash
-# 自動セットアップ実行
+# 方法1: Helmで直接デプロイ（推奨）
 cd automation/platform/external-secrets
+./helm-deploy-eso.sh
+
+# 方法2: ArgoCD経由でのセットアップ
 ./setup-external-secrets.sh
+
+# 方法3: make all 実行時の自動デプロイ
+# k8s-infrastructure-deploy.sh が自動的にHelmデプロイを実行
 ```
 
 ### 2. Pulumi ESC認証設定
 
 ```bash
-# Pulumi ESCアクセストークン作成
-pulumi auth create --scopes "esc:read,esc:decrypt"
+# 方法1: 対話モードでPATを設定
+./setup-pulumi-pat.sh --interactive
 
-# Kubernetes Secretとして設定
-kubectl create secret generic pulumi-esc-auth \
-  --from-literal=access-token="$PULUMI_ACCESS_TOKEN" \
-  -n external-secrets-system
+# 方法2: 環境変数からPATを設定
+export PULUMI_ACCESS_TOKEN="pul-xxxxx..."
+echo "$PULUMI_ACCESS_TOKEN" | ./setup-pulumi-pat.sh
 
-# 各namespaceにも作成（必要に応じて）
-kubectl create secret generic pulumi-esc-auth \
-  --from-literal=access-token="$PULUMI_ACCESS_TOKEN" \
-  -n harbor
+# 方法3: ファイルからPATを読み込み
+./setup-pulumi-pat.sh < token-file.txt
 
-kubectl create secret generic pulumi-esc-auth \
-  --from-literal=access-token="$PULUMI_ACCESS_TOKEN" \
-  -n actions-runner-system
+# 確認
+kubectl get secrets -A | grep pulumi-access-token
 ```
 
 ### 3. SecretStore設定適用
@@ -61,21 +69,23 @@ kubectl get secretstores --all-namespaces
 ### 4. Harbor Secret移行
 
 ```bash
-# Pulumi ESCにHarborパスワード設定
-HARBOR_ADMIN_PASSWORD=$(openssl rand -base64 32)
-HARBOR_CI_PASSWORD=$(openssl rand -base64 32)
+# Pulumi ESCにHarborパスワード設定（事前設定が必要）
+# HARBOR_ADMIN_PASSWORD=$(openssl rand -base64 32)
+# HARBOR_CI_PASSWORD=$(openssl rand -base64 32)
+# 
+# pulumi esc env set ksera524/k8s-myhome/production \
+#   harbor.admin_password "$HARBOR_ADMIN_PASSWORD" --secret
+# 
+# pulumi esc env set ksera524/k8s-myhome/production \
+#   harbor.ci_password "$HARBOR_CI_PASSWORD" --secret
 
-pulumi esc env set ksera524/k8s-myhome/production \
-  harbor.admin_password "$HARBOR_ADMIN_PASSWORD" --secret
-
-pulumi esc env set ksera524/k8s-myhome/production \
-  harbor.ci_password "$HARBOR_CI_PASSWORD" --secret
-
-# ExternalSecret適用
-kubectl apply -f externalsecrets/harbor-externalsecret.yaml
+# Harbor Secrets自動デプロイ
+./deploy-harbor-secrets.sh
 
 # 作成されたSecret確認
 kubectl get secrets -n harbor | grep harbor
+kubectl get secrets -n arc-systems | grep harbor-registry
+kubectl get secrets -n default | grep harbor-http
 ```
 
 ## 🔍 動作確認
@@ -162,6 +172,37 @@ kubectl logs -n external-secrets-system deployment/external-secrets --tail=50
 - [External Secrets Operatorインストールガイド](../../../docs/external-secrets-operator-installation-guide.md)
 - [Pulumi ESC移行計画](../../../docs/pulumi-esc-migration-plan.md)
 - [External Secrets Operator公式ドキュメント](https://external-secrets.io/)
+
+## 🔗 automation統合
+
+### k8s-infrastructure-deploy.sh 連携
+
+External Secretsが設定されていない場合、`k8s-infrastructure-deploy.sh`は自動的にHelmでExternal Secrets Operatorをデプロイします：
+
+```bash
+# 方法1: 環境変数でPATを設定して実行（推奨）
+export PULUMI_ACCESS_TOKEN="pul-xxxxx..."
+cd automation/platform
+./phase4-deploy.sh
+
+# 方法2: 事前にPATを設定してから実行
+cd external-secrets
+./setup-pulumi-pat.sh --interactive
+cd ../
+./k8s-infrastructure-deploy.sh
+
+# 自動処理フロー:
+# 1. External Secrets Operator存在チェック
+# 2. 未インストールの場合 -> Helmで直接デプロイ
+# 3. デプロイ完了後 -> ArgoCD管理に移行（App-of-Apps設定済みの場合）
+# 4. Harbor認証情報をPulumi ESCから自動取得
+```
+
+### 従来スクリプトからの移行
+
+- `create-harbor-secrets.sh` → `deploy-harbor-secrets.sh` に置き換え
+- 手動Secret作成から自動Pulumi ESC連携に変更
+- 複数ネームスペースへの一括デプロイ対応
 
 ## 🎯 次のステップ
 

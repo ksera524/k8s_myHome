@@ -248,39 +248,281 @@ print_status "✓ ArgoCD インストール完了"
 print_status "=== Phase 4.6: Harbor パスワード設定 ==="
 print_debug "Harbor管理者パスワードを設定します"
 
-# Harbor パスワード管理スクリプトの実行
+# External Secrets による Harbor 認証情報管理
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
-    print_debug "Harbor パスワード管理スクリプトを実行中..."
-    print_debug "このスクリプトはHarborパスワードを安全にk8s Secretとして保存します"
+EXTERNAL_SECRETS_ENABLED=false
+
+# PULUMI_ACCESS_TOKEN事前確認・入力受付
+if [[ -f "$SCRIPT_DIR/external-secrets/setup-external-secrets.sh" ]]; then
+    print_debug "External Secrets による Harbor 認証情報を設定中..."
+    print_debug "Pulumi ESC から Harbor パスワードを自動取得します"
     
-    # Harbor パスワード管理スクリプトを実行
-    bash "$SCRIPT_DIR/harbor-password-manager.sh"
-    
-    # スクリプト実行結果からパスワードを取得（複数ソースから試行）
-    HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret harbor-registry-secret -n arc-systems -o jsonpath="{.data.\.dockerconfigjson}" | base64 -d | grep -o "\"password\":\"[^\"]*\"" | cut -d":" -f2 | tr -d "\""' 2>/dev/null || \
-        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
-    HARBOR_USERNAME="admin"
-    export HARBOR_PASSWORD HARBOR_USERNAME
-    print_debug "✓ Harbor パスワード管理完了"
-    
-    # GitHub Actions用Secret作成確認と修正
-    print_debug "GitHub Actions用Secret作成確認・修正中..."
-    HARBOR_AUTH_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_USERNAME}" | base64 -d' 2>/dev/null || echo "")
-    
-    if [[ -n "$HARBOR_AUTH_SECRET" ]]; then
-        # Secret存在確認後、必要なフィールドが揃っているかチェック
-        HARBOR_URL_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-            'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_URL}" | base64 -d' 2>/dev/null || echo "")
-        HARBOR_PROJECT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-            'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_PROJECT}" | base64 -d' 2>/dev/null || echo "")
+    # PULUMI_ACCESS_TOKEN対話的設定
+    if [ -z "${PULUMI_ACCESS_TOKEN:-}" ]; then
+        print_status "External Secrets を使用するためにPulumi Access Tokenが必要です"
+        print_status "取得方法: https://app.pulumi.com/account/tokens"
+        echo ""
+        echo -n "Pulumi Access Token (pul-で始まる、Enterでスキップ): "
+        read -s PULUMI_ACCESS_TOKEN_INPUT
+        echo
         
-        if [[ -z "$HARBOR_URL_CHECK" ]] || [[ -z "$HARBOR_PROJECT_CHECK" ]]; then
-            print_warning "Harbor Secret不完全、修正中..."
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+        if [ -n "${PULUMI_ACCESS_TOKEN_INPUT:-}" ]; then
+            # PAT形式検証
+            PULUMI_ACCESS_TOKEN_INPUT=$(echo "$PULUMI_ACCESS_TOKEN_INPUT" | tr -d '[:space:]')
+            if [[ "$PULUMI_ACCESS_TOKEN_INPUT" =~ ^pul-[a-f0-9]{40}$ ]]; then
+                export PULUMI_ACCESS_TOKEN="$PULUMI_ACCESS_TOKEN_INPUT"
+                print_status "✓ Pulumi Access Token設定完了"
+            else
+                print_warning "Pulumi Access Tokenの形式が正しく見えません"
+                echo -n "続行しますか？ [y/N]: "
+                read -r response
+                case "$response" in
+                    [yY][eE][sS]|[yY])
+                        export PULUMI_ACCESS_TOKEN="$PULUMI_ACCESS_TOKEN_INPUT"
+                        print_status "✓ Pulumi Access Token設定完了（形式警告を無視）"
+                        ;;
+                    *)
+                        print_debug "トークン入力がキャンセルされました。フォールバックモードを使用します"
+                        EXTERNAL_SECRETS_ENABLED=false
+                        ;;
+                esac
+            fi
+        else
+            print_debug "トークン入力がスキップされました。フォールバックモードを使用します"
+            EXTERNAL_SECRETS_ENABLED=false
+        fi
+    fi
+    
+    # External Secrets Operator のインストール状況確認
+    # HelmでデプロイされたExternal Secrets Operatorの検出
+    ESO_DEPLOYMENT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get deployments -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | wc -l' 2>/dev/null || echo "0")
+    
+    if [ "$ESO_DEPLOYMENT_CHECK" = "0" ]; then
+        print_warning "External Secrets Operator が見つかりません"
+        print_status "HelmでExternal Secrets Operatorを直接デプロイします"
+        
+        # 事前準備: namespace作成とSecret設定
+        print_debug "事前準備: namespace作成とSecret設定実行中..."
+        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# external-secrets-system namespace作成
+kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ external-secrets-system namespace作成完了"
+
+# harbor namespace作成（SecretStore用）
+kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ harbor namespace作成完了"
+
+# arc-systems namespace作成（Harbor Registry Secret用）
+kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ arc-systems namespace作成完了"
+EOF
+        
+        # Pulumi Access Token の確認・事前設定
+        if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
+            print_debug "Pulumi Access Tokenを事前設定中..."
+            echo "$PULUMI_ACCESS_TOKEN" | ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# 標準入力からPATを読み取り
+PAT_TOKEN=$(cat)
+
+# 各namespaceにPulumi Access Token Secretを作成
+for namespace in external-secrets-system harbor arc-systems; do
+    kubectl create secret generic pulumi-access-token \
+        --from-literal=PULUMI_ACCESS_TOKEN="$PAT_TOKEN" \
+        --namespace="$namespace" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    echo "✓ pulumi-access-token Secret作成完了: $namespace"
+done
+EOF
+            if [ $? -eq 0 ]; then
+                print_status "✓ Pulumi Access Token事前設定完了"
+            else
+                print_warning "Pulumi Access Token事前設定に失敗しました"
+            fi
+        else
+            print_warning "PULUMI_ACCESS_TOKEN環境変数が設定されていません"
+            print_warning "External Secrets機能は制限されます"
+        fi
+        
+        # Helmデプロイスクリプトが存在する場合は実行
+        if [[ -f "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh" ]]; then
+            print_debug "HelmでExternal Secrets Operatorデプロイ実行中..."
+            if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh"; then
+                # PULUMI_ACCESS_TOKEN環境変数をリモートに渡して実行
+                ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/helm-deploy-eso.sh && PULUMI_ACCESS_TOKEN='${PULUMI_ACCESS_TOKEN:-}' /tmp/helm-deploy-eso.sh"
+                
+                if [ $? -eq 0 ]; then
+                    print_status "✓ HelmでExternal Secrets Operatorデプロイ完了"
+                    EXTERNAL_SECRETS_ENABLED=true
+                    
+                    # ArgoCD管理に移行
+                    print_debug "ArgoCD管理に移行中..."
+                    if [[ -f "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../infra/app-of-apps.yaml"; then
+                        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh"; then
+                            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/migrate-to-argocd.sh && /tmp/migrate-to-argocd.sh" || true
+                            print_debug "✓ ArgoCD管理移行完了（または実行済み）"
+                        fi
+                    else
+                        print_debug "ArgoCD管理移行はスキップされました（App-of-Apps未設定）"
+                    fi
+                else
+                    print_warning "HelmでのExternal Secrets Operatorデプロイに失敗しました"
+                    EXTERNAL_SECRETS_ENABLED=false
+                fi
+            else
+                print_error "Helmデプロイスクリプトの転送に失敗しました"
+                EXTERNAL_SECRETS_ENABLED=false
+            fi
+        else
+            print_warning "Helmデプロイスクリプトが見つかりません"
+            print_warning "フォールバックモードに切り替えます"
+            EXTERNAL_SECRETS_ENABLED=false
+        fi
+    else
+        # Deploymentが存在する場合、Podが実際にReadyかも確認
+        ESO_READY_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
+        
+        if [ "$ESO_READY_CHECK" -gt "0" ]; then
+            print_debug "✓ External Secrets Operator は既にインストール済み（${ESO_DEPLOYMENT_CHECK}個のDeployment、${ESO_READY_CHECK}個のPod稼働中）"
+            EXTERNAL_SECRETS_ENABLED=true
+        else
+            print_warning "External Secrets Operator のDeploymentは存在しますが、Podが稼働していません"
+            print_debug "Pod状態確認中..."
+            timeout=60
+            while [ $timeout -gt 0 ]; do
+                ESO_READY_RECHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
+                if [ "$ESO_READY_RECHECK" -gt "0" ]; then
+                    print_status "✓ External Secrets Operator Pod稼働確認完了"
+                    EXTERNAL_SECRETS_ENABLED=true
+                    break
+                fi
+                echo "External Secrets Operator Pod起動待機中... (残り ${timeout}秒)"
+                sleep 10
+                timeout=$((timeout - 10))
+            done
+            
+            if [ $timeout -le 0 ]; then
+                print_warning "External Secrets Operator PodがReady状態になりませんでした"
+                print_warning "フォールバックモードに切り替えます"
+                EXTERNAL_SECRETS_ENABLED=false
+            fi
+        fi
+    fi
+    
+    # External Secrets が利用可能な場合の処理
+    if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+        # Pulumi Access Token の確認・設定
+        if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
+            # 環境変数から取得を試行
+            if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
+                print_debug "環境変数からPulumi Access Tokenを設定中..."
+                echo "$PULUMI_ACCESS_TOKEN" | ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+                    'cd /tmp && cat > pulumi-pat.txt && kubectl create secret generic pulumi-access-token --from-literal=PULUMI_ACCESS_TOKEN="$(cat pulumi-pat.txt)" -n external-secrets-system && rm -f pulumi-pat.txt'
+                if [ $? -eq 0 ]; then
+                    print_status "✓ 環境変数からPulumi Access Token設定完了"
+                    # 他のネームスペースにもコピー
+                    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+for ns in harbor arc-systems; do
+    kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
+    kubectl get secret pulumi-access-token -n external-secrets-system -o yaml | sed "s/namespace: external-secrets-system/namespace: $ns/" | kubectl apply -f -
+done
+EOF
+                else
+                    print_error "環境変数からのPulumi Access Token設定に失敗しました"
+                    EXTERNAL_SECRETS_ENABLED=false
+                fi
+            else
+                print_warning "Pulumi Access Token が提供されていません"
+                print_warning "フォールバックモードに切り替えます"
+                EXTERNAL_SECRETS_ENABLED=false
+            fi
+        fi
+        
+        # External Secrets による Harbor Secrets デプロイ
+        if [ "$EXTERNAL_SECRETS_ENABLED" = true ] && ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
+            # deploy-harbor-secrets.shをリモートで実行
+            DEPLOY_RESULT=0
+            if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > deploy-harbor-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-harbor-secrets.sh"; then
+                ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/deploy-harbor-secrets.sh && /tmp/deploy-harbor-secrets.sh"
+                DEPLOY_RESULT=$?
+            else
+                DEPLOY_RESULT=1
+            fi
+            
+            if [ $DEPLOY_RESULT -eq 0 ]; then
+                # External Secrets からパスワードを取得
+                HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+                    'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
+                HARBOR_USERNAME="admin"
+                export HARBOR_PASSWORD HARBOR_USERNAME
+                
+                # External Secretsが成功した場合の確認
+                if [[ "$HARBOR_PASSWORD" != "Harbor12345" ]] && [[ -n "$HARBOR_PASSWORD" ]]; then
+                    print_status "✓ External Secrets による Harbor パスワード自動取得成功"
+                    print_debug "Pulumi ESCから取得したパスワードを使用します"
+                else
+                    print_warning "External Secrets でのパスワード取得に失敗、デフォルトパスワードを使用"
+                    EXTERNAL_SECRETS_ENABLED=false
+                fi
+                print_debug "✓ External Secrets による Harbor 認証情報管理完了"
+            else
+                print_warning "External Secrets による Harbor Secret作成に失敗しました"
+                print_warning "フォールバックモードに切り替えます"
+                EXTERNAL_SECRETS_ENABLED=false
+            fi
+        else
+            EXTERNAL_SECRETS_ENABLED=false
+        fi
+    fi
+# External Secrets が利用できない場合のフォールバック処理
+if [ "$EXTERNAL_SECRETS_ENABLED" = false ]; then
+    print_warning "External Secrets が利用できません。従来の手動管理にフォールバック中..."
+    if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
+        bash "$SCRIPT_DIR/harbor-password-manager.sh"
+        HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+            'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
+        HARBOR_USERNAME="admin"
+        export HARBOR_PASSWORD HARBOR_USERNAME
+        print_debug "✓ フォールバック Harbor パスワード管理完了"
+    else
+        print_warning "Harbor パスワード管理スクリプトが見つかりません。デフォルトパスワードを使用します"
+        HARBOR_PASSWORD="Harbor12345"
+        HARBOR_USERNAME="admin"
+        export HARBOR_PASSWORD HARBOR_USERNAME
+    fi
+fi
+else
+    # External Secrets 関連ファイルが見つからない場合
+    print_warning "External Secrets 設定ファイルが見つかりません。従来の手動管理を使用します"
+    if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
+        bash "$SCRIPT_DIR/harbor-password-manager.sh"
+        HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+            'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
+        HARBOR_USERNAME="admin"
+        export HARBOR_PASSWORD HARBOR_USERNAME
+        print_debug "✓ 従来の Harbor パスワード管理完了"
+    else
+        print_warning "Harbor パスワード管理スクリプトが見つかりません。デフォルトパスワードを使用します"
+        HARBOR_PASSWORD="Harbor12345"
+        HARBOR_USERNAME="admin"
+        export HARBOR_PASSWORD HARBOR_USERNAME
+    fi
+fi
+
+# GitHub Actions用Secret作成確認と修正
+print_debug "GitHub Actions用Secret作成確認・修正中..."
+HARBOR_AUTH_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+    'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_USERNAME}" | base64 -d' 2>/dev/null || echo "")
+
+if [[ -n "$HARBOR_AUTH_SECRET" ]]; then
+    # Secret存在確認後、必要なフィールドが揃っているかチェック
+    HARBOR_URL_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_URL}" | base64 -d' 2>/dev/null || echo "")
+    HARBOR_PROJECT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_PROJECT}" | base64 -d' 2>/dev/null || echo "")
+    
+    if [[ -z "$HARBOR_URL_CHECK" ]] || [[ -z "$HARBOR_PROJECT_CHECK" ]]; then
+        print_warning "Harbor Secret不完全、修正中..."
+        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 # Harbor認証Secret完全版作成/更新
 kubectl create secret generic harbor-auth \
     --from-literal=HARBOR_USERNAME="admin" \
@@ -291,43 +533,32 @@ kubectl create secret generic harbor-auth \
     --dry-run=client -o yaml | kubectl apply -f -
 echo "✓ Harbor Secret修正完了"
 EOF
-        fi
-        print_debug "✓ GitHub Actions用Secret作成完了"
-    else
-        print_warning "GitHub Actions用Secret作成に失敗しました"
-        print_debug "ARCセットアップ時に再試行されます"
     fi
+    print_debug "✓ GitHub Actions用Secret作成完了"
 else
-    # フォールバック: 従来の手動入力方式
-    print_warning "harbor-password-manager.sh が見つかりません、手動入力します"
-    echo ""
-    print_status "Harbor管理者パスワードを設定してください"
-    echo "デフォルトのパスワード（Harbor12345）を使用する場合は、空エンターを押してください"
-    echo -n "Harbor管理者パスワード [Harbor12345]: "
-    read -s HARBOR_PASSWORD_INPUT
-    echo ""
+    print_warning "GitHub Actions用Secret作成に失敗しました"
+    print_debug "ARCセットアップ時に再試行されます"
 
-    if [[ -n "$HARBOR_PASSWORD_INPUT" ]]; then
-        export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
-        print_debug "✓ Harborパスワード設定完了"
-    else
-        export HARBOR_PASSWORD="Harbor12345"
-        print_debug "デフォルトパスワード（Harbor12345）を使用します"
-    fi
-    export HARBOR_USERNAME="admin"
-    
-    # 手動入力の場合もSecret作成
-    print_debug "手動入力パスワードでSecret作成中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
+# 7. Harbor Namespace とSecret作成
+print_status "=== Phase 4.7: Harbor Secret作成 ==="
+print_debug "Harbor管理者認証情報をSecret化します"
+
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
 # Harbor namespace作成（まだ存在しない場合）
 kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
 
 # Harbor管理者パスワードSecret作成/更新
-kubectl create secret generic harbor-admin-secret \
-    --from-literal=username="$HARBOR_USERNAME" \
-    --from-literal=password="$HARBOR_PASSWORD" \
-    --namespace=harbor \
-    --dry-run=client -o yaml | kubectl apply -f -
+# External Secrets 使用時はスキップ（既にExternal Secretsで管理されている）
+if [ "$EXTERNAL_SECRETS_ENABLED" != "true" ]; then
+    kubectl create secret generic harbor-admin-secret \
+        --from-literal=username="$HARBOR_USERNAME" \
+        --from-literal=password="$HARBOR_PASSWORD" \
+        --namespace=harbor \
+        --dry-run=client -o yaml | kubectl apply -f -
+    echo "✓ Harbor管理者パスワードSecret作成（手動管理モード）"
+else
+    echo "✓ Harbor管理者パスワードSecret管理（External Secrets使用）"
+fi
 
 # ARC namespace作成（まだ存在しない場合）
 kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
@@ -424,34 +655,50 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     
     # Harbor認証情報の対話式確認
     if [[ -z "${HARBOR_USERNAME:-}" ]] || [[ -z "${HARBOR_PASSWORD:-}" ]]; then
-        echo ""
-        print_status "Harbor認証情報を設定してください"
-        
-        # HARBOR_USERNAME入力
-        if [[ -z "${HARBOR_USERNAME:-}" ]]; then
-            echo "Harbor Registry Username (default: admin):"
-            echo -n "HARBOR_USERNAME [admin]: "
-            read HARBOR_USERNAME_INPUT
-            if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
-                export HARBOR_USERNAME="admin"
-            else
-                export HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
-            fi
-            print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
-        fi
-        
-        # HARBOR_PASSWORD入力
-        if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
-            echo "Harbor Registry Password (default: Harbor12345):"
-            echo -n "HARBOR_PASSWORD [Harbor12345]: "
-            read -s HARBOR_PASSWORD_INPUT
+        # External Secretsが成功している場合はスキップ
+        if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+            print_debug "External Secretsによる自動設定済み - Harbor認証情報の対話的入力をスキップします"
+            print_debug "Harbor Username: ${HARBOR_USERNAME:-admin}"
+            print_debug "Harbor Password: ${HARBOR_PASSWORD:0:3}*** (External Secrets経由で設定済み)"
+        else
             echo ""
-            if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
-                export HARBOR_PASSWORD="Harbor12345"
-            else
-                export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+            print_status "Harbor認証情報を設定してください"
+            
+            # HARBOR_USERNAME入力
+            if [[ -z "${HARBOR_USERNAME:-}" ]]; then
+                echo "Harbor Registry Username (default: admin):"
+                echo -n "HARBOR_USERNAME [admin]: "
+                read HARBOR_USERNAME_INPUT
+                if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
+                    export HARBOR_USERNAME="admin"
+                else
+                    export HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
+                fi
+                print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
             fi
-            print_debug "HARBOR_PASSWORD設定完了"
+            
+            # HARBOR_PASSWORD入力
+            if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
+                echo "Harbor Registry Password (default: Harbor12345):"
+                echo -n "HARBOR_PASSWORD [Harbor12345]: "
+                read -s HARBOR_PASSWORD_INPUT
+                echo ""
+                if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
+                    export HARBOR_PASSWORD="Harbor12345"
+                else
+                    export HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+                fi
+                print_debug "HARBOR_PASSWORD設定完了"
+            fi
+        fi
+    else
+        # Harbor認証情報が既に設定済みの場合
+        print_debug "Harbor認証情報は既に設定済みです"
+        print_debug "Harbor Username: ${HARBOR_USERNAME}"
+        if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+            print_debug "Harbor Password: *** (External Secrets経由で設定済み)"
+        else
+            print_debug "Harbor Password: ${HARBOR_PASSWORD:0:3}*** (事前設定済み)"
         fi
     fi
     
@@ -750,6 +997,8 @@ Harbor Secret管理:
 - harbor-admin-secret (harbor namespace)
 - harbor-auth (arc-systems, default namespaces)
 - harbor-registry-secret (Docker認証用)
+${EXTERNAL_SECRETS_ENABLED:+- External Secrets 経由でPulumi ESCから自動取得}
+${EXTERNAL_SECRETS_ENABLED:-"- 手動管理モード"}
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10
@@ -764,9 +1013,20 @@ Harbor Secret管理:
    - HARBOR_PASSWORD: (設定済みパスワード)
 
 Harbor パスワード管理コマンド:
-- 更新: ./harbor-password-update.sh <新しいパスワード>
-- 対話式: ./harbor-password-update.sh --interactive
+$(if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+    echo "- External Secrets確認: kubectl get externalsecrets -A"
+    echo "- Pulumi ESC確認: kubectl get secrets -A | grep pulumi-access-token"
+    echo "- Secret同期確認: kubectl describe externalsecret harbor-admin-secret -n harbor"
+else
+    echo "- 更新: ./harbor-password-update.sh <新しいパスワード>"
+    echo "- 対話式: ./harbor-password-update.sh --interactive"
+fi)
 - Secret確認: kubectl get secret harbor-admin-secret -n harbor -o yaml
+
+External Secrets セットアップ (オプション):
+- セットアップ: cd external-secrets && ./setup-external-secrets.sh
+- PAT設定: ./setup-pulumi-pat.sh --interactive
+- 動作確認: ./test-harbor-secrets.sh
 EOF
 
 # 7. ArgoCD同期待機とHarbor確認

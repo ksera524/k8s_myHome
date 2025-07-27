@@ -82,7 +82,7 @@ if ! kubectl get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
             print_debug "手動でClusterSecretStoreを作成します..."
             # フォールバック: 手動作成
             cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: pulumi-esc-store
@@ -105,7 +105,7 @@ EOF
         print_debug "手動でClusterSecretStoreを作成します..."
         # フォールバック: 手動作成
         cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: pulumi-esc-store
@@ -136,14 +136,34 @@ while [ $timeout -gt 0 ]; do
         print_status "✓ ClusterSecretStore 接続確認完了"
         break
     fi
-    echo "ClusterSecretStore 接続待機中... (残り ${timeout}秒)"
+    
+    # 詳細なステータス確認
+    if [ "$SECRETSTORE_STATUS" = "False" ]; then
+        ERROR_MESSAGE=$(kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "Unknown")
+        print_warning "ClusterSecretStore接続エラー: $ERROR_MESSAGE"
+        
+        # Pulumi Access Token確認
+        if ! kubectl get secret pulumi-access-token -n external-secrets-system >/dev/null 2>&1; then
+            print_error "Pulumi Access Token Secretが見つかりません"
+            exit 1
+        fi
+    fi
+    
+    echo "ClusterSecretStore 接続待機中... (残り ${timeout}秒) - Status: $SECRETSTORE_STATUS"
     sleep 5
     timeout=$((timeout - 5))
 done
 
 if [ $timeout -le 0 ]; then
     print_error "ClusterSecretStore 接続がタイムアウトしました"
+    print_debug "最終ステータス: $SECRETSTORE_STATUS"
+    if [ "$SECRETSTORE_STATUS" = "False" ]; then
+        ERROR_MESSAGE=$(kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "Unknown")
+        print_error "接続エラー詳細: $ERROR_MESSAGE"
+        print_warning "Pulumi ESCのアクセストークンまたは権限を確認してください"
+    fi
     print_debug "詳細確認: kubectl describe clustersecretstore pulumi-esc-store"
+    print_warning "External Secretsが利用できません。フォールバックモードに切り替えます"
     exit 1
 fi
 
@@ -197,7 +217,7 @@ if kubectl get application external-secrets-config -n argocd >/dev/null 2>&1; th
         print_debug "手動でExternalSecretsを作成します..."
         # フォールバック: 手動作成
         cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: harbor-admin-secret
@@ -225,7 +245,7 @@ spec:
     remoteRef:
       key: harbor_ci
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: harbor-auth-secret
@@ -258,7 +278,7 @@ else
     print_debug "手動でExternalSecretsを作成します..."
     # フォールバック: 手動作成
     cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: harbor-admin-secret
@@ -286,7 +306,7 @@ spec:
     remoteRef:
       key: harbor_ci
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: harbor-auth-secret
@@ -333,6 +353,9 @@ done
 
 if [ $timeout -le 0 ]; then
     print_error "harbor-admin-secret の同期がタイムアウトしました"
+    print_warning "Pulumi ESCにharborキーが存在しない可能性があります"
+    print_debug "詳細確認: kubectl describe externalsecret harbor-admin-secret -n harbor"
+    print_warning "External Secretsが利用できません。フォールバックモードに切り替えます"
     exit 1
 fi
 
