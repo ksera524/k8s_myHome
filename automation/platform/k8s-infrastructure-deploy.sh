@@ -722,44 +722,63 @@ fi
 
 # 9. Cloudflaredセットアップ
 print_status "=== Phase 4.9: Cloudflaredセットアップ ==="
-print_debug "Cloudflare Tunnel用のSecret作成を行います"
+print_debug "External Secrets経由でCloudflare Tunnel Secretを作成します"
 
-# Cloudflaredトークンの入力
-echo ""
-print_status "Cloudflared Token設定"
-echo "Cloudflare Tunnelのトークンを入力してください"
-echo "取得方法: https://one.dash.cloudflare.com/ > Access > Tunnels > Create Tunnel"
-echo "スキップしたい場合は空エンターを押してください"
-echo ""
+# cloudflared namespace作成
+print_debug "Cloudflared namespaceを作成中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -"
 
-read -s -p "Cloudflared Token (空でスキップ): " CLOUDFLARED_TOKEN
-echo ""
-
-if [[ -n "$CLOUDFLARED_TOKEN" ]]; then
-    print_debug "Cloudflared namespaceを作成中..."
+# External Secretsが有効な場合
+if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
+    print_debug "External Secrets経由でCloudflaredトークンを取得中..."
     
-    # Cloudflared namespace作成
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace cloudflared" 2>/dev/null; then
-        print_debug "✓ Cloudflared namespace作成完了"
-    else
-        print_debug "Cloudflared namespaceは既に存在しています"
-    fi
+    # Cloudflared ExternalSecretの存在確認・作成を待機
+    CLOUDFLARED_SECRET_READY=false
+    timeout=60
+    while [ $timeout -gt 0 ]; do
+        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared' >/dev/null 2>&1; then
+            CLOUDFLARED_TOKEN_VALUE=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared -o jsonpath="{.data.token}" | base64 -d' 2>/dev/null || echo "")
+            if [[ -n "$CLOUDFLARED_TOKEN_VALUE" ]] && [[ "$CLOUDFLARED_TOKEN_VALUE" != "" ]]; then
+                print_status "✓ External SecretsでCloudflaredトークン取得成功"
+                CLOUDFLARED_SECRET_READY=true
+                break
+            fi
+        fi
+        echo "Cloudflared Secret同期待機中... (残り ${timeout}秒)"
+        sleep 5
+        timeout=$((timeout - 5))
+    done
     
-    # Cloudflared Secret作成
-    print_debug "Cloudflared Secret作成中..."
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN' --namespace=cloudflared" 2>/dev/null; then
-        print_status "✓ Cloudflared Secret作成完了"
-    else
-        print_warning "Cloudflared Secretは既に存在しているか、作成に失敗しました"
-        print_debug "手動で更新する場合:"
-        echo "  kubectl delete secret cloudflared -n cloudflared"
-        echo "  kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+    if [ "$CLOUDFLARED_SECRET_READY" = false ]; then
+        print_warning "External SecretsでCloudflaredトークン取得に失敗しました"
+        print_debug "Pulumi ESCにcloudflaredキーが存在しない可能性があります"
+        EXTERNAL_SECRETS_ENABLED=false
     fi
-else
-    print_warning "Cloudflared Tokenが入力されませんでした"
-    print_warning "後で手動セットアップする場合："
-    echo "  kubectl create namespace cloudflared"
-    echo "  kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+fi
+
+# External Secretsが利用できない場合のフォールバック
+if [ "$EXTERNAL_SECRETS_ENABLED" = false ]; then
+    print_warning "External Secretsが利用できません。手動でCloudflaredトークンを入力してください"
+    echo ""
+    echo "Cloudflare Tunnelのトークンを入力してください"
+    echo "取得方法: https://one.dash.cloudflare.com/ > Access > Tunnels > Create Tunnel"
+    echo "スキップしたい場合は空エンターを押してください"
+    echo ""
+    
+    read -s -p "Cloudflared Token (空でスキップ): " CLOUDFLARED_TOKEN_INPUT
+    echo ""
+    
+    if [[ -n "$CLOUDFLARED_TOKEN_INPUT" ]]; then
+        print_debug "手動Cloudflared Secret作成中..."
+        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN_INPUT' --namespace=cloudflared --dry-run=client -o yaml | kubectl apply -f -"; then
+            print_status "✓ 手動Cloudflared Secret作成完了"
+        else
+            print_warning "Cloudflared Secret作成に失敗しました"
+        fi
+    else
+        print_warning "Cloudflaredトークンがスキップされました"
+        print_debug "後で手動設定: kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
+    fi
 fi
 
 # 10. Harbor sandboxプロジェクト作成
