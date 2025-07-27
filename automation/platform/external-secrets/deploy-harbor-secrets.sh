@@ -359,42 +359,33 @@ if [ $timeout -le 0 ]; then
     exit 1
 fi
 
-# Harbor registry secret の同期待機
-print_debug "harbor-registry-secret の同期待機中..."
-timeout=120
-while [ $timeout -gt 0 ]; do
-    if kubectl get secret harbor-registry-secret -n arc-systems >/dev/null 2>&1; then
-        print_status "✓ harbor-registry-secret 同期完了"
-        break
-    fi
-    echo "Harbor registry secret 同期待機中... (残り ${timeout}秒)"
-    sleep 5
-    timeout=$((timeout - 5))
-done
-
-if [ $timeout -le 0 ]; then
-    print_error "harbor-registry-secret の同期がタイムアウトしました"
-    exit 1
-fi
-
-# Harbor HTTP secrets の同期待機
-for namespace in "default" "sandbox" "production" "staging"; do
-    print_debug "harbor-http secret の同期待機中: $namespace"
+# Harbor auth secret (arc-systems) の同期確認
+print_debug "harbor-auth の同期確認中..."
+if kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1; then
+    print_status "✓ harbor-auth は既に同期済みです"
+else
+    print_debug "harbor-auth の同期待機中..."
     timeout=60
     while [ $timeout -gt 0 ]; do
-        if kubectl get secret harbor-http -n "$namespace" >/dev/null 2>&1; then
-            print_status "✓ harbor-http secret 同期完了: $namespace"
+        if kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1; then
+            print_status "✓ harbor-auth 同期完了"
             break
         fi
-        echo "Harbor HTTP secret 同期待機中 ($namespace)... (残り ${timeout}秒)"
+        echo "Harbor auth secret 同期待機中... (残り ${timeout}秒)"
         sleep 5
         timeout=$((timeout - 5))
     done
     
     if [ $timeout -le 0 ]; then
-        print_warning "harbor-http secret の同期がタイムアウト: $namespace"
+        print_warning "harbor-auth の同期がタイムアウトしましたが、処理を続行します"
+        print_debug "詳細確認: kubectl describe externalsecret harbor-auth-secret -n arc-systems"
     fi
-done
+fi
+
+# External Secrets による主要な認証情報確認
+print_status "=== 主要な External Secrets 確認 ==="
+print_debug "harbor-admin-secret (harbor namespace): $(kubectl get secret harbor-admin-secret -n harbor >/dev/null 2>&1 && echo "✓" || echo "❌")"
+print_debug "harbor-auth (arc-systems namespace): $(kubectl get secret harbor-auth -n arc-systems >/dev/null 2>&1 && echo "✓" || echo "❌")"
 
 print_status "=== Harbor 認証情報デプロイ完了 ==="
 
