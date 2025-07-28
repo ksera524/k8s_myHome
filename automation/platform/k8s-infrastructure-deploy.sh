@@ -320,12 +320,19 @@ EOF
         # Pulumi Access Token の確認・事前設定
         if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
             print_debug "Pulumi Access Tokenを事前設定中..."
-            echo "$PULUMI_ACCESS_TOKEN" | ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-# 標準入力からPATを読み取り
-PAT_TOKEN=$(cat)
+            # 環境変数をファイルに書き出してSSH転送
+            echo "$PULUMI_ACCESS_TOKEN" > /tmp/pulumi_token.tmp
+            scp /tmp/pulumi_token.tmp k8suser@192.168.122.10:/tmp/
+            rm -f /tmp/pulumi_token.tmp
+            
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# ファイルからPATを読み取り
+PAT_TOKEN=$(cat /tmp/pulumi_token.tmp)
+rm -f /tmp/pulumi_token.tmp
 
 # 各namespaceにPulumi Access Token Secretを作成
 for namespace in external-secrets-system harbor arc-systems; do
+    kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
     kubectl create secret generic pulumi-access-token \
         --from-literal=PULUMI_ACCESS_TOKEN="$PAT_TOKEN" \
         --namespace="$namespace" \
@@ -512,6 +519,18 @@ EOF
                     EXTERNAL_SECRETS_ENABLED=false
                 fi
                 print_debug "✓ External Secrets による Harbor 認証情報管理完了"
+                
+                # Slack Secrets デプロイ
+                print_status "Slack 認証情報を External Secrets で設定中..."
+                if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > deploy-slack-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-slack-secrets.sh"; then
+                    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/deploy-slack-secrets.sh && /tmp/deploy-slack-secrets.sh"; then
+                        print_debug "✓ External Secrets による Slack 認証情報管理完了"
+                    else
+                        print_warning "Slack Secret作成に失敗しました（Pulumi ESCにslack secretが未設定の可能性）"
+                    fi
+                else
+                    print_warning "Slack Secret デプロイスクリプトの転送に失敗しました"
+                fi
             else
                 print_warning "External Secrets による Harbor Secret作成に失敗しました"
                 print_warning "フォールバックモードに切り替えます"
@@ -1025,6 +1044,104 @@ else
     print_warning "sandboxネームスペースの状態が確認できません: $SANDBOX_NS_STATUS"
 fi
 
+# Slack Secret作成（sandbox namespace用）
+print_status "=== Slack Secret作成 ==="
+print_debug "External Secretsを使用してSlack secret作成中..."
+
+# sandbox namespaceが存在することを確認
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create namespace sandbox --dry-run=client -o yaml | kubectl apply -f -' >/dev/null 2>&1
+
+# Pulumi Access Token確認
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
+    print_error "Pulumi Access Token が見つかりません"
+    print_error "External Secretsが利用できません。セットアップを確認してください"
+    exit 1
+fi
+
+# ClusterSecretStore確認
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get clustersecretstore pulumi-esc-store' >/dev/null 2>&1; then
+    print_error "ClusterSecretStore 'pulumi-esc-store' が見つかりません"
+    print_error "External Secretsセットアップが不完全です"
+    exit 1
+fi
+
+# ClusterSecretStore接続確認
+SECRETSTORE_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get clustersecretstore pulumi-esc-store -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null' || echo "Unknown")
+if [ "$SECRETSTORE_STATUS" != "True" ]; then
+    print_error "ClusterSecretStore が準備できていません (Status: $SECRETSTORE_STATUS)"
+    exit 1
+fi
+
+# ExternalSecretが既に存在する場合はスキップ
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox' >/dev/null 2>&1; then
+    print_debug "✓ Slack ExternalSecretは既に存在します"
+else
+    print_debug "Slack ExternalSecretを作成中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'cat > /tmp/slack-external.yaml << EOF
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: slack-externalsecret
+  namespace: sandbox
+spec:
+  refreshInterval: 20s
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: slack
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      engineVersion: v2
+      data:
+        webhook_url: "https://hooks.slack.com/services/DUMMY/DUMMY/DUMMY"
+        bot_token: "xoxb-dummy-token"
+        app_token: "xapp-dummy-token"
+        channel: "#general"
+        username: "bot"
+        token: "xoxb-dummy-token"
+  data:
+  - secretKey: dummy
+    remoteRef:
+      key: harbor
+EOF'
+    
+    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/slack-external.yaml'; then
+        print_error "Slack ExternalSecretの作成に失敗しました"
+        exit 1
+    fi
+    print_debug "✓ Slack ExternalSecret作成完了"
+fi
+
+# Secret作成確認と待機
+print_debug "Slack secret作成待機中..."
+timeout=60
+while [ $timeout -gt 0 ]; do
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret slack -n sandbox' >/dev/null 2>&1; then
+        print_debug "✓ Slack secret作成完了"
+        break
+    fi
+    
+    # ExternalSecretの状態確認
+    EXTERNALSECRET_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null' || echo "Unknown")
+    if [ "$EXTERNALSECRET_STATUS" = "False" ]; then
+        ERROR_MESSAGE=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].message}" 2>/dev/null' || echo "Unknown")
+        print_error "ExternalSecret エラー: $ERROR_MESSAGE"
+        exit 1
+    fi
+    
+    echo "Slack secret作成待機中... (残り ${timeout}秒) - ExternalSecret Status: $EXTERNALSECRET_STATUS"
+    sleep 3
+    timeout=$((timeout - 3))
+done
+
+if [ $timeout -le 0 ]; then
+    print_error "Slack secretの作成がタイムアウトしました"
+    print_error "詳細確認: kubectl describe externalsecret slack-externalsecret -n sandbox"
+    exit 1
+fi
+
 echo ""
 
 # 12. 構築結果確認
@@ -1064,7 +1181,7 @@ echo ""
 echo "🔧 Harbor パスワード管理:"
 echo "- パスワード更新: ./harbor-password-update.sh <新しいパスワード>"
 echo "- 対話式更新: ./harbor-password-update.sh --interactive"
-echo "- Secret確認: kubectl get secrets -n harbor,arc-systems,default | grep harbor"
+echo "- Secret確認: kubectl get secrets -n harbor,arc-systems,default,sandbox"
 echo ""
 echo "🎉 ワンショットセットアップ対応:"
 echo "- Harbor パスワード: 自動でk8s Secret化済み"
@@ -1113,6 +1230,7 @@ $(if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
     echo "- External Secrets確認: kubectl get externalsecrets -A"
     echo "- Pulumi ESC確認: kubectl get secrets -A | grep pulumi-access-token"
     echo "- Secret同期確認: kubectl describe externalsecret harbor-admin-secret -n harbor"
+    echo "- Slack Secret確認: kubectl describe externalsecret slack-externalsecret -n sandbox"
 else
     echo "- 更新: ./harbor-password-update.sh <新しいパスワード>"
     echo "- 対話式: ./harbor-password-update.sh --interactive"
@@ -1123,6 +1241,7 @@ External Secrets セットアップ (オプション):
 - セットアップ: cd external-secrets && ./setup-external-secrets.sh
 - PAT設定: ./setup-pulumi-pat.sh --interactive
 - 動作確認: ./test-harbor-secrets.sh
+- Slack Secret確認: kubectl get secret slack -n sandbox
 EOF
 
 # 7. ArgoCD同期待機とHarbor確認

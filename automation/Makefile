@@ -13,7 +13,7 @@ HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
 INFRASTRUCTURE_DIR := $(PROJECT_ROOT)/infrastructure
 PLATFORM_DIR := $(PROJECT_ROOT)/platform
 
-.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets
+.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets setup-slack-secret
 
 # デフォルトターゲット
 help:
@@ -32,6 +32,7 @@ help:
 	@echo "  make add-runner REPO=<name>  - GitHub Actions Runner追加"
 	@echo "  make setup-arc               - Actions Runner Controller設定"
 	@echo "  make harbor-cert-fix         - Harbor証明書修正"
+	@echo "  make setup-slack-secret      - Slack Secret手動設定"
 	@echo ""
 	@echo "$(YELLOW)■ 状態確認・管理$(NC)"
 	@echo "  make status              - 全システム状態確認"
@@ -81,7 +82,7 @@ infrastructure:
 # Kubernetesプラットフォーム構築
 platform:
 	@echo "$(GREEN)🚀 Kubernetesプラットフォーム構築開始$(NC)"
-	@cd $(PLATFORM_DIR) && ./phase4-deploy.sh
+	@cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./phase4-deploy.sh
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
 	@$(MAKE) wait-for-external-secrets
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
@@ -113,7 +114,7 @@ add-runner:
 # Actions Runner Controller設定
 setup-arc:
 	@echo "$(GREEN)🚀 Actions Runner Controller設定開始$(NC)"
-	@cd $(PLATFORM_DIR) && ./setup-arc.sh
+	@cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./setup-arc.sh
 	@echo "$(GREEN)✅ ARC設定完了$(NC)"
 
 # Harbor証明書修正
@@ -121,6 +122,12 @@ harbor-cert-fix:
 	@echo "$(GREEN)🚀 Harbor証明書修正開始$(NC)"
 	@cd $(PLATFORM_DIR) && ./harbor-cert-fix.sh
 	@echo "$(GREEN)✅ Harbor証明書修正完了$(NC)"
+
+# Slack Secret手動設定
+setup-slack-secret:
+	@echo "$(GREEN)🚀 Slack Secret手動設定開始$(NC)"
+	@cd $(PLATFORM_DIR)/external-secrets && ./deploy-slack-secrets.sh
+	@echo "$(GREEN)✅ Slack Secret設定完了$(NC)"
 
 # 全システム状態確認
 status:
@@ -137,6 +144,9 @@ status:
 	@echo ""
 	@echo "$(YELLOW)■ LoadBalancer IP$(NC)"
 	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "LoadBalancer IPが取得できません"
+	@echo ""
+	@echo "$(YELLOW)■ External Secrets状態$(NC)"
+	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecrets -A | grep -E "(github-auth|slack-externalsecret)" | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$status/$$ready"; done' 2>/dev/null || echo "External Secrets状態が確認できません"
 	@echo ""
 
 # 全フェーズ検証
@@ -156,6 +166,14 @@ verify:
 	@echo "$(YELLOW)■ Kubernetesプラットフォーム検証$(NC)"
 	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd|harbor)" | grep -c Running' 2>/dev/null | \
 		awk '{if($$1>=10) print "✅ 基盤インフラ正常 ("$$1" pods Running)"; else print "❌ 基盤インフラ異常 ("$$1" pods Running)"}' || echo "❌ 基盤インフラ確認失敗"
+	@echo ""
+	@echo "$(YELLOW)■ アプリケーション検証$(NC)"
+	@slack_pods=$$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods -n sandbox | grep slack | grep -c Running' 2>/dev/null || echo "0"); \
+	if [ "$$slack_pods" -gt 0 ]; then \
+		echo "✅ Slack アプリケーション正常 ($$slack_pods pods Running)"; \
+	else \
+		echo "❌ Slack アプリケーション異常 (0 pods Running)"; \
+	fi || echo "❌ Slack アプリケーション確認失敗"
 
 # 重要なログ表示
 logs:
@@ -169,7 +187,11 @@ logs:
 	@cd $(PLATFORM_DIR) && source ./github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ 最近の重要なポッド状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
+	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner|slack)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
+	@echo ""
+	@echo "$(YELLOW)■ Slack Secret状態$(NC)"
+	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get secret slack -n sandbox --no-headers 2>/dev/null | awk "{print \"Secret slack: \" \$$2 \" (\" \$$3 \" keys) Age: \" \$$4}"' 2>/dev/null || echo "Slack Secretが確認できません"
+	@echo ""
 
 # 自動化実行の事前チェック
 check-automation-readiness:
@@ -210,21 +232,37 @@ wait-for-external-secrets:
 	@echo "$(YELLOW)🕐 External Secrets同期完了を待機中...$(NC)"
 	@timeout=180; \
 	github_secret_ready=false; \
+	slack_secret_ready=false; \
 	while [ $$timeout -gt 0 ]; do \
+		# GitHub External Secret確認 \
 		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
 			github_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$github_ready" = "True" ]; then \
 				echo "$(GREEN)✅ GitHub External Secret準備完了$(NC)"; \
 				github_secret_ready=true; \
-				break; \
 			fi; \
 		fi; \
-		echo "GitHub External Secret待機中... (残り $$timeout 秒)"; \
+		# Slack External Secret確認 \
+		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox' >/dev/null 2>&1; then \
+			slack_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			if [ "$$slack_ready" = "True" ]; then \
+				echo "$(GREEN)✅ Slack External Secret準備完了$(NC)"; \
+				slack_secret_ready=true; \
+			fi; \
+		fi; \
+		# 両方準備完了なら終了 \
+		if [ "$$github_secret_ready" = "true" ] && [ "$$slack_secret_ready" = "true" ]; then \
+			break; \
+		fi; \
+		echo "External Secret待機中... GitHub:$$github_secret_ready Slack:$$slack_secret_ready (残り $$timeout 秒)"; \
 		sleep 10; \
 		timeout=$$((timeout - 10)); \
 	done; \
 	if [ "$$github_secret_ready" = "false" ]; then \
 		echo "$(YELLOW)⚠️ GitHub External Secret準備がタイムアウトしました（フォールバック動作します）$(NC)"; \
+	fi; \
+	if [ "$$slack_secret_ready" = "false" ]; then \
+		echo "$(YELLOW)⚠️ Slack External Secret準備がタイムアウトしました（デフォルト値で動作します）$(NC)"; \
 	fi
 
 # 全システムクリーンアップ

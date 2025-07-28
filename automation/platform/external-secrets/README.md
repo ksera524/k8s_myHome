@@ -10,12 +10,14 @@ automation/platform/external-secrets/
 ├── setup-external-secrets.sh           # ArgoCD経由セットアップスクリプト
 ├── setup-pulumi-pat.sh                 # Pulumi Personal Access Token設定スクリプト
 ├── deploy-harbor-secrets.sh            # Harborシークレット自動デプロイスクリプト
+├── deploy-slack-secrets.sh             # Slackシークレット自動デプロイスクリプト
 ├── test-harbor-secrets.sh              # 動作確認テストスクリプト
 ├── secretstores/
 │   └── pulumi-esc-secretstore.yaml     # Pulumi ESC接続設定
 ├── externalsecrets/
 │   ├── harbor-externalsecret.yaml      # Harbor管理者認証情報
 │   ├── harbor-registry-externalsecret.yaml # Harbor Registry Secrets（全namespace対応）
+│   ├── slack-externalsecret.yaml       # Slack認証情報（sandbox namespace）
 │   ├── github-actions-externalsecret.yaml # GitHub Actions（作成予定）
 │   └── applications/                   # アプリケーション別Secret（作成予定）
 └── monitoring/
@@ -88,6 +90,32 @@ kubectl get secrets -n arc-systems | grep harbor-registry
 kubectl get secrets -n default | grep harbor-http
 ```
 
+### 5. Slack Secret移行
+
+```bash
+# Pulumi ESCにSlack認証情報設定（事前設定が必要）
+# SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+# SLACK_BOT_TOKEN="xoxb-..."
+# SLACK_APP_TOKEN="xapp-..."
+# 
+# pulumi esc env set ksera/k8s/secret \
+#   slack.webhook_url "$SLACK_WEBHOOK_URL" --secret
+# pulumi esc env set ksera/k8s/secret \
+#   slack.bot_token "$SLACK_BOT_TOKEN" --secret
+# pulumi esc env set ksera/k8s/secret \
+#   slack.app_token "$SLACK_APP_TOKEN" --secret
+# pulumi esc env set ksera/k8s/secret \
+#   slack.channel "#general"
+# pulumi esc env set ksera/k8s/secret \
+#   slack.username "bot"
+
+# Slack Secrets自動デプロイ
+./deploy-slack-secrets.sh
+
+# 作成されたSecret確認
+kubectl get secrets -n sandbox | grep slack
+```
+
 ## 🔍 動作確認
 
 ### 基本確認コマンド
@@ -103,7 +131,7 @@ kubectl get secretstores --all-namespaces
 kubectl get externalsecrets --all-namespaces
 
 # 作成されたSecret確認
-kubectl get secrets --all-namespaces | grep -E "(harbor|github)"
+kubectl get secrets --all-namespaces | grep -E "(harbor|github|slack)"
 ```
 
 ### 詳細確認
@@ -111,6 +139,7 @@ kubectl get secrets --all-namespaces | grep -E "(harbor|github)"
 ```bash
 # ExternalSecret詳細状態
 kubectl describe externalsecret harbor-admin-secret -n harbor
+kubectl describe externalsecret slack-externalsecret -n sandbox
 
 # ESO Controller ログ
 kubectl logs -n external-secrets-system deployment/external-secrets -f
