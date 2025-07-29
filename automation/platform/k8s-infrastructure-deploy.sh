@@ -34,7 +34,18 @@ print_debug() {
 
 print_status "=== Kubernetes基盤構築開始 ==="
 
-# 0. 前提条件確認
+# 0. マニフェストファイルの準備
+print_status "マニフェストファイルをリモートにコピー中..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
+print_status "✓ マニフェストファイルコピー完了"
+
+# 1. 前提条件確認
 print_status "前提条件を確認中..."
 
 # SSH known_hosts クリーンアップ
@@ -92,25 +103,7 @@ echo "MetalLB Pod起動を待機中..."
 kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s
 
 # IPアドレスプール設定（libvirtデフォルトネットワーク範囲）
-cat <<EOL | kubectl apply -f -
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: default-pool
-  namespace: metallb-system
-spec:
-  addresses:
-  - 192.168.122.100-192.168.122.150
----
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
-metadata:
-  name: default
-  namespace: metallb-system
-spec:
-  ipAddressPools:
-  - default-pool
-EOL
+kubectl apply -f /tmp/metallb-ipaddress-pool.yaml
 
 echo "✓ MetalLB設定完了"
 EOF
@@ -151,14 +144,7 @@ echo "cert-manager起動を待機中..."
 kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s
 
 # Self-signed ClusterIssuer作成（開発用）
-cat <<EOL | kubectl apply -f -
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: selfsigned-cluster-issuer
-spec:
-  selfSigned: {}
-EOL
+kubectl apply -f /tmp/cert-manager-selfsigned-issuer.yaml
 
 echo "✓ cert-manager設定完了"
 EOF
@@ -171,15 +157,7 @@ print_debug "永続ストレージ機能を設定します"
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 # Local StorageClass作成
-cat <<EOL | kubectl apply -f -
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: local-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Retain
-EOL
+kubectl apply -f /tmp/local-storage-class.yaml
 
 echo "✓ StorageClass設定完了"
 EOF
@@ -209,29 +187,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 echo ""
 
 # ArgoCD Ingress設定（HTTP対応）
-cat <<EOL | kubectl apply -f -
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: argocd-server-ingress
-  namespace: argocd
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: argocd.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: argocd-server
-            port:
-              number: 80
-EOL
+kubectl apply -f /tmp/argocd-ingress.yaml
 
 # ArgoCD サーバー再起動（insecure設定反映）
 echo "ArgoCD サーバー再起動中..."
@@ -658,30 +614,7 @@ print_debug "GitOps経由でインフラとアプリケーションを管理し�
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 # App of Apps をデプロイ
-kubectl apply -f - <<'APPOFAPPS'
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: infrastructure
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: HEAD
-    path: infra
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: argocd
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-APPOFAPPS
+kubectl apply -f /tmp/app-of-apps.yaml
 
 echo "✓ App of Apps デプロイ完了"
 EOF
@@ -1107,7 +1040,7 @@ spec:
       key: harbor
 EOF'
     
-    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/slack-external.yaml'; then
+    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/slack-externalsecret.yaml'; then
         print_error "Slack ExternalSecretの作成に失敗しました"
         exit 1
     fi

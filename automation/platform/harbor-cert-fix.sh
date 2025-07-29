@@ -4,6 +4,12 @@ set -e
 
 echo "=== Harbor証明書修正 + GitHub Actions対応自動化 ==="
 
+# 0. マニフェストファイルの準備
+echo "マニフェストファイルをリモートにコピー中..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/harbor-http-ingress.yaml" k8suser@192.168.122.10:/tmp/
+echo "✓ マニフェストファイルコピー完了"
+
 # SSH known_hosts クリーンアップ
 echo "SSH known_hostsをクリーンアップ中..."
 ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.10' 2>/dev/null || true
@@ -157,66 +163,7 @@ if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get ingress h
 elif ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get ingress harbor-http-ingress-patch -n harbor' >/dev/null 2>&1; then
     echo "  ⚠️  harbor-http-ingress-patch が既に存在します。同じ機能のため追加をスキップします。"
 else
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' << 'EOF' || echo "HTTP Ingress適用失敗"
-# Harbor用一時的HTTP Ingress設定
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: harbor-http-ingress
-  namespace: harbor
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # HTTPアクセス許可
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:  # ホスト名なしでIPアクセス許可
-      paths:
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /api/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /service/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /v2/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /chartrepo/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-        path: /c/
-        pathType: Prefix
-      - backend:
-          service:
-            name: harbor-portal
-            port:
-              number: 80
-        path: /
-        pathType: Prefix
-EOF
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/harbor-http-ingress.yaml' || echo "HTTP Ingress適用失敗"
 fi
 
 echo "=== Harbor証明書修正 + GitHub Actions対応が正常に完了しました ==="

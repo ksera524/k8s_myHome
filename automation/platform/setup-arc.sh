@@ -43,16 +43,22 @@ fi
 print_status "Harbor認証情報を設定してください"
 
 if [[ -z "${HARBOR_USERNAME:-}" ]]; then
-    echo "Harbor Registry Username (default: admin):"
-    echo -n "HARBOR_USERNAME [admin]: "
-    read HARBOR_USERNAME_INPUT
-    if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
+    # 非対話モードでは自動的にデフォルト値を使用
+    if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
         HARBOR_USERNAME="admin"
+        print_debug "非対話モード: HARBOR_USERNAME自動設定: $HARBOR_USERNAME"
     else
-        HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
+        echo "Harbor Registry Username (default: admin):"
+        echo -n "HARBOR_USERNAME [admin]: "
+        read HARBOR_USERNAME_INPUT
+        if [[ -z "$HARBOR_USERNAME_INPUT" ]]; then
+            HARBOR_USERNAME="admin"
+        else
+            HARBOR_USERNAME="$HARBOR_USERNAME_INPUT"
+        fi
+        print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
     fi
     export HARBOR_USERNAME
-    print_debug "HARBOR_USERNAME設定完了: $HARBOR_USERNAME"
 else
     print_debug "HARBOR_USERNAME環境変数を使用: $HARBOR_USERNAME"
 fi
@@ -62,23 +68,29 @@ if [[ -z "${HARBOR_PASSWORD:-}" ]]; then
     DYNAMIC_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
         'kubectl get secret harbor-registry-secret -n arc-systems -o jsonpath="{.data.\.dockerconfigjson}" | base64 -d | grep -o "\"password\":\"[^\"]*\"" | cut -d":" -f2 | tr -d "\""' 2>/dev/null || echo "")
     
-    if [[ -n "$DYNAMIC_PASSWORD" ]]; then
-        echo "Harbor Registry Password (動的取得: ${DYNAMIC_PASSWORD:0:8}...):"
-        echo -n "HARBOR_PASSWORD [動的パスワード使用]: "
-    else
-        echo "Harbor Registry Password (default: Harbor12345):"
-        echo -n "HARBOR_PASSWORD [Harbor12345]: "
-    fi
-    
-    read -s HARBOR_PASSWORD_INPUT
-    echo ""
-    if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
+    # 非対話モードでは自動的にパスワードを設定
+    if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
         HARBOR_PASSWORD="${DYNAMIC_PASSWORD:-Harbor12345}"
+        print_debug "非対話モード: HARBOR_PASSWORD自動設定（動的取得: ${HARBOR_PASSWORD:0:3}...）"
     else
-        HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+        if [[ -n "$DYNAMIC_PASSWORD" ]]; then
+            echo "Harbor Registry Password (動的取得: ${DYNAMIC_PASSWORD:0:8}...):"
+            echo -n "HARBOR_PASSWORD [動的パスワード使用]: "
+        else
+            echo "Harbor Registry Password (default: Harbor12345):"
+            echo -n "HARBOR_PASSWORD [Harbor12345]: "
+        fi
+        
+        read -s HARBOR_PASSWORD_INPUT
+        echo ""
+        if [[ -z "$HARBOR_PASSWORD_INPUT" ]]; then
+            HARBOR_PASSWORD="${DYNAMIC_PASSWORD:-Harbor12345}"
+        else
+            HARBOR_PASSWORD="$HARBOR_PASSWORD_INPUT"
+        fi
+        print_debug "HARBOR_PASSWORD設定完了"
     fi
     export HARBOR_PASSWORD
-    print_debug "HARBOR_PASSWORD設定完了"
 else
     print_debug "HARBOR_PASSWORD環境変数を使用"
 fi
@@ -106,6 +118,12 @@ fi
 print_status "✓ GitHub設定検証完了"
 
 print_status "=== Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ ==="
+
+# 0. マニフェストファイルの準備
+print_status "マニフェストファイルをリモートにコピー中..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
+print_status "✓ マニフェストファイルコピー完了"
 
 # 1. Helmインストール確認
 print_debug "Helmの確認中..."
@@ -185,31 +203,7 @@ if ! kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 
     kubectl create serviceaccount github-actions-runner -n arc-systems
     
     # Secret読み取り権限付与
-    kubectl apply -f - <<RBAC
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: secret-reader
-  namespace: arc-systems
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: github-actions-secret-reader
-  namespace: arc-systems
-subjects:
-- kind: ServiceAccount
-  name: github-actions-runner
-  namespace: arc-systems
-roleRef:
-  kind: Role
-  name: secret-reader
-  apiGroup: rbac.authorization.k8s.io
-RBAC
+    kubectl apply -f /tmp/github-actions-rbac.yaml
 fi
 EOF
 
