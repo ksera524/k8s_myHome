@@ -108,21 +108,21 @@ EOF
 
 print_status "✓ GitHub OAuth ExternalSecret作成完了"
 
-# 3. GitHub OAuth設定をargocd-secretに統合
-print_status "GitHub OAuth設定をargocd-secretに統合中..."
+# 3. GitHub OAuth Client SecretをGitOps管理のargocd-secretに統合
+print_status "GitHub OAuth Client Secretをargocd-secretに統合中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-# GitHub OAuth Secretの内容をargocd-secretに追加
-CLIENT_ID=$(kubectl get secret argocd-github-oauth -n argocd -o jsonpath='{.data.client-id}')
+# External Secretから取得したClient SecretをGitOps管理のargocd-secretに統合
 CLIENT_SECRET=$(kubectl get secret argocd-github-oauth -n argocd -o jsonpath='{.data.client-secret}')
 
 kubectl patch secret argocd-secret -n argocd --type merge -p "{
   \"data\": {
-    \"dex.github.clientId\": \"$CLIENT_ID\",
     \"dex.github.clientSecret\": \"$CLIENT_SECRET\"
   }
 }"
 
-echo "✓ GitHub OAuth設定をargocd-secretに統合完了"
+echo "✓ GitHub OAuth Client Secret統合完了"
+echo "  - Client ID: GitOps管理 (Ov23li8T6IFuiuLcoSJa)"
+echo "  - Client Secret: External Secret連携"
 EOF
 
 # 4. ArgoCD ApplicationのGitOps同期を強制

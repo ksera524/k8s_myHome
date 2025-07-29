@@ -132,3 +132,18 @@ data:
     # GitHubユーザー「ksera524」に管理者権限を付与
     g, ksera524, role:admin
   policy.default: role:readonly
+---
+# ArgoCD Secret with GitHub OAuth Client ID (permanent)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-secret
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-secret
+    app.kubernetes.io/part-of: argocd
+type: Opaque
+stringData:
+  # GitHub OAuth Client ID (固定値)
+  dex.github.clientId: "Ov23li8T6IFuiuLcoSJa"
+  # Client Secretは External Secret から動的に取得・統合される
