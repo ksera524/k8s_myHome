@@ -142,8 +142,11 @@ metadata:
   labels:
     app.kubernetes.io/name: argocd-secret
     app.kubernetes.io/part-of: argocd
+  annotations:
+    # External Secretとの競合を避けるためのアノテーション
+    argocd.argoproj.io/sync-options: "Merge"
 type: Opaque
 stringData:
   # GitHub OAuth Client ID (固定値)
   dex.github.clientId: "Ov23li8T6IFuiuLcoSJa"
-  # Client Secretは External Secret から動的に取得・統合される
+  # dex.github.clientSecret は External Secret から動的に注入される
