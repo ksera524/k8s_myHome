@@ -49,6 +49,10 @@ help:
 # 全自動デプロイ (全ステップ)
 all: check-automation-readiness host-setup infrastructure platform
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
+	@echo "$(YELLOW)🔧 ポストデプロイメント: GitHub OAuth設定最終確認中...$(NC)"
+	@sleep 10  # GitOps同期待機
+	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh
+	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
 	@$(MAKE) status
 
@@ -235,6 +239,7 @@ wait-for-external-secrets:
 	@timeout=180; \
 	github_secret_ready=false; \
 	slack_secret_ready=false; \
+	argocd_oauth_ready=false; \
 	while [ $$timeout -gt 0 ]; do \
 		# GitHub External Secret確認 \
 		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
@@ -242,6 +247,14 @@ wait-for-external-secrets:
 			if [ "$$github_ready" = "True" ]; then \
 				echo "$(GREEN)✅ GitHub External Secret準備完了$(NC)"; \
 				github_secret_ready=true; \
+			fi; \
+		fi; \
+		# ArgoCD GitHub OAuth External Secret確認 \
+		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd' >/dev/null 2>&1; then \
+			argocd_oauth_ready_status=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			if [ "$$argocd_oauth_ready_status" = "True" ]; then \
+				echo "$(GREEN)✅ ArgoCD GitHub OAuth External Secret準備完了$(NC)"; \
+				argocd_oauth_ready=true; \
 			fi; \
 		fi; \
 		# Slack External Secret確認 \
@@ -252,11 +265,11 @@ wait-for-external-secrets:
 				slack_secret_ready=true; \
 			fi; \
 		fi; \
-		# 両方準備完了なら終了 \
-		if [ "$$github_secret_ready" = "true" ] && [ "$$slack_secret_ready" = "true" ]; then \
+		# 全て準備完了なら終了 \
+		if [ "$$github_secret_ready" = "true" ] && [ "$$slack_secret_ready" = "true" ] && [ "$$argocd_oauth_ready" = "true" ]; then \
 			break; \
 		fi; \
-		echo "External Secret待機中... GitHub:$$github_secret_ready Slack:$$slack_secret_ready (残り $$timeout 秒)"; \
+		echo "External Secret待機中... GitHub:$$github_secret_ready Slack:$$slack_secret_ready ArgoCD:$$argocd_oauth_ready (残り $$timeout 秒)"; \
 		sleep 10; \
 		timeout=$$((timeout - 10)); \
 	done; \
@@ -264,7 +277,10 @@ wait-for-external-secrets:
 		echo "$(YELLOW)⚠️ GitHub External Secret準備がタイムアウトしました（フォールバック動作します）$(NC)"; \
 	fi; \
 	if [ "$$slack_secret_ready" = "false" ]; then \
-		echo "$(YELLOW)⚠️ Slack External Secret準備がタイムアウトしました（デフォルト値で動作します）$(NC)"; \
+		echo "$(YELLOW)⚠️ Slack External Secret準備がタイムアウトしました$(NC)"; \
+	fi; \
+	if [ "$$argocd_oauth_ready" = "false" ]; then \
+		echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth External Secret準備がタイムアウトしました（ポストデプロイメントで再試行します）$(NC)"; \
 	fi
 
 # 全システムクリーンアップ
