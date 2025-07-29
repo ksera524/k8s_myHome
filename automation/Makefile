@@ -85,6 +85,8 @@ platform:
 	@cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./phase4-deploy.sh
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
 	@$(MAKE) wait-for-external-secrets
+	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
+	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
 
 # 後方互換性用（非推奨）
