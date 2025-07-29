@@ -108,31 +108,49 @@ EOF
 
 print_status "✓ GitHub OAuth ExternalSecret作成完了"
 
-# 3. ArgoCD ConfigMap更新
-print_status "ArgoCD ConfigMapを更新中..."
+# 3. GitHub OAuth設定をargocd-secretに統合
+print_status "GitHub OAuth設定をargocd-secretに統合中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-# 既存のConfigMapをバックアップ
-kubectl get configmap argocd-cm -n argocd -o yaml > /tmp/argocd-cm-backup.yaml
+# GitHub OAuth Secretの内容をargocd-secretに追加
+CLIENT_ID=$(kubectl get secret argocd-github-oauth -n argocd -o jsonpath='{.data.client-id}')
+CLIENT_SECRET=$(kubectl get secret argocd-github-oauth -n argocd -o jsonpath='{.data.client-secret}')
 
-# 新しいConfigMapを適用
-kubectl apply -f /tmp/argocd-cm-github-oauth.yaml
+kubectl patch secret argocd-secret -n argocd --type merge -p "{
+  \"data\": {
+    \"dex.github.clientId\": \"$CLIENT_ID\",
+    \"dex.github.clientSecret\": \"$CLIENT_SECRET\"
+  }
+}"
 
-echo "✓ ArgoCD ConfigMap更新完了"
+echo "✓ GitHub OAuth設定をargocd-secretに統合完了"
 EOF
 
-# 4. ArgoCD RBAC ConfigMap更新
-print_status "ArgoCD RBAC ConfigMapを更新中..."
+# 4. ArgoCD ApplicationのGitOps同期を強制
+print_status "ArgoCD設定のGitOps同期を強制中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-# 既存のRBAC ConfigMapをバックアップ
-kubectl get configmap argocd-rbac-cm -n argocd -o yaml > /tmp/argocd-rbac-cm-backup.yaml 2>/dev/null || echo "RBAC ConfigMapが存在しません"
+# ArgoCD ConfigのApp同期を強制実行
+kubectl patch application argocd-config -n argocd --type merge -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"syncStrategy":{"hook":{},"apply":{"force":true}}}}}'
 
-# 新しいRBAC ConfigMapを適用
-kubectl apply -f /tmp/argocd-rbac-cm-github.yaml
+# 同期完了を待機
+echo "ArgoCD Config同期を待機中..."
+timeout=60
+while [ $timeout -gt 0 ]; do
+    SYNC_STATUS=$(kubectl get application argocd-config -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+    if [ "$SYNC_STATUS" = "Synced" ]; then
+        echo "✓ ArgoCD Config同期完了"
+        break
+    fi
+    echo "同期状態: $SYNC_STATUS (残り ${timeout}秒)"
+    sleep 3
+    timeout=$((timeout - 3))
+done
 
-echo "✓ ArgoCD RBAC ConfigMap更新完了"
+if [ $timeout -le 0 ]; then
+    echo "⚠️ ArgoCD Config同期がタイムアウトしました（処理は継続）"
+fi
 EOF
 
-# 5. ArgoCD サーバー再起動
+# 6. ArgoCD サーバー再起動
 print_status "ArgoCD サーバーを再起動中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 # ArgoCD サーバーを再起動
@@ -148,7 +166,7 @@ EOF
 
 print_status "✓ ArgoCD サーバー再起動完了"
 
-# 6. 設定確認
+# 7. 設定確認
 print_status "ArgoCD GitHub OAuth設定を確認中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 echo "=== ArgoCD Pods状態 ==="

@@ -172,6 +172,32 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+---
+# ArgoCD設定 (GitHub OAuth + RBAC)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-config
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: infra
+    directory:
+      include: argocd-config.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 # ARC system temporarily disabled due to CRD issues
 # ---
 # apiVersion: argoproj.io/v1alpha1
