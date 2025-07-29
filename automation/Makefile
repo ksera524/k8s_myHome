@@ -49,8 +49,11 @@ help:
 # 全自動デプロイ (全ステップ)
 all: check-automation-readiness host-setup infrastructure platform
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
-	@echo "$(YELLOW)🔧 ポストデプロイメント: GitHub OAuth設定最終確認中...$(NC)"
-	@sleep 10  # GitOps同期待機
+	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
+	@sleep 15  # GitOps同期待機延長
+	@echo "$(YELLOW)🔄 External Secrets設定強制同期中...$(NC)"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application external-secrets-config -n argocd --type merge -p '\''{"operation":{"initiatedBy":{"username":"admin"},"sync":{"syncStrategy":{"hook":{},"apply":{"force":true}}}}}'\''' || true
+	@sleep 10  # ArgoCD同期待機
 	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
