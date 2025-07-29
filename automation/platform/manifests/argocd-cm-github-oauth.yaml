@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # GitHub OAuth設定
+  url: "http://192.168.122.100/argocd"
+  dex.config: |
+    connectors:
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        clientId: $argocd-github-oauth:client-id
+        clientSecret: $argocd-github-oauth:client-secret
+        orgs:
+        - name: your-github-org
+        redirectURI: http://192.168.122.100/argocd/api/dex/callback
