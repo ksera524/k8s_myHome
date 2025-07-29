@@ -103,7 +103,7 @@ if [[ -n "$GITHUB_ORG" ]]; then
 # GitHub組織設定でConfigMapを更新
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: http://192.168.122.100/argocd/api/dex/callback"
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 
@@ -124,7 +124,7 @@ elif [[ -n "$GITHUB_USER" ]]; then
 # GitHubユーザー設定でConfigMapを更新（組織制限なし）
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    redirectURI: http://192.168.122.100/argocd/api/dex/callback"
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 
@@ -179,12 +179,12 @@ elif [[ -n "$GITHUB_USER" ]]; then
 fi
 echo ""
 echo "🌐 アクセス方法:"
-echo "1. ArgoCD UI: http://192.168.122.100/argocd"
+echo "1. ArgoCD UI: https://argocd.qroksera.com"
 echo "2. 「LOG IN VIA GITHUB」ボタンでGitHub認証"
 echo "3. 初回ログイン時にGitHub認可画面が表示される"
 echo ""
 echo "📝 GitHub OAuth App設定確認:"
-echo "- Authorization callback URL: http://192.168.122.100/argocd/api/dex/callback"
+echo "- Authorization callback URL: https://argocd.qroksera.com/api/dex/callback"
 if [[ -n "$GITHUB_ORG" ]]; then
     echo "- Organization access: 「$GITHUB_ORG」組織への第三者アクセスを有効化"
 fi

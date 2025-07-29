@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/part-of: argocd
 data:
   # GitHub OAuth設定
-  url: "http://192.168.122.100/argocd"
+  url: "https://argocd.qroksera.com"
   dex.config: |
     connectors:
     - type: github
@@ -19,4 +19,4 @@ data:
         clientSecret: $argocd-github-oauth:client-secret
         orgs:
         - name: your-github-org
-        redirectURI: http://192.168.122.100/argocd/api/dex/callback
+        redirectURI: https://argocd.qroksera.com/api/dex/callback
