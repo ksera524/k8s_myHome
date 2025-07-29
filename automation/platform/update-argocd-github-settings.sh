@@ -103,7 +103,8 @@ if [[ -n "$GITHUB_ORG" ]]; then
 # GitHub組織設定でConfigMapを更新
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
+    "url": "https://argocd.qroksera.com",
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: Ov23li8T6IFuiuLcoSJa\\n    clientSecret: \\$dex.github.clientSecret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 
@@ -124,7 +125,8 @@ elif [[ -n "$GITHUB_USER" ]]; then
 # GitHubユーザー設定でConfigMapを更新（組織制限なし）
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: \\$argocd-github-oauth:client-id\\n    clientSecret: \\$argocd-github-oauth:client-secret\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
+    "url": "https://argocd.qroksera.com",
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: Ov23li8T6IFuiuLcoSJa\\n    clientSecret: \\$dex.github.clientSecret\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 
