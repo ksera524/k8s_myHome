@@ -43,6 +43,7 @@ scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml"
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/harbor/harbor-storage.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
 # 1. 前提条件確認
@@ -569,6 +570,11 @@ print_debug "Harbor管理者認証情報をSecret化します"
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
 # Harbor namespace作成（まだ存在しない場合）
 kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor Persistent Volumes作成
+print_debug "Harbor用PersistentVolumeを作成中..."
+kubectl apply -f /tmp/harbor-storage.yaml
+echo "✓ Harbor PersistentVolume作成完了"
 
 # Harbor管理者パスワードSecret作成/更新
 # External Secrets 使用時はスキップ（既にExternal Secretsで管理されている）
