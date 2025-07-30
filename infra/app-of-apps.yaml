@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra
+    path: manifests/infrastructure
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
@@ -33,7 +33,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra
+    path: manifests/infrastructure
     directory:
       include: harbor-storage.yaml
   destination:
@@ -58,7 +58,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra
+    path: manifests/infrastructure
     directory:
       include: harbor-nodeport.yaml
   destination:
@@ -84,7 +84,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra
+    path: manifests/infrastructure
     directory:
       include: harbor-external-ingress.yaml
   destination:
@@ -110,7 +110,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra/external-secrets
+    path: manifests/infrastructure/external-secrets
     directory:
       include: "external-secrets-operator-app.yaml"
   destination:
@@ -135,7 +135,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra/external-secrets
+    path: manifests/infrastructure/external-secrets
     directory:
       include: "*.yaml"
       exclude: "external-secrets-operator-app.yaml"
@@ -161,7 +161,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra
+    path: manifests/infrastructure
     directory:
       include: "harbor-complete.yaml"
   destination:
@@ -258,7 +258,7 @@ spec:
 #   source:
 #     repoURL: https://github.com/ksera524/k8s_myHome.git
 #     targetRevision: HEAD
-#     path: infra
+#     path: manifests/infrastructure
 #     directory:
 #       include: arc-system.yaml
 #   destination:

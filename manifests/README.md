@@ -49,7 +49,7 @@ kubectl apply -f manifests/infrastructure/harbor/
 ## 移行履歴
 
 以前は以下の場所に分散していたmanifestファイルを整理しました：
-- `/infra/` - メインのインフラマニフェスト
+- `/manifests/infrastructure/` - メインのインフラマニフェスト
 - `/app/` - アプリケーションマニフェスト  
 - `/automation/platform/manifests/` - プラットフォームデプロイ用
 - `/automation/platform/external-secrets/` - External Secrets関連

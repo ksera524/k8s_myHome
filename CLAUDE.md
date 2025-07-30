@@ -1,6 +1,6 @@
 # CLAUDE.md
 必ず日本語で応答し、コメントも日本語で書いて
-k8s manifestはmamifests配下に書くように
+k8s manifestはmamifests配下を利用すること
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **Host Setup** (`automation/host-setup/`): Host preparation - Ubuntu 24.04 LTS setup
 2. **Infrastructure** (`automation/infrastructure/`): VM infrastructure + Kubernetes cluster - QEMU/KVM with libvirt + kubeadm-based 3-node cluster (統合実装)
 3. **Platform** (`automation/platform/`): Core platform services - MetalLB, NGINX, cert-manager, ArgoCD, Harbor
-4. **Applications** (`infra/`, `app/`): Application deployment via GitOps
+4. **Applications** (`manifests/`, `app/`): Application deployment via GitOps
 
 ### Key Infrastructure Components
 - **Cluster**: 1 Control Plane (192.168.122.10) + 2 Workers (192.168.122.11-12)
@@ -98,8 +98,8 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
 - `manifests/app-of-apps.yaml`: ArgoCD root application
 
 ### Certificates & Security
-- `infra/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
-- `infra/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
+- `manifests/infrastructure/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
+- `manifests/infrastructure/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
 - `automation/platform/harbor-cert-fix.sh`: Fix Harbor certificate validation
 
 ### GitHub Actions
@@ -123,7 +123,7 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
 ## Development Notes
 
 ### GitOps Workflow
-All infrastructure changes should be made through Git commits to trigger ArgoCD synchronization. The App-of-Apps pattern manages all applications from `infra/app-of-apps.yaml`.
+All infrastructure changes should be made through Git commits to trigger ArgoCD synchronization. The App-of-Apps pattern manages all applications from `manifests/app-of-apps.yaml`.
 
 ### Resource Constraints  
 VM resources are optimized for home lab environments:

@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra/storage
+    path: manifests/infrastructure/storage
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:

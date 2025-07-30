@@ -24,7 +24,7 @@
 
 - **`app-of-apps.yaml`**: ArgoCD App-of-Appsパターンの実装
   - GitOpsでのインフラ全体管理
-  - infra/ディレクトリをソースとして使用
+  - manifests/ディレクトリをソースとして使用
 
 ### Harbor関連
 
