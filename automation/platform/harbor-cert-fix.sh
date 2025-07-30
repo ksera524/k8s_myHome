@@ -78,7 +78,7 @@ echo "✓ Harbor稼働確認完了"
 echo "1. 既存のHarbor証明書を削除し、新しいIP SAN証明書を適用中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl delete certificate harbor-tls-cert -n harbor --ignore-not-found=true'
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl delete secret harbor-tls-secret -n harbor --ignore-not-found=true'
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../infra/cert-manager/harbor-certificate.yaml
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../manifests/infrastructure/cert-manager/harbor-certificate.yaml
 
 echo "2. Harbor証明書の準備完了を待機中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl wait --for=condition=Ready certificate/harbor-tls-cert -n harbor --timeout=120s'
@@ -90,7 +90,7 @@ ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-core -n harbor --timeout=300s'
 
 echo "3. Harbor CA信頼DaemonSetを適用中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../infra/harbor-ca-trust.yaml
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../manifests/infrastructure/harbor/harbor-ca-trust.yaml
 
 echo "4. Harbor CA信頼DaemonSetの準備完了を待機中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status daemonset/harbor-ca-trust -n kube-system --timeout=300s'

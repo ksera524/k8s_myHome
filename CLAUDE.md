@@ -9,12 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-### Deployment Phases (Execute in Order)
-1. **Phase 1** (`automation/scripts/`): Host preparation - Ubuntu 24.04 LTS setup
-2. **Phase 2** (`automation/terraform/`): VM infrastructure - QEMU/KVM with libvirt
-3. **Phase 3** (`automation/ansible/`): Kubernetes cluster - kubeadm-based 3-node cluster  
-4. **Phase 4** (`automation/phase4/`): Core infrastructure - MetalLB, NGINX, cert-manager, ArgoCD, Harbor
-5. **Phase 5** (`infra/`, `app/`): Application migration via GitOps
+### Deployment Components (Execute in Order)
+1. **Host Setup** (`automation/host-setup/`): Host preparation - Ubuntu 24.04 LTS setup
+2. **Infrastructure** (`automation/infrastructure/`): VM infrastructure + Kubernetes cluster - QEMU/KVM with libvirt + kubeadm-based 3-node cluster (統合実装)
+3. **Platform** (`automation/platform/`): Core platform services - MetalLB, NGINX, cert-manager, ArgoCD, Harbor
+4. **Applications** (`infra/`, `app/`): Application deployment via GitOps
 
 ### Key Infrastructure Components
 - **Cluster**: 1 Control Plane (192.168.122.10) + 2 Workers (192.168.122.11-12)
@@ -27,20 +26,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Complete Deployment Workflow
 ```bash
-# Phase 1: Host setup
-./automation/scripts/setup-host.sh
+# Host Setup: Host preparation
+./automation/host-setup/setup-host.sh
 # (logout/login required for group membership)
-./automation/scripts/setup-storage.sh  
-./automation/scripts/verify-setup.sh
+./automation/host-setup/setup-storage.sh  
+./automation/host-setup/verify-setup.sh
 
-# Phase 2: VM creation
-cd automation/terraform && ./clean-and-deploy.sh
+# Infrastructure: VM creation + Kubernetes cluster
+cd automation/infrastructure && ./clean-and-deploy.sh
+# VM構築とKubernetesクラスター構築が統合され、1つのコマンドで完了
 
-# Phase 3: Kubernetes cluster
-cd ../ansible && ./k8s-deploy.sh
-
-# Phase 4: Core infrastructure + Harbor cert fix + GitHub Actions (interactive)
-cd ../phase4 && ./phase4-deploy.sh
+# Platform: Core platform services + Harbor cert fix + GitHub Actions (interactive)
+cd ../platform && ./phase4-deploy.sh
 # GitHub情報は対話式で入力またはスキップ可能
 
 # または個別にGitHub Actions設定
@@ -73,42 +70,54 @@ kubectl get applications -n argocd  # ArgoCD sync status
 
 ### Testing & Verification
 ```bash
-# Phase verification
-./automation/scripts/verify-setup.sh  # Phase 1
-terraform plan -out=tfplan  # Phase 2 (in terraform/)
-kubectl get nodes  # Phase 3
-kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd)"  # Phase 4
+# Component verification
+./automation/host-setup/verify-setup.sh  # Host Setup
+terraform plan -out=tfplan  # Infrastructure検証 (in infrastructure/)
+ssh k8suser@192.168.122.10 'kubectl get nodes'  # Infrastructure結果確認
+kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd)"  # Platform
 ```
 
 ## Key Directories
 
-- **`automation/`**: All deployment automation (phases 1-4)
-- **`infra/`**: Kubernetes manifests managed by ArgoCD (GitOps)
-- **`app/`**: Application manifests for migrated services
+- **`automation/`**: All deployment automation
+  - **`host-setup/`**: Host preparation scripts
+  - **`infrastructure/`**: VM infrastructure + Kubernetes cluster (Terraform統合実装)
+  - **`platform/`**: Core platform services (MetalLB, NGINX, cert-manager, ArgoCD, Harbor)
+- **`manifests/`**: Organized Kubernetes manifests for all components
+  - **`infrastructure/`**: Core infrastructure (ArgoCD, MetalLB, cert-manager, Harbor, etc.)
+  - **`applications/`**: User applications (RSS, Hitomi, Pepup, Cloudflared, Slack)
+  - **`external-secrets/`**: External Secrets Operator and configurations  
+  - **`platform/`**: Platform services (GitHub Actions, monitoring)
 - **`diagrams/`**: Architecture diagrams (SVG format)
 
 ## Important Files
 
 ### Configuration
-- `automation/terraform/terraform.tfvars`: VM resource allocation
-- `automation/ansible/inventory.ini`: Cluster node configuration  
-- `infra/app-of-apps.yaml`: ArgoCD root application
+- `automation/infrastructure/terraform.tfvars`: VM resource allocation
+- `manifests/app-of-apps.yaml`: ArgoCD root application
 
 ### Certificates & Security
 - `infra/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
 - `infra/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
-- `automation/phase4/harbor-cert-fix.sh`: Fix Harbor certificate validation
+- `automation/platform/harbor-cert-fix.sh`: Fix Harbor certificate validation
 
 ### GitHub Actions
-- `automation/phase4/github-actions-example.yml`: Self-hosted runner workflow
+- `automation/platform/github-actions-example.yml`: Self-hosted runner workflow
 - Harbor registry integration with proper certificate handling
 
 ## Technologies
 
-- **Infrastructure**: Terraform + libvirt, Ansible, kubeadm
+- **Infrastructure**: Terraform + libvirt, kubeadm (Ansible統合完了)
 - **Kubernetes**: v1.29.0, Flannel CNI, containerd runtime
 - **Core Services**: MetalLB, NGINX Ingress, cert-manager, ArgoCD, Harbor
 - **CI/CD**: GitHub Actions + Actions Runner Controller
+
+## Migration Notes
+
+**2025-01-23**: 構成要素名の機能ベース化とAnsible統合完了
+- Phase名からhost-setup/infrastructure/platformの機能ベース名に変更
+- AnsibleのKubernetesクラスター構築をTerraformに統合し、infrastructureコンポーネントとして実装
+- 詳細は `docs/terraform-ansible-migration-report.md` を参照
 
 ## Development Notes
 

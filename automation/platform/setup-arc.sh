@@ -122,7 +122,7 @@ print_status "=== Phase 4.9: GitHub Actions Runner Controller (ARC) セットア
 # 0. マニフェストファイルの準備
 print_status "マニフェストファイルをリモートにコピー中..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
 # 1. Helmインストール確認

@@ -16,6 +16,8 @@ Harbor Secret管理:
 - harbor-admin-secret (harbor namespace)
 - harbor-auth (arc-systems, default namespaces)
 - harbor-registry-secret (Docker認証用)
+- External Secrets 経由でPulumi ESCから自動取得
+true
 
 接続情報:
 - k8sクラスタ: ssh k8suser@192.168.122.10
@@ -30,6 +32,14 @@ Harbor Secret管理:
    - HARBOR_PASSWORD: (設定済みパスワード)
 
 Harbor パスワード管理コマンド:
-- 更新: ./harbor-password-update.sh <新しいパスワード>
-- 対話式: ./harbor-password-update.sh --interactive
+- External Secrets確認: kubectl get externalsecrets -A
+- Pulumi ESC確認: kubectl get secrets -A | grep pulumi-access-token
+- Secret同期確認: kubectl describe externalsecret harbor-admin-secret -n harbor
+- Slack Secret確認: kubectl describe externalsecret slack-externalsecret -n sandbox
 - Secret確認: kubectl get secret harbor-admin-secret -n harbor -o yaml
+
+External Secrets セットアップ (オプション):
+- セットアップ: cd external-secrets && ./setup-external-secrets.sh
+- PAT設定: ./setup-pulumi-pat.sh --interactive
+- 動作確認: ./test-harbor-secrets.sh
+- Slack Secret確認: kubectl get secret slack -n sandbox

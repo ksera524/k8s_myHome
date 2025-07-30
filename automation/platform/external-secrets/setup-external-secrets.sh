@@ -29,8 +29,8 @@ print_debug() {
 }
 
 # 現在のディレクトリを確認
-if [[ ! -d "../../infra/external-secrets" ]]; then
-    print_error "infra/external-secrets ディレクトリが見つかりません"
+if [[ ! -d "../../../manifests/external-secrets" ]]; then
+    print_error "manifests/external-secrets ディレクトリが見つかりません"
     print_error "automation/platform/external-secrets から実行してください"
     exit 1
 fi
@@ -40,7 +40,7 @@ print_status "=== External Secrets Operator セットアップ開始 ==="
 # Phase 1: App-of-Apps更新確認
 print_status "Phase 1: ArgoCD Application設定確認"
 
-APP_OF_APPS_FILE="../../infra/app-of-apps.yaml"
+APP_OF_APPS_FILE="../../../manifests/app-of-apps.yaml"
 if grep -q "external-secrets-operator" "$APP_OF_APPS_FILE"; then
     print_debug "external-secrets-operator はすでにapp-of-apps.yamlに登録済み"
 else
@@ -60,7 +60,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: infra/external-secrets
+    path: manifests/external-secrets
     directory:
       include: "external-secrets-operator-app.yaml"
   destination:

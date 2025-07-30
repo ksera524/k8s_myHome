@@ -90,7 +90,7 @@ get_github_credentials() {
                 export GITHUB_USERNAME="$GITHUB_USERNAME_ES"
                 export GITHUB_TOKEN="$GITHUB_TOKEN_ES"
                 
-                # External Secrets使用時はファイル保存済み認証情報のチェックをスキップ
+                # External Secrets使用時は即座にreturn（標準入力回避）
                 return 0
             else
                 echo "⚠️ External SecretsからGitHub認証情報の取得に失敗しました"
@@ -108,7 +108,15 @@ get_github_credentials() {
         echo "ユーザー名: ${GITHUB_USERNAME:-}"
         echo "トークン: ${GITHUB_TOKEN:0:8}... (先頭8文字のみ表示)"
         
-        # 確認プロンプト
+        # 非対話モードまたは自動化実行時は保存済み認証情報を自動使用
+        if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
+            echo "非対話モード: 保存済みGitHub認証情報を自動使用します"
+            export GITHUB_USERNAME
+            export GITHUB_TOKEN
+            return 0
+        fi
+        
+        # 確認プロンプト（対話モードのみ）
         read -p "保存済みのGitHub認証情報を使用しますか？ (y/n) [y]: " -r use_saved
         use_saved=${use_saved:-y}
         
@@ -119,7 +127,14 @@ get_github_credentials() {
         fi
     fi
     
-    # 新しい認証情報を入力
+    # 非対話モードでは新しい認証情報の入力をスキップ
+    if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
+        echo "⚠️ 非対話モード: GitHub認証情報の取得に失敗しました"
+        echo "External Secretsまたは環境変数でGitHub認証情報を設定してください"
+        return 1
+    fi
+    
+    # 新しい認証情報を入力（対話モードのみ）
     echo ""
     echo "=== GitHub認証情報の入力 ==="
     read -p "GitHubユーザー名を入力してください: " GITHUB_USERNAME

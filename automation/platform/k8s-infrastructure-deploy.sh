@@ -41,7 +41,7 @@ scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/metallb-ipaddress-pool.ya
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
@@ -319,7 +319,7 @@ EOF
                     
                     # ArgoCD管理に移行
                     print_debug "ArgoCD管理に移行中..."
-                    if [[ -f "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../infra/app-of-apps.yaml"; then
+                    if [[ -f "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../manifests/app-of-apps.yaml"; then
                         if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh"; then
                             ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/migrate-to-argocd.sh && /tmp/migrate-to-argocd.sh" || true
                             print_debug "✓ ArgoCD管理移行完了（または実行済み）"
@@ -1137,7 +1137,7 @@ cat > phase4-info.txt << EOF
 
 ArgoCD App of Apps デプロイ済み:
 - リポジトリ: https://github.com/ksera524/k8s_myHome.git
-- 管理対象: infra/*.yaml
+- 管理対象: manifests/*.yaml
 
 Harbor Secret管理:
 - harbor-admin-secret (harbor namespace)
@@ -1363,6 +1363,50 @@ fi
 ARC_INSECURE_REGISTRY_EOF
 
 print_status "✓ GitHub Actions Runner insecure registry設定の自動適用完了"
+
+# ArgoCD SSO自動修正機能（make all初回実行時の問題対応）
+print_status "=== ArgoCD SSO設定の自動修正 ==="
+print_debug "ArgoCD GitHub OAuth設定を検証・修正中..."
+
+# ArgoCD secretにclientSecretが正しく設定されているか確認
+ARGOCD_CLIENT_SECRET_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.dex\.github\.clientSecret}" 2>/dev/null | base64 -d 2>/dev/null | wc -c' || echo "0")
+
+if [[ "$ARGOCD_CLIENT_SECRET_CHECK" -eq 0 ]]; then
+    print_warning "ArgoCD GitHub OAuth Client Secretが設定されていません"
+    print_debug "External SecretからClient Secretを自動取得・設定中..."
+    
+    # External Secretが作成したsecretからClient Secretを取得
+    GITHUB_CLIENT_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret argocd-github-oauth -n argocd -o jsonpath="{.data.client-secret}" 2>/dev/null | base64 -d 2>/dev/null' || echo "")
+    
+    if [[ -n "$GITHUB_CLIENT_SECRET" ]] && [[ "$GITHUB_CLIENT_SECRET" != "" ]]; then
+        print_debug "Client Secretを取得しました。argocd-secretに設定中..."
+        
+        # Base64エンコードしてargocd-secretに設定
+        ENCODED_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "echo '$GITHUB_CLIENT_SECRET' | base64 -w 0")
+        
+        # argocd-secretにClient Secretを追加
+        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl patch secret argocd-secret -n argocd --type merge -p '{\"data\":{\"dex.github.clientSecret\":\"$ENCODED_SECRET\"}}'"
+        
+        if [[ $? -eq 0 ]]; then
+            print_status "✓ ArgoCD GitHub OAuth Client Secret設定完了"
+            
+            # ArgoCD Dexサーバーを再起動して設定を反映
+            print_debug "ArgoCD Dexサーバーを再起動して設定反映中..."
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/argocd-dex-server -n argocd'
+            
+            # 再起動完了待機
+            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/argocd-dex-server -n argocd --timeout=60s' >/dev/null 2>&1
+            print_status "✓ ArgoCD SSO設定の自動修正完了"
+        else
+            print_warning "ArgoCD Secret更新に失敗しました"
+        fi
+    else
+        print_warning "External SecretからClient Secretを取得できませんでした"
+        print_debug "Pulumi ESCにargoccd.client-secretが設定されているか確認してください"
+    fi
+else
+    print_status "✓ ArgoCD GitHub OAuth設定は正常です"
+fi
 
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"

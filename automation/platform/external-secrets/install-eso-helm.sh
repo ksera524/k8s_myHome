@@ -150,12 +150,12 @@ done
 print_status "Phase 6: ArgoCD移行準備"
 
 # Helm values.yamlを永続化場所にコピー
-cp /tmp/eso-values.yaml ../../infra/external-secrets/operator-values.yaml
+cp /tmp/eso-values.yaml ../../../manifests/external-secrets/operator-values.yaml
 
-print_debug "Helm values.yamlを infra/external-secrets/operator-values.yaml にコピー"
+print_debug "Helm values.yamlを manifests/external-secrets/operator-values.yaml にコピー"
 
 # ArgoCD Application用のvalues参照版を作成
-cat > ../../infra/external-secrets/external-secrets-operator-app.yaml << 'EOF'
+cat > ../../../manifests/external-secrets/external-secrets-operator-app.yaml << 'EOF'
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -174,7 +174,7 @@ spec:
     chart: external-secrets
     helm:
       valueFiles:
-      - $values/infra/external-secrets/operator-values.yaml
+      - $values/manifests/external-secrets/operator-values.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: external-secrets-system
@@ -193,7 +193,7 @@ spec:
     - '.spec.conversion.webhook.clientConfig.caBundle'
 EOF
 
-print_debug "ArgoCD Application定義作成: infra/external-secrets/external-secrets-operator-app.yaml"
+print_debug "ArgoCD Application定義作成: manifests/external-secrets/external-secrets-operator-app.yaml"
 
 # Phase 7: 動作確認
 print_status "Phase 7: 動作確認"
@@ -224,9 +224,9 @@ ${YELLOW}現在の状態:${NC}
 ${YELLOW}ArgoCD移行手順:${NC}
 
 1. ${BLUE}ArgoCD Application作成${NC}:
-   ${BLUE}kubectl apply -f ../../infra/external-secrets/external-secrets-operator-app.yaml${NC}
+   ${BLUE}kubectl apply -f ../../../manifests/external-secrets/external-secrets-operator-app.yaml${NC}
 
-2. ${BLUE}App-of-Apps更新${NC} (infra/app-of-apps.yamlに追加):
+2. ${BLUE}App-of-Apps更新${NC} (manifests/app-of-apps.yamlに追加):
    ${BLUE}---
    apiVersion: argoproj.io/v1alpha1
    kind: Application
@@ -237,7 +237,7 @@ ${YELLOW}ArgoCD移行手順:${NC}
      source:
        repoURL: https://github.com/ksera524/k8s_myHome.git
        targetRevision: HEAD
-       path: infra/external-secrets
+       path: manifests/external-secrets
        directory:
          include: "external-secrets-operator-app.yaml"${NC}
 
