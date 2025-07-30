@@ -106,6 +106,9 @@ else
     print_debug "Runner名: $RUNNER_NAME"
     print_debug "対象リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
 
+    # マニフェストファイルをリモートにコピー
+    scp -o StrictHostKeyChecking=no "../../manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
+
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
 # ServiceAccount確認・作成
 if ! kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 2>&1; then
@@ -113,31 +116,7 @@ if ! kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 
     kubectl create serviceaccount github-actions-runner -n arc-systems
     
     # Secret読み取り権限付与
-    kubectl apply -f - <<RBAC
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: secret-reader
-  namespace: arc-systems
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: github-actions-secret-reader
-  namespace: arc-systems
-subjects:
-- kind: ServiceAccount
-  name: github-actions-runner
-  namespace: arc-systems
-roleRef:
-  kind: Role
-  name: secret-reader
-  apiGroup: rbac.authorization.k8s.io
-RBAC
+    kubectl apply -f /tmp/github-actions-rbac.yaml
 fi
 
 # Runner Scale Set作成

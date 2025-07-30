@@ -1,5 +1,6 @@
 # CLAUDE.md
 必ず日本語で応答し、コメントも日本語で書いて
+k8s manifestはmamifests配下に書くように
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 

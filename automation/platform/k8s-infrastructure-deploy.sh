@@ -42,7 +42,7 @@ scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/cert-manager-selfsigned-i
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/applications/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/harbor-storage.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
@@ -1016,35 +1016,7 @@ if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externals
     print_debug "✓ Slack ExternalSecretは既に存在します"
 else
     print_debug "Slack ExternalSecretを作成中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'cat > /tmp/slack-external.yaml << EOF
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: slack-externalsecret
-  namespace: sandbox
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: slack
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      engineVersion: v2
-      data:
-        webhook_url: "https://hooks.slack.com/services/DUMMY/DUMMY/DUMMY"
-        bot_token: "xoxb-dummy-token"
-        app_token: "xapp-dummy-token"
-        channel: "#general"
-        username: "bot"
-        token: "xoxb-dummy-token"
-  data:
-  - secretKey: dummy
-    remoteRef:
-      key: harbor
-EOF'
+    scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/applications/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
     
     if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/slack-externalsecret.yaml'; then
         print_error "Slack ExternalSecretの作成に失敗しました"
