@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rss-monitor-cronjob
+  namespace: sandbox
+spec:
+  schedule: "0 8 * * *"
+  concurrencyPolicy: "Forbid"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: rss-monitor
+        spec:
+          containers:
+            - name: rss-monitor
+              image: 192.168.122.100/sandbox/rss:latest
+              imagePullPolicy: Always
+              env:
+                - name: TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: slack3
+                      key: token
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: uri
+          imagePullSecrets:
+            - name: harbor
+          restartPolicy: OnFailure

@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pepup
+  namespace: sandbox
+spec:
+  schedule: "15 9 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: pepup
+              image: 192.168.122.100/sandbox/pepup:latest
+              imagePullPolicy: Always
+              env:
+                - name: USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: pepup
+                      key: username
+                - name: PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: pepup
+                      key: password
+                - name: TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: slack
+                      key: token
+                - name: EVENT_MODE
+                  value: "true"
+                - name: DATABASE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: username
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: password
+                - name: DATABASE_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: dbname
+                - name: DATABASE_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: host
+                - name: DATABASE_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: tidb
+                      key: port
+          imagePullSecrets:
+            - name: harbor
+          restartPolicy: Never

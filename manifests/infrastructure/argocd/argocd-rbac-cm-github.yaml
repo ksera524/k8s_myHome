@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # GitHub認証ユーザーへの権限設定
+  policy.default: role:readonly
+  policy.csv: |
+    # GitHub認証ユーザーに管理者権限を付与
+    g, your-github-org:your-team, role:admin
+    # 特定のGitHubユーザーに管理者権限を付与
+    g, your-github-username, role:admin
