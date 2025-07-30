@@ -30,7 +30,27 @@ spec:
           valueFrom:
             secretKeyRef:
               name: slack
-              key: token
+              key: bot_token
+        - name: SLACK_APP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: slack
+              key: app_token
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: slack
+              key: webhook_url
+        - name: SLACK_CHANNEL
+          valueFrom:
+            secretKeyRef:
+              name: slack
+              key: channel
+        - name: SLACK_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: slack
+              key: username
         - name: RUST_LOG
           value: "INFO"
         command: ["./slack"]
