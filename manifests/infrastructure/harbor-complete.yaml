@@ -170,7 +170,7 @@ spec:
   source:
     repoURL: 'https://github.com/ksera524/k8s_myHome.git'
     targetRevision: HEAD
-    path: manifests/infrastructure/harbor
+    path: manifests/infrastructure
     directory:
       include: 'harbor-ca-trust.yaml'
   destination:
