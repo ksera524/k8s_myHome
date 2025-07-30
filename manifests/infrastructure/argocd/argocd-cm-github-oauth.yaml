@@ -15,7 +15,7 @@ data:
       id: github
       name: GitHub
       config:
-        clientId: Ov23liNlA6VxUZT3jjOR
+        clientId: Ov23li8T6IFuiuLcoSJa
         clientSecret: $argocd-secret:dex.github.clientSecret
         orgs:
         - name: ksera524
