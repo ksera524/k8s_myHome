@@ -75,6 +75,11 @@ fi
 
 echo "✓ Harbor稼働確認完了"
 
+echo "0.5. Harbor PV用ディレクトリ事前作成（マウント問題対応）..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.11 'sudo mkdir -p /tmp/harbor-redis-new && sudo chmod 777 /tmp/harbor-redis-new' || true
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.11 'sudo mkdir -p /tmp/harbor-jobservice-real && sudo chmod 777 /tmp/harbor-jobservice-real' || true
+echo "✓ Harbor PVディレクトリ準備完了"
+
 echo "1. 既存のHarbor証明書を削除し、新しいIP SAN証明書を適用中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl delete certificate harbor-tls-cert -n harbor --ignore-not-found=true'
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl delete secret harbor-tls-secret -n harbor --ignore-not-found=true'
@@ -87,10 +92,21 @@ echo "2.1. 新しい証明書を適用するためHarborコンテナを再起動
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/harbor-core -n harbor'
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/harbor-portal -n harbor'
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/harbor-registry -n harbor'
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-core -n harbor --timeout=300s'
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/harbor-jobservice -n harbor'
+
+echo "2.2. Harbor deployments再起動完了を待機中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-core -n harbor --timeout=600s'
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-portal -n harbor --timeout=600s'
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-registry -n harbor --timeout=600s'
+
+echo "2.3. Harbor jobservice再起動は並行実行（PVマウント問題対応）..."
+JOBSERVICE_PID=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/harbor-jobservice -n harbor --timeout=600s' & echo $!)
+
+echo "2.4. Harbor jobservice再起動完了を待機中..."
+wait $JOBSERVICE_PID 2>/dev/null || echo "⚠️ Harbor jobservice再起動タイムアウト（続行）"
 
 echo "3. Harbor CA信頼DaemonSetを適用中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../manifests/infrastructure/harbor/harbor-ca-trust.yaml
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f -' < ../../manifests/infrastructure/harbor-ca-trust.yaml
 
 echo "4. Harbor CA信頼DaemonSetの準備完了を待機中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status daemonset/harbor-ca-trust -n kube-system --timeout=300s'
