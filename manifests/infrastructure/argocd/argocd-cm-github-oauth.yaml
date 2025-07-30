@@ -17,6 +17,4 @@ data:
       config:
         clientId: Ov23li8T6IFuiuLcoSJa
         clientSecret: $argocd-secret:dex.github.clientSecret
-        orgs:
-        - name: ksera524
         redirectURI: https://argocd.qroksera.com/api/dex/callback

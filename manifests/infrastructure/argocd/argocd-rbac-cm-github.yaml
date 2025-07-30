@@ -10,7 +10,5 @@ data:
   # GitHub認証ユーザーへの権限設定
   policy.default: role:readonly
   policy.csv: |
-    # GitHub認証ユーザーに管理者権限を付与
-    g, ksera524:admin, role:admin
     # 特定のGitHubユーザーに管理者権限を付与
     g, ksera524, role:admin
