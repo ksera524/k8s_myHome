@@ -15,8 +15,8 @@ data:
       id: github
       name: GitHub
       config:
-        clientId: $argocd-github-oauth:client-id
-        clientSecret: $argocd-github-oauth:client-secret
+        clientId: Ov23liNlA6VxUZT3jjOR
+        clientSecret: $argocd-secret:dex.github.clientSecret
         orgs:
-        - name: your-github-org
+        - name: ksera524
         redirectURI: https://argocd.qroksera.com/api/dex/callback
