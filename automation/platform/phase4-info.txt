@@ -10,7 +10,7 @@
 
 ArgoCD App of Apps デプロイ済み:
 - リポジトリ: https://github.com/ksera524/k8s_myHome.git
-- 管理対象: infra/*.yaml
+- 管理対象: manifests/*.yaml
 
 Harbor Secret管理:
 - harbor-admin-secret (harbor namespace)
