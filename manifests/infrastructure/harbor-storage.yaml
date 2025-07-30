@@ -89,7 +89,29 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: harbor-jobservice-pv
+  name: data-harbor-redis-0-new-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /tmp/harbor-redis-new
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - k8s-worker1
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: harbor-jobservice-real-pv
 spec:
   capacity:
     storage: 1Gi
