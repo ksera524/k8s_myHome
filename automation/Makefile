@@ -55,6 +55,7 @@ all: check-automation-readiness host-setup infrastructure platform
 	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
 	@sleep 10  # ArgoCD同期待機
 	@echo "$(YELLOW)☁️ Cloudflaredアプリケーション確認・作成中...$(NC)"
+	@echo "🔍 Cloudflaredアプリケーション存在確認中..."
 	@if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application cloudflared -n argocd' >/dev/null 2>&1; then \
 		echo "📝 Cloudflaredアプリケーションを作成中..."; \
 		echo 'apiVersion: argoproj.io/v1alpha1' > /tmp/cloudflared-app.yaml; \
