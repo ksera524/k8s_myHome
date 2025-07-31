@@ -52,9 +52,35 @@ all: check-automation-readiness host-setup infrastructure platform
 	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
 	@sleep 15  # GitOps同期待機延長
 	@echo "$(YELLOW)🔄 External Secrets設定強制同期中...$(NC)"
-	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application external-secrets-config -n argocd --type merge -p '\''{"operation":{"initiatedBy":{"username":"admin"},"sync":{"syncStrategy":{"hook":{},"apply":{"force":true}}}}}'\''' || true
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
 	@sleep 10  # ArgoCD同期待機
-	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh
+	@echo "$(YELLOW)☁️ Cloudflaredアプリケーション確認・作成中...$(NC)"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'if ! kubectl get application cloudflared -n argocd >/dev/null 2>&1; then kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/applications/cloudflared
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+EOF
+echo "✅ Cloudflaredアプリケーション作成完了"; else echo "✅ Cloudflaredアプリケーションは既に存在しています"; fi' || echo "⚠️ Cloudflaredアプリケーション作成に失敗しました"
+	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
 	@$(MAKE) status
@@ -93,7 +119,7 @@ platform:
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
 	@$(MAKE) wait-for-external-secrets
 	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
-	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh
+	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
 
 # 後方互換性用（非推奨）
@@ -243,6 +269,7 @@ wait-for-external-secrets:
 	github_secret_ready=false; \
 	slack_secret_ready=false; \
 	argocd_oauth_ready=false; \
+	cloudflared_secret_ready=false; \
 	while [ $$timeout -gt 0 ]; do \
 		# GitHub External Secret確認 \
 		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
@@ -268,11 +295,19 @@ wait-for-external-secrets:
 				slack_secret_ready=true; \
 			fi; \
 		fi; \
+		# Cloudflared External Secret確認 \
+		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared' >/dev/null 2>&1; then \
+			cloudflared_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			if [ "$$cloudflared_ready" = "True" ]; then \
+				echo "$(GREEN)✅ Cloudflared External Secret準備完了$(NC)"; \
+				cloudflared_secret_ready=true; \
+			fi; \
+		fi; \
 		# 全て準備完了なら終了 \
-		if [ "$$github_secret_ready" = "true" ] && [ "$$slack_secret_ready" = "true" ] && [ "$$argocd_oauth_ready" = "true" ]; then \
+		if [ "$$github_secret_ready" = "true" ] && [ "$$slack_secret_ready" = "true" ] && [ "$$argocd_oauth_ready" = "true" ] && [ "$$cloudflared_secret_ready" = "true" ]; then \
 			break; \
 		fi; \
-		echo "External Secret待機中... GitHub:$$github_secret_ready Slack:$$slack_secret_ready ArgoCD:$$argocd_oauth_ready (残り $$timeout 秒)"; \
+		echo "External Secret待機中... GitHub:$$github_secret_ready Slack:$$slack_secret_ready ArgoCD:$$argocd_oauth_ready Cloudflared:$$cloudflared_secret_ready (残り $$timeout 秒)"; \
 		sleep 10; \
 		timeout=$$((timeout - 10)); \
 	done; \
@@ -284,6 +319,9 @@ wait-for-external-secrets:
 	fi; \
 	if [ "$$argocd_oauth_ready" = "false" ]; then \
 		echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth External Secret準備がタイムアウトしました（ポストデプロイメントで再試行します）$(NC)"; \
+	fi; \
+	if [ "$$cloudflared_secret_ready" = "false" ]; then \
+		echo "$(YELLOW)⚠️ Cloudflared External Secret準備がタイムアウトしました（手動で同期確認してください）$(NC)"; \
 	fi
 
 # 全システムクリーンアップ
