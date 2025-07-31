@@ -548,13 +548,9 @@ if [[ -n "$HARBOR_AUTH_SECRET" ]]; then
         print_warning "Harbor Secret不完全、修正中..."
         ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 # Harbor認証Secret完全版作成/更新
-kubectl create secret generic harbor-auth \
-    --from-literal=HARBOR_USERNAME="admin" \
-    --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD:-Harbor12345}" \
-    --from-literal=HARBOR_URL="192.168.122.100" \
-    --from-literal=HARBOR_PROJECT="sandbox" \
-    --namespace=arc-systems \
-    --dry-run=client -o yaml | kubectl apply -f -
+# Harbor Auth Secret - 既にESO (External Secrets Operator) で管理されています
+echo "⏳ ESOからのHarbor Auth Secret作成を待機中..."
+kubectl wait --for=condition=Ready externalsecret/harbor-auth-secret -n arc-systems --timeout=60s || echo "⚠️  Harbor Auth ExternalSecret待機がタイムアウトしました"
 echo "✓ Harbor Secret修正完了"
 EOF
     fi
@@ -579,11 +575,9 @@ echo "✓ Harbor PersistentVolume作成完了"
 # Harbor管理者パスワードSecret作成/更新
 # External Secrets 使用時はスキップ（既にExternal Secretsで管理されている）
 if [ "$EXTERNAL_SECRETS_ENABLED" != "true" ]; then
-    kubectl create secret generic harbor-admin-secret \
-        --from-literal=username="$HARBOR_USERNAME" \
-        --from-literal=password="$HARBOR_PASSWORD" \
-        --namespace=harbor \
-        --dry-run=client -o yaml | kubectl apply -f -
+    # Harbor Admin Secret - 既にESO (External Secrets Operator) で管理されています
+echo "⏳ ESOからのHarbor Admin Secret作成を待機中..."
+kubectl wait --for=condition=Ready externalsecret/harbor-admin-secret -n harbor --timeout=60s || echo "⚠️  Harbor Admin ExternalSecret待機がタイムアウトしました"
     echo "✓ Harbor管理者パスワードSecret作成（手動管理モード）"
 else
     echo "✓ Harbor管理者パスワードSecret管理（External Secrets使用）"
@@ -593,22 +587,14 @@ fi
 kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
 
 # Harbor認証Secret（GitHub Actions用）作成/更新
-kubectl create secret generic harbor-auth \
-    --from-literal=HARBOR_USERNAME="$HARBOR_USERNAME" \
-    --from-literal=HARBOR_PASSWORD="$HARBOR_PASSWORD" \
-    --from-literal=HARBOR_URL="192.168.122.100" \
-    --from-literal=HARBOR_PROJECT="sandbox" \
-    --namespace=arc-systems \
-    --dry-run=client -o yaml | kubectl apply -f -
+# Harbor Auth Secret - 既にESO (External Secrets Operator) で管理されています
+echo "⏳ ESOからのHarbor Auth Secret作成を待機中..."
+kubectl wait --for=condition=Ready externalsecret/harbor-auth-secret -n arc-systems --timeout=60s || echo "⚠️  Harbor Auth ExternalSecret待機がタイムアウトしました"
     
 # default namespace用も作成
-kubectl create secret generic harbor-auth \
-    --from-literal=HARBOR_USERNAME="$HARBOR_USERNAME" \
-    --from-literal=HARBOR_PASSWORD="$HARBOR_PASSWORD" \
-    --from-literal=HARBOR_URL="192.168.122.100" \
-    --from-literal=HARBOR_PROJECT="sandbox" \
-    --namespace=default \
-    --dry-run=client -o yaml | kubectl apply -f -
+# Harbor Auth Secret - 既にESO (External Secrets Operator) で管理されています
+echo "⏳ ESOからのHarbor Auth Secret作成を待機中..."
+kubectl wait --for=condition=Ready externalsecret/harbor-auth-secret -n arc-systems --timeout=60s || echo "⚠️  Harbor Auth ExternalSecret待機がタイムアウトしました"
 
 echo "✓ Harbor Secret手動作成完了"
 EOF
