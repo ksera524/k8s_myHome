@@ -55,31 +55,37 @@ all: check-automation-readiness host-setup infrastructure platform
 	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
 	@sleep 10  # ArgoCD同期待機
 	@echo "$(YELLOW)☁️ Cloudflaredアプリケーション確認・作成中...$(NC)"
-	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'if ! kubectl get application cloudflared -n argocd >/dev/null 2>&1; then kubectl apply -f - <<EOF
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: cloudflared
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: HEAD
-    path: manifests/applications/cloudflared
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: cloudflared
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-EOF
-echo "✅ Cloudflaredアプリケーション作成完了"; else echo "✅ Cloudflaredアプリケーションは既に存在しています"; fi' || echo "⚠️ Cloudflaredアプリケーション作成に失敗しました"
+	@if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application cloudflared -n argocd' >/dev/null 2>&1; then \
+		echo "📝 Cloudflaredアプリケーションを作成中..."; \
+		echo 'apiVersion: argoproj.io/v1alpha1' > /tmp/cloudflared-app.yaml; \
+		echo 'kind: Application' >> /tmp/cloudflared-app.yaml; \
+		echo 'metadata:' >> /tmp/cloudflared-app.yaml; \
+		echo '  name: cloudflared' >> /tmp/cloudflared-app.yaml; \
+		echo '  namespace: argocd' >> /tmp/cloudflared-app.yaml; \
+		echo '  finalizers:' >> /tmp/cloudflared-app.yaml; \
+		echo '    - resources-finalizer.argocd.argoproj.io' >> /tmp/cloudflared-app.yaml; \
+		echo 'spec:' >> /tmp/cloudflared-app.yaml; \
+		echo '  project: default' >> /tmp/cloudflared-app.yaml; \
+		echo '  source:' >> /tmp/cloudflared-app.yaml; \
+		echo '    repoURL: https://github.com/ksera524/k8s_myHome.git' >> /tmp/cloudflared-app.yaml; \
+		echo '    targetRevision: HEAD' >> /tmp/cloudflared-app.yaml; \
+		echo '    path: manifests/applications/cloudflared' >> /tmp/cloudflared-app.yaml; \
+		echo '  destination:' >> /tmp/cloudflared-app.yaml; \
+		echo '    server: https://kubernetes.default.svc' >> /tmp/cloudflared-app.yaml; \
+		echo '    namespace: cloudflared' >> /tmp/cloudflared-app.yaml; \
+		echo '  syncPolicy:' >> /tmp/cloudflared-app.yaml; \
+		echo '    automated:' >> /tmp/cloudflared-app.yaml; \
+		echo '      prune: true' >> /tmp/cloudflared-app.yaml; \
+		echo '      selfHeal: true' >> /tmp/cloudflared-app.yaml; \
+		echo '    syncOptions:' >> /tmp/cloudflared-app.yaml; \
+		echo '      - CreateNamespace=true' >> /tmp/cloudflared-app.yaml; \
+		scp /tmp/cloudflared-app.yaml k8suser@192.168.122.10:/tmp/; \
+		ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/cloudflared-app.yaml'; \
+		rm -f /tmp/cloudflared-app.yaml; \
+		echo "$(GREEN)✅ Cloudflaredアプリケーション作成完了$(NC)"; \
+	else \
+		echo "$(GREEN)✅ Cloudflaredアプリケーションは既に存在しています$(NC)"; \
+	fi
 	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
