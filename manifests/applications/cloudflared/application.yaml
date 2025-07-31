@@ -13,7 +13,7 @@ spec:
     path: manifests/applications/cloudflared
   destination:
     server: https://kubernetes.default.svc
-    namespace: sandbox
+    namespace: cloudflared
   syncPolicy:
     automated:
       prune: true
