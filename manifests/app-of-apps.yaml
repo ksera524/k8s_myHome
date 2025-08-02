@@ -20,6 +20,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ReplaceResource=false
 ---
 # External Secrets Operator and Config
 apiVersion: argoproj.io/v1alpha1
