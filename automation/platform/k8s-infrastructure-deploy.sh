@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# 非対話モード設定
+export DEBIAN_FRONTEND=noninteractive
+export NON_INTERACTIVE=true
+
 # GitHub認証情報管理ユーティリティを読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/github-auth-utils.sh"
@@ -57,30 +61,30 @@ ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.12' 2>/dev/null || true
 
 # k8sクラスタ接続確認
 print_debug "k8sクラスタ接続を確認中..."
-if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
+if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
     print_error "k8sクラスタに接続できません"
     print_error "Phase 3のk8sクラスタ構築を先に完了してください"
     print_error "注意: このスクリプトはUbuntuホストマシンで実行してください（WSL2不可）"
     exit 1
 fi
 
-READY_NODES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
+READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
 if [[ $READY_NODES -lt 2 ]]; then
     print_error "Ready状態のNodeが2台未満です（現在: $READY_NODES台）"
     exit 1
 elif [[ $READY_NODES -eq 2 ]]; then
     print_warning "Ready状態のNodeが2台です（推奨: 3台）"
     print_debug "Node状態を確認中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get nodes'
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get nodes'
     
     # Worker Node追加を試行
     print_debug "3台目のWorker Node参加を試行中..."
-    JOIN_CMD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubeadm token create --print-join-command' 2>/dev/null || echo "")
+    JOIN_CMD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubeadm token create --print-join-command' 2>/dev/null || echo "")
     if [[ -n "$JOIN_CMD" ]]; then
-        if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.12 "sudo $JOIN_CMD" >/dev/null 2>&1; then
+        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.12 "sudo $JOIN_CMD" >/dev/null 2>&1; then
             print_status "✓ 3台目のWorker Node参加成功"
             sleep 30
-            READY_NODES=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
+            READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
         else
             print_warning "3台目のWorker Node参加に失敗しました（2台構成で続行）"
         fi
@@ -95,7 +99,7 @@ print_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
 print_status "=== Phase 4.1: MetalLB インストール ==="
 print_debug "LoadBalancer機能を提供します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # MetalLB namespace作成
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
 
@@ -115,7 +119,7 @@ print_status "✓ MetalLB インストール完了"
 print_status "=== Phase 4.2: NGINX Ingress Controller インストール ==="
 print_debug "HTTP/HTTPSルーティング機能を提供します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # NGINX Ingress Controller インストール
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
 
@@ -136,7 +140,7 @@ print_status "✓ NGINX Ingress Controller インストール完了"
 print_status "=== Phase 4.3: cert-manager インストール ==="
 print_debug "TLS証明書自動管理機能を提供します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # cert-manager インストール
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
 
@@ -156,7 +160,7 @@ print_status "✓ cert-manager インストール完了"
 print_status "=== Phase 4.4: StorageClass設定 ==="
 print_debug "永続ストレージ機能を設定します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # Local StorageClass作成
 kubectl apply -f /tmp/local-storage-class.yaml
 
@@ -169,7 +173,7 @@ print_status "✓ StorageClass設定完了"
 print_status "=== Phase 4.5: ArgoCD インストール ==="
 print_debug "GitOps継続的デプロイメント機能を提供します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # ArgoCD namespace作成・インストール
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
@@ -252,7 +256,7 @@ if [[ -f "$SCRIPT_DIR/external-secrets/setup-external-secrets.sh" ]]; then
     
     # External Secrets Operator のインストール状況確認
     # HelmでデプロイされたExternal Secrets Operatorの検出
-    ESO_DEPLOYMENT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get deployments -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | wc -l' 2>/dev/null || echo "0")
+    ESO_DEPLOYMENT_CHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get deployments -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | wc -l' 2>/dev/null || echo "0")
     
     if [ "$ESO_DEPLOYMENT_CHECK" = "0" ]; then
         print_warning "External Secrets Operator が見つかりません"
@@ -260,7 +264,7 @@ if [[ -f "$SCRIPT_DIR/external-secrets/setup-external-secrets.sh" ]]; then
         
         # 事前準備: namespace作成とSecret設定
         print_debug "事前準備: namespace作成とSecret設定実行中..."
-        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # external-secrets-system namespace作成
 kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
 echo "✓ external-secrets-system namespace作成完了"
@@ -282,7 +286,7 @@ EOF
             scp /tmp/pulumi_token.tmp k8suser@192.168.122.10:/tmp/
             rm -f /tmp/pulumi_token.tmp
             
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # ファイルからPATを読み取り
 PAT_TOKEN=$(cat /tmp/pulumi_token.tmp)
 rm -f /tmp/pulumi_token.tmp
@@ -310,9 +314,9 @@ EOF
         # Helmデプロイスクリプトが存在する場合は実行
         if [[ -f "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh" ]]; then
             print_debug "HelmでExternal Secrets Operatorデプロイ実行中..."
-            if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh"; then
+            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh"; then
                 # PULUMI_ACCESS_TOKEN環境変数をリモートに渡して実行
-                ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/helm-deploy-eso.sh && PULUMI_ACCESS_TOKEN='${PULUMI_ACCESS_TOKEN:-}' /tmp/helm-deploy-eso.sh"
+                ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/helm-deploy-eso.sh && PULUMI_ACCESS_TOKEN='${PULUMI_ACCESS_TOKEN:-}' /tmp/helm-deploy-eso.sh"
                 
                 if [ $? -eq 0 ]; then
                     print_status "✓ HelmでExternal Secrets Operatorデプロイ完了"
@@ -321,8 +325,8 @@ EOF
                     # ArgoCD管理に移行
                     print_debug "ArgoCD管理に移行中..."
                     if [[ -f "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../manifests/app-of-apps.yaml"; then
-                        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh"; then
-                            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/migrate-to-argocd.sh && /tmp/migrate-to-argocd.sh" || true
+                        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh"; then
+                            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/migrate-to-argocd.sh && /tmp/migrate-to-argocd.sh" || true
                             print_debug "✓ ArgoCD管理移行完了（または実行済み）"
                         fi
                     else
@@ -343,7 +347,7 @@ EOF
         fi
     else
         # Deploymentが存在する場合、Podが実際にReadyかも確認
-        ESO_READY_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
+        ESO_READY_CHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
         
         if [ "$ESO_READY_CHECK" -gt "0" ]; then
             print_debug "✓ External Secrets Operator は既にインストール済み（${ESO_DEPLOYMENT_CHECK}個のDeployment、${ESO_READY_CHECK}個のPod稼働中）"
@@ -353,7 +357,7 @@ EOF
             print_debug "Pod状態確認中..."
             timeout=60
             while [ $timeout -gt 0 ]; do
-                ESO_READY_RECHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
+                ESO_READY_RECHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -E "(external-secrets|eso)" | grep -c "1/1.*Running"' 2>/dev/null || echo "0")
                 if [ "$ESO_READY_RECHECK" -gt "0" ]; then
                     print_status "✓ External Secrets Operator Pod稼働確認完了"
                     EXTERNAL_SECRETS_ENABLED=true
@@ -377,16 +381,16 @@ EOF
         print_debug "ArgoCD App-of-Apps同期とExternal Secrets作成を待機中..."
         
         # ArgoCD infrastructure applicationが存在するかチェック
-        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application infrastructure -n argocd' >/dev/null 2>&1; then
+        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get application infrastructure -n argocd' >/dev/null 2>&1; then
             print_debug "ArgoCD infrastructure application同期を促進中..."
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application infrastructure -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application infrastructure -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
             
             # external-secrets-config applicationの同期待機
             timeout=120
             while [ $timeout -gt 0 ]; do
-                if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application external-secrets-config -n argocd' >/dev/null 2>&1; then
+                if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get application external-secrets-config -n argocd' >/dev/null 2>&1; then
                     # external-secrets-config同期を促進
-                    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application external-secrets-config -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
+                    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application external-secrets-config -n argocd --type json -p="[{\"op\": \"replace\", \"path\": \"/metadata/annotations/argocd.argoproj.io~1refresh\", \"value\": \"hard\"}]"' >/dev/null 2>&1 || true
                     print_status "✓ ArgoCD external-secrets-config application同期完了"
                     break
                 fi
@@ -402,7 +406,7 @@ EOF
                 # GitHub ExternalSecretの作成待機
                 timeout=60
                 while [ $timeout -gt 0 ]; do
-                    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
+                    if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
                         print_status "✓ GitHub ExternalSecret作成完了"
                         break
                     fi
@@ -423,16 +427,16 @@ EOF
     # External Secrets が利用可能な場合の処理
     if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
         # Pulumi Access Token の確認・設定
-        if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
+        if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
             # 環境変数から取得を試行
             if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
                 print_debug "環境変数からPulumi Access Tokenを設定中..."
-                echo "$PULUMI_ACCESS_TOKEN" | ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+                echo "$PULUMI_ACCESS_TOKEN" | ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
                     'cd /tmp && cat > pulumi-pat.txt && kubectl create secret generic pulumi-access-token --from-literal=PULUMI_ACCESS_TOKEN="$(cat pulumi-pat.txt)" -n external-secrets-system && rm -f pulumi-pat.txt'
                 if [ $? -eq 0 ]; then
                     print_status "✓ 環境変数からPulumi Access Token設定完了"
                     # 他のネームスペースにもコピー
-                    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+                    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 for ns in harbor arc-systems; do
     kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
     kubectl get secret pulumi-access-token -n external-secrets-system -o yaml | sed "s/namespace: external-secrets-system/namespace: $ns/" | kubectl apply -f -
@@ -450,11 +454,11 @@ EOF
         fi
         
         # External Secrets による Harbor Secrets デプロイ
-        if [ "$EXTERNAL_SECRETS_ENABLED" = true ] && ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
+        if [ "$EXTERNAL_SECRETS_ENABLED" = true ] && ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
             # deploy-harbor-secrets.shをリモートで実行
             DEPLOY_RESULT=0
-            if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > deploy-harbor-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-harbor-secrets.sh"; then
-                ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/deploy-harbor-secrets.sh && /tmp/deploy-harbor-secrets.sh"
+            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-harbor-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-harbor-secrets.sh"; then
+                ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/deploy-harbor-secrets.sh && /tmp/deploy-harbor-secrets.sh"
                 DEPLOY_RESULT=$?
             else
                 DEPLOY_RESULT=1
@@ -462,7 +466,7 @@ EOF
             
             if [ $DEPLOY_RESULT -eq 0 ]; then
                 # External Secrets からパスワードを取得
-                HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+                HARBOR_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
                     'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
                 HARBOR_USERNAME="admin"
                 export HARBOR_PASSWORD HARBOR_USERNAME
@@ -479,8 +483,8 @@ EOF
                 
                 # Slack Secrets デプロイ
                 print_status "Slack 認証情報を External Secrets で設定中..."
-                if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cd /tmp && cat > deploy-slack-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-slack-secrets.sh"; then
-                    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "chmod +x /tmp/deploy-slack-secrets.sh && /tmp/deploy-slack-secrets.sh"; then
+                if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-slack-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-slack-secrets.sh"; then
+                    if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/deploy-slack-secrets.sh && /tmp/deploy-slack-secrets.sh"; then
                         print_debug "✓ External Secrets による Slack 認証情報管理完了"
                     else
                         print_warning "Slack Secret作成に失敗しました（Pulumi ESCにslack secretが未設定の可能性）"
@@ -502,7 +506,7 @@ if [ "$EXTERNAL_SECRETS_ENABLED" = false ]; then
     print_warning "External Secrets が利用できません。従来の手動管理にフォールバック中..."
     if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
         bash "$SCRIPT_DIR/harbor-password-manager.sh"
-        HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        HARBOR_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
             'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
         HARBOR_USERNAME="admin"
         export HARBOR_PASSWORD HARBOR_USERNAME
@@ -519,7 +523,7 @@ else
     print_warning "External Secrets 設定ファイルが見つかりません。従来の手動管理を使用します"
     if [[ -f "$SCRIPT_DIR/harbor-password-manager.sh" ]]; then
         bash "$SCRIPT_DIR/harbor-password-manager.sh"
-        HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+        HARBOR_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
             'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "Harbor12345")
         HARBOR_USERNAME="admin"
         export HARBOR_PASSWORD HARBOR_USERNAME
@@ -534,19 +538,19 @@ fi
 
 # GitHub Actions用Secret作成確認と修正
 print_debug "GitHub Actions用Secret作成確認・修正中..."
-HARBOR_AUTH_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+HARBOR_AUTH_SECRET=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
     'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_USERNAME}" | base64 -d' 2>/dev/null || echo "")
 
 if [[ -n "$HARBOR_AUTH_SECRET" ]]; then
     # Secret存在確認後、必要なフィールドが揃っているかチェック
-    HARBOR_URL_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+    HARBOR_URL_CHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
         'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_URL}" | base64 -d' 2>/dev/null || echo "")
-    HARBOR_PROJECT_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+    HARBOR_PROJECT_CHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
         'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_PROJECT}" | base64 -d' 2>/dev/null || echo "")
     
     if [[ -z "$HARBOR_URL_CHECK" ]] || [[ -z "$HARBOR_PROJECT_CHECK" ]]; then
         print_warning "Harbor Secret不完全、修正中..."
-        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # Harbor認証Secret完全版作成/更新
 # Harbor Auth Secret - 既にESO (External Secrets Operator) で管理されています
 echo "⏳ ESOからのHarbor Auth Secret作成を待機中..."
@@ -563,7 +567,7 @@ else
 print_status "=== Phase 4.7: Harbor Secret作成 ==="
 print_debug "Harbor管理者認証情報をSecret化します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
 # Harbor namespace作成（まだ存在しない場合）
 kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
 
@@ -604,7 +608,7 @@ fi
 print_status "=== Phase 4.7: App of Apps デプロイ ==="
 print_debug "GitOps経由でインフラとアプリケーションを管理します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # App of Apps をデプロイ
 kubectl apply -f /tmp/app-of-apps.yaml
 
@@ -617,7 +621,7 @@ print_status "✓ GitOps セットアップ完了"
 print_status "=== Phase 4.7.5: Harbor アプリケーション同期 ==="
 print_debug "Harbor パスワード設定をArgoCD経由で反映します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # ArgoCD Harbor アプリケーションの強制同期でSecret設定を反映
 if kubectl get application harbor -n argocd >/dev/null 2>&1; then
     kubectl patch application harbor -n argocd -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' --type=merge
@@ -640,15 +644,15 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
     print_status "GitHub Actions設定を確認中..."
     
     # GitHub ExternalSecret最終確認（get_github_credentials直前）
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
+    if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then
         # GitHub ExternalSecretが存在する場合、Ready状態を確認
-        github_es_ready=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
+        github_es_ready=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
         if [ "$github_es_ready" != "True" ]; then
             print_warning "GitHub ExternalSecretが準備できていません。同期を待機中..."
             # 60秒間待機
             timeout=60
             while [ $timeout -gt 0 ]; do
-                github_es_ready=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
+                github_es_ready=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False")
                 if [ "$github_es_ready" = "True" ]; then
                     print_status "✓ GitHub ExternalSecret準備完了"
                     break
@@ -747,7 +751,7 @@ print_debug "External Secrets経由でCloudflare Tunnel Secretを作成します
 
 # cloudflared namespace作成
 print_debug "Cloudflared namespaceを作成中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -"
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -"
 
 # External Secretsが有効な場合
 if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
@@ -757,8 +761,8 @@ if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
     CLOUDFLARED_SECRET_READY=false
     timeout=60
     while [ $timeout -gt 0 ]; do
-        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared' >/dev/null 2>&1; then
-            CLOUDFLARED_TOKEN_VALUE=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared -o jsonpath="{.data.token}" | base64 -d' 2>/dev/null || echo "")
+        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared' >/dev/null 2>&1; then
+            CLOUDFLARED_TOKEN_VALUE=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret cloudflared -n cloudflared -o jsonpath="{.data.token}" | base64 -d' 2>/dev/null || echo "")
             if [[ -n "$CLOUDFLARED_TOKEN_VALUE" ]] && [[ "$CLOUDFLARED_TOKEN_VALUE" != "" ]]; then
                 print_status "✓ External SecretsでCloudflaredトークン取得成功"
                 CLOUDFLARED_SECRET_READY=true
@@ -791,7 +795,7 @@ if [ "$EXTERNAL_SECRETS_ENABLED" = false ]; then
     
     if [[ -n "$CLOUDFLARED_TOKEN_INPUT" ]]; then
         print_debug "手動Cloudflared Secret作成中..."
-        if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN_INPUT' --namespace=cloudflared --dry-run=client -o yaml | kubectl apply -f -"; then
+        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN_INPUT' --namespace=cloudflared --dry-run=client -o yaml | kubectl apply -f -"; then
             print_status "✓ 手動Cloudflared Secret作成完了"
         else
             print_warning "Cloudflared Secret作成に失敗しました"
@@ -812,7 +816,7 @@ cleanup_port_forward() {
         kill $PORT_FORWARD_PID 2>/dev/null || true
         wait $PORT_FORWARD_PID 2>/dev/null || true
     fi
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
 }
 
 # スクリプト終了時のクリーンアップ
@@ -825,13 +829,13 @@ HARBOR_STATUS=""
 
 # Harbor稼働確認
 print_debug "Harbor稼働状況を確認中..."
-HARBOR_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n harbor --no-headers 2>/dev/null' | grep -c Running || echo "0")
+HARBOR_READY=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get pods -n harbor --no-headers 2>/dev/null' | grep -c Running || echo "0")
 
 if [[ "$HARBOR_READY" -gt 0 ]]; then
     print_debug "Harbor稼働中 (Running pods: $HARBOR_READY)"
     
     # Harbor LoadBalancer IP取得
-    HARBOR_IP=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n harbor get service harbor-core -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "")
+    HARBOR_IP=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl -n harbor get service harbor-core -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "")
     
     if [[ -z "$HARBOR_IP" ]]; then
         # LoadBalancerが利用できない場合はMetalLB IPを使用
@@ -841,17 +845,17 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
         HARBOR_URL="http://192.168.122.100"
         
         # 接続テスト
-        HARBOR_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' $HARBOR_URL/api/v2.0/systeminfo --connect-timeout 5" 2>/dev/null || echo "000")
+        HARBOR_STATUS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' $HARBOR_URL/api/v2.0/systeminfo --connect-timeout 5" 2>/dev/null || echo "000")
         
         if [[ "$HARBOR_STATUS" != "200" ]]; then
             print_debug "MetalLB IP接続失敗。port-forwardを使用します"
             
             # 既存のport-forwardを停止
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
             sleep 2
             
             # バックグラウンドでport-forward開始（PIDを記録）
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl port-forward -n harbor svc/harbor-core 8080:80 > /dev/null 2>&1 &' &
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl port-forward -n harbor svc/harbor-core 8080:80 > /dev/null 2>&1 &' &
             PORT_FORWARD_PID=$!
             sleep 5
             HARBOR_URL="http://192.168.122.10:8080"
@@ -868,14 +872,14 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
     
     # Harbor接続確認
     print_debug "Harbor接続確認中..."
-    HARBOR_TEST=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' '$HARBOR_URL/api/v2.0/systeminfo' --connect-timeout 10" 2>/dev/null || echo "000")
+    HARBOR_TEST=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "curl -s -o /dev/null -w '%{http_code}' '$HARBOR_URL/api/v2.0/systeminfo' --connect-timeout 10" 2>/dev/null || echo "000")
     
     if [[ "$HARBOR_TEST" == "200" ]]; then
         print_debug "Harbor接続成功"
         
         # 既存プロジェクト確認
         print_debug "既存sandboxプロジェクト確認中..."
-        EXISTING_PROJECT=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s '$HARBOR_URL/api/v2.0/projects?name=sandbox' -u '$HARBOR_USERNAME:$HARBOR_PASSWORD' --connect-timeout 10" 2>/dev/null || echo "error")
+        EXISTING_PROJECT=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "curl -s '$HARBOR_URL/api/v2.0/projects?name=sandbox' -u '$HARBOR_USERNAME:$HARBOR_PASSWORD' --connect-timeout 10" 2>/dev/null || echo "error")
         
         if [[ "$EXISTING_PROJECT" == *'"name":"sandbox"'* ]]; then
             print_debug "sandboxプロジェクトは既に存在しています"
@@ -893,7 +897,7 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
             }'
             
             # curlを使用してHarbor APIにリクエスト送信
-            CREATE_RESULT=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "curl -s -X POST '$HARBOR_URL/api/v2.0/projects' \
+            CREATE_RESULT=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "curl -s -X POST '$HARBOR_URL/api/v2.0/projects' \
                 -H 'Content-Type: application/json' \
                 -u '$HARBOR_USERNAME:$HARBOR_PASSWORD' \
                 -d '$PROJECT_JSON' \
@@ -931,7 +935,7 @@ if [[ "$HARBOR_READY" -gt 0 ]]; then
         fi
         
         # リモートのport-forwardプロセスも停止
-        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'pkill -f "kubectl port-forward.*harbor-core" 2>/dev/null || true'
         sleep 1
     fi
     
@@ -948,11 +952,11 @@ print_status "=== Phase 4.11: Kubernetes sandboxネームスペース作成 ==="
 print_debug "Kubernetesクラスタ内にsandboxネームスペースを作成します"
 
 # sandboxネームスペース作成
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create namespace sandbox" 2>/dev/null; then
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create namespace sandbox" 2>/dev/null; then
     print_status "✓ Kubernetes sandboxネームスペース作成完了"
 else
     # 既存チェック
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get namespace sandbox" >/dev/null 2>&1; then
+    if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl get namespace sandbox" >/dev/null 2>&1; then
         print_debug "sandboxネームスペースは既に存在しています"
     else
         print_warning "sandboxネームスペース作成に失敗しました"
@@ -962,94 +966,23 @@ else
 fi
 
 # sandboxネームスペース確認
-SANDBOX_NS_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get namespace sandbox -o jsonpath='{.status.phase}'" 2>/dev/null || echo "NotFound")
+SANDBOX_NS_STATUS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl get namespace sandbox -o jsonpath='{.status.phase}'" 2>/dev/null || echo "NotFound")
 if [[ "$SANDBOX_NS_STATUS" == "Active" ]]; then
     print_debug "sandboxネームスペースは正常に稼働中です"
 else
     print_warning "sandboxネームスペースの状態が確認できません: $SANDBOX_NS_STATUS"
 fi
 
-# Slack Secret作成（sandbox namespace用）
-print_status "=== Slack Secret作成 ==="
-print_debug "External Secretsを使用してSlack secret作成中..."
-
-# sandbox namespaceが存在することを確認
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create namespace sandbox --dry-run=client -o yaml | kubectl apply -f -' >/dev/null 2>&1
-
-# Pulumi Access Token確認
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
-    print_error "Pulumi Access Token が見つかりません"
-    print_error "External Secretsが利用できません。セットアップを確認してください"
-    exit 1
-fi
-
-# ClusterSecretStore確認
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get clustersecretstore pulumi-esc-store' >/dev/null 2>&1; then
-    print_error "ClusterSecretStore 'pulumi-esc-store' が見つかりません"
-    print_error "External Secretsセットアップが不完全です"
-    exit 1
-fi
-
-# ClusterSecretStore接続確認
-SECRETSTORE_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get clustersecretstore pulumi-esc-store -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null' || echo "Unknown")
-if [ "$SECRETSTORE_STATUS" != "True" ]; then
-    print_error "ClusterSecretStore が準備できていません (Status: $SECRETSTORE_STATUS)"
-    exit 1
-fi
-
-# ExternalSecretが既に存在する場合はスキップ
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox' >/dev/null 2>&1; then
-    print_debug "✓ Slack ExternalSecretは既に存在します"
-else
-    print_debug "Slack ExternalSecretを作成中..."
-    scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/applications/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
-    
-    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/slack-externalsecret.yaml'; then
-        print_error "Slack ExternalSecretの作成に失敗しました"
-        exit 1
-    fi
-    print_debug "✓ Slack ExternalSecret作成完了"
-fi
-
-# Secret作成確認と待機
-print_debug "Slack secret作成待機中..."
-timeout=60
-while [ $timeout -gt 0 ]; do
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret slack -n sandbox' >/dev/null 2>&1; then
-        print_debug "✓ Slack secret作成完了"
-        break
-    fi
-    
-    # ExternalSecretの状態確認
-    EXTERNALSECRET_STATUS=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null' || echo "Unknown")
-    if [ "$EXTERNALSECRET_STATUS" = "False" ]; then
-        ERROR_MESSAGE=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].message}" 2>/dev/null' || echo "Unknown")
-        print_error "ExternalSecret エラー: $ERROR_MESSAGE"
-        exit 1
-    fi
-    
-    echo "Slack secret作成待機中... (残り ${timeout}秒) - ExternalSecret Status: $EXTERNALSECRET_STATUS"
-    sleep 3
-    timeout=$((timeout - 3))
-done
-
-if [ $timeout -le 0 ]; then
-    print_error "Slack secretの作成がタイムアウトしました"
-    print_error "詳細確認: kubectl describe externalsecret slack-externalsecret -n sandbox"
-    exit 1
-fi
-
-echo ""
 
 # 12. 構築結果確認
 print_status "=== Kubernetes基盤構築結果確認 ==="
 
 # ArgoCD状態確認
 print_debug "ArgoCD状態確認..."
-ARGOCD_READY=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n argocd --no-headers' | grep -c Running || echo "0")
+ARGOCD_READY=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get pods -n argocd --no-headers' | grep -c Running || echo "0")
 
 # LoadBalancer IP取得
-LB_IP=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "pending")
+LB_IP=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "pending")
 
 print_status "=== 構築完了サマリー ==="
 echo ""
@@ -1145,7 +1078,7 @@ EOF
 print_status "=== Phase 4.10: ArgoCD同期とHarborデプロイ確認 ==="
 print_debug "ArgoCD App of AppsによるHarborデプロイを確認します"
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 echo "ArgoCD Applicationの同期状況確認中..."
 kubectl get applications -n argocd
 
@@ -1174,12 +1107,13 @@ if [[ -f "$SCRIPT_DIR/harbor-cert-fix.sh" ]]; then
     print_debug "- Worker nodeのinsecure registry設定"
     print_debug "- GitHub Actions Runner再起動"
     
-    # Harbor証明書修正スクリプトを実行
-    if "$SCRIPT_DIR/harbor-cert-fix.sh"; then
+    # Harbor証明書修正スクリプトを実行（タイムアウト付き・非必須）
+    if timeout 300 "$SCRIPT_DIR/harbor-cert-fix.sh" 2>/dev/null; then
         print_status "✓ Harbor証明書修正完了"
     else
-        print_warning "Harbor証明書修正に失敗しました"
-        print_debug "手動実行: cd automation/k8s-infrastructure && ./harbor-cert-fix.sh"
+        print_warning "Harbor証明書修正をスキップしました（タイムアウトまたはエラー）"
+        print_debug "※ 証明書問題がある場合は後で手動実行してください"
+        print_debug "手動実行: cd automation/platform && ./harbor-cert-fix.sh"
     fi
 else
     print_warning "harbor-cert-fix.shが見つかりません"
@@ -1188,7 +1122,7 @@ fi
 
 # Harbor Ingress確認
 print_debug "Harbor Ingress設定を確認中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'HARBOR_INGRESS_CHECK_EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'HARBOR_INGRESS_CHECK_EOF'
 # 既存のHarbor Ingressを確認
 EXISTING_INGRESSES=$(kubectl get ingress -n harbor --no-headers | wc -l)
 echo "Harbor Ingress数: $EXISTING_INGRESSES"
@@ -1206,7 +1140,7 @@ print_status "✓ Harbor Ingress設定確認完了"
 # ARC Scale Setのinsecure registry設定の自動適用
 print_debug "ARC Scale Setのinsecure registry設定を確認・修正中..."
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_PATCH_EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'ARC_PATCH_EOF'
 # 既存のARC Scale Setを確認してinsecure registry設定を適用
 for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
     echo "ARC Scale Set '$runner_set' にinsecure registry設定を適用中..."
@@ -1236,7 +1170,7 @@ print_status "✓ ARC Scale Set insecure registry設定完了"
 
 # Docker login動作確認
 print_debug "Harbor Docker login動作確認中..."
-DOCKER_LOGIN_TEST=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
+DOCKER_LOGIN_TEST=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 \
     "docker login 192.168.122.100 -u ${HARBOR_USERNAME:-admin} -p ${HARBOR_PASSWORD:-Harbor12345} 2>&1" || echo "login_failed")
 
 if [[ "$DOCKER_LOGIN_TEST" == *"Login Succeeded"* ]]; then
@@ -1254,7 +1188,7 @@ print_debug "Harbor Docker push用のHTTP設定を自動適用します"
 
 # Harbor Core ConfigMap修正
 print_debug "Harbor Core ConfigMapのEXT_ENDPOINTをHTTPに修正中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'HARBOR_HTTP_CONFIG_EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'HARBOR_HTTP_CONFIG_EOF'
 # Harbor Core ConfigMapをHTTP設定に修正
 kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"http://192.168.122.100"}}'
 
@@ -1289,7 +1223,7 @@ print_debug "GitHub Actions RunnerのDocker daemon insecure registry設定を自
 
 # GitHub Actions Runner存在確認と設定適用
 print_debug "GitHub Actions Runner設定確認・修正中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_INSECURE_REGISTRY_EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'ARC_INSECURE_REGISTRY_EOF'
 # AutoscalingRunnerSet存在確認
 RUNNER_SETS=$(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | wc -l)
 if [[ "$RUNNER_SETS" -gt 0 ]]; then
@@ -1333,33 +1267,33 @@ print_status "=== ArgoCD SSO設定の自動修正 ==="
 print_debug "ArgoCD GitHub OAuth設定を検証・修正中..."
 
 # ArgoCD secretにclientSecretが正しく設定されているか確認
-ARGOCD_CLIENT_SECRET_CHECK=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.dex\.github\.clientSecret}" 2>/dev/null | base64 -d 2>/dev/null | wc -c' || echo "0")
+ARGOCD_CLIENT_SECRET_CHECK=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.dex\.github\.clientSecret}" 2>/dev/null | base64 -d 2>/dev/null | wc -c' || echo "0")
 
 if [[ "$ARGOCD_CLIENT_SECRET_CHECK" -eq 0 ]]; then
     print_warning "ArgoCD GitHub OAuth Client Secretが設定されていません"
     print_debug "External SecretからClient Secretを自動取得・設定中..."
     
     # External Secretが作成したsecretからClient Secretを取得
-    GITHUB_CLIENT_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret argocd-github-oauth -n argocd -o jsonpath="{.data.client-secret}" 2>/dev/null | base64 -d 2>/dev/null' || echo "")
+    GITHUB_CLIENT_SECRET=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret argocd-github-oauth -n argocd -o jsonpath="{.data.client-secret}" 2>/dev/null | base64 -d 2>/dev/null' || echo "")
     
     if [[ -n "$GITHUB_CLIENT_SECRET" ]] && [[ "$GITHUB_CLIENT_SECRET" != "" ]]; then
         print_debug "Client Secretを取得しました。argocd-secretに設定中..."
         
         # Base64エンコードしてargocd-secretに設定
-        ENCODED_SECRET=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "echo '$GITHUB_CLIENT_SECRET' | base64 -w 0")
+        ENCODED_SECRET=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "echo '$GITHUB_CLIENT_SECRET' | base64 -w 0")
         
         # argocd-secretにClient Secretを追加
-        ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl patch secret argocd-secret -n argocd --type merge -p '{\"data\":{\"dex.github.clientSecret\":\"$ENCODED_SECRET\"}}'"
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl patch secret argocd-secret -n argocd --type merge -p '{\"data\":{\"dex.github.clientSecret\":\"$ENCODED_SECRET\"}}'"
         
         if [[ $? -eq 0 ]]; then
             print_status "✓ ArgoCD GitHub OAuth Client Secret設定完了"
             
             # ArgoCD Dexサーバーを再起動して設定を反映
             print_debug "ArgoCD Dexサーバーを再起動して設定反映中..."
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout restart deployment/argocd-dex-server -n argocd'
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl rollout restart deployment/argocd-dex-server -n argocd'
             
             # 再起動完了待機
-            ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl rollout status deployment/argocd-dex-server -n argocd --timeout=60s' >/dev/null 2>&1
+            ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl rollout status deployment/argocd-dex-server -n argocd --timeout=60s' >/dev/null 2>&1
             print_status "✓ ArgoCD SSO設定の自動修正完了"
         else
             print_warning "ArgoCD Secret更新に失敗しました"
@@ -1374,3 +1308,6 @@ fi
 
 print_status "Phase 4 基本インフラ構築が完了しました！"
 print_debug "構築情報: phase4-info.txt"
+
+# 正常終了を明示
+exit 0

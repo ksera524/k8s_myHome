@@ -35,14 +35,14 @@ ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.10' 2>/dev/null || true
 
 # k8sクラスタ接続確認
 print_debug "k8sクラスタ接続を確認中..."
-if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
+if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
     print_error "k8sクラスタに接続できません"
     exit 1
 fi
 
 print_status "ArgoCD GitHub OAuth統合状態を確認中..."
 
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 echo "=== External Secret状態確認 ==="
 
 # ArgoCD GitHub OAuth External Secret状態確認

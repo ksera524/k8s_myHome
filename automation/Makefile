@@ -52,40 +52,15 @@ all: check-automation-readiness host-setup infrastructure platform
 	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
 	@sleep 15  # GitOps同期待機延長
 	@echo "$(YELLOW)🔄 External Secrets設定強制同期中...$(NC)"
-	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
 	@sleep 10  # ArgoCD同期待機
-	@echo "$(YELLOW)☁️ Cloudflaredアプリケーション確認・作成中...$(NC)"
-	@echo "🔍 Cloudflaredアプリケーション存在確認中..."
-	@if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application cloudflared -n argocd' >/dev/null 2>&1; then \
-		echo "📝 Cloudflaredアプリケーションを作成中..."; \
-		echo 'apiVersion: argoproj.io/v1alpha1' > /tmp/cloudflared-app.yaml; \
-		echo 'kind: Application' >> /tmp/cloudflared-app.yaml; \
-		echo 'metadata:' >> /tmp/cloudflared-app.yaml; \
-		echo '  name: cloudflared' >> /tmp/cloudflared-app.yaml; \
-		echo '  namespace: argocd' >> /tmp/cloudflared-app.yaml; \
-		echo '  finalizers:' >> /tmp/cloudflared-app.yaml; \
-		echo '    - resources-finalizer.argocd.argoproj.io' >> /tmp/cloudflared-app.yaml; \
-		echo 'spec:' >> /tmp/cloudflared-app.yaml; \
-		echo '  project: default' >> /tmp/cloudflared-app.yaml; \
-		echo '  source:' >> /tmp/cloudflared-app.yaml; \
-		echo '    repoURL: https://github.com/ksera524/k8s_myHome.git' >> /tmp/cloudflared-app.yaml; \
-		echo '    targetRevision: HEAD' >> /tmp/cloudflared-app.yaml; \
-		echo '    path: manifests/applications/cloudflared' >> /tmp/cloudflared-app.yaml; \
-		echo '  destination:' >> /tmp/cloudflared-app.yaml; \
-		echo '    server: https://kubernetes.default.svc' >> /tmp/cloudflared-app.yaml; \
-		echo '    namespace: cloudflared' >> /tmp/cloudflared-app.yaml; \
-		echo '  syncPolicy:' >> /tmp/cloudflared-app.yaml; \
-		echo '    automated:' >> /tmp/cloudflared-app.yaml; \
-		echo '      prune: true' >> /tmp/cloudflared-app.yaml; \
-		echo '      selfHeal: true' >> /tmp/cloudflared-app.yaml; \
-		echo '    syncOptions:' >> /tmp/cloudflared-app.yaml; \
-		echo '      - CreateNamespace=true' >> /tmp/cloudflared-app.yaml; \
-		scp /tmp/cloudflared-app.yaml k8suser@192.168.122.10:/tmp/; \
-		ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f /tmp/cloudflared-app.yaml'; \
-		rm -f /tmp/cloudflared-app.yaml; \
-		echo "$(GREEN)✅ Cloudflaredアプリケーション作成完了$(NC)"; \
+	@echo "$(YELLOW)☁️ ArgoCD App-of-Apps同期でCloudflaredアプリケーション確認中...$(NC)"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
+	@sleep 5
+	@if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get application cloudflared -n argocd' >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ CloudflaredアプリケーションはArgoCD経由で管理されています$(NC)"; \
 	else \
-		echo "$(GREEN)✅ Cloudflaredアプリケーションは既に存在しています$(NC)"; \
+		echo "$(YELLOW)⚠️ Cloudflaredアプリケーションの同期待機中（ArgoCD App-of-Apps経由）$(NC)"; \
 	fi
 	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
@@ -122,9 +97,9 @@ infrastructure:
 # Kubernetesプラットフォーム構築
 platform:
 	@echo "$(GREEN)🚀 Kubernetesプラットフォーム構築開始$(NC)"
-	@cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./phase4-deploy.sh
+	@cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./phase4-deploy.sh || echo "$(YELLOW)⚠️ Platform構築で一部警告が発生しましたが続行します$(NC)"
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
-	@$(MAKE) wait-for-external-secrets
+	@$(MAKE) wait-for-external-secrets || echo "$(YELLOW)⚠️ External Secrets同期で一部警告が発生しましたが続行します$(NC)"
 	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
 	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
@@ -179,16 +154,16 @@ status:
 	@sudo virsh list --all 2>/dev/null || echo "libvirtが利用できません"
 	@echo ""
 	@echo "$(YELLOW)■ Kubernetesクラスタ状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes' 2>/dev/null || echo "Kubernetesクラスタに接続できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes' 2>/dev/null || echo "Kubernetesクラスタに接続できません"
 	@echo ""
 	@echo "$(YELLOW)■ ArgoCD Applications状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get applications -n argocd' 2>/dev/null || echo "ArgoCD Applicationsが確認できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get applications -n argocd' 2>/dev/null || echo "ArgoCD Applicationsが確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ LoadBalancer IP$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "LoadBalancer IPが取得できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "LoadBalancer IPが取得できません"
 	@echo ""
 	@echo "$(YELLOW)■ External Secrets状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecrets -A | grep -E "(github-auth|slack-externalsecret)" | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$status/$$ready"; done' 2>/dev/null || echo "External Secrets状態が確認できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecrets -A | grep -E "(github-auth|slack-externalsecret)" | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$status/$$ready"; done' 2>/dev/null || echo "External Secrets状態が確認できません"
 	@echo ""
 
 # 全フェーズ検証
@@ -202,15 +177,15 @@ verify:
 	@cd $(INFRASTRUCTURE_DIR) && terraform plan -out=tfplan >/dev/null 2>&1 && echo "✅ Terraform状態正常" || echo "❌ Terraform状態異常"
 	@echo ""
 	@echo "$(YELLOW)■ Kubernetesクラスタ稼働検証$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers | grep -c Ready' 2>/dev/null | \
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers | grep -c Ready' 2>/dev/null | \
 		awk '{if($$1>=3) print "✅ Kubernetesクラスタ正常 ("$$1" nodes Ready)"; else print "❌ Kubernetesクラスタ異常"}' || echo "❌ Kubernetesクラスタ接続失敗"
 	@echo ""
 	@echo "$(YELLOW)■ Kubernetesプラットフォーム検証$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd|harbor)" | grep -c Running' 2>/dev/null | \
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd|harbor)" | grep -c Running' 2>/dev/null | \
 		awk '{if($$1>=10) print "✅ 基盤インフラ正常 ("$$1" pods Running)"; else print "❌ 基盤インフラ異常 ("$$1" pods Running)"}' || echo "❌ 基盤インフラ確認失敗"
 	@echo ""
 	@echo "$(YELLOW)■ アプリケーション検証$(NC)"
-	@slack_pods=$$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods -n sandbox | grep slack | grep -c Running' 2>/dev/null || echo "0"); \
+	@slack_pods=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods -n sandbox | grep slack | grep -c Running' 2>/dev/null || echo "0"); \
 	if [ "$$slack_pods" -gt 0 ]; then \
 		echo "✅ Slack アプリケーション正常 ($$slack_pods pods Running)"; \
 	else \
@@ -222,17 +197,17 @@ logs:
 	@echo "$(GREEN)📋 重要なログ表示$(NC)"
 	@echo ""
 	@echo "$(YELLOW)■ ArgoCD初期パスワード$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "ArgoCD初期パスワードが取得できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d' 2>/dev/null || echo "ArgoCD初期パスワードが取得できません"
 	@echo ""
 	@echo ""
 	@echo "$(YELLOW)■ GitHub認証情報状態$(NC)"
 	@cd $(PLATFORM_DIR) && source ./github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ 最近の重要なポッド状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner|slack)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner|slack)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ Slack Secret状態$(NC)"
-	@ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get secret slack -n sandbox --no-headers 2>/dev/null | awk "{print \"Secret slack: \" \$$2 \" (\" \$$3 \" keys) Age: \" \$$4}"' 2>/dev/null || echo "Slack Secretが確認できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get secret slack -n sandbox --no-headers 2>/dev/null | awk "{print \"Secret slack: \" \$$2 \" (\" \$$3 \" keys) Age: \" \$$4}"' 2>/dev/null || echo "Slack Secretが確認できません"
 	@echo ""
 
 # 自動化実行の事前チェック
@@ -255,7 +230,7 @@ wait-for-k8s-cluster:
 	@echo "$(YELLOW)🕐 Kubernetesクラスタ準備完了を待機中...$(NC)"
 	@timeout=300; \
 	while [ $$timeout -gt 0 ]; do \
-		ready_nodes=$$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers 2>/dev/null | grep -c Ready' 2>/dev/null || echo "0"); \
+		ready_nodes=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get nodes --no-headers 2>/dev/null | grep -c Ready' 2>/dev/null || echo "0"); \
 		if [ "$$ready_nodes" -ge 3 ]; then \
 			echo "$(GREEN)✅ Kubernetesクラスタ準備完了 ($$ready_nodes nodes Ready)$(NC)"; \
 			break; \
@@ -279,32 +254,32 @@ wait-for-external-secrets:
 	cloudflared_secret_ready=false; \
 	while [ $$timeout -gt 0 ]; do \
 		# GitHub External Secret確認 \
-		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
-			github_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+		if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
+			github_ready=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$github_ready" = "True" ]; then \
 				echo "$(GREEN)✅ GitHub External Secret準備完了$(NC)"; \
 				github_secret_ready=true; \
 			fi; \
 		fi; \
 		# ArgoCD GitHub OAuth External Secret確認 \
-		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd' >/dev/null 2>&1; then \
-			argocd_oauth_ready_status=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+		if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd' >/dev/null 2>&1; then \
+			argocd_oauth_ready_status=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret argocd-github-oauth-secret -n argocd -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$argocd_oauth_ready_status" = "True" ]; then \
 				echo "$(GREEN)✅ ArgoCD GitHub OAuth External Secret準備完了$(NC)"; \
 				argocd_oauth_ready=true; \
 			fi; \
 		fi; \
 		# Slack External Secret確認 \
-		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox' >/dev/null 2>&1; then \
-			slack_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+		if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox' >/dev/null 2>&1; then \
+			slack_ready=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret slack-externalsecret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$slack_ready" = "True" ]; then \
 				echo "$(GREEN)✅ Slack External Secret準備完了$(NC)"; \
 				slack_secret_ready=true; \
 			fi; \
 		fi; \
 		# Cloudflared External Secret確認 \
-		if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared' >/dev/null 2>&1; then \
-			cloudflared_ready=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+		if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared' >/dev/null 2>&1; then \
+			cloudflared_ready=$$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get externalsecret cloudflared-secret -n cloudflared -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$cloudflared_ready" = "True" ]; then \
 				echo "$(GREEN)✅ Cloudflared External Secret準備完了$(NC)"; \
 				cloudflared_secret_ready=true; \

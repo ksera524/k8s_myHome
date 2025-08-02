@@ -18,7 +18,7 @@ data:
       name: GitHub
       config:
         clientId: Ov23li8T6IFuiuLcoSJa
-        clientSecret: $argocd-secret:dex.github.clientSecret
+        clientSecret: $dex.github.clientSecret
         redirectURI: https://argocd.qroksera.com/api/dex/callback
 
   # 既存のリソース除外設定
