@@ -47,7 +47,7 @@ help:
 	@echo ""
 
 # 全自動デプロイ (全ステップ)
-all: check-automation-readiness host-setup infrastructure platform
+all: check-automation-readiness host-setup infrastructure platform fix-github-oauth
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
 	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
 	@sleep 15  # GitOps同期待機延長
@@ -103,6 +103,12 @@ platform:
 	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
 	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
+
+# ArgoCD GitHub OAuth修復
+fix-github-oauth:
+	@echo "$(GREEN)🔧 ArgoCD GitHub OAuth設定修復中$(NC)"
+	@cd $(PLATFORM_DIR) && ./fix-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ GitHub OAuth修復で警告が発生しましたが続行します$(NC)"
+	@echo "$(GREEN)✅ ArgoCD GitHub OAuth設定修復完了$(NC)"
 
 # 後方互換性用（非推奨）
 vm-deploy: infrastructure
