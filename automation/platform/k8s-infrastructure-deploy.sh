@@ -45,6 +45,8 @@ scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/metallb-ipaddress-pool.ya
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/applications/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/harbor-storage.yaml" k8suser@192.168.122.10:/tmp/
@@ -194,12 +196,46 @@ echo ""
 # ArgoCD Ingress設定（HTTP対応）
 kubectl apply -f /tmp/argocd-ingress.yaml
 
-# ArgoCD サーバー再起動（insecure設定反映）
+# ArgoCD GitHub OAuth External Secret作成（Client Secret取得用）
+echo "ArgoCD GitHub OAuth External Secret作成中..."
+if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
+    kubectl apply -f /tmp/argocd-github-oauth-secret.yaml
+    echo "✓ ArgoCD GitHub OAuth External Secret作成完了"
+    
+    # External Secretからsecret同期を待機
+    echo "External Secret同期を待機中..."
+    timeout=60
+    while [ $timeout -gt 0 ]; do
+        if kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' >/dev/null 2>&1; then
+            SECRET_LENGTH=$(kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' | base64 -d | wc -c)
+            if [ "$SECRET_LENGTH" -gt 10 ]; then
+                echo "✓ External Secret同期完了 (Client Secret長さ: ${SECRET_LENGTH}文字)"
+                break
+            fi
+        fi
+        echo "External Secret同期待機中... (残り ${timeout}秒)"
+        sleep 5
+        timeout=$((timeout - 5))
+    done
+    
+    if [ $timeout -le 0 ]; then
+        echo "⚠️ External Secret同期がタイムアウトしました（手動で確認が必要）"
+    fi
+else
+    echo "⚠️ External Secrets Operatorが未インストールです（ConfigMapのみ適用）"
+fi
+
+# ArgoCD GitHub OAuth ConfigMap適用（初期設定）
+echo "ArgoCD GitHub OAuth設定を適用中..."
+kubectl apply -f /tmp/argocd-config.yaml
+
+# ArgoCD サーバー再起動（insecure設定とGitHub OAuth設定反映）
 echo "ArgoCD サーバー再起動中..."
 kubectl rollout restart deployment argocd-server -n argocd
 kubectl rollout status deployment argocd-server -n argocd --timeout=300s
 
 echo "✓ ArgoCD Ingress設定完了"
+echo "✓ ArgoCD GitHub OAuth初期設定完了" 
 echo "✓ ArgoCD設定完了"
 EOF
 
