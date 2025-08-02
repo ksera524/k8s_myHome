@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/part-of: argocd
 data:
   # GitHub OAuth設定
+  # NOTE: Secret参照（$argocd-secret:dex.github.clientSecret）が動作しないため
+  # 現在は直接値を設定。将来的にSecret参照方式に修正要
   url: "https://argocd.qroksera.com"
   dex.config: |
     connectors:
@@ -16,5 +18,5 @@ data:
       name: GitHub
       config:
         clientId: Ov23li8T6IFuiuLcoSJa
-        clientSecret: $argocd-secret:dex.github.clientSecret
+        clientSecret: f53cd92c3723018003fa2deb12de63d56ea6d808
         redirectURI: https://argocd.qroksera.com/api/dex/callback
