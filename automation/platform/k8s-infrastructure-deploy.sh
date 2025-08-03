@@ -372,6 +372,153 @@ EOF
                     print_status "✓ HelmでExternal Secrets Operatorデプロイ完了"
                     EXTERNAL_SECRETS_ENABLED=true
                     
+                    # ClusterSecretStore とExternal Secretsを自動作成
+                    if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
+                        print_debug "ClusterSecretStore と External Secrets を自動作成中..."
+                        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# ClusterSecretStore作成
+cat > /tmp/clustersecretstore.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: pulumi-esc-store
+spec:
+  provider:
+    pulumi:
+      organization: ksera
+      project: k8s
+      environment: secret
+      accessToken:
+        secretRef:
+          name: pulumi-access-token
+          key: PULUMI_ACCESS_TOKEN
+          namespace: external-secrets-system
+EOYAML
+kubectl apply -f /tmp/clustersecretstore.yaml
+
+# namespace作成
+kubectl create namespace sandbox --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -
+
+# Harbor External Secret作成
+cat > /tmp/harbor-externalsecret.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: harbor-admin-secret
+  namespace: harbor
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: harbor-admin-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: harbor
+    remoteRef:
+      key: harbor
+  - secretKey: harbor_ci
+    remoteRef:
+      key: harbor_ci
+EOYAML
+kubectl apply -f /tmp/harbor-externalsecret.yaml
+
+# ArgoCD GitHub OAuth External Secret作成
+cat > /tmp/argocd-github-oauth-externalsecret.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-github-oauth-secret
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: argocd-secret
+    creationPolicy: Merge
+  data:
+  - secretKey: dex.github.clientSecret
+    remoteRef:
+      key: argocd
+      property: client-secret
+EOYAML
+kubectl apply -f /tmp/argocd-github-oauth-externalsecret.yaml
+
+# GitHub Auth External Secret作成
+cat > /tmp/github-auth-externalsecret.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-auth-secret
+  namespace: arc-systems
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: github-auth-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: github
+    remoteRef:
+      key: github
+EOYAML
+kubectl apply -f /tmp/github-auth-externalsecret.yaml
+
+# Slack External Secret作成
+cat > /tmp/slack-externalsecret.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: slack-externalsecret
+  namespace: sandbox
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: slack
+    creationPolicy: Owner
+  data:
+  - secretKey: slack
+    remoteRef:
+      key: slack
+EOYAML
+kubectl apply -f /tmp/slack-externalsecret.yaml
+
+# Cloudflared External Secret作成
+cat > /tmp/cloudflared-externalsecret.yaml << 'EOYAML'
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cloudflared-secret
+  namespace: cloudflared
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: pulumi-esc-store
+    kind: ClusterSecretStore
+  target:
+    name: cloudflared-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: cloudflared
+    remoteRef:
+      key: cloudflared
+EOYAML
+kubectl apply -f /tmp/cloudflared-externalsecret.yaml
+
+echo "✓ ClusterSecretStore と External Secrets 自動作成完了"
+EOF
+                        print_status "✓ ClusterSecretStore と External Secrets 自動作成完了"
+                    fi
+                    
                     # ArgoCD管理に移行
                     print_debug "ArgoCD管理に移行中..."
                     if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../manifests/app-of-apps.yaml"; then
