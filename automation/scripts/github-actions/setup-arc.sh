@@ -125,14 +125,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 scp -o StrictHostKeyChecking=no "../../manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
-# 1. Helmインストール確認
+# 1. Helm確認（host-setupで事前インストール済みを前提）
 print_debug "Helmの確認中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 if ! command -v helm &> /dev/null; then
-    echo "Helmをインストール中..."
-    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    echo "❌ Helmがインストールされていません"
+    echo "先にautomation/host-setup/setup-helm.shを実行してください"
+    exit 1
 else
-    echo "✓ Helm既にインストール済み"
+    echo "✓ Helm確認完了"
 fi
 EOF
 

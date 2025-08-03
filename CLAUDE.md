@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Complete Deployment Workflow
 ```bash
-# Host Setup: Host preparation
+# Host Setup: Host preparation + Helm setup
 ./automation/host-setup/setup-host.sh
 # (logout/login required for group membership)
 ./automation/host-setup/setup-storage.sh  

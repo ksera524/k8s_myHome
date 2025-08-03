@@ -14,6 +14,7 @@ Ubuntu 24.04 LTSホストマシンでk8s環境構築のための準備スクリ�
 - ユーザーの必要なグループへの追加
 - 各種サービスの有効化と開始
 - 仮想化サポートの確認
+- **Helmセットアップ（新規）**: Helmインストールと共通repositoryの追加
 
 **実行方法:**
 ```bash
@@ -68,7 +69,24 @@ chmod +x automation/scripts/verify-setup.sh
 - 検証結果のコンソール出力
 - 詳細なレポートファイル（/tmp/k8s-setup-readiness-*.txt）
 
-### 4. fix-missing-directories.sh
+### 4. setup-helm.sh
+Helmとよく使用されるHelm repositoryのセットアップを行います。
+
+**実行内容:**
+- ローカルホストとKubernetesクラスターでのHelmインストール
+- External Secrets、Harbor、Actions Runner ControllerのHelmリポジトリ追加
+- リポジトリ情報の更新
+
+**実行方法:**
+```bash
+./automation/host-setup/setup-helm.sh
+```
+
+**注意事項:**
+- setup-host.sh実行時に自動実行されます
+- Kubernetesクラスターが稼働していない段階では警告が表示されますが正常です
+
+### 5. fix-missing-directories.sh
 setup-storage.sh実行後に不足していた設定を補う修正スクリプトです。
 
 **実行内容:**

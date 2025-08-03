@@ -81,46 +81,16 @@ if ! kubectl get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
             print_warning "ClusterSecretStore作成がタイムアウトしました"
             print_debug "手動でClusterSecretStoreを作成します..."
             # フォールバック: 手動作成
-            cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: pulumi-esc-store
-spec:
-  provider:
-    pulumi:
-      organization: ksera
-      project: k8s
-      environment: secret
-      accessToken:
-        secretRef:
-          name: pulumi-access-token
-          key: PULUMI_ACCESS_TOKEN
-          namespace: external-secrets-system
-EOF
+            PULUMI_ORG="ksera" PULUMI_PROJECT="k8s" PULUMI_ENVIRONMENT="secret" \
+            envsubst < "../../templates/external-secrets/pulumi-clustersecretstore.yaml" | kubectl apply -f -
             print_status "✓ ClusterSecretStore を手動作成しました"
         fi
     else
         print_warning "ArgoCD external-secrets-config application が見つかりません"
         print_debug "手動でClusterSecretStoreを作成します..."
         # フォールバック: 手動作成
-        cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1
-kind: ClusterSecretStore
-metadata:
-  name: pulumi-esc-store
-spec:
-  provider:
-    pulumi:
-      organization: ksera
-      project: k8s
-      environment: secret
-      accessToken:
-        secretRef:
-          name: pulumi-access-token
-          key: PULUMI_ACCESS_TOKEN
-          namespace: external-secrets-system
-EOF
+        PULUMI_ORG="ksera" PULUMI_PROJECT="k8s" PULUMI_ENVIRONMENT="secret" \
+        envsubst < "../../templates/external-secrets/pulumi-clustersecretstore.yaml" | kubectl apply -f -
         print_status "✓ ClusterSecretStore を手動作成しました"
     fi
 else
@@ -217,122 +187,16 @@ if kubectl get application external-secrets-config -n argocd >/dev/null 2>&1; th
         print_warning "ArgoCD経由でのExternalSecrets作成がタイムアウトしました"
         print_debug "手動でExternalSecretsを作成します..."
         # フォールバック: 手動作成
-        cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: harbor-admin-secret
-  namespace: harbor
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: harbor-admin-secret
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      engineVersion: v2
-      data:
-        username: "admin"
-        password: "{{ .harbor | default \"Harbor12345\" }}"
-        HARBOR_CI_PASSWORD: "{{ .harbor_ci | default \"Harbor12345\" }}"
-  data:
-  - secretKey: harbor
-    remoteRef:
-      key: harbor
-  - secretKey: harbor_ci
-    remoteRef:
-      key: harbor_ci
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: harbor-auth-secret
-  namespace: arc-systems
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: harbor-auth
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      engineVersion: v2
-      data:
-        HARBOR_USERNAME: "admin"
-        HARBOR_PASSWORD: "{{ .harbor | default \"Harbor12345\" }}"
-        HARBOR_URL: "192.168.122.100"
-        HARBOR_PROJECT: "sandbox"
-  data:
-  - secretKey: harbor
-    remoteRef:
-      key: harbor
-EOF
+        REFRESH_INTERVAL="20s" HARBOR_DEFAULT_PASSWORD="Harbor12345" HARBOR_URL="192.168.122.100" HARBOR_PROJECT="sandbox" \
+        envsubst < "../../templates/external-secrets/harbor-externalsecret.yaml" | kubectl apply -f -
         print_status "✓ Harbor ExternalSecrets を手動作成しました"
     fi
 else
     print_warning "ArgoCD external-secrets-config application が見つかりません"
     print_debug "手動でExternalSecretsを作成します..."
     # フォールバック: 手動作成
-    cat <<EOF | kubectl apply -f -
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: harbor-admin-secret
-  namespace: harbor
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: harbor-admin-secret
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      engineVersion: v2
-      data:
-        username: "admin"
-        password: "{{ .harbor | default \"Harbor12345\" }}"
-        HARBOR_CI_PASSWORD: "{{ .harbor_ci | default \"Harbor12345\" }}"
-  data:
-  - secretKey: harbor
-    remoteRef:
-      key: harbor
-  - secretKey: harbor_ci
-    remoteRef:
-      key: harbor_ci
----
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: harbor-auth-secret
-  namespace: arc-systems
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: harbor-auth
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      engineVersion: v2
-      data:
-        HARBOR_USERNAME: "admin"
-        HARBOR_PASSWORD: "{{ .harbor | default \"Harbor12345\" }}"
-        HARBOR_URL: "192.168.122.100"
-        HARBOR_PROJECT: "sandbox"
-  data:
-  - secretKey: harbor
-    remoteRef:
-      key: harbor
-EOF
+    REFRESH_INTERVAL="20s" HARBOR_DEFAULT_PASSWORD="Harbor12345" HARBOR_URL="192.168.122.100" HARBOR_PROJECT="sandbox" \
+    envsubst < "../../templates/external-secrets/harbor-externalsecret.yaml" | kubectl apply -f -
     print_status "✓ Harbor ExternalSecrets を手動作成しました"
 fi
 

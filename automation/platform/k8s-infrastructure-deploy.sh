@@ -11,7 +11,7 @@ export NON_INTERACTIVE=true
 
 # GitHub認証情報管理ユーティリティを読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/github-auth-utils.sh"
+source "$SCRIPT_DIR/../scripts/argocd/github-auth-utils.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -44,7 +44,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/manifests/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
@@ -674,7 +674,7 @@ print_status "=== Phase 4.8: GitHub Actions Runner Controller (ARC) セットア
 print_debug "GitHub Actions Self-hosted Runnerをk8s上にデプロイします"
 
 # GitHub設定の確認・入力
-if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
+if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
     # GitHub設定の対話式確認
     echo ""
     print_status "GitHub Actions設定を確認中..."
@@ -769,16 +769,16 @@ if [[ -f "$SCRIPT_DIR/setup-arc.sh" ]]; then
         print_debug "渡される値: HARBOR_USERNAME=$HARBOR_USERNAME, HARBOR_PASSWORD=${HARBOR_PASSWORD:0:3}..."
         # 環境変数をエクスポートして実行
         export GITHUB_TOKEN GITHUB_USERNAME HARBOR_USERNAME HARBOR_PASSWORD
-        "$SCRIPT_DIR/setup-arc.sh"
+        "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"
     else
         print_warning "GitHub設定が不完全のため、ARC セットアップをスキップしました"
         print_warning "後で手動セットアップする場合："
         echo "  export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
         echo "  export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
-        echo "  bash $SCRIPT_DIR/setup-arc.sh"
+        echo "  bash $SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"
     fi
 else
-    print_warning "setup-arc.shが見つかりません。ARCセットアップをスキップしました。"
+    print_warning "setup-arc.shが見つかりません (automation/scripts/github-actions/)。ARCセットアップをスキップしました。"
 fi
 
 # 9. Cloudflaredセットアップ
@@ -1035,7 +1035,7 @@ echo "4. Harbor パスワード確認: kubectl get secret harbor-admin-secret -n
 echo "5. GitHub Actions設定（ARCセットアップ）:"
 echo "   export GITHUB_TOKEN=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
 echo "   export GITHUB_USERNAME=YOUR_GITHUB_USERNAME"
-echo "   ./setup-arc.sh"
+echo "   ../scripts/github-actions/setup-arc.sh"
 echo "6. GitHub Actions Workflowデプロイ:"
 echo "   cp automation/phase4/github-actions-example.yml .github/workflows/build-and-push.yml"
 echo "   git add .github/workflows/build-and-push.yml"
@@ -1136,7 +1136,7 @@ print_status "=== Phase 4.12: Harbor証明書修正とIngress設定の自動適�
 print_debug "Harbor Docker Registry API対応とGitHub Actions対応を自動実行します"
 
 # Harbor証明書修正スクリプトの実行
-if [[ -f "$SCRIPT_DIR/harbor-cert-fix.sh" ]]; then
+if [[ -f "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" ]]; then
     print_debug "Harbor証明書修正スクリプトを実行中..."
     print_debug "- IP SAN対応Harbor証明書作成"
     print_debug "- CA信頼配布DaemonSet展開"
@@ -1144,15 +1144,15 @@ if [[ -f "$SCRIPT_DIR/harbor-cert-fix.sh" ]]; then
     print_debug "- GitHub Actions Runner再起動"
     
     # Harbor証明書修正スクリプトを実行（タイムアウト付き・非必須）
-    if timeout 300 "$SCRIPT_DIR/harbor-cert-fix.sh" 2>/dev/null; then
+    if timeout 300 "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" 2>/dev/null; then
         print_status "✓ Harbor証明書修正完了"
     else
         print_warning "Harbor証明書修正をスキップしました（タイムアウトまたはエラー）"
         print_debug "※ 証明書問題がある場合は後で手動実行してください"
-        print_debug "手動実行: cd automation/platform && ./harbor-cert-fix.sh"
+        print_debug "手動実行: cd automation/scripts/harbor && ./harbor-cert-fix.sh"
     fi
 else
-    print_warning "harbor-cert-fix.shが見つかりません"
+    print_warning "harbor-cert-fix.shが見つかりません (automation/scripts/harbor/)"
     print_debug "Harbor証明書修正を手動実行してください"
 fi
 

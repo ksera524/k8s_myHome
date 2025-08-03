@@ -62,8 +62,11 @@ if [ $timeout -le 0 ]; then
     # external-secrets-system namespace作成
     kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
     
-    # Helm repo追加とインストール
-    helm repo add external-secrets https://charts.external-secrets.io
+    # Helm repo確認（host-setupで事前追加済みを前提、必要に応じて追加）
+    if ! helm repo list | grep -q external-secrets; then
+        print_warning "External Secrets repositoryが見つかりません - 追加中"
+        helm repo add external-secrets https://charts.external-secrets.io
+    fi
     helm repo update
     
     # Helm values設定

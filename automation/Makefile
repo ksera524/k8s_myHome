@@ -62,7 +62,7 @@ all: check-automation-readiness host-setup infrastructure platform fix-github-oa
 	else \
 		echo "$(YELLOW)⚠️ Cloudflaredアプリケーションの同期待機中（ArgoCD App-of-Apps経由）$(NC)"; \
 	fi
-	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
+	@../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
 	@$(MAKE) status
@@ -101,13 +101,13 @@ platform:
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
 	@$(MAKE) wait-for-external-secrets || echo "$(YELLOW)⚠️ External Secrets同期で一部警告が発生しましたが続行します$(NC)"
 	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
-	@cd $(PLATFORM_DIR) && ./setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
+	@../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
 
 # ArgoCD GitHub OAuth修復
 fix-github-oauth:
 	@echo "$(GREEN)🔧 ArgoCD GitHub OAuth設定修復中$(NC)"
-	@cd $(PLATFORM_DIR) && ./fix-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ GitHub OAuth修復で警告が発生しましたが続行します$(NC)"
+	@../scripts/argocd/fix-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ GitHub OAuth修復で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ArgoCD GitHub OAuth設定修復完了$(NC)"
 
 # 後方互換性用（非推奨）
@@ -207,7 +207,7 @@ logs:
 	@echo ""
 	@echo ""
 	@echo "$(YELLOW)■ GitHub認証情報状態$(NC)"
-	@cd $(PLATFORM_DIR) && source ./github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
+	@cd $(PLATFORM_DIR) && source ../scripts/argocd/github-auth-utils.sh && show_github_credentials_status 2>/dev/null || echo "GitHub認証情報が確認できません"
 	@echo ""
 	@echo "$(YELLOW)■ 最近の重要なポッド状態$(NC)"
 	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get pods --all-namespaces | grep -E "(argocd|harbor|actions-runner|slack)" | tail -10' 2>/dev/null || echo "ポッド状態が確認できません"
@@ -326,7 +326,7 @@ clean:
 		sudo virsh list --all | grep k8s | awk '"'"'{print $$2}'"'"' | xargs -I {} sudo virsh destroy {} 2>/dev/null || true; \
 		sudo virsh list --all | grep k8s | awk '"'"'{print $$2}'"'"' | xargs -I {} sudo virsh undefine {} 2>/dev/null || true; \
 		cd $(INFRASTRUCTURE_DIR) && terraform destroy -auto-approve 2>/dev/null || true; \
-		cd $(PLATFORM_DIR) && source ./github-auth-utils.sh && clear_github_credentials 2>/dev/null || true; \
+		cd $(PLATFORM_DIR) && source ../scripts/argocd/github-auth-utils.sh && clear_github_credentials 2>/dev/null || true; \
 		echo "$(GREEN)✅ クリーンアップ完了$(NC)"; \
 	else \
 		echo "$(YELLOW)クリーンアップをキャンセルしました$(NC)"; \

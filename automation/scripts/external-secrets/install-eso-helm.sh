@@ -33,10 +33,15 @@ print_status "=== External Secrets Operator Helm → ArgoCD移行 ==="
 # Phase 1: Helmリポジトリ追加・更新
 print_status "Phase 1: Helmリポジトリ設定"
 
-helm repo add external-secrets https://charts.external-secrets.io
-helm repo update
+# Helm repository確認（host-setupで事前追加済みを前提）
+if ! helm repo list | grep -q external-secrets; then
+    print_warning "External Secrets repositoryが見つかりません"
+    print_debug "host-setup/setup-helm.shで事前追加してください"
+    helm repo add external-secrets https://charts.external-secrets.io
+fi
 
-print_debug "Helmリポジトリ追加完了"
+helm repo update
+print_debug "Helm repository確認完了"
 
 # Phase 2: Helm values.yaml作成
 print_status "Phase 2: Helm values設定ファイル作成"

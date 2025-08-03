@@ -93,9 +93,10 @@ else
     print_debug "✓ Helm確認済み: $(helm version --short)"
 fi
 
-# Helmリポジトリ設定
-print_status "Helmリポジトリを設定中..."
+# Helmリポジトリ確認（host-setupで事前追加済みを前提、必要に応じて追加）
+print_status "Helmリポジトリを確認中..."
 if ! helm repo list | grep -q external-secrets; then
+    print_warning "External Secrets repositoryが見つかりません - 追加中"
     helm repo add external-secrets https://charts.external-secrets.io
 fi
 helm repo update

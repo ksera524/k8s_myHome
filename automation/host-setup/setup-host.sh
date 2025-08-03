@@ -168,3 +168,11 @@ Next steps:
 EOF
 
 print_status "Next steps saved to /tmp/next-steps.txt"
+
+# Helm セットアップを実行
+print_status "Helmセットアップを実行中..."
+if [[ -f "$(dirname "$0")/setup-helm.sh" ]]; then
+    "$(dirname "$0")/setup-helm.sh"
+else
+    print_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
+fi
