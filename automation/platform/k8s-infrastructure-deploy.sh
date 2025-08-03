@@ -803,11 +803,36 @@ fi
 print_status "=== Phase 4.7: App of Apps デプロイ ==="
 print_debug "GitOps経由でインフラとアプリケーションを管理します"
 
+# app-of-apps.yamlファイル存在確認
+print_debug "app-of-apps.yamlファイル存在確認中..."
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'test -f /tmp/app-of-apps.yaml'; then
+    print_debug "✓ /tmp/app-of-apps.yaml ファイルが存在します"
+else
+    print_error "❌ /tmp/app-of-apps.yaml ファイルが見つかりません"
+    exit 1
+fi
+
+# ArgoCD namespace確認
+print_debug "ArgoCD namespace確認中..."
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get namespace argocd >/dev/null 2>&1'; then
+    print_debug "✓ ArgoCD namespaceが存在します"
+else
+    print_error "❌ ArgoCD namespaceが見つかりません"
+    exit 1
+fi
+
+print_debug "App of Apps適用中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # App of Apps をデプロイ
-kubectl apply -f /tmp/app-of-apps.yaml
-
-echo "✓ App of Apps デプロイ完了"
+echo "kubectl apply -f /tmp/app-of-apps.yaml を実行中..."
+if kubectl apply -f /tmp/app-of-apps.yaml; then
+    echo "✓ App of Apps デプロイ成功"
+    echo "作成されたApplications:"
+    kubectl get applications -n argocd --no-headers | awk '{print "  - " $1 " (" $2 "/" $3 ")"}'
+else
+    echo "❌ App of Apps デプロイ失敗"
+    exit 1
+fi
 EOF
 
 print_status "✓ GitOps セットアップ完了"
