@@ -50,6 +50,7 @@ scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/argocd-github-
 scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/applications/slack-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/harbor-storage.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/external-secrets/harbor-externalsecret.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
 # 1. 前提条件確認

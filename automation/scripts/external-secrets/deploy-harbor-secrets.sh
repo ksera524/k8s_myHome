@@ -188,7 +188,7 @@ if kubectl get application external-secrets-config -n argocd >/dev/null 2>&1; th
         print_debug "手動でExternalSecretsを作成します..."
         # フォールバック: 手動作成
         REFRESH_INTERVAL="20s" HARBOR_DEFAULT_PASSWORD="Harbor12345" HARBOR_URL="192.168.122.100" HARBOR_PROJECT="sandbox" \
-        envsubst < "../../templates/external-secrets/harbor-externalsecret.yaml" | kubectl apply -f -
+        envsubst < "/tmp/harbor-externalsecret.yaml" | kubectl apply -f -
         print_status "✓ Harbor ExternalSecrets を手動作成しました"
     fi
 else
