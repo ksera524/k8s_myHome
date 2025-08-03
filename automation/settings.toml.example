@@ -1,0 +1,59 @@
+# k8s_myHome 自動化設定ファイル（サンプル）
+# このファイルをコピーして settings.toml として使用してください
+#
+# 使用方法:
+# 1. cp settings.toml.example settings.toml
+# 2. 必要な値を設定
+# 3. make all 実行
+#
+# セキュリティ注意:
+# - settings.toml は .gitignore に追加済み
+# - リポジトリにコミットしないでください
+
+[host_setup]
+# USB外部ストレージデバイス名
+# lsblk コマンドで確認してください
+# 例: "sdb", "sdc", "nvme0n1"
+usb_device_name = ""
+
+[kubernetes]
+# Kubernetes APT鍵ファイル上書き確認
+# 通常は "y" を設定
+overwrite_kubernetes_keyring = "y"
+
+[pulumi]
+# Pulumi Access Token (必須)
+# 取得方法: https://app.pulumi.com/account/tokens
+# 形式: pul-で始まる40文字の英数字
+access_token = ""
+
+
+[github]
+# GitHub Personal Access Token（GitHub Actions用）
+# 取得方法: GitHub Settings > Developer settings > Personal access tokens
+# 権限: repo, workflow, admin:org (組織使用時)
+personal_access_token = ""
+
+# GitHub Repository (例: username/repository)
+repository = ""
+
+# GitHubユーザー名（ArgoCD OAuth用）
+username = ""
+
+[harbor]
+# Harbor設定（通常はデフォルト値で問題なし）
+admin_password = "Harbor12345"
+url = "http://192.168.122.100"
+project = "library"
+
+[automation]
+# 自動化オプション
+auto_confirm_overwrite = true
+enable_external_secrets = true
+enable_github_actions = true
+# CloudflaredはExternal Secrets Operatorから自動取得
+
+[logging]
+# ログ設定
+debug = false
+verbose = true

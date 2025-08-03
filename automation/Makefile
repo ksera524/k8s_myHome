@@ -13,7 +13,7 @@ HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
 INFRASTRUCTURE_DIR := $(PROJECT_ROOT)/infrastructure
 PLATFORM_DIR := $(PROJECT_ROOT)/platform
 
-.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets setup-slack-secret
+.PHONY: help all deploy host-setup infrastructure platform vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure clean verify status logs check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets setup-slack-secret load-settings
 
 # デフォルトターゲット
 help:
@@ -46,8 +46,19 @@ help:
 	@echo "  make add-runner REPO=my-project  # Runner追加"
 	@echo ""
 
+# 設定ファイル読み込み
+load-settings:
+	@echo "$(YELLOW)📋 設定ファイル読み込み中...$(NC)"
+	@if [ -f "$(PROJECT_ROOT)/settings.toml" ]; then \
+		echo "$(GREEN)✓ settings.tomlを発見しました$(NC)"; \
+		bash -c 'source "$(PROJECT_ROOT)/scripts/settings-loader.sh" load'; \
+	else \
+		echo "$(YELLOW)⚠️ settings.tomlが見つかりません$(NC)"; \
+		echo "$(YELLOW)   $(PROJECT_ROOT)/settings.tomlを作成して設定を自動化できます$(NC)"; \
+	fi
+
 # 全自動デプロイ (全ステップ)
-all: check-automation-readiness host-setup infrastructure platform fix-github-oauth
+all: load-settings check-automation-readiness host-setup infrastructure platform fix-github-oauth
 	@echo "$(GREEN)✅ 全ステップのデプロイが完了しました$(NC)"
 	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
 	@sleep 15  # GitOps同期待機延長

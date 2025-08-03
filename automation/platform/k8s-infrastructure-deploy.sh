@@ -1001,30 +1001,8 @@ if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
     fi
 fi
 
-# External Secretsが利用できない場合のフォールバック
-if [ "$EXTERNAL_SECRETS_ENABLED" = false ]; then
-    print_warning "External Secretsが利用できません。手動でCloudflaredトークンを入力してください"
-    echo ""
-    echo "Cloudflare Tunnelのトークンを入力してください"
-    echo "取得方法: https://one.dash.cloudflare.com/ > Access > Tunnels > Create Tunnel"
-    echo "スキップしたい場合は空エンターを押してください"
-    echo ""
-    
-    read -s -p "Cloudflared Token (空でスキップ): " CLOUDFLARED_TOKEN_INPUT
-    echo ""
-    
-    if [[ -n "$CLOUDFLARED_TOKEN_INPUT" ]]; then
-        print_debug "手動Cloudflared Secret作成中..."
-        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create secret generic cloudflared --from-literal=token='$CLOUDFLARED_TOKEN_INPUT' --namespace=cloudflared --dry-run=client -o yaml | kubectl apply -f -"; then
-            print_status "✓ 手動Cloudflared Secret作成完了"
-        else
-            print_warning "Cloudflared Secret作成に失敗しました"
-        fi
-    else
-        print_warning "Cloudflaredトークンがスキップされました"
-        print_debug "後で手動設定: kubectl create secret generic cloudflared --from-literal=token='YOUR_TOKEN' --namespace=cloudflared"
-    fi
-fi
+# CloudflaredのトークンはExternal Secrets Operatorから自動取得されます
+print_debug "CloudflaredトークンはExternal Secrets Operator経由で自動設定されます"
 
 # 10. Harbor sandboxプロジェクト作成
 print_status "=== Phase 4.10: Harbor sandboxプロジェクト作成 ==="

@@ -32,3 +32,6 @@ terraform.rc
 .terraformrc
 
 automation/k8s-infrastructure/.github/
+
+# Settings files with potential secrets
+automation/settings.toml
