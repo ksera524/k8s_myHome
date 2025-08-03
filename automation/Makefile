@@ -52,17 +52,17 @@ all: check-automation-readiness host-setup infrastructure platform fix-github-oa
 	@echo "$(YELLOW)🔧 ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...$(NC)"
 	@sleep 15  # GitOps同期待機延長
 	@echo "$(YELLOW)🔄 External Secrets設定強制同期中...$(NC)"
-	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p "{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}"' || true
 	@sleep 10  # ArgoCD同期待機
 	@echo "$(YELLOW)☁️ ArgoCD App-of-Apps同期でCloudflaredアプリケーション確認中...$(NC)"
-	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p '\''{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}'\''' || true
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl patch application applications -n argocd --type merge -p "{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/refresh\":\"hard\"}}}"' || true
 	@sleep 5
 	@if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get application cloudflared -n argocd' >/dev/null 2>&1; then \
 		echo "$(GREEN)✅ CloudflaredアプリケーションはArgoCD経由で管理されています$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️ Cloudflaredアプリケーションの同期待機中（ArgoCD App-of-Apps経由）$(NC)"; \
 	fi
-	@../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
+	@cd $(PLATFORM_DIR) && ../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ポストデプロイメント完了$(NC)"
 	@echo ""
 	@$(MAKE) status
@@ -101,13 +101,13 @@ platform:
 	@echo "$(YELLOW)🕐 External Secrets同期確認中...$(NC)"
 	@$(MAKE) wait-for-external-secrets || echo "$(YELLOW)⚠️ External Secrets同期で一部警告が発生しましたが続行します$(NC)"
 	@echo "$(YELLOW)🔐 ArgoCD GitHub OAuth設定中...$(NC)" 
-	@../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
+	@cd $(PLATFORM_DIR) && ../scripts/argocd/setup-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ ArgoCD GitHub OAuth設定で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ Kubernetesプラットフォーム構築完了$(NC)"
 
 # ArgoCD GitHub OAuth修復
 fix-github-oauth:
 	@echo "$(GREEN)🔧 ArgoCD GitHub OAuth設定修復中$(NC)"
-	@../scripts/argocd/fix-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ GitHub OAuth修復で警告が発生しましたが続行します$(NC)"
+	@cd $(PLATFORM_DIR) && ../scripts/argocd/fix-argocd-github-oauth.sh || echo "$(YELLOW)⚠️ GitHub OAuth修復で警告が発生しましたが続行します$(NC)"
 	@echo "$(GREEN)✅ ArgoCD GitHub OAuth設定修復完了$(NC)"
 
 # 後方互換性用（非推奨）

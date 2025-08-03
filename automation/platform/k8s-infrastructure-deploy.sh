@@ -250,7 +250,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXTERNAL_SECRETS_ENABLED=false
 
 # PULUMI_ACCESS_TOKEN事前確認・入力受付
-if [[ -f "$SCRIPT_DIR/external-secrets/setup-external-secrets.sh" ]]; then
+if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" ]]; then
     print_debug "External Secrets による Harbor 認証情報を設定中..."
     print_debug "Pulumi ESC から Harbor パスワードを自動取得します"
     
@@ -287,6 +287,20 @@ if [[ -f "$SCRIPT_DIR/external-secrets/setup-external-secrets.sh" ]]; then
         else
             print_debug "トークン入力がスキップされました。フォールバックモードを使用します"
             EXTERNAL_SECRETS_ENABLED=false
+        fi
+    fi
+    
+    # PULUMI_ACCESS_TOKEN が設定された場合、Kubernetes Secretを作成
+    if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
+        print_debug "Pulumi Access TokenをKubernetes Secretとして設定中..."
+        # スクリプトをリモートに転送
+        scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" k8suser@192.168.122.10:/tmp/
+        # 標準入力でトークンを渡して実行
+        echo "$PULUMI_ACCESS_TOKEN" | ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/setup-pulumi-pat.sh && /tmp/setup-pulumi-pat.sh"
+        if [ $? -eq 0 ]; then
+            print_status "✓ Pulumi Access TokenをKubernetes Secretとして設定完了"
+        else
+            print_warning "Pulumi Access TokenのKubernetes Secret設定に失敗しました"
         fi
     fi
     
@@ -348,9 +362,9 @@ EOF
         fi
         
         # Helmデプロイスクリプトが存在する場合は実行
-        if [[ -f "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh" ]]; then
+        if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/helm-deploy-eso.sh" ]]; then
             print_debug "HelmでExternal Secrets Operatorデプロイ実行中..."
-            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/external-secrets/helm-deploy-eso.sh"; then
+            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/../scripts/external-secrets/helm-deploy-eso.sh"; then
                 # PULUMI_ACCESS_TOKEN環境変数をリモートに渡して実行
                 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/helm-deploy-eso.sh && PULUMI_ACCESS_TOKEN='${PULUMI_ACCESS_TOKEN:-}' /tmp/helm-deploy-eso.sh"
                 
@@ -360,8 +374,8 @@ EOF
                     
                     # ArgoCD管理に移行
                     print_debug "ArgoCD管理に移行中..."
-                    if [[ -f "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../manifests/app-of-apps.yaml"; then
-                        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/external-secrets/migrate-to-argocd.sh"; then
+                    if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/migrate-to-argocd.sh" ]] && grep -q "external-secrets-operator" "../../manifests/app-of-apps.yaml"; then
+                        if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > migrate-to-argocd.sh" < "$SCRIPT_DIR/../scripts/external-secrets/migrate-to-argocd.sh"; then
                             ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/migrate-to-argocd.sh && /tmp/migrate-to-argocd.sh" || true
                             print_debug "✓ ArgoCD管理移行完了（または実行済み）"
                         fi
@@ -493,7 +507,7 @@ EOF
         if [ "$EXTERNAL_SECRETS_ENABLED" = true ] && ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret pulumi-access-token -n external-secrets-system' >/dev/null 2>&1; then
             # deploy-harbor-secrets.shをリモートで実行
             DEPLOY_RESULT=0
-            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-harbor-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-harbor-secrets.sh"; then
+            if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-harbor-secrets.sh" < "$SCRIPT_DIR/../scripts/external-secrets/deploy-harbor-secrets.sh"; then
                 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/deploy-harbor-secrets.sh && /tmp/deploy-harbor-secrets.sh"
                 DEPLOY_RESULT=$?
             else
@@ -519,7 +533,7 @@ EOF
                 
                 # Slack Secrets デプロイ
                 print_status "Slack 認証情報を External Secrets で設定中..."
-                if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-slack-secrets.sh" < "$SCRIPT_DIR/external-secrets/deploy-slack-secrets.sh"; then
+                if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > deploy-slack-secrets.sh" < "$SCRIPT_DIR/../scripts/external-secrets/deploy-slack-secrets.sh"; then
                     if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/deploy-slack-secrets.sh && /tmp/deploy-slack-secrets.sh"; then
                         print_debug "✓ External Secrets による Slack 認証情報管理完了"
                     else
