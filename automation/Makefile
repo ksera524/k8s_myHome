@@ -169,7 +169,7 @@ status:
 	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "LoadBalancer IPが取得できません"
 	@echo ""
 	@echo "$(YELLOW)■ External Secrets状態$(NC)"
-	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecrets -A | grep -E "(github-auth|slack-externalsecret)" | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$status/$$ready"; done' 2>/dev/null || echo "External Secrets状態が確認できません"
+	@ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@192.168.122.10 'kubectl get externalsecrets -A | grep -v NAMESPACE | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$refresh/$$status $$ready"; done' 2>/dev/null || echo "External Secrets状態が確認できません"
 	@echo ""
 
 # 全フェーズ検証
