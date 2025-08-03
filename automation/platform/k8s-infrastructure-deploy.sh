@@ -765,8 +765,7 @@ print_status "=== Phase 4.7: Harbor Secret作成 ==="
 print_debug "Harbor管理者認証情報をSecret化します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
-# Harbor namespace作成（まだ存在しない場合）
-kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+# Harbor namespace は既に作成済み
 
 # Harbor Persistent Volumes作成
 print_debug "Harbor用PersistentVolumeを作成中..."
@@ -784,8 +783,7 @@ else
     echo "✓ Harbor管理者パスワードSecret管理（External Secrets使用）"
 fi
 
-# ARC namespace作成（まだ存在しない場合）
-kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
+# arc-systems namespace は既に作成済み
 
 # Harbor認証Secret（GitHub Actions用）作成/更新
 # Harbor Auth Secret - 既にESO (External Secrets Operator) で管理されています
@@ -946,9 +944,7 @@ fi
 print_status "=== Phase 4.9: Cloudflaredセットアップ ==="
 print_debug "External Secrets経由でCloudflare Tunnel Secretを作成します"
 
-# cloudflared namespace作成
-print_debug "Cloudflared namespaceを作成中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -"
+# cloudflared namespace は既に作成済み
 
 # External Secretsが有効な場合
 if [ "$EXTERNAL_SECRETS_ENABLED" = true ]; then
@@ -1148,19 +1144,7 @@ fi
 print_status "=== Phase 4.11: Kubernetes sandboxネームスペース作成 ==="
 print_debug "Kubernetesクラスタ内にsandboxネームスペースを作成します"
 
-# sandboxネームスペース作成
-if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl create namespace sandbox" 2>/dev/null; then
-    print_status "✓ Kubernetes sandboxネームスペース作成完了"
-else
-    # 既存チェック
-    if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl get namespace sandbox" >/dev/null 2>&1; then
-        print_debug "sandboxネームスペースは既に存在しています"
-    else
-        print_warning "sandboxネームスペース作成に失敗しました"
-        print_debug "手動で作成する場合:"
-        echo "  kubectl create namespace sandbox"
-    fi
-fi
+# sandbox namespace は既に作成済み
 
 # sandboxネームスペース確認
 SANDBOX_NS_STATUS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "kubectl get namespace sandbox -o jsonpath='{.status.phase}'" 2>/dev/null || echo "NotFound")
