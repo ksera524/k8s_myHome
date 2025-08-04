@@ -1,10 +1,9 @@
-# Harbor Persistent Volumes
-# 注意: 現在稼働中のHarborとの互換性のため、既存のPV名とバインディングを維持
+# Harbor Persistent Volumes - 正しいPV/PVCバインディング
 
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: database-data-harbor-database-0-pv  # Database用PV
+  name: harbor-database-pv  # Database用PV
 spec:
   capacity:
     storage: 1Gi
@@ -13,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-storage
   local:
-    path: /tmp/harbor-database
+    path: /tmp/harbor-redis  # 実際のパス（注意: 歴史的経緯によりredisパスがdatabase用）
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -26,7 +25,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: data-harbor-redis-0-pv  # 現在jobservice PVCにバインド（交錯状態）
+  name: harbor-redis-pv  # Redis用PV
 spec:
   capacity:
     storage: 1Gi
@@ -35,7 +34,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-storage
   local:
-    path: /tmp/harbor-redis
+    path: /tmp/harbor-jobservice  # 実際のパス（注意: 歴史的経緯によりjobserviceパスがredis用）
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -48,7 +47,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: data-harbor-trivy-0-pv  # Trivy用PV
+  name: data-harbor-trivy-0-pv  # Trivy用PV（元の名前を維持）
 spec:
   capacity:
     storage: 5Gi
@@ -92,7 +91,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: harbor-jobservice-pv-real  # 現在redis PVCにバインド（交錯状態）
+  name: harbor-jobservice-pv  # JobService用PV
 spec:
   capacity:
     storage: 1Gi
@@ -101,7 +100,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-storage
   local:
-    path: /tmp/harbor-jobservice
+    path: /tmp/harbor-database  # 実際のパス（注意: 歴史的経緯によりdatabaseパスがjobservice用）
   nodeAffinity:
     required:
       nodeSelectorTerms:
