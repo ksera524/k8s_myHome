@@ -7,7 +7,7 @@ set -euo pipefail
 
 # GitHub認証情報管理ユーティリティを読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/github-auth-utils.sh"
+source "$SCRIPT_DIR/../argocd/github-auth-utils.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -107,7 +107,7 @@ else
     print_debug "対象リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
 
     # マニフェストファイルをリモートにコピー
-    scp -o StrictHostKeyChecking=no "../../manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
+    scp -o StrictHostKeyChecking=no "/home/ksera/k8s_myHome/manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
 
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
 # ServiceAccount確認・作成
