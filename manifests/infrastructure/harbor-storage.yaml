@@ -1,7 +1,10 @@
+# Harbor Persistent Volumes
+# 注意: 現在稼働中のHarborとの互換性のため、既存のPV名とバインディングを維持
+
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: database-data-harbor-database-0-pv
+  name: database-data-harbor-database-0-pv  # Database用PV
 spec:
   capacity:
     storage: 1Gi
@@ -23,7 +26,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: data-harbor-redis-0-pv
+  name: data-harbor-redis-0-pv  # 現在jobservice PVCにバインド（交錯状態）
 spec:
   capacity:
     storage: 1Gi
@@ -45,7 +48,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: data-harbor-trivy-0-pv
+  name: data-harbor-trivy-0-pv  # Trivy用PV
 spec:
   capacity:
     storage: 5Gi
@@ -67,7 +70,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: harbor-registry-pv
+  name: harbor-registry-pv  # Registry用PV
 spec:
   capacity:
     storage: 10Gi
@@ -89,29 +92,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: data-harbor-redis-0-new-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  local:
-    path: /tmp/harbor-redis-new
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - k8s-worker1
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: harbor-jobservice-pv-real
+  name: harbor-jobservice-pv-real  # 現在redis PVCにバインド（交錯状態）
 spec:
   capacity:
     storage: 1Gi
