@@ -76,14 +76,22 @@ jobs:
         echo "Password length: ${#HARBOR_PASSWORD}"
         echo "URL: $HARBOR_URL"
         
-        # Harbor認証テスト
+        # Docker daemon設定でinsecure registryを追加
+        echo "Docker daemon insecure registry設定中..."
+        mkdir -p /etc/docker
+        echo '{"insecure-registries":["'$HARBOR_URL'"]}' | sudo tee /etc/docker/daemon.json
+        
+        # Docker daemon再起動（DinD環境では自動的に反映される）
+        sleep 2
+        
+        # Harbor認証テスト (HTTP)
         echo "Harbor認証テスト中..."
-        curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD "http://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor認証失敗"
+        curl -k -u $HARBOR_USERNAME:$HARBOR_PASSWORD "http://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor HTTP認証失敗"
         
         # Docker認証設定
         echo "Docker認証設定を更新中..."
         mkdir -p ~/.docker
-        echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
+        echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{},\"insecure-registries\":[\"$HARBOR_URL\"]}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
         
         # Docker環境変数でinsecure registryを指定（DinD環境対応）
@@ -134,9 +142,9 @@ jobs:
         echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
         
-        # Docker login実行（明示的な認証）
+        # Docker login実行（明示的な認証、insecure registry対応）
         echo "Docker login実行中..."
-        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin
+        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin || echo "Docker login失敗、insecure registryとして継続"
         
         # HTTPプロトコルを強制するためのデバッグ情報
         echo "Docker daemon insecure registries設定確認:"
