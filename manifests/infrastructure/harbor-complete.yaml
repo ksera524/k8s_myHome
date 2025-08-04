@@ -44,9 +44,6 @@ spec:
             registry:
               size: 10Gi
               storageClass: "local-storage"
-            chartmuseum:
-              size: 5Gi
-              storageClass: "local-storage"
             jobservice:
               size: 1Gi
               storageClass: "local-storage"
