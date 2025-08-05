@@ -127,7 +127,7 @@ helm upgrade --install $RUNNER_NAME \
   --set githubConfigSecret="github-token" \
   --set containerMode.type="dind" \
   --set containerMode.kubernetesModeWork.volumeClaimTemplate.storageClassName="local-ssd" \
-  --set containerMode.dockerdInRunner.args="{dockerd,--host=unix:///var/run/docker.sock,--group=\$(DOCKER_GROUP_GID),--insecure-registry=192.168.122.100}" \
+  --set containerMode.dockerdInRunner.args="{dockerd,--host=unix:///var/run/docker.sock,--group=\$(DOCKER_GROUP_GID)}" \
   --set runnerScaleSetName="$RUNNER_NAME" \
   --set template.spec.serviceAccountName="github-actions-runner" \
   --set minRunners=0 \
@@ -266,10 +266,15 @@ jobs:
         # Docker認証設定
         echo "Docker認証設定を更新中..."
         mkdir -p ~/.docker
-        echo "{\"auths\":{\"\$HARBOR_URL\":{\"auth\":\"\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{},\"insecure-registries\":[\"\$HARBOR_URL\"]}" > ~/.docker/config.json
+        echo "{\"auths\":{\"\$HARBOR_URL\":{\"auth\":\"\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
         
-        # Docker環境変数でinsecure registryを指定（DinD環境対応）
+        # Docker login実行（HTTPS接続、CA証明書使用）
+        echo "Docker login実行中..."
+        # CA証明書が配布されているため、HTTPS接続を使用
+        echo "\$HARBOR_PASSWORD" | docker login https://\$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin || echo "Docker login失敗、継続"
+        
+        # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
         
         echo "✅ Harbor Login & Docker設定完了"
@@ -281,13 +286,9 @@ jobs:
         HARBOR_URL=\$(cat /tmp/harbor_url)
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
-        # Dockerイメージビルド（HTTP接続用）
+        # Dockerイメージビルド（HTTPS接続用）
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest .
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }} .
-        
-        # HTTPプロトコル用追加タグ
-        docker tag \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest-http
-        docker tag \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }} \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }}-http
         
         echo "✅ Docker Build完了"
         
@@ -300,48 +301,19 @@ jobs:
         HARBOR_USERNAME=\$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         
-        # Docker環境変数でinsecure registryを指定（DinD環境対応）
+        # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
         
-        # Docker pushでHTTP接続を使用
-        echo "Docker pushでHTTP接続を使用してHarborにpush中..."
-        
-        # Docker daemon設定確認
-        echo "Docker daemon設定を確認中..."
-        docker info | grep -i insecure || echo "Insecure registry設定なし"
-        
-        # Docker環境変数設定（追加）
-        export DOCKER_HOST=unix:///var/run/docker.sock
-        export DOCKER_API_VERSION=1.40
-        export DOCKER_CONTENT_TRUST=0
-        
-        # Docker認証設定（config.jsonに直接書き込み）
-        echo "Docker認証設定を更新中..."
-        mkdir -p ~/.docker
-        echo "{\"auths\":{\"\$HARBOR_URL\":{\"auth\":\"\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
-        chmod 600 ~/.docker/config.json
-        
-        # Docker login実行（HTTPS接続、CA証明書使用）
-        echo "Docker login実行中..."
-        # CA証明書が配布されているため、HTTPS接続を使用
-        echo "\$HARBOR_PASSWORD" | docker login https://\$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin || echo "Docker login失敗、継続"
-        
-        # HTTPプロトコルを強制するためのデバッグ情報
-        echo "Docker daemon insecure registries設定確認:"
-        docker info | grep -A 5 "Insecure Registries" || echo "Insecure registries設定が見つかりません"
-        
-        # Docker pushを実行する前にHarborエンドポイントをテスト
-        echo "Harbor HTTP エンドポイントをテスト中..."
-        curl -s -I http://\$HARBOR_URL/v2/ || echo "Harbor HTTP接続テスト失敗"
+        # Harbor HTTPS エンドポイントをテスト
+        echo "Harbor HTTPS エンドポイントをテスト中..."
+        curl -s -I https://\$HARBOR_URL/v2/ || echo "Harbor HTTPS接続テスト失敗"
         
         # Harbor認証テスト（APIエンドポイント）
         echo "Harbor API認証テスト中..."
-        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "http://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
+        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "https://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
         
-        # Docker pushを実行（insecure registryとして）
-        echo "Docker pushでHarborにpush中..."
-        echo "insecure registry設定確認:"
-        docker info | grep -A 5 "Insecure Registries" || echo "insecure registry設定なし"
+        # Docker pushを実行（HTTPS接続、CA証明書使用）
+        echo "Docker pushでHTTPS接続を使用してHarborにpush中..."
         
         echo "推す対象: \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest"
         docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest
@@ -362,8 +334,8 @@ jobs:
         HARBOR_URL=\$(cat /tmp/harbor_url)
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
-        # プッシュされたイメージ確認（HTTP接続）
-        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD http://\$HARBOR_URL/v2/\$HARBOR_PROJECT/${REPOSITORY_NAME}/tags/list
+        # プッシュされたイメージ確認（HTTPS接続）
+        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/\$HARBOR_PROJECT/${REPOSITORY_NAME}/tags/list
         
         echo "✅ デプロイ完了"
         
@@ -397,7 +369,7 @@ echo ""
 echo "✅ 作成されたGitHub Actions workflow:"
 echo "   - ファイル: $WORKFLOW_FILE"
 echo "   - リポジトリ固有の設定済み"
-echo "   - Harbor認証とpush対応"
+echo "   - Harbor HTTPS認証とpush対応（CA証明書使用）"
 echo ""
 echo "📝 次のステップ:"
 echo "1. GitHub リポジトリに Commit & Push"
