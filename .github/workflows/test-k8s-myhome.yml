@@ -1,0 +1,31 @@
+# GitHub Actions workflow for k8s_myHome
+# Test workflow for Runner verification
+
+name: Test k8s_myHome Runner
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-runner:
+    runs-on: k8s-myhome-runners  # Custom Runner Scale Set
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test Runner Environment
+      run: |
+        echo "=== Runner Environment Test ==="
+        echo "Hostname: $(hostname)"
+        echo "OS: $(uname -a)"
+        echo "Current user: $(whoami)"
+        echo "Working directory: $(pwd)"
+        echo "Docker version:"
+        docker --version || echo "Docker not available"
+        echo "kubectl version:"
+        kubectl version --client || echo "kubectl not available"
+        echo "✅ Runner test completed successfully"
