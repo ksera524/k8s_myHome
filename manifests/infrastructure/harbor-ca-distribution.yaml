@@ -1,0 +1,116 @@
+# Harbor CA証明書配布DaemonSet
+# GitHub Actions Runnerに証明書を配布してTLS接続を有効にする
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: harbor-ca-distribution
+  namespace: arc-systems
+  labels:
+    app: harbor-ca-distribution
+spec:
+  selector:
+    matchLabels:
+      app: harbor-ca-distribution
+  template:
+    metadata:
+      labels:
+        app: harbor-ca-distribution
+    spec:
+      hostNetwork: true
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      initContainers:
+      - name: ca-installer
+        image: alpine:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Harbor CA証明書配布を開始..."
+          
+          # Harbor証明書を取得
+          mkdir -p /host-certs/harbor
+          cp /etc/harbor-certs/tls.crt /host-certs/harbor/harbor.crt
+          
+          # システム証明書ストアに追加
+          if [ -d "/host-usr-share-ca-certificates" ]; then
+            cp /etc/harbor-certs/tls.crt /host-usr-share-ca-certificates/harbor.crt
+            chroot /host update-ca-certificates || echo "update-ca-certificates failed"
+          fi
+          
+          # Docker証明書ディレクトリに配布
+          mkdir -p /host-docker-certs/192.168.122.100
+          cp /etc/harbor-certs/tls.crt /host-docker-certs/192.168.122.100/ca.crt
+          
+          echo "Harbor CA証明書配布完了"
+          
+        volumeMounts:
+        - name: harbor-certs
+          mountPath: /etc/harbor-certs
+          readOnly: true
+        - name: host-ca-certificates
+          mountPath: /host-usr-share-ca-certificates
+        - name: host-docker-certs
+          mountPath: /host-docker-certs
+        - name: host-root
+          mountPath: /host
+        securityContext:
+          privileged: true
+      containers:
+      - name: certificate-monitor
+        image: alpine:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Harbor CA証明書監視を開始..."
+          while true; do
+            # 証明書の有効性を定期的にチェック
+            if openssl x509 -in /etc/harbor-certs/tls.crt -checkend 86400 -noout; then
+              echo "Harbor証明書は有効です"
+            else
+              echo "Harbor証明書の期限が近づいています"
+            fi
+            sleep 3600  # 1時間ごとにチェック
+          done
+        volumeMounts:
+        - name: harbor-certs
+          mountPath: /etc/harbor-certs
+          readOnly: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+      volumes:
+      - name: harbor-certs
+        secret:
+          secretName: harbor-tls-secret
+      - name: host-ca-certificates
+        hostPath:
+          path: /usr/share/ca-certificates
+          type: DirectoryOrCreate
+      - name: host-docker-certs
+        hostPath:
+          path: /etc/docker/certs.d
+          type: DirectoryOrCreate
+      - name: host-root
+        hostPath:
+          path: /
+          type: Directory
+
+---
+# Harbor証明書を arc-systems namespace にコピー
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-ca-cert
+  namespace: arc-systems
+  labels:
+    app: harbor-ca-distribution
+type: Opaque
+data:
+  ca.crt: ""  # 動的に設定される
