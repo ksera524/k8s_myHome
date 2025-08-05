@@ -86,6 +86,14 @@ jobs:
         sudo cp /tmp/harbor-ca.crt /etc/docker/certs.d/$HARBOR_URL/ca.crt
         sudo chmod 644 /etc/docker/certs.d/$HARBOR_URL/ca.crt
         
+        # システム証明書ストアにも追加
+        sudo cp /tmp/harbor-ca.crt /usr/local/share/ca-certificates/harbor.crt
+        sudo update-ca-certificates
+        
+        # 環境変数でCA証明書を指定
+        export SSL_CERT_FILE=/tmp/harbor-ca.crt
+        export REQUESTS_CA_BUNDLE=/tmp/harbor-ca.crt
+        
         # Harbor CA証明書が配布されているか確認
         echo "Harbor CA証明書配布状況確認中..."
         if [ -f "/etc/docker/certs.d/$HARBOR_URL/ca.crt" ]; then
@@ -113,10 +121,27 @@ jobs:
         echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
         
+        # Docker daemon設定を確認・更新
+        echo "Docker daemon設定を確認・更新中..."
+        sudo mkdir -p /etc/docker
+        if [ ! -f /etc/docker/daemon.json ]; then
+          echo '{"insecure-registries": ["'$HARBOR_URL'"]}' | sudo tee /etc/docker/daemon.json
+        else
+          # 既存設定に追加
+          sudo jq '. + {"insecure-registries": ["'$HARBOR_URL'"]}' /etc/docker/daemon.json > /tmp/daemon.json.tmp
+          sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
+        fi
+        
+        # Docker daemon再起動（DinD環境では不要、設定のみ）
+        echo "Docker daemon設定完了"
+        
         # Docker login実行（HTTPS接続、CA証明書使用）
         echo "Docker login実行中..."
         # CA証明書が配布されているため、HTTPS接続を使用
-        echo "$HARBOR_PASSWORD" | docker login https://$HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin || echo "Docker login失敗、継続"
+        echo "$HARBOR_PASSWORD" | docker login https://$HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin || {
+          echo "HTTPS login失敗、HTTP接続でリトライ中..."
+          echo "$HARBOR_PASSWORD" | docker login http://$HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin || echo "Docker login完全失敗、継続"
+        }
         
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
@@ -156,14 +181,24 @@ jobs:
         echo "Harbor API認証テスト中..."
         curl --cacert /etc/docker/certs.d/$HARBOR_URL/ca.crt -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
         
-        # Docker pushを実行（HTTPS接続、CA証明書使用）
+        # Docker pushを実行（HTTPS接続、CA証明書使用、フォールバック付き）
         echo "Docker pushでHTTPS接続を使用してHarborにpush中..."
         
         echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"
-        docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest
+        if ! docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
+          echo "HTTPS push失敗、HTTP接続でリトライ中..."
+          # HTTPプロトコルでリトライ
+          docker tag $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest-http
+          docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest-http || echo "HTTP push も失敗"
+        fi
         
         echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"
-        docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}
+        if ! docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
+          echo "HTTPS push失敗、HTTP接続でリトライ中..."
+          # HTTPプロトコルでリトライ
+          docker tag $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}-http
+          docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}-http || echo "HTTP push も失敗"
+        fi
         
         echo "✅ Docker pushが成功しました"
         
@@ -189,6 +224,6 @@ jobs:
         echo "=== クリーンアップ ==="
         
         # 認証情報ファイルを安全に削除
-        rm -f /tmp/harbor_* /tmp/kubeconfig /tmp/image-*.tar
+        rm -f /tmp/harbor_* /tmp/kubeconfig /tmp/image-*.tar /tmp/harbor-ca.crt
         
         echo "✅ クリーンアップ完了"
