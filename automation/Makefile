@@ -142,7 +142,7 @@ add-runner:
 		exit 1; \
 	fi
 	@echo "$(GREEN)🚀 GitHub Actions Runner追加: $(REPO)$(NC)"
-	@cd $(PLATFORM_DIR) && ./add-runner.sh $(REPO)
+	@cd $(PROJECT_ROOT)/scripts/github-actions && ./add-runner.sh $(REPO)
 	@echo "$(GREEN)✅ Runner追加完了$(NC)"
 
 # Actions Runner Controller設定
