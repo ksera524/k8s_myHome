@@ -1,10 +1,10 @@
 # GitHub Actions workflow for slack.rs with Harbor HTTPS
 # Updated to use HTTPS with CA certificate distribution
 
-name: Build and Push to Harbor - slack.rs (HTTPS)
+name: slack.rs - Harbor HTTPS (CA Fixed)
 
 on:
-  workflow_dispatch:  # Manual trigger for testing
+  workflow_dispatch:  # Manual trigger
   push:
     branches: [ master,main, develop ]
   pull_request:
@@ -77,6 +77,15 @@ jobs:
         echo "Password length: ${#HARBOR_PASSWORD}"
         echo "URL: $HARBOR_URL"
         
+        # Harbor CA証明書をKubernetesから取得してコンテナ内にコピー
+        echo "Harbor CA証明書をKubernetesから取得中..."
+        kubectl get secret harbor-tls-secret -n arc-systems -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
+        
+        # Docker証明書ディレクトリを作成してCA証明書をコピー
+        sudo mkdir -p /etc/docker/certs.d/$HARBOR_URL
+        sudo cp /tmp/harbor-ca.crt /etc/docker/certs.d/$HARBOR_URL/ca.crt
+        sudo chmod 644 /etc/docker/certs.d/$HARBOR_URL/ca.crt
+        
         # Harbor CA証明書が配布されているか確認
         echo "Harbor CA証明書配布状況確認中..."
         if [ -f "/etc/docker/certs.d/$HARBOR_URL/ca.crt" ]; then
@@ -96,7 +105,7 @@ jobs:
         
         # Harbor認証テスト (HTTPS)
         echo "Harbor認証テスト中..."
-        curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor HTTPS認証失敗"
+        curl --cacert /etc/docker/certs.d/$HARBOR_URL/ca.crt -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor HTTPS認証失敗"
         
         # Docker認証設定
         echo "Docker認証設定を更新中..."
@@ -141,11 +150,11 @@ jobs:
         
         # Harbor HTTPS エンドポイントをテスト
         echo "Harbor HTTPS エンドポイントをテスト中..."
-        curl -s -I https://$HARBOR_URL/v2/ || echo "Harbor HTTPS接続テスト失敗"
+        curl --cacert /etc/docker/certs.d/$HARBOR_URL/ca.crt -s -I https://$HARBOR_URL/v2/ || echo "Harbor HTTPS接続テスト失敗"
         
         # Harbor認証テスト（APIエンドポイント）
         echo "Harbor API認証テスト中..."
-        curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
+        curl --cacert /etc/docker/certs.d/$HARBOR_URL/ca.crt -u $HARBOR_USERNAME:$HARBOR_PASSWORD "https://$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
         
         # Docker pushを実行（HTTPS接続、CA証明書使用）
         echo "Docker pushでHTTPS接続を使用してHarborにpush中..."
@@ -170,7 +179,7 @@ jobs:
         HARBOR_PROJECT=$(cat /tmp/harbor_project)
         
         # プッシュされたイメージ確認（HTTPS接続）
-        curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://$HARBOR_URL/v2/$HARBOR_PROJECT/slack.rs/tags/list
+        curl --cacert /etc/docker/certs.d/$HARBOR_URL/ca.crt -u $HARBOR_USERNAME:$HARBOR_PASSWORD https://$HARBOR_URL/v2/$HARBOR_PROJECT/slack.rs/tags/list
         
         echo "✅ デプロイ完了"
         
