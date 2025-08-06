@@ -5,29 +5,15 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 設定ファイル読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AUTOMATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ -f "$AUTOMATION_DIR/scripts/settings-loader.sh" ]]; then
+    source "$AUTOMATION_DIR/scripts/settings-loader.sh" load 2>/dev/null || true
+fi
 
-# Function to print colored output
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_input() {
-    echo -e "${BLUE}[INPUT]${NC} $1"
-}
+# 共通色設定スクリプトを読み込み
+source "$SCRIPT_DIR/../scripts/common-colors.sh"
 
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
@@ -51,11 +37,16 @@ print_status "Disk usage information:"
 df -h | head -1
 df -h | grep -E "(sd[b-z]|nvme|mmc)" || echo "No additional storage devices mounted"
 
-# 2. Interactive device selection
+# 2. Interactive device selection or automatic from settings
 echo ""
-print_input "Please identify your USB external storage device from the list above."
-print_input "Enter the device name (e.g., sdb, sdc, nvme0n1): "
-read -r DEVICE_NAME
+if [[ -n "${HOST_SETUP_USB_DEVICE_NAME:-}" ]]; then
+    DEVICE_NAME="${HOST_SETUP_USB_DEVICE_NAME}"
+    print_status "Using device from settings: $DEVICE_NAME"
+else
+    print_input "Please identify your USB external storage device from the list above."
+    print_input "Enter the device name (e.g., sdb, sdc, nvme0n1): "
+    read -r DEVICE_NAME
+fi
 
 # Validate device
 if [[ ! -b "/dev/$DEVICE_NAME" ]]; then
@@ -70,8 +61,13 @@ print_warning "Current partition table for /dev/$DEVICE_NAME:"
 sudo fdisk -l /dev/$DEVICE_NAME 2>/dev/null || echo "Could not read partition table"
 
 echo ""
-print_input "Are you sure you want to proceed with /dev/$DEVICE_NAME? (yes/no): "
-read -r CONFIRM
+if [[ "${AUTOMATION_AUTO_CONFIRM_OVERWRITE:-}" == "true" ]]; then
+    print_status "Auto-confirming device selection: /dev/$DEVICE_NAME"
+    CONFIRM="yes"
+else
+    print_input "Are you sure you want to proceed with /dev/$DEVICE_NAME? (yes/no): "
+    read -r CONFIRM
+fi
 
 if [[ "$CONFIRM" != "yes" ]]; then
     print_status "Operation cancelled"

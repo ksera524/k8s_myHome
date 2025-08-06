@@ -10,28 +10,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTOMATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SETTINGS_FILE="$AUTOMATION_DIR/settings.toml"
 
-# カラー設定
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# 共通色設定スクリプトを読み込み
+source "$SCRIPT_DIR/common-colors.sh"
 
-print_status() {
-    echo -e "${GREEN}[SETTINGS]${NC} $1"
+# 設定固有の印刷関数を定義（[SETTINGS]プレフィックス）
+print_settings_status() {
+    echo "📋 [SETTINGS] $1"
 }
 
-print_warning() {
-    echo -e "${YELLOW}[SETTINGS]${NC} $1"
+print_settings_warning() {
+    echo "⚠️  [SETTINGS] $1"
 }
 
-print_error() {
-    echo -e "${RED}[SETTINGS]${NC} $1"
+print_settings_error() {
+    echo "❌ [SETTINGS] $1"
 }
 
-print_debug() {
-    echo -e "${BLUE}[SETTINGS]${NC} $1"
+print_settings_debug() {
+    echo "🔍 [SETTINGS] $1"
 }
+
+# 後方互換性のためのエイリアス
+print_status() { print_settings_status "$1"; }
+print_warning() { print_settings_warning "$1"; }
+print_error() { print_settings_error "$1"; }
+print_debug() { print_settings_debug "$1"; }
 
 # TOMLパーサー（簡易版）
 # セクション[section]とkey=valueのペアを抽出
@@ -64,7 +67,12 @@ parse_toml() {
                 # 環境変数として設定（セクション名_キー名=値）
                 local env_name="${section^^}_${key^^}"
                 export "$env_name=$value"
-                if [[ "$value" != "" && ! "$key" =~ (token|password) ]]; then
+                
+                # 特別な変数マッピング: PULUMI_ACCESS_TOKEN
+                if [[ "$section" == "pulumi" && "$key" == "access_token" ]]; then
+                    export PULUMI_ACCESS_TOKEN="$value"
+                    print_debug "設定読み込み: PULUMI_ACCESS_TOKEN=***masked***"
+                elif [[ "$value" != "" && ! "$key" =~ (token|password) ]]; then
                     print_debug "設定読み込み: ${env_name}=${value}"
                 elif [[ "$value" != "" ]]; then
                     print_debug "設定読み込み: ${env_name}=***masked***"
@@ -104,6 +112,12 @@ export_important_variables() {
     if [[ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
         export GITHUB_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN}"
         print_debug "GITHUB_TOKEN環境変数を設定済み"
+    fi
+    
+    # GitHub Username設定
+    if [[ -n "${GITHUB_USERNAME:-}" ]]; then
+        export GITHUB_USERNAME="${GITHUB_USERNAME}"
+        print_debug "GITHUB_USERNAME環境変数を設定済み"
     fi
     
 }

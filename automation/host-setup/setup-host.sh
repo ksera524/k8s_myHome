@@ -5,24 +5,9 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Function to print colored output
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+# 共通カラー定義を読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../scripts/common-colors.sh"
 
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
@@ -67,6 +52,8 @@ sudo apt install -y \
 
 # 4. Install Terraform
 print_status "Installing Terraform..."
+# 既存のキーファイルを削除してから作成（上書き確認を回避）
+sudo rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
 wget -O- https://apt.releases.hashicorp.com/gpg | \
     gpg --dearmor | \
     sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
@@ -97,6 +84,8 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 
 # 7. Install kubectl
 print_status "Installing kubectl..."
+# 既存のキーファイルを削除してから作成（上書き確認を回避）
+sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
 sudo apt-get update
@@ -104,6 +93,8 @@ sudo apt-get install -y kubectl
 
 # 8. Install helm
 print_status "Installing Helm..."
+# 既存のキーファイルを削除してから作成（上書き確認を回避）
+sudo rm -f /usr/share/keyrings/helm.gpg
 curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
 sudo apt-get update

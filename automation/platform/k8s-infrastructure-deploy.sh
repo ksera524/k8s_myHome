@@ -13,28 +13,22 @@ export NON_INTERACTIVE=true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../scripts/argocd/github-auth-utils.sh"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# 共通色設定スクリプトを読み込み（settings-loader.shより先に）
+source "$SCRIPT_DIR/../scripts/common-colors.sh"
 
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_debug() {
-    echo -e "${BLUE}[DEBUG]${NC} $1"
-}
+# 設定ファイル読み込み（環境変数が未設定の場合）
+if [[ -f "$SCRIPT_DIR/../scripts/settings-loader.sh" ]]; then
+    print_debug "settings.tomlから設定を読み込み中..."
+    source "$SCRIPT_DIR/../scripts/settings-loader.sh" load 2>/dev/null || true
+    
+    # settings.tomlからのPULUMI_ACCESS_TOKEN設定を確認・適用
+    if [[ -n "${PULUMI_ACCESS_TOKEN:-}" ]]; then
+        print_debug "settings.tomlからPulumi Access Token読み込み完了"
+    elif [[ -n "${PULUMI_PULUMI_ACCESS_TOKEN:-}" ]]; then
+        export PULUMI_ACCESS_TOKEN="${PULUMI_PULUMI_ACCESS_TOKEN}"
+        print_debug "settings.tomlのPulumi.access_tokenを環境変数に設定完了"
+    fi
+fi
 
 print_status "=== Kubernetes基盤構築開始 ==="
 
@@ -256,14 +250,20 @@ if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" ]]; then
     print_debug "External Secrets による Harbor 認証情報を設定中..."
     print_debug "Pulumi ESC から Harbor パスワードを自動取得します"
     
-    # PULUMI_ACCESS_TOKEN対話的設定
+    # PULUMI_ACCESS_TOKEN対話的設定（非対話モード時はスキップ）
+    print_debug "Debug: PULUMI_ACCESS_TOKEN環境変数の状態 = '${PULUMI_ACCESS_TOKEN:-未設定}'"
     if [ -z "${PULUMI_ACCESS_TOKEN:-}" ]; then
-        print_status "External Secrets を使用するためにPulumi Access Tokenが必要です"
-        print_status "取得方法: https://app.pulumi.com/account/tokens"
-        echo ""
-        echo -n "Pulumi Access Token (pul-で始まる、Enterでスキップ): "
-        read -s PULUMI_ACCESS_TOKEN_INPUT
-        echo
+        if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
+            print_warning "非対話モード: PULUMI_ACCESS_TOKEN環境変数が未設定のため、フォールバックモードを使用します"
+            EXTERNAL_SECRETS_ENABLED=false
+        else
+            print_status "External Secrets を使用するためにPulumi Access Tokenが必要です"
+            print_status "取得方法: https://app.pulumi.com/account/tokens"
+            echo ""
+            echo -n "Pulumi Access Token (pul-で始まる、Enterでスキップ): "
+            read -s PULUMI_ACCESS_TOKEN_INPUT
+            echo
+        fi
         
         if [ -n "${PULUMI_ACCESS_TOKEN_INPUT:-}" ]; then
             # PAT形式検証
@@ -273,18 +273,24 @@ if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" ]]; then
                 print_status "✓ Pulumi Access Token設定完了"
             else
                 print_warning "Pulumi Access Tokenの形式が正しく見えません"
-                echo -n "続行しますか？ [y/N]: "
-                read -r response
-                case "$response" in
-                    [yY][eE][sS]|[yY])
-                        export PULUMI_ACCESS_TOKEN="$PULUMI_ACCESS_TOKEN_INPUT"
-                        print_status "✓ Pulumi Access Token設定完了（形式警告を無視）"
-                        ;;
-                    *)
-                        print_debug "トークン入力がキャンセルされました。フォールバックモードを使用します"
-                        EXTERNAL_SECRETS_ENABLED=false
-                        ;;
-                esac
+                if [[ "${NON_INTERACTIVE:-}" == "true" || "${CI:-}" == "true" || ! -t 0 ]]; then
+                    print_warning "非対話モード: 形式警告を無視して続行します"
+                    export PULUMI_ACCESS_TOKEN="$PULUMI_ACCESS_TOKEN_INPUT"
+                    print_status "✓ Pulumi Access Token設定完了（形式警告を無視）"
+                else
+                    echo -n "続行しますか？ [y/N]: "
+                    read -r response
+                    case "$response" in
+                        [yY][eE][sS]|[yY])
+                            export PULUMI_ACCESS_TOKEN="$PULUMI_ACCESS_TOKEN_INPUT"
+                            print_status "✓ Pulumi Access Token設定完了（形式警告を無視）"
+                            ;;
+                        *)
+                            print_debug "トークン入力がキャンセルされました。フォールバックモードを使用します"
+                            EXTERNAL_SECRETS_ENABLED=false
+                            ;;
+                    esac
+                fi
             fi
         else
             print_debug "トークン入力がスキップされました。フォールバックモードを使用します"
@@ -295,7 +301,8 @@ if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" ]]; then
     # PULUMI_ACCESS_TOKEN が設定された場合、Kubernetes Secretを作成
     if [ -n "${PULUMI_ACCESS_TOKEN:-}" ]; then
         print_debug "Pulumi Access TokenをKubernetes Secretとして設定中..."
-        # スクリプトをリモートに転送
+        # 依存スクリプトをリモートに転送
+        scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../scripts/common-colors.sh" k8suser@192.168.122.10:/tmp/
         scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../scripts/external-secrets/setup-pulumi-pat.sh" k8suser@192.168.122.10:/tmp/
         # 標準入力でトークンを渡して実行
         echo "$PULUMI_ACCESS_TOKEN" | ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/setup-pulumi-pat.sh && /tmp/setup-pulumi-pat.sh"
@@ -366,6 +373,8 @@ EOF
         # Helmデプロイスクリプトが存在する場合は実行
         if [[ -f "$SCRIPT_DIR/../scripts/external-secrets/helm-deploy-eso.sh" ]]; then
             print_debug "HelmでExternal Secrets Operatorデプロイ実行中..."
+            # 依存スクリプトも同時に転送
+            scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../scripts/common-colors.sh" k8suser@192.168.122.10:/tmp/
             if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "cd /tmp && cat > helm-deploy-eso.sh" < "$SCRIPT_DIR/../scripts/external-secrets/helm-deploy-eso.sh"; then
                 # PULUMI_ACCESS_TOKEN環境変数をリモートに渡して実行
                 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 "chmod +x /tmp/helm-deploy-eso.sh && PULUMI_ACCESS_TOKEN='${PULUMI_ACCESS_TOKEN:-}' /tmp/helm-deploy-eso.sh"
@@ -1281,29 +1290,29 @@ EOF
 
 print_status "✓ ArgoCD同期状況確認完了"
 
-# 13. Harbor証明書修正とIngress設定の自動適用
-print_status "=== Phase 4.12: Harbor証明書修正とIngress設定の自動適用 ==="
-print_debug "Harbor Docker Registry API対応とGitHub Actions対応を自動実行します"
+# 13. Harbor CA信頼配布とDocker Registry API対応の自動適用
+print_status "=== Phase 4.12: Harbor CA信頼配布とDocker Registry API対応の自動適用 ==="
+print_debug "Harbor CA証明書配布DaemonSetとGitHub Actions対応を自動実行します"
 
-# Harbor証明書修正スクリプトの実行
-if [[ -f "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" ]]; then
-    print_debug "Harbor証明書修正スクリプトを実行中..."
-    print_debug "- IP SAN対応Harbor証明書作成"
-    print_debug "- CA信頼配布DaemonSet展開"
-    print_debug "- Worker nodeのinsecure registry設定"
-    print_debug "- GitHub Actions Runner再起動"
+# Harbor CA信頼配布スクリプトの実行
+if [[ -f "$SCRIPT_DIR/../scripts/harbor/fix-harbor-ca-trust.sh" ]]; then
+    print_debug "Harbor CA信頼配布スクリプトを実行中..."
+    print_debug "- Harbor CA証明書をarc-systemsに配布"
+    print_debug "- システム証明書ストア配布DaemonSet展開"
+    print_debug "- Worker nodeの/etc/docker/certs.d配布"
+    print_debug "- システム証明書更新"
     
-    # Harbor証明書修正スクリプトを実行（タイムアウト付き・非必須）
-    if timeout 300 "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" 2>/dev/null; then
-        print_status "✓ Harbor証明書修正完了"
+    # Harbor CA信頼配布スクリプトを実行（タイムアウト付き・非必須）
+    if timeout 300 "$SCRIPT_DIR/../scripts/harbor/fix-harbor-ca-trust.sh" 2>/dev/null; then
+        print_status "✓ Harbor CA信頼配布完了"
     else
-        print_warning "Harbor証明書修正をスキップしました（タイムアウトまたはエラー）"
+        print_warning "Harbor CA信頼配布をスキップしました（タイムアウトまたはエラー）"
         print_debug "※ 証明書問題がある場合は後で手動実行してください"
-        print_debug "手動実行: cd automation/scripts/harbor && ./harbor-cert-fix.sh"
+        print_debug "手動実行: cd automation/scripts/harbor && ./fix-harbor-ca-trust.sh"
     fi
 else
-    print_warning "harbor-cert-fix.shが見つかりません (automation/scripts/harbor/)"
-    print_debug "Harbor証明書修正を手動実行してください"
+    print_warning "fix-harbor-ca-trust.shが見つかりません (automation/scripts/harbor/)"
+    print_debug "Harbor CA信頼配布を手動実行してください"
 fi
 
 # Harbor Ingress確認
@@ -1366,87 +1375,172 @@ else
     print_debug "GitHub Actions実行時に認証エラーが発生する可能性があります"
 fi
 
-print_status "✓ Harbor証明書修正とIngress設定の自動適用完了"
+print_status "✓ Harbor CA信頼配布とDocker Registry API対応の自動適用完了"
 
-# 14. Harbor HTTP設定の自動適用
-print_status "=== Phase 4.13: Harbor HTTP設定の自動適用 ==="
-print_debug "Harbor Docker push用のHTTP設定を自動適用します"
+# 14. Harbor HTTPS/HTTP対応の自動適用
+print_status "=== Phase 4.13: Harbor HTTPS/HTTP対応の自動適用 ==="
+print_debug "Harbor Docker push用のHTTPS証明書とHTTP fallback設定を自動適用します"
 
-# Harbor Core ConfigMap修正
-print_debug "Harbor Core ConfigMapのEXT_ENDPOINTをHTTPに修正中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'HARBOR_HTTP_CONFIG_EOF'
-# Harbor Core ConfigMapをHTTP設定に修正
-kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"http://192.168.122.100"}}'
+# Harbor証明書とHTTP設定の統合修正
+print_debug "Harbor証明書とHTTP対応設定を統合修正中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'HARBOR_UNIFIED_CONFIG_EOF'
+# Harbor TLS証明書にIP SANを追加
+echo "Harbor TLS証明書を修正中..."
+if kubectl get certificate harbor-tls -n harbor >/dev/null 2>&1; then
+    kubectl patch certificate harbor-tls -n harbor --type merge -p '{"spec":{"ipAddresses":["192.168.122.100"]}}'
+    echo "✓ Harbor証明書にIP SAN追加完了"
+fi
+
+# Harbor Core ConfigMapをHTTPS優先・HTTP fallback設定に修正
+echo "Harbor Core ConfigMapをHTTPS/HTTP対応に修正中..."
+kubectl patch configmap harbor-core -n harbor --type merge -p '{"data":{"EXT_ENDPOINT":"https://192.168.122.100","EXT_ENDPOINT_HTTP":"http://192.168.122.100"}}'
 
 # Harbor Core Pod再起動で設定反映
 echo "Harbor Core Pod再起動中..."
 kubectl delete pod -n harbor -l app=harbor,component=core 2>/dev/null || echo "Harbor Core Pod未発見"
 kubectl wait --for=condition=ready pod -l app=harbor,component=core -n harbor --timeout=120s
 
-# Harbor HTTP接続確認
-echo "Harbor HTTP接続確認中..."
+# Harbor接続確認（HTTPS優先、HTTP fallback）
+echo "Harbor接続確認中..."
+HTTPS_TEST=$(curl -k -s -o /dev/null -w '%{http_code}' https://192.168.122.100/v2/ --connect-timeout 10 || echo "000")
 HTTP_TEST=$(curl -s -o /dev/null -w '%{http_code}' http://192.168.122.100/v2/ --connect-timeout 10 || echo "000")
-if [[ "$HTTP_TEST" == "401" ]]; then
+
+if [[ "$HTTPS_TEST" == "401" ]]; then
+    echo "✓ Harbor HTTPS API接続正常（401 Unauthorized - 認証待ち）"
+elif [[ "$HTTP_TEST" == "401" ]]; then
     echo "✓ Harbor HTTP API接続正常（401 Unauthorized - 認証待ち）"
+    echo "⚠️ HTTPS接続は不安定（HTTP fallback利用可能）"
 else
-    echo "⚠️ Harbor HTTP API接続異常（HTTP: $HTTP_TEST）"
+    echo "⚠️ Harbor API接続確認要注意（HTTPS: $HTTPS_TEST, HTTP: $HTTP_TEST）"
 fi
 
-# Harbor HTTP認証realmを確認
-REALM_TEST=$(curl -s -I http://192.168.122.100/v2/ | grep -i "www-authenticate" | grep -o 'realm="[^"]*"' || echo "")
-if [[ "$REALM_TEST" == *"http://192.168.122.100"* ]]; then
-    echo "✓ Harbor HTTP認証realm設定正常"
+# Harbor registry認証realm確認
+REALM_TEST=$(curl -k -s -I https://192.168.122.100/v2/ | grep -i "www-authenticate" | grep -o 'realm="[^"]*"' || curl -s -I http://192.168.122.100/v2/ | grep -i "www-authenticate" | grep -o 'realm="[^"]*"' || echo "")
+if [[ "$REALM_TEST" == *"192.168.122.100"* ]]; then
+    echo "✓ Harbor認証realm設定正常"
 else
-    echo "⚠️ Harbor HTTP認証realm設定要確認: $REALM_TEST"
+    echo "⚠️ Harbor認証realm設定要確認: $REALM_TEST"
 fi
-HARBOR_HTTP_CONFIG_EOF
+HARBOR_UNIFIED_CONFIG_EOF
 
-print_status "✓ Harbor HTTP設定の自動適用完了"
+print_status "✓ Harbor HTTPS/HTTP対応の自動適用完了"
 
-# 15. GitHub Actions Runner insecure registry設定の自動適用
-print_status "=== Phase 4.14: GitHub Actions Runner insecure registry設定の自動適用 ==="
-print_debug "GitHub Actions RunnerのDocker daemon insecure registry設定を自動適用します"
+# 15. GitHub Actions Runner CA証明書と設定の自動適用
+print_status "=== Phase 4.14: GitHub Actions Runner CA証明書と設定の自動適用 ==="
+print_debug "GitHub Actions RunnerのHarbor CA証明書配布とinsecure registry設定を自動適用します"
 
-# GitHub Actions Runner存在確認と設定適用
-print_debug "GitHub Actions Runner設定確認・修正中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'ARC_INSECURE_REGISTRY_EOF'
-# AutoscalingRunnerSet存在確認
+# GitHub Actions Runner設定統合修正
+print_debug "GitHub Actions Runner統合設定を確認・修正中..."
+# GitHub Actions設定でエラーが発生してもApp-of-Appsデプロイを続行するため、エラーハンドリング改善
+set +e  # 一時的にエラー終了を無効化
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'ARC_UNIFIED_CONFIG_EOF'
+# Harbor TLS証明書をarc-systemsネームスペースにコピー
+echo "Harbor TLS証明書をarc-systemsにコピー中..."
+if ! kubectl get secret harbor-tls-secret -n arc-systems >/dev/null 2>&1; then
+    kubectl get secret harbor-tls-secret -n harbor -o yaml | \
+        sed 's/namespace: harbor/namespace: arc-systems/' | \
+        kubectl apply -f -
+    echo "✓ Harbor TLS証明書コピー完了"
+else
+    echo "✓ Harbor TLS証明書は既にarc-systemsに存在します"
+fi
+
+# AutoscalingRunnerSet存在確認と設定適用
 RUNNER_SETS=$(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | wc -l)
 if [[ "$RUNNER_SETS" -gt 0 ]]; then
-    echo "GitHub Actions Runner設定を修正中..."
+    echo "GitHub Actions Runner設定を統合修正中..."
     
-    # 各AutoscalingRunnerSetにinsecure registry設定を適用
+    # 各AutoscalingRunnerSetに統合設定を適用
     for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
-        echo "Runner Set '$runner_set' にinsecure registry設定を適用中..."
+        echo "Runner Set '$runner_set' に統合設定を適用中..."
+        
+        # CA証明書volume mount設定追加
+        kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
+            --type=json \
+            -p='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"harbor-ca-cert","secret":{"secretName":"harbor-tls-secret"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"harbor-ca-cert","mountPath":"/etc/ssl/certs/harbor-ca.crt","subPath":"tls.crt","readOnly":true}}]' 2>/dev/null || echo "Volume mount設定済みまたは失敗"
         
         # dind initContainer にinsecure registry設定を追加
         if kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
             --type=json \
             -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100"]}]' 2>/dev/null; then
             echo "✓ '$runner_set' のinsecure registry設定完了"
-            
-            # Runner Pod再起動で設定反映
-            echo "Runner Pod再起動中..."
-            kubectl delete pod -n arc-systems -l app.kubernetes.io/name="$runner_set" 2>/dev/null || echo "Runner Pod未発見"
-            sleep 10
-            
-            # 設定反映確認
-            NEW_PODS=$(kubectl get pods -n arc-systems -l app.kubernetes.io/name="$runner_set" --no-headers 2>/dev/null | wc -l)
-            if [[ "$NEW_PODS" -gt 0 ]]; then
-                echo "✓ '$runner_set' Runner Pod再起動完了"
-            else
-                echo "⚠️ '$runner_set' Runner Pod再起動要確認"
-            fi
         else
-            echo "⚠️ '$runner_set' のinsecure registry設定に失敗しました"
+            echo "⚠️ '$runner_set' のinsecure registry設定に失敗しました（設定済みの可能性）"
+        fi
+        
+        # Runner Pod再起動で設定反映
+        echo "Runner Pod再起動中..."
+        kubectl delete pod -n arc-systems -l app.kubernetes.io/name="$runner_set" 2>/dev/null || echo "Runner Pod未発見"
+        sleep 10
+        
+        # 設定反映確認
+        NEW_PODS=$(kubectl get pods -n arc-systems -l app.kubernetes.io/name="$runner_set" --no-headers 2>/dev/null | wc -l)
+        if [[ "$NEW_PODS" -gt 0 ]]; then
+            echo "✓ '$runner_set' Runner Pod再起動完了"
+        else
+            echo "⚠️ '$runner_set' Runner Pod再起動要確認"
         fi
     done
 else
     echo "GitHub Actions Runnerが設定されていません（後で設定時に自動適用されます）"
 fi
-ARC_INSECURE_REGISTRY_EOF
+ARC_UNIFIED_CONFIG_EOF
+set -e  # エラー終了を再有効化
 
-print_status "✓ GitHub Actions Runner insecure registry設定の自動適用完了"
+print_status "✓ GitHub Actions Runner CA証明書と設定の自動適用完了"
+
+# App-of-Appsデプロイ（強制実行）
+print_status "=== App-of-Apps GitOps デプロイ ==="
+print_debug "GitOps経由でインフラとアプリケーションを管理します"
+
+# エラーが発生してもスクリプトを続行させるため、一時的にset -eを無効化
+set +e
+
+# app-of-apps.yamlファイル存在確認
+print_debug "app-of-apps.yamlファイル存在確認中..."
+APP_OF_APPS_EXISTS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'test -f /tmp/app-of-apps.yaml && echo "true" || echo "false"')
+if [[ "$APP_OF_APPS_EXISTS" == "true" ]]; then
+    print_debug "✓ /tmp/app-of-apps.yaml ファイルが存在します"
+else
+    print_warning "❌ /tmp/app-of-apps.yaml ファイルが見つかりません（スキップします）"
+fi
+
+# ArgoCD namespace確認
+print_debug "ArgoCD namespace確認中..."
+ARGOCD_NS_EXISTS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get namespace argocd >/dev/null 2>&1 && echo "true" || echo "false"')
+if [[ "$ARGOCD_NS_EXISTS" == "true" ]]; then
+    print_debug "✓ ArgoCD namespaceが存在します"
+    
+    # App-of-Appsが存在しない場合のみ適用
+    INFRASTRUCTURE_APP_EXISTS=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get application infrastructure -n argocd >/dev/null 2>&1 && echo "true" || echo "false"')
+    if [[ "$INFRASTRUCTURE_APP_EXISTS" != "true" ]]; then
+        print_debug "App-of-Apps適用中..."
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# App-of-Apps をデプロイ
+if [[ -f /tmp/app-of-apps.yaml ]]; then
+    echo "kubectl apply -f /tmp/app-of-apps.yaml を実行中..."
+    if kubectl apply -f /tmp/app-of-apps.yaml; then
+        echo "✓ App-of-Apps デプロイ成功"
+        echo "作成されたApplications:"
+        kubectl get applications -n argocd --no-headers | awk '{print "  - " $1 " (" $2 "/" $3 ")"}' || echo "  作成されたApplications一覧取得に失敗"
+    else
+        echo "⚠️  App-of-Apps デプロイで問題が発生しました（続行します）"
+    fi
+else
+    echo "⚠️  /tmp/app-of-apps.yamlが見つかりません（スキップします）"
+fi
+EOF
+        print_status "✓ App-of-Apps GitOps セットアップ完了"
+    else
+        print_debug "App-of-Apps は既に存在しています"
+        print_status "✓ App-of-Apps GitOps 確認完了"
+    fi
+else
+    print_warning "❌ ArgoCD namespaceが見つかりません（App-of-Appsデプロイをスキップします）"
+fi
+
+# set -eを再有効化
+set -e
 
 # ArgoCD SSO自動修正機能（make all初回実行時の問題対応）
 print_status "=== ArgoCD SSO設定の自動修正 ==="

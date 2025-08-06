@@ -7,30 +7,8 @@ set -euo pipefail
 
 # GitHub認証情報管理ユーティリティを読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/github-auth-utils.sh"
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_debug() {
-    echo -e "${BLUE}[DEBUG]${NC} $1"
-}
+source "$SCRIPT_DIR/../argocd/github-auth-utils.sh"
+source "$SCRIPT_DIR/../common-colors.sh"
 
 # GitHub認証情報の確認・取得（保存済みを利用または新規入力）
 print_status "GitHub認証情報を確認中..."
@@ -120,10 +98,36 @@ print_status "✓ GitHub設定検証完了"
 print_status "=== Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ ==="
 
 # 0. マニフェストファイルの準備
-print_status "マニフェストファイルをリモートにコピー中..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "../../manifests/platform/github-actions/github-actions-rbac.yaml" k8suser@192.168.122.10:/tmp/
-print_status "✓ マニフェストファイルコピー完了"
+print_status "GitHub Actions RBAC設定を作成中..."
+cat > /tmp/github-actions-rbac.yaml << 'EOF'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: arc-systems
+  name: github-actions-runner-role
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-runner-binding
+  namespace: arc-systems
+subjects:
+- kind: ServiceAccount
+  name: github-actions-runner
+  namespace: arc-systems
+roleRef:
+  kind: Role
+  name: github-actions-runner-role
+  apiGroup: rbac.authorization.k8s.io
+EOF
+scp -o StrictHostKeyChecking=no /tmp/github-actions-rbac.yaml k8suser@192.168.122.10:/tmp/
+rm -f /tmp/github-actions-rbac.yaml
+print_status "✓ GitHub Actions RBAC設定作成完了"
 
 # 1. Helm確認（host-setupで事前インストール済みを前提）
 print_debug "Helmの確認中..."
