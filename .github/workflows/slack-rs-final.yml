@@ -66,10 +66,25 @@ jobs:
         sudo mkdir -p /etc/docker
         echo '{"insecure-registries": ["'$HARBOR_URL'", "harbor.local"]}' | sudo tee /etc/docker/daemon.json
         
+        # Restart Docker daemon to apply changes
+        echo "Restarting Docker daemon to apply certificate changes..."
+        sudo systemctl restart docker
+        sleep 5
+        docker info | grep -i "registry" || echo "Docker daemon restarted successfully"
+        
         # Configure user Docker config
         mkdir -p ~/.docker
         echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{},\"insecure-registries\":[\"$HARBOR_URL\"]}" > ~/.docker/config.json
         chmod 600 ~/.docker/config.json
+        
+        # Verify CA certificate installation
+        echo "Verifying CA certificate installation..."
+        echo "Docker certificate directory:"
+        ls -la /etc/docker/certs.d/$HARBOR_URL/ || echo "Directory not found"
+        echo "Certificate content preview:"
+        head -3 /etc/docker/certs.d/$HARBOR_URL/ca.crt 2>/dev/null || echo "Certificate file not found"
+        echo "System CA certificates:"
+        ls -la /usr/local/share/ca-certificates/harbor.crt || echo "System CA not found"
         
         # Test Harbor API access with HTTPS (with CA certificate)
         echo "Testing Harbor HTTPS API access..."
