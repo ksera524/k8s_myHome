@@ -1,0 +1,433 @@
+#!/bin/bash
+
+# Kubernetes基盤構築スクリプト - ArgoCD→ESO従来順序版
+# MetalLB + Ingress Controller + cert-manager + ArgoCD → ESO → Harbor
+
+set -euo pipefail
+
+# 非対話モード設定
+export DEBIAN_FRONTEND=noninteractive
+export NON_INTERACTIVE=true
+
+# GitHub認証情報管理ユーティリティを読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../scripts/argocd/github-auth-utils.sh"
+
+# 共通色設定スクリプトを読み込み（settings-loader.shより先に）
+source "$SCRIPT_DIR/../scripts/common-colors.sh"
+
+# 設定ファイル読み込み（環境変数が未設定の場合）
+if [[ -f "$SCRIPT_DIR/../scripts/settings-loader.sh" ]]; then
+    print_debug "settings.tomlから設定を読み込み中..."
+    source "$SCRIPT_DIR/../scripts/settings-loader.sh" load 2>/dev/null || true
+    
+    # settings.tomlからのPULUMI_ACCESS_TOKEN設定を確認・適用
+    if [[ -n "${PULUMI_ACCESS_TOKEN:-}" ]]; then
+        print_debug "settings.tomlからPulumi Access Token読み込み完了"
+    elif [[ -n "${PULUMI_PULUMI_ACCESS_TOKEN:-}" ]]; then
+        export PULUMI_ACCESS_TOKEN="${PULUMI_PULUMI_ACCESS_TOKEN}"
+        print_debug "settings.tomlのPulumi.access_tokenを環境変数に設定完了"
+    fi
+fi
+
+print_status "=== Kubernetes基盤構築開始 ==="
+
+# 0. マニフェストファイルの準備
+print_status "マニフェストファイルをリモートにコピー中..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/metallb/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/cert-manager/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/storage/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
+print_status "✓ マニフェストファイルコピー完了"
+
+# 1. 前提条件確認
+print_status "前提条件を確認中..."
+
+# SSH known_hosts クリーンアップ
+print_debug "SSH known_hosts をクリーンアップ中..."
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.10' 2>/dev/null || true
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.11' 2>/dev/null || true  
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.12' 2>/dev/null || true
+
+# k8sクラスタ接続確認
+print_debug "k8sクラスタ接続を確認中..."
+if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
+    print_error "k8sクラスタに接続できません"
+    print_error "Phase 3のk8sクラスタ構築を先に完了してください"
+    print_error "注意: このスクリプトはUbuntuホストマシンで実行してください（WSL2不可）"
+    exit 1
+fi
+
+READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
+if [[ $READY_NODES -lt 2 ]]; then
+    print_error "Ready状態のNodeが2台未満です（現在: $READY_NODES台）"
+    exit 1
+else
+    print_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
+fi
+
+# Phase 4.1: MetalLB インストール
+print_status "=== Phase 4.1: MetalLB インストール ==="
+print_debug "LoadBalancer機能を提供します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# MetalLB namespace作成
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
+
+# MetalLB起動まで待機
+echo "MetalLB Pod起動を待機中..."
+kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s
+
+# IPアドレスプール設定（libvirtデフォルトネットワーク範囲）
+kubectl apply -f /tmp/metallb-ipaddress-pool.yaml
+
+echo "✓ MetalLB設定完了"
+EOF
+
+print_status "✓ MetalLB インストール完了"
+
+# Phase 4.2: Ingress Controller (NGINX) インストール
+print_status "=== Phase 4.2: NGINX Ingress Controller インストール ==="
+print_debug "HTTP/HTTPSルーティング機能を提供します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# NGINX Ingress Controller インストール
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+
+# Ingress Controller起動まで待機
+echo "NGINX Ingress Controller起動を待機中..."
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s
+
+# LoadBalancer ServiceのIP確認
+echo "LoadBalancer IP確認中..."
+kubectl -n ingress-nginx get service ingress-nginx-controller
+
+echo "✓ NGINX Ingress Controller設定完了"
+EOF
+
+print_status "✓ NGINX Ingress Controller インストール完了"
+
+# Phase 4.3: cert-manager インストール
+print_status "=== Phase 4.3: cert-manager インストール ==="
+print_debug "TLS証明書自動管理機能を提供します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# cert-manager インストール
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+# cert-manager起動まで待機
+echo "cert-manager起動を待機中..."
+kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s
+
+# Self-signed ClusterIssuer作成（開発用）
+kubectl apply -f /tmp/cert-manager-selfsigned-issuer.yaml
+
+echo "✓ cert-manager設定完了"
+EOF
+
+print_status "✓ cert-manager インストール完了"
+
+# Phase 4.4: StorageClass設定
+print_status "=== Phase 4.4: StorageClass設定 ==="
+print_debug "永続ストレージ機能を設定します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# Local StorageClass作成
+kubectl apply -f /tmp/local-storage-class.yaml
+
+echo "✓ StorageClass設定完了"
+EOF
+
+print_status "✓ StorageClass設定完了"
+
+# Phase 4.5: 必要namespace作成
+print_status "=== Phase 4.5: 必要namespace作成 ==="
+print_debug "各コンポーネント用のnamespaceを事前作成します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# 必要なnamespaces作成
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✓ 必要namespace作成完了"
+EOF
+
+print_status "✓ 必要namespace作成完了"
+
+# Phase 4.6: ArgoCD デプロイ
+print_status "=== Phase 4.6: ArgoCD デプロイ ==="
+print_debug "GitOps基盤をセットアップします"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# ArgoCD インストール
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# ArgoCD起動まで待機
+echo "ArgoCD起動を待機中..."
+kubectl wait --namespace argocd --for=condition=ready pod --selector=app.kubernetes.io/component=server --timeout=300s
+
+# ArgoCD insecureモード設定（HTTPアクセス対応）
+echo "ArgoCD insecureモード設定中..."
+kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data":{"server.insecure":"true"}}'
+
+# ArgoCD管理者パスワード取得・表示
+echo "ArgoCD管理者パスワード:"
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+echo ""
+
+# ArgoCD Ingress設定（HTTP対応）
+kubectl apply -f /tmp/argocd-ingress.yaml
+
+echo "✓ ArgoCD基本設定完了"
+EOF
+
+print_status "✓ ArgoCD デプロイ完了"
+
+# Phase 4.7: ESO デプロイ (ArgoCD Application経由)
+print_status "=== Phase 4.7: External Secrets Operator デプロイ ==="
+print_debug "Secret管理統合機能をArgoCD経由でデプロイします"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# ESO Application作成（ArgoCD経由）
+kubectl apply -f - <<EOYAML
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://charts.external-secrets.io'
+    targetRevision: '0.18.2'
+    chart: external-secrets
+    helm:
+      values: |
+        installCRDs: true
+        replicaCount: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: external-secrets-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
+EOYAML
+
+echo "ESO Application作成完了、同期待機中..."
+sleep 30
+
+# ESO同期確認
+kubectl wait --for=condition=Synced --timeout=300s application/external-secrets-operator -n argocd
+kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/name=external-secrets --timeout=300s
+
+echo "✓ External Secrets Operator デプロイ完了"
+EOF
+
+print_status "✓ External Secrets Operator デプロイ完了"
+
+# Phase 4.8: ArgoCD GitHub OAuth設定 (ESO経由)
+print_status "=== Phase 4.8: ArgoCD GitHub OAuth設定 ==="
+print_debug "GitHub OAuth設定をExternal Secrets経由で行います"
+
+# PULUMI_ACCESS_TOKEN確認
+if [ -z "${PULUMI_ACCESS_TOKEN:-}" ]; then
+    print_warning "PULUMI_ACCESS_TOKEN未設定、手動Secret作成にフォールバック"
+    
+    # GitHub Client Secretのフォールバック作成
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# フォールバック: 手動でGitHub OAuth Secret作成
+echo "GitHub OAuth Secret手動作成中..."
+kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+
+# ArgoCD GitHub OAuth ConfigMap適用
+kubectl apply -f /tmp/argocd-config.yaml
+
+# ArgoCD サーバー再起動
+kubectl rollout restart deployment argocd-server -n argocd
+kubectl rollout status deployment argocd-server -n argocd --timeout=300s
+
+echo "✓ ArgoCD GitHub OAuth手動設定完了"
+EOF
+else
+    print_debug "Pulumi Access Token設定済み、ESO経由でSecret管理します"
+    
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
+# Pulumi Access Token Secret作成
+kubectl create secret generic pulumi-esc-token \
+  --namespace external-secrets-system \
+  --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# ClusterSecretStore作成（Webhook Provider使用）
+kubectl apply -f - <<EOYAML
+apiVersion: external-secrets.io/v1alpha1
+kind: ClusterSecretStore
+metadata:
+  name: pulumi-esc-store
+spec:
+  provider:
+    webhook:
+      url: "https://api.pulumi.com/api/esc/environments/ksera/k8s_myHome/open"
+      headers:
+        Authorization: "Bearer {{ .accessToken }}"
+        Content-Type: "application/json"
+      body: "{}"
+      method: POST
+      auth:
+        secretRef:
+          secretAccessKey:
+            name: pulumi-esc-token
+            namespace: external-secrets-system
+            key: accessToken
+EOYAML
+
+# ClusterSecretStore準備完了待機
+sleep 15
+if kubectl get clustersecretstore pulumi-esc-store | grep -q Ready; then
+    echo "✓ ClusterSecretStore準備完了"
+    
+    # ArgoCD GitHub OAuth ExternalSecret作成
+    kubectl apply -f /tmp/argocd-github-oauth-secret.yaml
+    
+    # External Secret同期待機
+    timeout=60
+    while [ \$timeout -gt 0 ]; do
+        if kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' >/dev/null 2>&1; then
+            SECRET_LENGTH=\$(kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' | base64 -d | wc -c)
+            if [ "\$SECRET_LENGTH" -gt 10 ]; then
+                echo "✓ ArgoCD GitHub OAuth ESO同期完了"
+                break
+            fi
+        fi
+        echo "External Secret同期待機中... (残り \${timeout}秒)"
+        sleep 5
+        timeout=\$((timeout - 5))
+    done
+    
+    if [ \$timeout -le 0 ]; then
+        echo "⚠️ ESO同期タイムアウト、手動Secret作成にフォールバック"
+        kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+    fi
+else
+    echo "⚠️ ClusterSecretStore未準備、手動Secret作成にフォールバック"
+    kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+fi
+
+# ArgoCD GitHub OAuth ConfigMap適用
+kubectl apply -f /tmp/argocd-config.yaml
+
+# ArgoCD サーバー再起動
+kubectl rollout restart deployment argocd-server -n argocd
+kubectl rollout status deployment argocd-server -n argocd --timeout=300s
+
+echo "✓ ArgoCD GitHub OAuth設定完了"
+EOF
+fi
+
+print_status "✓ ArgoCD GitHub OAuth設定完了"
+
+# Phase 4.9: Harbor デプロイ
+print_status "=== Phase 4.9: Harbor デプロイ ==="
+print_debug "Harbor Private Registry をArgoCD経由でデプロイします"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# App-of-Appsパターン適用
+kubectl apply -f /tmp/app-of-apps.yaml
+
+echo "Harbor Application同期待機中..."
+sleep 30
+
+# Harbor Application同期確認
+kubectl wait --for=condition=Synced --timeout=300s application/infrastructure -n argocd || echo "Harbor同期継続中"
+
+echo "✓ Harbor デプロイ完了"
+EOF
+
+print_status "✓ Harbor デプロイ完了"
+
+# Phase 4.10: ARC デプロイ
+print_status "=== Phase 4.10: GitHub Actions Runner Controller デプロイ ==="
+print_debug "GitHub Actions Runner をArgoCD経由でデプロイします"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# Platform Application同期確認
+kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
+
+echo "✓ ARC デプロイ完了"
+EOF
+
+print_status "✓ ARC デプロイ完了"
+
+# Phase 4.11: 各種Application デプロイ
+print_status "=== Phase 4.11: 各種Application デプロイ ==="
+print_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# Applications同期確認
+kubectl wait --for=condition=Synced --timeout=300s application/applications -n argocd || echo "Applications同期継続中"
+
+echo "✓ 各種Application デプロイ完了"
+EOF
+
+print_status "✓ 各種Application デプロイ完了"
+
+# Phase 4.12: システム環境確認
+print_status "=== Phase 4.12: システム環境確認 ==="
+print_debug "デプロイされたシステム全体の動作確認を行います"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+echo "=== 最終システム状態確認 ==="
+
+# ArgoCD状態確認
+echo "ArgoCD状態:"
+kubectl get pods -n argocd -l app.kubernetes.io/component=server
+
+# External Secrets状態確認
+echo "External Secrets状態:"
+kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets
+
+# Harbor状態確認
+echo "Harbor状態:"
+kubectl get pods -n harbor -l app=harbor 2>/dev/null || echo "Harbor デプロイ中..."
+
+# Cloudflared状態確認
+echo "Cloudflared状態:"
+kubectl get pods -n cloudflared 2>/dev/null || echo "Cloudflared デプロイ中..."
+
+# LoadBalancer IP確認
+echo "LoadBalancer IP:"
+kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+echo ""
+
+# ArgoCD Applications状態
+echo "ArgoCD Applications状態:"
+kubectl get applications -n argocd --no-headers | awk '{print "  - " $1 " (" $2 "/" $3 ")"}'
+
+echo "✓ システム環境確認完了"
+EOF
+
+print_status "✓ システム環境確認完了"
+
+print_status "=== ArgoCD→ESO従来順序版 Kubernetesプラットフォーム構築完了 ==="
+print_status "アクセス方法:"
+print_status "  ArgoCD UI: https://argocd.qroksera.com"
+print_status "  Harbor UI: https://harbor.qroksera.com"
+print_status "  LoadBalancer IP: 192.168.122.100"
