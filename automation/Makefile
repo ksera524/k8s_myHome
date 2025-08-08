@@ -12,7 +12,7 @@ include makefiles/operations.mk
 include makefiles/maintenance.mk
 
 # 全PHONYターゲット宣言
-.PHONY: help all deploy host-setup infrastructure platform post-deployment fix-github-oauth
+.PHONY: help all deploy host-setup infrastructure platform post-deployment setup-github-actions _setup-github-actions-conditional fix-github-oauth
 .PHONY: add-runner setup-arc harbor-cert-fix setup-slack-secret load-settings
 .PHONY: check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets
 .PHONY: status verify logs clean

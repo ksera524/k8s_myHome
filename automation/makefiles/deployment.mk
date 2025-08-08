@@ -2,7 +2,7 @@
 # デプロイメント関連のターゲット定義
 
 # 全自動デプロイ
-all: check-automation-readiness host-setup infrastructure platform post-deployment
+all: check-automation-readiness host-setup infrastructure platform post-deployment setup-github-actions
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@$(MAKE) status
 
@@ -54,7 +54,7 @@ infrastructure:
 # Kubernetesプラットフォーム構築
 platform:
 	@echo "$(ROCKET) Kubernetesプラットフォーム構築開始"
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./phase4-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
+	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
 	@echo "$(INFO) App-of-Appsデプロイ強制実行中..."
 	@$(MAKE) _deploy-app-of-apps || echo "$(WARNING) App-of-Appsデプロイで警告が発生しましたが続行します"
 	@echo "$(INFO) External Secrets同期確認中..."
@@ -96,6 +96,16 @@ post-deployment:
 	@$(MAKE) _check-cloudflared-app
 	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),ポストデプロイメント完了)
+
+# GitHub Actionsセットアップ
+setup-github-actions:
+	$(call print_section,$(ROCKET),GitHub Actions Runner Controller セットアップ中...)
+	@$(MAKE) _setup-github-actions-conditional
+	$(call print_status,$(CHECK),GitHub Actionsセットアップ完了)
+
+# GitHub Actions条件付きセットアップ（内部ターゲット）
+_setup-github-actions-conditional:
+	@$(SCRIPTS_DIR)/setup-github-actions.sh
 
 # Cloudflaredアプリケーション確認（内部ターゲット）
 _check-cloudflared-app:

@@ -363,18 +363,24 @@ EOF
 
 print_status "✓ Harbor デプロイ完了"
 
-# Phase 4.10: ARC デプロイ
-print_status "=== Phase 4.10: GitHub Actions Runner Controller デプロイ ==="
-print_debug "GitHub Actions Runner をArgoCD経由でデプロイします"
+# Phase 4.10: GitHub Actions Runner Controller (ARC) セットアップ
+print_status "=== Phase 4.10: GitHub Actions Runner Controller セットアップ ==="
+print_debug "GitHub Actions Runner Controller を直接セットアップします"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# Platform Application同期確認
-kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
-
-echo "✓ ARC デプロイ完了"
+# ARCセットアップスクリプト実行
+if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
+    print_debug "ARC セットアップスクリプトを実行中..."
+    export NON_INTERACTIVE=true
+    bash "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"
+    print_status "✓ ARC セットアップ完了"
+else
+    print_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+    # Platform Application同期確認
+    kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
+    echo "✓ ARC デプロイ完了"
 EOF
-
-print_status "✓ ARC デプロイ完了"
+fi
 
 # Phase 4.11: 各種Application デプロイ
 print_status "=== Phase 4.11: 各種Application デプロイ ==="
@@ -407,6 +413,10 @@ kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-s
 # Harbor状態確認
 echo "Harbor状態:"
 kubectl get pods -n harbor -l app=harbor 2>/dev/null || echo "Harbor デプロイ中..."
+
+# ARC状態確認
+echo "GitHub Actions Runner Controller状態:"
+kubectl get pods -n arc-systems -l app.kubernetes.io/component=controller 2>/dev/null || echo "ARC デプロイ中..."
 
 # Cloudflared状態確認
 echo "Cloudflared状態:"
