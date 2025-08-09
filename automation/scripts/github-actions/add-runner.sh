@@ -20,7 +20,8 @@ fi
 
 REPOSITORY_NAME="$1"
 SKIP_GITHUB_CHECK="${2:-}"
-RUNNER_NAME="${REPOSITORY_NAME}-runners"
+# Helmリリース名用（小文字変換、アンダースコアをハイフンに変換）
+RUNNER_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]_' '[:lower:]-')-runners"
 
 print_status "=== GitHub Actions Runner追加スクリプト ==="
 print_debug "対象リポジトリ: $REPOSITORY_NAME"
@@ -105,7 +106,7 @@ helm upgrade --install $RUNNER_NAME \
   --set githubConfigSecret="github-token" \
   --set containerMode.type="dind" \
   --set containerMode.kubernetesModeWork.volumeClaimTemplate.storageClassName="local-ssd" \
-  --set 'containerMode.dockerdInRunner.args={dockerd,--host=unix:///var/run/docker.sock,--group=$(DOCKER_GROUP_GID),--insecure-registry=192.168.122.100}' \
+  --set 'containerMode.dockerdInRunner.args={dockerd,--host=unix:///var/run/docker.sock,--insecure-registry=192.168.122.100}' \
   --set runnerScaleSetName="$RUNNER_NAME" \
   --set template.spec.serviceAccountName="github-actions-runner" \
   --set minRunners=0 \
