@@ -202,24 +202,33 @@ jobs:
         # Docker push実行（HTTP/HTTPS対応）
         echo "Docker push実行中..."
         
-        # latest tagのpush（複数プロトコル対応）
-        echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"
-        if docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
-          echo "✅ latest push成功"
-        elif docker push http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
-          echo "✅ latest push成功（HTTP）"
+        # skopeoインストール（証明書問題回避用）
+        echo "skopeoインストール中..."
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq skopeo
+        
+        # skopeoでのpush（TLS検証無効化）
+        HARBOR_USERNAME=$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=$(cat /tmp/harbor_password)
+        
+        # latest tagのpush（skopeo使用）
+        echo "推す対象（skopeo）: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"
+        if skopeo copy --insecure-policy --src-tls-verify=false --dest-tls-verify=false --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
+          echo "✅ latest push成功（skopeo）"
+        elif skopeo copy --insecure-policy --src-tls-verify=false --dest-tls-verify=false --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest docker://http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
+          echo "✅ latest push成功（skopeo HTTP）"
         else
-          echo "⚠️ latest push失敗（HTTPS/HTTP両方）"
+          echo "⚠️ latest push失敗（skopeo）"
         fi
         
-        # SHA tagのpush（複数プロトコル対応）
-        echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"
-        if docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
-          echo "✅ SHA push成功"
-        elif docker push http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
-          echo "✅ SHA push成功（HTTP）"
+        # SHA tagのpush（skopeo使用）
+        echo "推す対象（skopeo）: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"
+        if skopeo copy --insecure-policy --src-tls-verify=false --dest-tls-verify=false --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
+          echo "✅ SHA push成功（skopeo）"
+        elif skopeo copy --insecure-policy --src-tls-verify=false --dest-tls-verify=false --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} docker://http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
+          echo "✅ SHA push成功（skopeo HTTP）"
         else
-          echo "⚠️ SHA push失敗（HTTPS/HTTP両方）"
+          echo "⚠️ SHA push失敗（skopeo）"
         fi
         
         echo "✅ Harbor Push完了"
