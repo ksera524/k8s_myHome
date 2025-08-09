@@ -363,6 +363,25 @@ EOF
 
 print_status "✓ Harbor デプロイ完了"
 
+# Phase 4.9.5: cert-manager CA証明書自動化
+print_status "=== Phase 4.9.5: cert-manager CA証明書自動化 ==="
+print_debug "内部CAによるHarbor証明書管理を自動化します"
+
+if [[ -f "$SCRIPT_DIR/../scripts/cert-manager/setup-ca-cert-manager.sh" ]]; then
+    print_debug "cert-manager CA証明書セットアップを実行中..."
+    bash "$SCRIPT_DIR/../scripts/cert-manager/setup-ca-cert-manager.sh"
+    print_status "✓ cert-manager CA証明書自動化完了"
+else
+    print_warning "setup-ca-cert-manager.sh が見つかりません。フォールバックで旧方式を実行"
+    if [[ -f "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" ]]; then
+        print_debug "Harbor証明書修正スクリプト(旧方式)を実行中..."
+        bash "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh"
+        print_status "✓ Harbor証明書修正完了"
+    else
+        print_warning "harbor-cert-fix.sh も見つかりません。手動で証明書修正してください"
+    fi
+fi
+
 # Phase 4.10: GitHub Actions Runner Controller (ARC) セットアップ
 print_status "=== Phase 4.10: GitHub Actions Runner Controller セットアップ ==="
 print_debug "GitHub Actions Runner Controller を直接セットアップします"

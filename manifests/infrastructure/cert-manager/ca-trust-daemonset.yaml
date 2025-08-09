@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ca-trust-script
+  namespace: kube-system
+data:
+  install-ca.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "CA証明書信頼設定を開始..."
+    
+    # CA証明書をcert-managerから取得
+    while ! kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; do
+      echo "CA秘密キーペアの作成を待機中..."
+      sleep 10
+    done
+    
+    # CA証明書をcert-managerのSecretから抽出
+    kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/k8s-ca.crt
+    
+    # システムの信頼ストアにCA証明書をインストール
+    cp /tmp/k8s-ca.crt /etc/ssl/certs/k8s-ca.crt
+    update-ca-certificates
+    
+    # Docker用の証明書設定 (Harbor IP)
+    mkdir -p /etc/docker/certs.d/192.168.122.100
+    cp /tmp/k8s-ca.crt /etc/docker/certs.d/192.168.122.100/ca.crt
+    
+    # Docker用の証明書設定 (Harbor DNS)
+    mkdir -p /etc/docker/certs.d/harbor.local
+    cp /tmp/k8s-ca.crt /etc/docker/certs.d/harbor.local/ca.crt
+    
+    # containerdの設定更新
+    mkdir -p /etc/containerd/certs.d/192.168.122.100
+    cat > /etc/containerd/certs.d/192.168.122.100/hosts.toml << EOF
+    server = "https://192.168.122.100"
+    
+    [host."https://192.168.122.100"]
+      ca = "/tmp/k8s-ca.crt"
+      skip_verify = false
+    EOF
+    
+    # containerd再起動
+    systemctl restart containerd || true
+    
+    echo "CA証明書信頼設定完了"
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ca-trust-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: ca-trust
+  template:
+    metadata:
+      labels:
+        app: ca-trust
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: ca-trust
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash"]
+        args: ["/scripts/install-ca.sh"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-etc-ssl
+          mountPath: /etc/ssl
+        - name: host-etc-docker
+          mountPath: /etc/docker
+        - name: host-etc-containerd
+          mountPath: /etc/containerd
+        - name: ca-trust-script
+          mountPath: /scripts
+        - name: host-usr-local-share
+          mountPath: /usr/local/share
+        env:
+        - name: KUBECONFIG
+          value: "/etc/kubernetes/admin.conf"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi" 
+            cpu: "100m"
+      volumes:
+      - name: host-etc-ssl
+        hostPath:
+          path: /etc/ssl
+          type: DirectoryOrCreate
+      - name: host-etc-docker
+        hostPath:
+          path: /etc/docker
+          type: DirectoryOrCreate
+      - name: host-etc-containerd
+        hostPath:
+          path: /etc/containerd
+          type: DirectoryOrCreate
+      - name: ca-trust-script
+        configMap:
+          name: ca-trust-script
+          defaultMode: 0755
+      - name: host-usr-local-share
+        hostPath:
+          path: /usr/local/share
+          type: DirectoryOrCreate
+      tolerations:
+      - operator: Exists
+      restartPolicy: Always

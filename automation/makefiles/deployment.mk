@@ -61,6 +61,8 @@ platform:
 	@$(MAKE) wait-for-external-secrets || echo "$(WARNING) External Secrets同期で一部警告が発生しましたが続行します"
 	@echo "$(GEAR) ArgoCD GitHub OAuth設定中..."
 	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
+	@echo "$(ROCKET) GitHub Actions Runner Controller (ARC) セットアップ中..."
+	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	@echo "$(CHECK) Kubernetesプラットフォーム構築完了"
 
 # App-of-Apps強制デプロイ（内部ターゲット）
@@ -97,11 +99,16 @@ post-deployment:
 	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),ポストデプロイメント完了)
 
-# GitHub Actionsセットアップ
-setup-github-actions:
+# GitHub Actions Runner Controller (ARC) セットアップ（スタンドアロン）
+setup-arc:
 	$(call print_section,$(ROCKET),GitHub Actions Runner Controller セットアップ中...)
-	@$(MAKE) _setup-github-actions-conditional
-	$(call print_status,$(CHECK),GitHub Actionsセットアップ完了)
+	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(SCRIPTS_DIR)/github-actions && ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
+	$(call print_status,$(CHECK),GitHub Actions Runner Controller セットアップ完了)
+
+# GitHub Actionsセットアップ（非推奨、setup-arcを使用）
+setup-github-actions:
+	$(call print_section,$(WARNING),setup-github-actionsは非推奨です。setup-arcを使用してください)
+	@$(MAKE) setup-arc
 
 # GitHub Actions条件付きセットアップ（内部ターゲット）
 _setup-github-actions-conditional:

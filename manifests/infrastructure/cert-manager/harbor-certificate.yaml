@@ -7,7 +7,7 @@ metadata:
 spec:
   secretName: harbor-tls-secret
   issuerRef:
-    name: selfsigned-cluster-issuer
+    name: ca-cluster-issuer
     kind: ClusterIssuer
   commonName: harbor.local
   dnsNames:

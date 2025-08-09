@@ -12,11 +12,7 @@ add-runner:
 	@cd $(PROJECT_ROOT)/scripts/github-actions && ./add-runner.sh $(REPO)
 	$(call print_status,$(CHECK),Runner追加完了)
 
-# Actions Runner Controller設定
-setup-arc:
-	$(call print_status,$(ROCKET),Actions Runner Controller設定開始)
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PROJECT_ROOT)/scripts/github-actions && NON_INTERACTIVE=true ./setup-arc.sh'
-	$(call print_status,$(CHECK),ARC設定完了)
+# Actions Runner Controller設定 - deployment.mkに移動済み
 
 # Harbor証明書修正
 harbor-cert-fix:
