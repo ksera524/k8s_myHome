@@ -105,7 +105,7 @@ helm upgrade --install $RUNNER_NAME \
   --set githubConfigSecret="github-token" \
   --set containerMode.type="dind" \
   --set containerMode.kubernetesModeWork.volumeClaimTemplate.storageClassName="local-ssd" \
-  --set containerMode.dockerdInRunner.args="{dockerd,--host=unix:///var/run/docker.sock,--group=\$(DOCKER_GROUP_GID)}" \
+  --set 'containerMode.dockerdInRunner.args={dockerd,--host=unix:///var/run/docker.sock,--group=$(DOCKER_GROUP_GID),--insecure-registry=192.168.122.100}' \
   --set runnerScaleSetName="$RUNNER_NAME" \
   --set template.spec.serviceAccountName="github-actions-runner" \
   --set minRunners=0 \
@@ -202,96 +202,26 @@ jobs:
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor認証情報取得完了"
         
-    - name: Harbor Login & Docker設定
+    - name: Docker認証設定
       run: |
-        echo "=== Harbor Login & Docker設定 ==="
+        echo "=== Docker認証設定 ==="
         
         HARBOR_USERNAME=\$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         HARBOR_URL=\$(cat /tmp/harbor_url)
         
-        # /etc/hosts に Harbor エントリー追加
-        echo "Harbor DNS設定を追加中..."
-        echo "\$HARBOR_URL harbor.local" | sudo tee -a /etc/hosts
-        
-        # Harbor認証情報デバッグ
-        echo "Harbor認証情報確認中..."
-        echo "Username: \$HARBOR_USERNAME"
-        echo "Password length: \${#HARBOR_PASSWORD}"
-        echo "URL: \$HARBOR_URL"
-        
-        # Harbor CA証明書が配布されているか確認
-        echo "Harbor CA証明書配布状況確認中..."
-        if [ -f "/etc/docker/certs.d/\$HARBOR_URL/ca.crt" ]; then
-          echo "✅ Harbor CA証明書が配布されています"
-          echo "証明書詳細:"
-          openssl x509 -in /etc/docker/certs.d/\$HARBOR_URL/ca.crt -subject -noout
-          openssl x509 -in /etc/docker/certs.d/\$HARBOR_URL/ca.crt -text -noout | grep -A 2 "Subject Alternative Name"
-        else
-          echo "⚠️  Harbor CA証明書が見つかりません: /etc/docker/certs.d/\$HARBOR_URL/ca.crt"
-          echo "証明書ディレクトリ内容:"
-          ls -la /etc/docker/certs.d/ || echo "証明書ディレクトリが存在しません"
-        fi
-        
-        # Docker設定確認
-        echo "Docker設定確認中..."
-        docker info | grep -i "registry" || echo "Registry設定情報なし"
-        
-        # Harbor CA証明書をcert-managerから取得してコンテナ内にコピー
-        echo "Harbor CA証明書をcert-managerから取得中..."
-        kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt || \\
-        kubectl get secret harbor-tls-secret -n harbor -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
-        
-        # CA証明書の内容を確認
-        echo "CA証明書内容確認:"
-        head -3 /tmp/harbor-ca.crt
-        echo "..."
-        tail -3 /tmp/harbor-ca.crt
-        
-        # Docker証明書ディレクトリを作成してCA証明書をコピー
-        sudo mkdir -p /etc/docker/certs.d/\$HARBOR_URL
-        sudo cp /tmp/harbor-ca.crt /etc/docker/certs.d/\$HARBOR_URL/ca.crt
-        sudo chmod 644 /etc/docker/certs.d/\$HARBOR_URL/ca.crt
-        
-        # システムのCA証明書ストアにも追加
-        sudo cp /tmp/harbor-ca.crt /usr/local/share/ca-certificates/harbor.crt
-        sudo update-ca-certificates
-        
-        echo "✅ Harbor CA証明書設定完了"
-        
-        # Harbor認証テスト (HTTPS with CA証明書)
-        echo "Harbor認証テスト中..."
-        curl --cacert /etc/docker/certs.d/\$HARBOR_URL/ca.crt -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "https://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor HTTPS認証失敗"
-        
-        # Docker認証設定
-        echo "Docker認証設定を更新中..."
-        mkdir -p ~/.docker
-        echo "{\"auths\":{\"\$HARBOR_URL\":{\"auth\":\"\$(echo -n \"\$HARBOR_USERNAME:\$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
-        chmod 600 ~/.docker/config.json
-        
-        # Docker daemon設定をHTTP fallback付きで設定
-        echo "Docker daemon設定を確認・更新中..."
-        sudo mkdir -p /etc/docker
-        if [ ! -f /etc/docker/daemon.json ]; then
-          echo '{"insecure-registries": ["'\$HARBOR_URL'"]}' | sudo tee /etc/docker/daemon.json
-        else
-          sudo jq '. + {"insecure-registries": ["'\$HARBOR_URL'"]}' /etc/docker/daemon.json > /tmp/daemon.json.tmp
-          sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
-        fi
-        
-        # Docker login実行（HTTPS優先、HTTP fallback）
-        echo "Docker login実行中..."
-        if echo "\$HARBOR_PASSWORD" | docker login https://\$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin; then
-          echo "✅ HTTPS Docker login成功"
-        else
-          echo "⚠️ HTTPS login失敗、HTTP接続でリトライ中..."
-          echo "\$HARBOR_PASSWORD" | docker login http://\$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin || echo "Docker login完全失敗、継続"
-        fi
-        
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
         
-        echo "✅ Harbor Login & Docker設定完了"
+        # Docker login実行（明示的認証）
+        echo "Docker login実行中..."
+        echo "\$HARBOR_PASSWORD" | docker login \$HARBOR_URL -u "\$HARBOR_USERNAME" --password-stdin
+        
+        # 認証確認
+        echo "Docker認証状況確認:"
+        docker system info | grep -A5 -B5 "Registry" || echo "Registry情報なし"
+        
+        echo "✅ Docker認証設定完了"
         
     - name: Docker Build
       run: |
@@ -310,61 +240,40 @@ jobs:
       run: |
         echo "=== Harbor Push ==="
         
-        HARBOR_URL=\$(cat /tmp/harbor_url)
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         HARBOR_USERNAME=\$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL=\$(cat /tmp/harbor_url)
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
+        export DOCKER_TLS_VERIFY=""
+        export DOCKER_CERT_PATH=""
+        export DOCKER_TLS=""
+        export DOCKER_INSECURE_REGISTRY="\$HARBOR_URL"
         
-        # Harbor エンドポイントテスト（HTTPS優先、HTTP fallback）
-        echo "Harbor エンドポイントをテスト中..."
-        if curl --cacert /etc/docker/certs.d/\$HARBOR_URL/ca.crt -s -I https://\$HARBOR_URL/v2/ >/dev/null 2>&1; then
-          echo "✅ Harbor HTTPS接続テスト成功"
-          HARBOR_PROTOCOL="https"
-        else
-          echo "⚠️ Harbor HTTPS接続テスト失敗、HTTP接続テスト中..."
-          if curl -s -I http://\$HARBOR_URL/v2/ >/dev/null 2>&1; then
-            echo "✅ Harbor HTTP接続テスト成功"
-            HARBOR_PROTOCOL="http"
-          else
-            echo "❌ Harbor HTTP接続テストも失敗"
-            HARBOR_PROTOCOL="https"  # デフォルトHTTPS
-          fi
-        fi
+        # Docker login再実行（push前確認）
+        echo "Docker login確認・再実行..."
+        echo "\$HARBOR_PASSWORD" | docker login \$HARBOR_URL -u "\$HARBOR_USERNAME" --password-stdin
         
-        # Harbor認証テスト
-        echo "Harbor API認証テスト中..."
-        if [ "\$HARBOR_PROTOCOL" = "https" ]; then
-          curl --cacert /etc/docker/certs.d/\$HARBOR_URL/ca.crt -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "https://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
-        else
-          curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "http://\$HARBOR_URL/api/v2.0/users/current" || echo "Harbor API認証失敗"
-        fi
+        # Docker push実行
+        echo "Docker push実行中..."
         
-        # Docker pushを実行（プロトコル自動選択）
-        echo "Docker pushで\${HARBOR_PROTOCOL}接続を使用してHarborにpush中..."
-        
+        # latest tagのpush
         echo "推す対象: \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest"
-        if ! docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest; then
-          echo "⚠️ 最初のpush失敗、リトライ中..."
-          if [ "\$HARBOR_PROTOCOL" = "https" ]; then
-            # HTTPS失敗時はHTTPで再試行
-            echo "\$HARBOR_PASSWORD" | docker login http://\$HARBOR_URL --username "\$HARBOR_USERNAME" --password-stdin
-            docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest || echo "HTTPでのpushも失敗"
-          fi
+        if timeout 60 docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:latest; then
+          echo "✅ latest push成功"
+        else
+          echo "⚠️ latest push失敗（継続）"
         fi
         
+        # SHA tagのpush
         echo "推す対象: \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }}"
-        if ! docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }}; then
-          echo "⚠️ 2番目のpush失敗、リトライ中..."
-          if [ "\$HARBOR_PROTOCOL" = "https" ]; then
-            # HTTPS失敗時はHTTPで再試行
-            docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }} || echo "HTTPでのpushも失敗"
-          fi
+        if timeout 60 docker push \$HARBOR_URL/\$HARBOR_PROJECT/${REPOSITORY_NAME}:\${{ github.sha }}; then
+          echo "✅ SHA push成功"
+        else
+          echo "⚠️ SHA push失敗（継続）"
         fi
-        
-        echo "✅ Docker pushが成功しました"
         
         echo "✅ Harbor Push完了"
         
@@ -377,12 +286,8 @@ jobs:
         HARBOR_URL=\$(cat /tmp/harbor_url)
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
-        # プッシュされたイメージ確認（プロトコル自動選択）
-        if [ "\$HARBOR_PROTOCOL" = "https" ]; then
-          curl --cacert /etc/docker/certs.d/\$HARBOR_URL/ca.crt -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD https://\$HARBOR_URL/v2/\$HARBOR_PROJECT/${REPOSITORY_NAME}/tags/list
-        else
-          curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD http://\$HARBOR_URL/v2/\$HARBOR_PROJECT/${REPOSITORY_NAME}/tags/list
-        fi
+        # プッシュされたイメージ確認
+        curl -u \$HARBOR_USERNAME:\$HARBOR_PASSWORD "http://\$HARBOR_URL/v2/\$HARBOR_PROJECT/${REPOSITORY_NAME}/tags/list" || echo "イメージ一覧取得失敗"
         
         echo "✅ デプロイ完了"
         
@@ -392,7 +297,7 @@ jobs:
         echo "=== クリーンアップ ==="
         
         # 認証情報ファイルを安全に削除
-        rm -f /tmp/harbor_* /tmp/kubeconfig /tmp/image-*.tar /tmp/harbor-ca.crt
+        rm -f /tmp/harbor_* /tmp/kubeconfig
         
         echo "✅ クリーンアップ完了"
 WORKFLOW_EOF
@@ -416,7 +321,7 @@ echo ""
 echo "✅ 作成されたGitHub Actions workflow:"
 echo "   - ファイル: $WORKFLOW_FILE"
 echo "   - リポジトリ固有の設定済み"
-echo "   - Harbor HTTPS/HTTP自動選択認証とpush対応（CA証明書配布）"
+echo "   - Harbor認証とDocker push対応（TLS無効化設定）"
 echo ""
 echo "📝 次のステップ:"
 echo "1. GitHub リポジトリに Commit & Push"
