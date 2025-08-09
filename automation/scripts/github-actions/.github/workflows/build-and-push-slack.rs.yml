@@ -153,9 +153,9 @@ jobs:
         
         echo "✅ Harbor接続テスト完了"
         
-    - name: Docker Login
+    - name: Docker認証設定
       run: |
-        echo "=== Docker Login ==="
+        echo "=== Docker認証設定 ==="
         
         HARBOR_USERNAME=$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=$(cat /tmp/harbor_password)
@@ -164,23 +164,17 @@ jobs:
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
         
-        # HTTPプロトコル優先でDocker login（HTTPS証明書問題回避）
-        echo "HTTP Docker login実行中（証明書問題回避）..."
-        if echo "$HARBOR_PASSWORD" | docker login http://$HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin; then
-          echo "✅ HTTP Docker login成功"
-        else
-          echo "⚠️ HTTP login失敗、HTTPS接続でリトライ中..."
-          case "$HARBOR_PROTOCOL" in
-            "https-ca"|"https-harbor"|"https-insecure")
-              echo "$HARBOR_PASSWORD" | docker login https://$HARBOR_URL --username "$HARBOR_USERNAME" --password-stdin || echo "Docker login完全失敗、継続"
-              ;;
-            *)
-              echo "Docker login完全失敗、継続"
-              ;;
-          esac
-        fi
+        # Docker認証設定ファイル作成（docker loginをバイパス）
+        echo "Docker認証設定ファイル作成中..."
+        mkdir -p ~/.docker
+        echo "{\"auths\":{\"$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"},\"http://$HARBOR_URL\":{\"auth\":\"$(echo -n \"$HARBOR_USERNAME:$HARBOR_PASSWORD\" | base64 -w 0)\"}},\"credHelpers\":{}}" > ~/.docker/config.json
+        chmod 600 ~/.docker/config.json
         
-        echo "✅ Docker Login完了"
+        # 認証設定確認
+        echo "Docker認証設定確認:"
+        cat ~/.docker/config.json | jq . || cat ~/.docker/config.json
+        
+        echo "✅ Docker認証設定完了"
         
     - name: Docker Build
       run: |
@@ -205,21 +199,27 @@ jobs:
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
         
-        # Docker push実行
+        # Docker push実行（HTTP/HTTPS対応）
         echo "Docker push実行中..."
         
+        # latest tagのpush（複数プロトコル対応）
         echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"
         if docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
           echo "✅ latest push成功"
+        elif docker push http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
+          echo "✅ latest push成功（HTTP）"
         else
-          echo "⚠️ latest push失敗"
+          echo "⚠️ latest push失敗（HTTPS/HTTP両方）"
         fi
         
+        # SHA tagのpush（複数プロトコル対応）
         echo "推す対象: $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"
         if docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
           echo "✅ SHA push成功"
+        elif docker push http://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}; then
+          echo "✅ SHA push成功（HTTP）"
         else
-          echo "⚠️ SHA push失敗"
+          echo "⚠️ SHA push失敗（HTTPS/HTTP両方）"
         fi
         
         echo "✅ Harbor Push完了"
