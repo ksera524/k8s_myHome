@@ -35,3 +35,91 @@ automation/k8s-infrastructure/.github/
 
 # Settings files with potential secrets
 automation/settings.toml
+settings.toml
+
+# Certificate and key files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+automation/certs/
+
+# Kubernetes config files with credentials
+*kubeconfig*
+*.kubeconfig
+config.yaml
+admin.conf
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.ppk
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+logs/
+log/
+
+# Temporary files
+temp/
+tmp/
+*.temp
+
+# Docker files with potential secrets
+docker-compose.override.yml
+.dockerignore
+
+# Helm values with secrets
+values-prod.yaml
+values-production.yaml
+*-secret.yaml
+*-secrets.yaml
+
+# Kubernetes manifests with secrets (if any)
+*-password.yaml
+*-token.yaml
+
+# Archive files (potentially containing sensitive data)
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+
+# Known hosts files
+known_hosts
+known_hosts.old
