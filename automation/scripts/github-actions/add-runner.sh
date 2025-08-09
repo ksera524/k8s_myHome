@@ -237,9 +237,10 @@ jobs:
         echo "Docker設定確認中..."
         docker info | grep -i "registry" || echo "Registry設定情報なし"
         
-        # Harbor CA証明書をKubernetesから取得してコンテナ内にコピー
-        echo "Harbor CA証明書をKubernetesから取得中..."
-        kubectl get secret harbor-tls-secret -n harbor -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/harbor-ca.crt
+        # Harbor CA証明書をcert-managerから取得してコンテナ内にコピー
+        echo "Harbor CA証明書をcert-managerから取得中..."
+        kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt || \\
+        kubectl get secret harbor-tls-secret -n harbor -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
         
         # CA証明書の内容を確認
         echo "CA証明書内容確認:"
