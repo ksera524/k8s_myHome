@@ -1,23 +1,21 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: secret-reader
-  namespace: arc-systems
+  name: github-actions-secret-reader
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: github-actions-secret-reader
-  namespace: arc-systems
 subjects:
 - kind: ServiceAccount
   name: github-actions-runner
   namespace: arc-systems
 roleRef:
-  kind: Role
-  name: secret-reader
+  kind: ClusterRole
+  name: github-actions-secret-reader
   apiGroup: rbac.authorization.k8s.io
