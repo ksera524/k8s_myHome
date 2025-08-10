@@ -103,14 +103,84 @@ spec:
           type: Directory
 
 ---
-# Harbor証明書を arc-systems namespace にコピー
-apiVersion: v1
-kind: Secret
+# Harbor CA証明書作成Job - cert-managerのCA証明書を取得してarc-systemsに配布
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: harbor-ca-cert
+  name: harbor-ca-cert-creator
   namespace: arc-systems
   labels:
     app: harbor-ca-distribution
-type: Opaque
-data:
-  ca.crt: ""  # 動的に設定される
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: harbor-ca-trust
+      containers:
+      - name: ca-cert-creator
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Harbor CA証明書作成Job開始..."
+          
+          # Kubeconfig設定
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl config set-cluster default \
+              --server=https://kubernetes.default.svc \
+              --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+              --kubeconfig=$KUBECONFIG
+          kubectl config set-credentials default \
+              --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \
+              --kubeconfig=$KUBECONFIG
+          kubectl config set-context default \
+              --cluster=default --user=default \
+              --kubeconfig=$KUBECONFIG
+          kubectl config use-context default --kubeconfig=$KUBECONFIG
+          
+          # cert-manager CA証明書の準備完了待機
+          echo "cert-manager CA証明書の待機中..."
+          timeout=300
+          while [ $timeout -gt 0 ] && ! kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; do
+            echo "cert-manager CA証明書待機中... (残り ${timeout}秒)"
+            sleep 10
+            timeout=$((timeout - 10))
+          done
+          
+          if [ $timeout -le 0 ]; then
+            echo "❌ cert-manager CA証明書待機がタイムアウトしました"
+            exit 1
+          fi
+          
+          # 既存のHarbor CA証明書削除
+          kubectl delete secret harbor-ca-cert -n arc-systems --ignore-not-found=true
+          
+          # cert-manager CA証明書を取得してarc-systemsに作成
+          echo "Harbor CA証明書をarc-systemsに作成中..."
+          kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
+          
+          # arc-systemsネームスペースにSecret作成
+          kubectl create secret generic harbor-ca-cert -n arc-systems \
+              --from-file=ca.crt=/tmp/harbor-ca.crt
+          
+          # 作成確認
+          if kubectl get secret harbor-ca-cert -n arc-systems >/dev/null 2>&1; then
+            echo "✅ Harbor CA証明書作成完了"
+            echo "証明書詳細:"
+            openssl x509 -in /tmp/harbor-ca.crt -text -noout | grep -A 2 "Subject:" || echo "証明書解析エラー"
+          else
+            echo "❌ Harbor CA証明書作成失敗"
+            exit 1
+          fi
+          
+          rm -f /tmp/harbor-ca.crt
+          echo "Harbor CA証明書作成Job完了"
+        env: []
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"

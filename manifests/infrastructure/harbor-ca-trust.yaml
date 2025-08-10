@@ -113,12 +113,19 @@ spec:
       tolerations:
       - operator: Exists  # 全ノードで実行
 ---
-# Harbor CA信頼管理用のサービスアカウント
+# Harbor CA信頼管理用のサービスアカウント (kube-system)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: harbor-ca-trust
   namespace: kube-system
+---
+# Harbor CA信頼管理用のサービスアカウント (arc-systems)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harbor-ca-trust
+  namespace: arc-systems
 ---
 # Harbor証明書シークレットへの読み取り権限
 apiVersion: rbac.authorization.k8s.io/v1
@@ -128,7 +135,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "list"]  # Harbor TLSシークレットの読み取り
+  verbs: ["get", "list", "create", "delete"]  # All Secret管理権限
 ---
 # ClusterRoleとServiceAccountのバインディング
 apiVersion: rbac.authorization.k8s.io/v1
@@ -143,3 +150,6 @@ subjects:
 - kind: ServiceAccount
   name: harbor-ca-trust
   namespace: kube-system
+- kind: ServiceAccount
+  name: harbor-ca-trust
+  namespace: arc-systems
