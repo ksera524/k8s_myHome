@@ -51,14 +51,45 @@ data:
           - mountPath: /home/runner/tmpDir
             name: dind-externals
         
-        # Docker in Docker Container with insecure registry
+        # Harbor CA証明書インストール用initContainer
+        - name: harbor-ca-installer
+          image: alpine:latest
+          command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Harbor CA証明書をインストール中..."
+            
+            # CA証明書を適切な場所にコピー
+            mkdir -p /certs/192.168.122.100
+            cp /harbor-ca/ca.crt /certs/192.168.122.100/ca.crt
+            
+            # システム信頼ストアにも追加
+            cp /harbor-ca/ca.crt /usr/local/share/ca-certificates/harbor-ca.crt
+            update-ca-certificates
+            
+            echo "Harbor CA証明書インストール完了"
+            echo "証明書詳細:"
+            openssl x509 -in /harbor-ca/ca.crt -text -noout | grep -A 2 "Subject Alternative Name" || echo "SANs情報表示エラー"
+            
+          volumeMounts:
+          - mountPath: /harbor-ca
+            name: harbor-ca-cert
+            readOnly: true
+          - mountPath: /certs
+            name: docker-certs
+          - mountPath: /usr/local/share/ca-certificates
+            name: ca-certificates
+          securityContext:
+            runAsUser: 0
+        
+        # Docker in Docker Container with CA certificate trust
         - name: dind
           image: docker:dind
           args:
           - dockerd
           - --host=unix:///var/run/docker.sock
           - --group=$(DOCKER_GROUP_GID)
-          - --insecure-registry=192.168.122.100
           env:
           - name: DOCKER_GROUP_GID
             value: "123"
@@ -80,6 +111,10 @@ data:
             name: dind-sock
           - mountPath: /home/runner/externals
             name: dind-externals
+          - mountPath: /etc/docker/certs.d
+            name: docker-certs
+          - mountPath: /usr/local/share/ca-certificates
+            name: ca-certificates
         
         # Service Account
         serviceAccountName: github-actions-runner
@@ -91,6 +126,14 @@ data:
         - name: dind-externals
           emptyDir: {}
         - name: work
+          emptyDir: {}
+        - name: harbor-ca-cert
+          secret:
+            secretName: harbor-ca-cert
+            defaultMode: 0444
+        - name: docker-certs
+          emptyDir: {}
+        - name: ca-certificates
           emptyDir: {}
         
         restartPolicy: Never
