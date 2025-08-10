@@ -66,22 +66,22 @@ jobs:
         HARBOR_PASSWORD=$(cat /tmp/harbor_password)
         HARBOR_URL=$(cat /tmp/harbor_url)
         
-        # Docker daemon設定（insecure-registry設定）
-        echo "Docker daemon設定中..."
-        sudo mkdir -p /etc/docker
-        echo "{\"insecure-registries\":[\"$HARBOR_URL\"]}" | sudo tee /etc/docker/daemon.json
-        sudo systemctl reload docker || sudo systemctl restart docker || true
-        
-        # Docker環境変数設定
+        # Docker環境変数設定（TLS無効化）
+        echo "Docker環境変数設定中..."
         export DOCKER_CONTENT_TRUST=0
         export DOCKER_TLS_VERIFY=""
         export DOCKER_CERT_PATH=""
         export DOCKER_TLS=""
         export DOCKER_INSECURE_REGISTRY="$HARBOR_URL"
         
-        # Docker login実行（明示的認証）
-        echo "Docker login実行中..."
-        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+        # Docker daemon設定ファイル作成（次回起動時用）
+        echo "Docker daemon設定ファイル作成中..."
+        sudo mkdir -p /etc/docker
+        echo "{\"insecure-registries\":[\"$HARBOR_URL\"]}" | sudo tee /etc/docker/daemon.json
+        
+        # Docker login実行（HTTP強制接続）
+        echo "Docker login実行中（HTTP接続）..."
+        echo "$HARBOR_PASSWORD" | docker login http://$HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
         
         # 認証確認
         echo "Docker認証状況確認:"
@@ -118,9 +118,9 @@ jobs:
         export DOCKER_TLS=""
         export DOCKER_INSECURE_REGISTRY="$HARBOR_URL"
         
-        # Docker login再実行（push前確認）
-        echo "Docker login確認・再実行..."
-        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+        # Docker login再実行（push前確認・HTTP接続）
+        echo "Docker login確認・再実行（HTTP接続）..."
+        echo "$HARBOR_PASSWORD" | docker login http://$HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
         
         # Docker push実行
         echo "Docker push実行中..."
