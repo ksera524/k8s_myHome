@@ -58,9 +58,9 @@ jobs:
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor認証情報取得完了"
         
-    - name: Docker認証設定
+    - name: CA証明書取得とDocker設定
       run: |
-        echo "=== Docker認証設定 ==="
+        echo "=== CA証明書取得とDocker設定 ==="
         
         HARBOR_USERNAME=$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=$(cat /tmp/harbor_password)
@@ -69,36 +69,48 @@ jobs:
         echo "Harbor URL: $HARBOR_URL"
         echo "Harbor User: $HARBOR_USERNAME"
         
-        # Docker daemon PID確認・再起動試行
-        echo "Docker daemon状況確認中..."
-        ps aux | grep dockerd || echo "dockerd プロセス不明"
+        # 内部CA証明書をcert-managerから取得
+        echo "内部CA証明書取得中..."
+        kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/ca-cert.pem
         
-        # insecure registry設定 (runtime)
-        echo "Docker daemon設定更新中..."
-        sudo mkdir -p /etc/docker
-        echo "{\"insecure-registries\":[\"$HARBOR_URL\"], \"hosts\": [\"fd://\", \"tcp://0.0.0.0:2376\"], \"tls\": false}" | sudo tee /etc/docker/daemon.json
+        # Harbor TLS証明書を取得
+        echo "Harbor TLS証明書取得中..."
+        kubectl get secret harbor-tls-secret -n harbor -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-cert.pem
         
-        # Docker daemon再起動（signal使用）
-        echo "Docker daemon再起動試行中..."
-        sudo pkill -SIGHUP dockerd || echo "dockerd signal送信失敗"
-        sleep 5
+        # 証明書情報確認
+        echo "CA証明書情報:"
+        openssl x509 -in /tmp/ca-cert.pem -subject -issuer -noout || echo "CA証明書読み取り失敗"
+        echo "Harbor証明書情報:"
+        openssl x509 -in /tmp/harbor-cert.pem -subject -issuer -noout || echo "Harbor証明書読み取り失敗"
+        echo "Harbor証明書のSAN確認:"
+        openssl x509 -in /tmp/harbor-cert.pem -text -noout | grep -A 2 "Subject Alternative Name" || echo "SAN情報なし"
         
-        # Docker login実行
-        echo "Docker login実行中..."
-        export DOCKER_TLS_VERIFY=""
-        export DOCKER_CERT_PATH=""
+        # システムCA証明書ストアに追加
+        echo "システムCA証明書ストア更新中..."
+        sudo cp /tmp/ca-cert.pem /usr/local/share/ca-certificates/k8s-ca.crt
+        sudo cp /tmp/harbor-cert.pem /usr/local/share/ca-certificates/harbor.crt
+        sudo update-ca-certificates
+        
+        # Docker用証明書ディレクトリ設定
+        echo "Docker用証明書設定中..."
+        sudo mkdir -p /etc/docker/certs.d/$HARBOR_URL
+        sudo cp /tmp/ca-cert.pem /etc/docker/certs.d/$HARBOR_URL/ca.crt
+        sudo cp /tmp/harbor-cert.pem /etc/docker/certs.d/$HARBOR_URL/client.cert
+        sudo chmod 644 /etc/docker/certs.d/$HARBOR_URL/*
+        
+        # Docker login実行（HTTPS接続）
+        echo "Docker login実行中（HTTPS + CA証明書）..."
         export DOCKER_CONTENT_TRUST=0
         
-        # 複数パターンでの認証試行
-        if echo "$HARBOR_PASSWORD" | docker login http://$HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin 2>/dev/null; then
-          echo "✅ HTTP login成功"
-        elif echo "$HARBOR_PASSWORD" | DOCKER_TLS_VERIFY=0 docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin 2>/dev/null; then
-          echo "✅ TLS無効login成功"
+        if echo "$HARBOR_PASSWORD" | docker login https://$HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin; then
+          echo "✅ HTTPS CA証明書login成功"
+        elif echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin; then
+          echo "✅ デフォルトHTTPS login成功"
         else
-          echo "⚠️ 両方のログイン方法が失敗、継続"
+          echo "⚠️ HTTPS login失敗、継続"
         fi
         
-        echo "✅ Docker認証設定完了"
+        echo "✅ CA証明書設定とDocker認証完了"
         
     - name: Docker Build
       run: |
@@ -127,39 +139,60 @@ jobs:
         sudo apt-get update -qq
         sudo apt-get install -y skopeo
         
-        # skopeoでのpush試行（TLS検証無効）
-        echo "skopeoでのHarbor push実行中..."
+        # CA証明書設定をskopeoに適用
+        echo "skopeo用証明書設定中..."
+        mkdir -p ~/.config/containers/certs.d/$HARBOR_URL
+        cp /etc/docker/certs.d/$HARBOR_URL/ca.crt ~/.config/containers/certs.d/$HARBOR_URL/
+        
+        # skopeoでのpush試行（CA証明書使用）
+        echo "skopeoでのHarbor push実行中（CA証明書検証）..."
         
         # latest tagのpush
         echo "推す対象: docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest → docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"
-        if skopeo copy --insecure-policy --dest-tls-verify=false \
-          --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+        if skopeo copy --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
           "docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest" \
           "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"; then
-          echo "✅ skopeo latest push成功"
+          echo "✅ skopeo latest push成功（CA証明書検証）"
         else
-          echo "⚠️ skopeo latest push失敗、Docker pushを試行..."
+          echo "⚠️ CA証明書push失敗、TLS無効で再試行..."
           
-          # フォールバック: Docker push
-          export DOCKER_TLS_VERIFY=""
-          export DOCKER_CONTENT_TRUST=0
-          timeout 60 docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest || echo "Docker push失敗"
+          # フォールバック1: TLS検証無効のskopeo
+          if skopeo copy --insecure-policy --dest-tls-verify=false \
+            --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+            "docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest" \
+            "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"; then
+            echo "✅ skopeo latest push成功（TLS無効）"
+          else
+            echo "⚠️ skopeo失敗、Docker pushを試行..."
+            
+            # フォールバック2: Docker push
+            export DOCKER_CONTENT_TRUST=0
+            timeout 60 docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest || echo "Docker push失敗"
+          fi
         fi
         
         # SHA tagのpush
         echo "推す対象: docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} → docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"
-        if skopeo copy --insecure-policy --dest-tls-verify=false \
-          --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+        if skopeo copy --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
           "docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}" \
           "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"; then
-          echo "✅ skopeo SHA push成功"
+          echo "✅ skopeo SHA push成功（CA証明書検証）"
         else
-          echo "⚠️ skopeo SHA push失敗、Docker pushを試行..."
+          echo "⚠️ CA証明書push失敗、TLS無効で再試行..."
           
-          # フォールバック: Docker push
-          export DOCKER_TLS_VERIFY=""
-          export DOCKER_CONTENT_TRUST=0
-          timeout 60 docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} || echo "Docker push失敗"
+          # フォールバック1: TLS検証無効のskopeo
+          if skopeo copy --insecure-policy --dest-tls-verify=false \
+            --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+            "docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}" \
+            "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }}"; then
+            echo "✅ skopeo SHA push成功（TLS無効）"
+          else
+            echo "⚠️ skopeo失敗、Docker pushを試行..."
+            
+            # フォールバック2: Docker push
+            export DOCKER_CONTENT_TRUST=0
+            timeout 60 docker push $HARBOR_URL/$HARBOR_PROJECT/slack.rs:${{ github.sha }} || echo "Docker push失敗"
+          fi
         fi
         
         echo "✅ Harbor Push完了"
