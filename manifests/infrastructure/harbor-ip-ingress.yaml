@@ -22,8 +22,7 @@ spec:
     - 192.168.122.100
     secretName: harbor-tls-secret
   rules:
-  - host: 192.168.122.100
-    http:
+  - http:
       paths:
       - path: /api/
         pathType: Prefix

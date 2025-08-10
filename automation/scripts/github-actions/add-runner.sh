@@ -211,8 +211,18 @@ jobs:
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         HARBOR_URL=\$(cat /tmp/harbor_url)
         
+        # Docker daemon設定（insecure-registry設定）
+        echo "Docker daemon設定中..."
+        sudo mkdir -p /etc/docker
+        echo "{\\\"insecure-registries\\\":[\\\"\$HARBOR_URL\\\"]}" | sudo tee /etc/docker/daemon.json
+        sudo systemctl reload docker || sudo systemctl restart docker || true
+        
         # Docker環境変数設定
         export DOCKER_CONTENT_TRUST=0
+        export DOCKER_TLS_VERIFY=""
+        export DOCKER_CERT_PATH=""
+        export DOCKER_TLS=""
+        export DOCKER_INSECURE_REGISTRY="\$HARBOR_URL"
         
         # Docker login実行（明示的認証）
         echo "Docker login実行中..."
