@@ -178,31 +178,40 @@ jobs:
         echo "Docker client情報:"
         docker version --format '{{.Client.APIVersion}}' || echo "Docker client version取得失敗"
         
-        # 方法1: tarファイル経由でのpush（Docker API版数問題回避）
-        echo "tarファイル経由でのpush試行中..."
-        if docker save $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest | \
-          skopeo copy --insecure-policy --dest-tls-verify=false \
-            --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
-            docker-archive:/dev/stdin \
-            "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"; then
-          echo "✅ skopeo latest push成功（tar経由）"
+        # 方法1: Docker imageタグを直接参照してskopeo copy
+        echo "直接イメージ参照でのpush試行中..."
+        
+        # イメージIDを取得
+        IMAGE_ID=$(docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}" | grep "$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest" | awk '{print $2}')
+        echo "イメージID: $IMAGE_ID"
+        
+        # skopeo copyで直接push（docker-daemon imageID経由）
+        if skopeo copy --insecure-policy --dest-tls-verify=false \
+          --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+          docker-daemon:$IMAGE_ID \
+          "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"; then
+          echo "✅ skopeo latest push成功（直接参照）"
         else
           echo "⚠️ tar経由push失敗、curlでの直接push試行..."
           
-          # 方法2: curlでのDocker Registry API直接アクセス
-          echo "curlでのDocker Registry API push試行中..."
+          # 方法2: skopeo copy from oci-archive（別アプローチ）
+          echo "OCI archive経由でのpush試行中..."
           
-          # イメージをtar形式でエクスポート
-          docker save $HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest > /tmp/image.tar
-          
-          # Registry APIでのpush試行
-          if curl -u $HARBOR_USERNAME:$HARBOR_PASSWORD \
-            -X PUT "http://$HARBOR_URL/v2/$HARBOR_PROJECT/slack.rs/blobs/uploads/" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @/tmp/image.tar; then
-            echo "✅ curl latest push成功"
+          # docker saveではなくskopeo copyでoci-archiveを作成
+          if skopeo copy docker-daemon:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest \
+            oci-archive:/tmp/image.tar:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest; then
+            
+            echo "OCI archive作成成功、Harborにpush中..."
+            if skopeo copy --insecure-policy --dest-tls-verify=false \
+              --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
+              oci-archive:/tmp/image.tar:$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest \
+              "docker://$HARBOR_URL/$HARBOR_PROJECT/slack.rs:latest"; then
+              echo "✅ OCI archive push成功"
+            else
+              echo "⚠️ OCI archive push失敗、継続"
+            fi
           else
-            echo "⚠️ curl push失敗、継続"
+            echo "⚠️ OCI archive作成失敗、継続"
           fi
           
           rm -f /tmp/image.tar
