@@ -405,6 +405,63 @@ EOF
 
 print_status "✓ Harbor認証設定（skopeo対応）完了"
 
+# Phase 4.9.6: Worker ノード Containerd Harbor HTTP Registry設定
+print_status "=== Phase 4.9.6: Containerd Harbor HTTP Registry設定 ==="
+print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
+
+# Harbor admin パスワード取得（ローカルで実行）
+HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo "KTvSwHaQy8l7Sx6j"')
+
+print_debug "Worker1 (192.168.122.11) Containerd設定..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.11 << EOF
+# Containerd設定バックアップ
+sudo cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
+
+# Harbor Registry設定追加（HTTP + 認証）
+sudo tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
+
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors."192.168.122.100"]
+  endpoint = ["http://192.168.122.100"]
+
+[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".tls]
+  insecure_skip_verify = true
+
+[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".auth]
+  username = "admin"
+  password = "${HARBOR_ADMIN_PASSWORD}"
+CONTAINERD_EOF
+
+# Containerd再起動
+sudo systemctl restart containerd
+echo "✓ Worker1 Containerd設定完了"
+EOF
+
+print_debug "Worker2 (192.168.122.12) Containerd設定..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.12 << EOF
+# Containerd設定バックアップ
+sudo cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
+
+# Harbor Registry設定追加（HTTP + 認証）
+sudo tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
+
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors."192.168.122.100"]
+  endpoint = ["http://192.168.122.100"]
+
+[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".tls]
+  insecure_skip_verify = true
+
+[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".auth]
+  username = "admin"
+  password = "${HARBOR_ADMIN_PASSWORD}"
+CONTAINERD_EOF
+
+# Containerd再起動
+sudo systemctl restart containerd
+echo "✓ Worker2 Containerd設定完了"
+EOF
+
+print_status "✓ Containerd Harbor HTTP Registry設定完了"
+
 # Phase 4.10: GitHub Actions Runner Controller (ARC) セットアップ
 print_status "=== Phase 4.10: GitHub Actions Runner Controller セットアップ ==="
 print_debug "GitHub Actions Runner Controller を直接セットアップします"
