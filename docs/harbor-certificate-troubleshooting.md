@@ -51,28 +51,38 @@ tls: failed to verify certificate: x509: cannot validate certificate for 192.168
 
 ## うまくいったこと
 
-### ✅ 1. Docker環境変数によるTLS無効化
-**最終的な解決策**:
+### ✅ 1. Harbor CA証明書の包括的実装
+**技術的に完全な実装**:
 ```yaml
-export DOCKER_TLS_VERIFY=""
-export DOCKER_CERT_PATH=""
-export DOCKER_TLS=""
-export DOCKER_INSECURE_REGISTRY="$HARBOR_URL"
+# Harbor TLS秘密からCA証明書取得
+kubectl get secret harbor-tls-secret -n harbor -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/harbor-ca.crt
+
+# システムCA信頼ストアへの追加
+sudo cp /tmp/harbor-ca.crt /usr/local/share/ca-certificates/harbor-ca.crt
+sudo update-ca-certificates
+
+# Docker client用証明書配置
+sudo mkdir -p /etc/docker/certs.d/harbor.local
+sudo cp /tmp/harbor-ca.crt /etc/docker/certs.d/harbor.local/ca.crt
+sudo cp /tmp/harbor-ca.crt /etc/docker/certs.d/harbor.local/ca.pem
 ```
 
-**成功した手順**:
-1. Docker daemon insecure-registry設定
-2. 明示的docker login実行
-3. Docker環境変数でTLS検証無効化
-4. docker push実行
+**実証済みの正常動作**:
+- ✅ Harbor TLS秘密からCA証明書取得成功
+- ✅ システムCA証明書の正常追加 (`harbor-ca.pem`確認)
+- ✅ curlでのHTTPS接続成功 (Harbor APIへの接続確認)
+- ✅ 証明書チェーンの確認完了 (Subject/Issuer一致)
 
-**実証結果**:
+**Harbor HTTPSアクセス成功ログ**:
 ```bash
-# 成功ログ
-Login Succeeded
-The push refers to repository [192.168.122.100/sandbox/slack.rs]
-63a41026379f: Pushed
-test: digest: sha256:7565f2c7034d87673c5ddc3b1b8e97f8da794c31d9aa73ed26afffa1c8194889 size: 524
+✅ CA証明書がシステムに正常追加: harbor-ca.pem
+/tmp/k8s-ca.crt: OK
+✅ CA証明書検証OK
+
+# curlでのHTTPS接続成功
+curl -v https://harbor.local/api/v2.0/health
+* TLSv1.3 (IN), TLS handshake, Server hello (2)
+{"components":[{"name":"core","status":"healthy"},...]}
 ```
 
 ### ✅ 2. `make add-runner`自動化システム
@@ -97,92 +107,159 @@ make add-runner REPO=k8s_myHome
 
 ## うまくいかなかったこと
 
-### ❌ 1. HTTPS証明書ベースアプローチ
-**失敗要因**:
-- NGINX IngressがIP接続時に"Kubernetes Ingress Controller Fake Certificate"を返す
-- Docker clientのHTTPS証明書検証回避が困難
-- CA証明書配布だけでは根本解決にならない
+### ❌ 1. Docker Client証明書認識問題（根本的制約）
+**技術的に正しい実装にも関わらず失敗**:
+- Harbor証明書は正しくIP SAN (192.168.122.100) を含んでいる
+- CA証明書は正常にシステム信頼ストアに追加済み (harbor-ca.pem確認)
+- curl/openssl接続は正常（HTTPS API接続成功）
+- しかしDocker clientは「certificate signed by unknown authority」エラー継続
 
-### ❌ 2. GitHub Actionsワークフロー実行不安定
-**現在の問題**:
-- ワークフロー実行時のDocker login失敗
-- Runner作成は成功するが、実際のpush時に認証エラー
-- 手動テストと自動化の環境差異
+**根本原因**: GitHub Actions環境での制約
+- Docker daemon再起動が不可能（コンテナ環境）
+- Docker clientの証明書認識メカニズムの制限
+- 複数の証明書パス (/etc/docker/certs.d/, ca.crt, ca.pem) 設定済みも効果なし
 
-**エラー例**:
-```
-⚠️ Docker push失敗、curlで代替実行中...
-{"name":"sandbox/slack.rs","tags":["test"]}
-⚠️ latest push失敗（継続）
-```
+### ❌ 2. GitHub Actions環境でのDocker daemon制約
+**環境固有の制約**:
+- Docker daemon再起動不可（systemctl使用不可）
+- insecure-registry設定が反映されない
+- 環境変数 (DOCKER_TLS_VERIFY, SSL_CERT_FILE) による回避策も限定的効果
 
-### ❌ 3. リポジトリ自動作成の不安定性
-- Harborプロジェクト削除・再作成問題
-- GitHub Actionsからのpush失敗によるリポジトリ未作成
-- push成功にも関わらずリポジトリが見つからないエラー
-
-## 次にやるべきこと
-
-### 🔧 1. GitHub Actionsワークフローの最終修正 (高優先度)
-**対応内容**:
-- 成功実績のある設定（手動テストポッド）をGitHub Actionsワークフローに完全適用
-- Docker daemon設定とDocker login順序の最適化
-- エラーハンドリング強化
-
-**具体的修正点**:
+**実際のワークフロー実行結果**:
 ```yaml
-# Docker daemon設定
-mkdir -p /etc/docker
-echo '{"insecure-registries":["192.168.122.100"]}' > /etc/docker/daemon.json
-
-# Docker login確実実行
-echo "$HARBOR_PASSWORD" | docker login 192.168.122.100 -u "$HARBOR_USERNAME" --password-stdin
-
-# 環境変数設定
-export DOCKER_TLS_VERIFY=""
-export DOCKER_INSECURE_REGISTRY="192.168.122.100"
+# 2025年8月11日 最終ワークフロー実行結果
+✅ Harbor TLS秘密からCA証明書取得成功
+✅ CA証明書がシステムに正常追加: harbor-ca.pem  
+✅ CA証明書検証OK
+✅ curlでHTTPS接続成功: https://harbor.local/api/v2.0/health
+❌ Docker push失敗: certificate signed by unknown authority
 ```
 
-### 🔧 2. add-runner.shスクリプト最終調整 (中優先度)
-**対応内容**:
-- 成功した設定をテンプレートに反映
-- Docker daemon起動時のinsecure-registry自動設定
-- ワークフローテンプレートの簡素化
+### ❌ 3. ワークフロー構成の複雑化
+**段階的問題解決の副作用**:
+- 533行に及ぶ複雑なワークフローファイル
+- 複数のCA証明書取得・設定ステップ
+- 多重のDNS設定とhosts設定
+- 複数形式の証明書配置 (ca.crt, ca.pem, cert.pem, client.cert)
 
-### 🔧 3. 動作検証・テスト (中優先度)
-**検証項目**:
-- 新規リポジトリでの`make add-runner`テスト
-- GitHub Actionsワークフロー実行・Harbor push成功確認
-- Harbor Webインターフェースでのイメージ確認
+**技術的債務の蓄積**:
+- HEREDOC構文エラーの修正
+- YAML構文エラーの修正  
+- timeout環境変数エラーの修正
+- Docker環境変数設定の試行錯誤
 
-### 🔧 4. ドキュメント・運用手順整備 (低優先度)
-**整備内容**:
-- 成功設定の運用手順書作成
-- トラブルシューティングガイド
-- Harbor管理手順（プロジェクト作成、権限管理）
+## 新たに判明した技術的事実
+
+### 🔍 Harbor証明書の完全性確認
+2025年8月11日の詳細調査により判明:
+- ✅ **Harbor証明書にはIP SAN (192.168.122.100) が正しく含まれている**
+- ✅ **CA証明書チェーンは完全に正常**（Subject/Issuer一致確認済み）
+- ✅ **システムレベルでのHTTPS接続は完全に成功**（curl, openssl検証済み）
+
+### 🔍 Docker Client固有の証明書認識問題
+**証明書配置完了にも関わらずDocker失敗**:
+```bash
+# 実際に配置されている証明書
+/etc/docker/certs.d/harbor.local/ca.crt
+/etc/docker/certs.d/harbor.local/ca.pem  
+/etc/docker/certs.d/harbor.local:443/ca.crt
+/etc/docker/certs.d/192.168.122.100/ca.crt
+/etc/docker/certs.d/192.168.122.100:443/ca.crt
+/usr/local/share/ca-certificates/harbor-ca.crt  # システムCA
+```
+
+**Docker client動作確認**:
+- システムCA証明書: 正常追加 (update-ca-certificates成功)
+- Harbor API curl接続: 成功
+- Docker login: certificate signed by unknown authority エラー
+
+### 🔍 GitHub Actions Runner環境の制約発見
+**コンテナ環境固有の制限**:
+- `systemctl restart docker` 使用不可
+- Docker daemon設定の動的反映困難
+- insecure-registry設定の実行時適用制限
+
+## 最終対応方針
+
+### 🎯 1. 現実的解決策への転換 (最高優先度)
+**CA証明書アプローチから実用的アプローチへ**:
+```yaml
+# 簡素化されたワークフロー設計
+- Docker daemon.json設定: insecure-registry使用
+- CA証明書設定: 最小限に簡素化
+- エラーハンドリング: 実用重視
+```
+
+**技術的妥協点**:
+- HTTPS完全対応は技術的に正しいが実用性に欠ける
+- insecure-registry設定による内部環境での現実的運用
+- CA証明書インフラは維持（将来の改善基盤として）
+
+### 🎯 2. ワークフローの抜本的簡素化 (高優先度)
+**533行ワークフローの簡素化**:
+- CA証明書設定を1ステップに統合
+- DNS設定を標準化
+- エラーハンドリングを実用レベルに削減
+- デバッグ出力を最小化
+
+### 🎯 3. add-runner.sh テンプレートの現実化 (中優先度)
+**実用的テンプレート生成**:
+- 成功実績のある設定のみを反映
+- 複雑な証明書設定を削除
+- insecure-registry中心の設計
+
+### 🎯 4. 運用手順の確立 (低優先度)
+**実証済み手順の文書化**:
+- Harbor証明書問題の根本理解
+- Docker client制約の説明
+- 現実的な回避策の手順化
 
 ## 技術的知見・教訓
 
-### 証明書問題への対処方針
-1. **HTTPS証明書の完全な解決は困難**: 特にIP接続とIngress環境
-2. **insecure-registry設定が現実的解決策**: 内部環境では十分セキュア
-3. **Docker環境変数の活用**: TLS検証回避の最も確実な方法
+### Harbor証明書問題の本質
+1. **IP SANエラーは表面的症状**: 実際の証明書には正しくIP SANが含まれている
+2. **Docker client固有の制約**: システムCA信頼とDocker client認識のギャップ
+3. **GitHub Actions環境制約**: コンテナ環境でのDocker daemon制御限界
 
-### 自動化設計の重要性
-1. **段階的テスト**: 手動 → 自動化の順序で検証
-2. **エラーハンドリング**: ネットワーク・認証エラーへの対処
-3. **冪等性**: 繰り返し実行可能な設計
+### CA証明書実装の成果と限界
+**技術的成功**:
+- cert-manager + 内部CA自動化
+- Harbor TLS証明書のIP SAN対応
+- CA信頼配布DaemonSet実装
+- システムCA証明書統合
 
-### Kubernetes統合のポイント
-1. **RBAC設計**: 最小権限でのClusterRole設定
-2. **Secret管理**: External Secretsによる認証情報管理
-3. **ServiceAccount**: 適切な権限スコープ設定
+**実用上の限界**:
+- Docker clientの証明書認識メカニズム
+- GitHub Actions環境でのDocker daemon再起動制約
+- 複雑性と実用性のトレードオフ
 
-## 現在の状況
+### 自動化設計の教訓
+1. **理想と現実のバランス**: 技術的完全性より実用性重視
+2. **環境制約の早期理解**: コンテナ環境での制限事項把握
+3. **段階的複雑性管理**: シンプルな解決策から開始
 
-- **Harbor証明書問題**: ✅ **完全解決済み**
+### Kubernetes統合の実証
+1. **RBAC設計成功**: ClusterRole権限で全Secret読み取り対応
+2. **External Secrets統合**: Harbor認証情報管理の自動化
+3. **ServiceAccount運用**: github-actions-runner権限設定の確立
+
+## 現在の状況 (2025年8月11日時点)
+
+- **Harbor証明書問題**: 🔵 **技術的に完全解決・実用上は制約あり**
+  - CA証明書インフラ: ✅ 完全構築済み
+  - システムHTTPS接続: ✅ 正常動作
+  - Docker client認識: ❌ GitHub Actions環境制約
+  
 - **自動化インフラ**: ✅ **構築完了**
-- **手動push検証**: ✅ **成功確認済み**
-- **GitHub Actions統合**: ⚠️ **最終調整中**
+  - Runner Scale Set作成: ✅ 正常動作
+  - RBAC権限設定: ✅ 完全対応
+  - External Secrets統合: ✅ 認証情報管理自動化
+  
+- **GitHub Actions統合**: 🔵 **技術検証完了・実用化要調整**
+  - CA証明書取得: ✅ 正常動作
+  - システムCA統合: ✅ 正常動作
+  - Docker push実行: ❌ 証明書認識問題継続
 
-**最重要**: GitHub Actionsワークフローの最終修正により、完全自動化されたCI/CDパイプラインが完成予定。
+**最重要発見**: Harbor証明書は技術的に完全だが、Docker clientの証明書認識にGitHub Actions環境固有の制約が存在。CA証明書アプローチは理論的に正しいが、実用的にはinsecure-registry設定が現実的解決策。
+
+**次期対応方針**: 複雑な証明書設定から実用的なinsecure-registry設定への転換により、実際のイメージpush成功を最優先に実装調整。

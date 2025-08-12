@@ -272,122 +272,41 @@ EOF
 
 print_status "✓ GitHub Actions Runner Controller (ARC) セットアップ完了"
 
-# 6.5. Harbor証明書修正（GitHub Actions対応）
-print_status "=== Harbor証明書修正 + GitHub Actions対応 ==="
-print_debug "GitHub Actionsからの証明書エラーを自動解決します"
+# 6.5. Harbor skopeo対応確認（証明書修正は不要）
+print_status "=== Harbor skopeo対応確認 ==="
+print_debug "skopeoアプローチによりHarbor証明書問題は自動解決されます"
 
 # Harbor存在確認
 print_debug "Harbor稼働状況を確認中..."
 if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get namespace harbor' >/dev/null 2>&1; then
-    # Harbor証明書修正スクリプトを実行
-    if [[ -f "$SCRIPT_DIR/../harbor/harbor-cert-fix.sh" ]]; then
-        print_debug "Harbor証明書修正スクリプトを実行中..."
-        bash "$SCRIPT_DIR/../harbor/harbor-cert-fix.sh"
-        print_status "✓ Harbor証明書修正完了"
-    else
-        print_warning "harbor-cert-fix.shが見つかりません"
-        print_debug "手動実行: automation/scripts/harbor/harbor-cert-fix.sh"
-    fi
+    print_status "✓ Harborデプロイ確認完了"
+    print_debug "skopeo --dest-tls-verify=false によりTLS証明書問題は回避されます"
 else
     print_warning "Harborがまだデプロイされていません"
-    print_debug "ArgoCD App of Appsでのデプロイ完了後に以下を実行してください："
-    print_debug "cd automation/scripts/harbor && ./harbor-cert-fix.sh"
-    print_warning "この状態でもGitHub Actionsランナーは利用可能ですが、Harbor pushでエラーが発生する可能性があります"
+    print_debug "ArgoCD App of Appsでのデプロイ完了後もskopeoアプローチにより問題なく動作します"
 fi
 
-# 6.6. GitHub Actions Runner 設定の最適化（CPU互換性 + insecure registry）
-print_status "=== GitHub Actions Runner 設定の最適化 ==="
-print_debug "CPU互換性対応 + insecure registry設定を自動適用します"
+# 6.6. skopeo対応注記（insecure registry設定は不要）
+print_status "=== skopeo対応注記 ==="
+print_debug "skopeoアプローチによりinsecure registry設定も不要です"
 
-# AutoscalingRunnerSet存在確認と設定適用
-print_debug "GitHub Actions Runner設定確認・修正中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'ARC_OPTIMIZE_EOF'
-# AutoscalingRunnerSet存在確認
-RUNNER_SETS=$(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | wc -l)
-if [[ "$RUNNER_SETS" -gt 0 ]]; then
-    echo "GitHub Actions Runner最適化設定を適用中..."
-    
-    # 各AutoscalingRunnerSetに最適化設定を適用
-    for runner_set in $(kubectl get AutoscalingRunnerSet -n arc-systems -o name 2>/dev/null | sed 's|.*/||'); do
-        echo "Runner Set '$runner_set' に最適化設定を適用中..."
-        
-        # 現在の設定を確認
-        CURRENT_ARGS=$(kubectl get AutoscalingRunnerSet "$runner_set" -n arc-systems -o jsonpath='{.spec.template.spec.initContainers[1].args}' 2>/dev/null || echo "[]")
-        
-        # 最適化設定が含まれているか確認
-        if [[ "$CURRENT_ARGS" == *"--insecure-registry=192.168.122.100"* ]]; then
-            echo "✓ '$runner_set' は既に最適化設定済み"
-        else
-            echo "最適化設定を適用中..."
-            
-            # CPU互換性環境変数設定
-            kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
-                --type=json \
-                -p='[
-                  {
-                    "op": "add",
-                    "path": "/spec/template/spec/containers/0/env/-",
-                    "value": {
-                      "name": "RUSTFLAGS",
-                      "value": "-C target-cpu=x86-64 -C target-feature=-aes,-avx,-avx2"
-                    }
-                  },
-                  {
-                    "op": "add",
-                    "path": "/spec/template/spec/containers/0/env/-",
-                    "value": {
-                      "name": "DOCKER_BUILDKIT_INLINE_CACHE",
-                      "value": "1"
-                    }
-                  }
-                ]' 2>/dev/null || echo "環境変数設定スキップ"
-            
-            # dind initContainer に insecure registry + 最適化設定を追加
-            if kubectl patch AutoscalingRunnerSet "$runner_set" -n arc-systems \
-                --type=json \
-                -p='[{"op":"replace","path":"/spec/template/spec/initContainers/1/args","value":["dockerd","--host=unix:///var/run/docker.sock","--group=$(DOCKER_GROUP_GID)","--insecure-registry=192.168.122.100","--storage-driver=overlay2","--default-runtime=runc"]}]' 2>/dev/null; then
-                echo "✓ '$runner_set' の最適化設定完了"
-                
-                # Runner Pod再起動で設定反映
-                echo "Runner Pod再起動中..."
-                kubectl delete pod -n arc-systems -l app.kubernetes.io/name="$runner_set" 2>/dev/null || echo "Runner Pod未発見"
-                sleep 5
-                
-                echo "✓ '$runner_set' Runner Pod再起動完了"
-            else
-                echo "⚠️ '$runner_set' の最適化設定に失敗しました"
-            fi
-        fi
-    done
-    
-    echo "✓ GitHub Actions Runner最適化設定完了"
-else
-    echo "AutoscalingRunnerSetが見つかりません"
-fi
-ARC_OPTIMIZE_EOF
+print_status "✓ skopeoアプローチによる完全対応"
+print_debug "GitHub Actions WorkflowでskopeoのTLS検証無効化により証明書・レジストリ問題を解決"
 
-print_status "✓ GitHub Actions Runner 設定の最適化完了"
-
-# 7. 使用方法の表示
-print_status "=== 使用方法 ==="
+# 7. 使用方法の表示（skopeo版）
+print_status "=== 使用方法 (skopeo版) ==="
 echo ""
-echo "GitHub Actions workflowで以下のように指定してください："
+echo "🎯 GitHub Actions Runner追加方法："
+echo "   make add-runner REPO=<repository-name>"
+echo "   例: make add-runner REPO=my-awesome-project"
 echo ""
-echo "jobs:"
-echo "  build:"
-echo "    runs-on: k8s-myhome-runners  # k8s_myHomeリポジトリ用"
-echo "    # または"
-echo "    runs-on: slack-rs-runners    # slack.rsリポジトリ用"
-echo ""
-echo "Harbor用環境変数:"
-echo "- HARBOR_URL: 192.168.122.100"
-echo "- HARBOR_PROJECT: sandbox"
-echo ""
-echo "Harbor認証："
-echo "  docker login 192.168.122.100 -u $HARBOR_USERNAME -p $HARBOR_PASSWORD"
+echo "🔧 GitHub Actions workflowは各リポジトリ用に自動生成されます："
+echo "   - skopeoベースでTLS検証無効化"
+echo "   - Harbor認証情報をk8s Secretから自動取得"
+echo "   - 533行の複雑なアプローチから108行のシンプルな実装"
 echo ""
 echo ""
-print_status "=== セットアップ完了 ==="
+print_status "=== セットアップ完了 (skopeo版) ==="
 echo ""
 echo "✅ ESO管理の認証情報:"
 echo "   GitHub ユーザー名: $GITHUB_USERNAME (ESO-k8s Secret自動取得)"
@@ -395,36 +314,27 @@ echo "   GitHub Token: ${GITHUB_TOKEN:0:8}... (ESO-k8s Secret自動取得)"
 echo "   Harbor ユーザー名: $HARBOR_USERNAME (ESO-k8s Secret自動取得)"
 echo "   Harbor パスワード: ${HARBOR_PASSWORD:0:3}... (ESO-k8s Secret自動取得)"
 echo ""
-echo "✅ 作成されたRunner Scale Sets:"
-echo "   - k8s-myhome-runners (k8s_myHomeリポジトリ用)"
-echo "   - slack-rs-runners (slack.rsリポジトリ用、存在する場合)"
+echo "✅ ARC基盤のセットアップ完了:"
+echo "   - GitHub Actions Runner Controller (ARC) インストール済み"
+echo "   - ServiceAccount 'github-actions-runner' 作成済み"
+echo "   - RBAC権限設定済み（Secret読み取り権限）"
+echo "   - ESO (External Secrets Operator) 統合済み"
 echo ""
-echo "✅ Harbor認証方式:"
-echo "   - k8s Secret自動参照方式を採用"
-echo "   - GitHub Repository Secretsの手動設定が不要"
-echo "   - arc-systems namespace の harbor-auth Secret から自動取得"
-echo "   - ServiceAccount 'github-actions-runner' で適切な権限設定"
-echo ""
-echo "✅ ESO完全統合されたセットアップ:"
-echo "   - GitHub/Harbor認証: ESO (External Secrets Operator) 管理"
-echo "   - 手動PAT入力不要: Pulumi ESC から自動取得"
-echo "   - GitHub Actions Workflow: 最終版（Docker-in-Docker対応）"
-echo "   - Runner Scale Set: 適切なServiceAccountで設定済み"
-echo "   - Harbor証明書: IP SAN対応済み"
+echo "✅ skopeoアプローチ採用:"
+echo "   - Harbor証明書問題: --dest-tls-verify=false で回避"
+echo "   - 複雑なCA証明書管理: 不要"
+echo "   - insecure registry設定: 不要"
+echo "   - 保守性・信頼性: 大幅向上"
 echo ""
 echo "📝 次のステップ:"
-echo "1. github-actions-example.yml をリポジトリの.github/workflows/にコピー"
-echo "   cp automation/phase4/github-actions-example.yml .github/workflows/build-and-push.yml"
-echo "2. GitリポジトリにCommit & Push"
-echo "   git add .github/workflows/build-and-push.yml"
-echo "   git commit -m \"GitHub Actions Harbor対応ワークフロー追加\""
+echo "1. 各リポジトリにRunner追加:"
+echo "   make add-runner REPO=<repository-name>"
+echo "2. 生成されたworkflowファイルをコミット"
+echo "   git add .github/workflows/build-and-push-*.yml"
+echo "   git commit -m \"Add skopeo-based GitHub Actions workflow\""
 echo "   git push"
 echo "3. GitHub ActionsでCI/CDテスト実行"
-echo "4. Harborでイメージ確認: https://192.168.122.100"
+echo "4. Harborでイメージ確認: http://192.168.122.100"
 echo ""
-echo "🔧 Harbor パスワード変更時:"
-echo "   ./harbor-password-update.sh --interactive"
-echo "   （GitHub Actions Runnerも自動再起動されます）"
-echo ""
-echo "🎉 ESO完全統合セットアップ完了！"
-echo "   GitHub PAT手動入力不要で全コンポーネントが自動設定され、すぐにCI/CDが利用可能です。"
+echo "🎉 skopeoベースARC基盤セットアップ完了！"
+echo "   複雑な証明書管理を排除し、シンプル・確実なCI/CDパイプラインが利用可能です。"

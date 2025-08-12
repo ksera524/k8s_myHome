@@ -8,17 +8,16 @@ add-runner:
 		echo "使用方法: make add-runner REPO=repository-name"; \
 		exit 1; \
 	fi
-	$(call print_status,$(ROCKET),GitHub Actions Runner追加: $(REPO))
-	@cd $(PROJECT_ROOT)/scripts/github-actions && ./add-runner.sh $(REPO)
+	$(call print_status,$(ROCKET),GitHub Actions Runner追加 (skopeo版): $(REPO))
+	@cd $(SCRIPTS_DIR)/github-actions && ./add-runner.sh $(REPO)
 	$(call print_status,$(CHECK),Runner追加完了)
 
 # Actions Runner Controller設定 - deployment.mkに移動済み
 
-# Harbor証明書修正
+# Harbor証明書修正（skopeo対応により不要）
 harbor-cert-fix:
-	$(call print_status,$(ROCKET),Harbor証明書修正開始)
-	@cd $(PLATFORM_DIR) && ./harbor-cert-fix.sh
-	$(call print_status,$(CHECK),Harbor証明書修正完了)
+	$(call print_status,$(INFO),skopeo対応によりHarbor証明書修正は不要です)
+	@echo "skopeoアプローチ（--dest-tls-verify=false）により証明書問題は自動解決されます"
 
 # Slack Secret手動設定
 setup-slack-secret:

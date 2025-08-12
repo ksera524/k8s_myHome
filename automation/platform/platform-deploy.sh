@@ -363,24 +363,47 @@ EOF
 
 print_status "✓ Harbor デプロイ完了"
 
-# Phase 4.9.5: cert-manager CA証明書自動化
-print_status "=== Phase 4.9.5: cert-manager CA証明書自動化 ==="
-print_debug "内部CAによるHarbor証明書管理を自動化します"
+# Phase 4.9.5: Harbor認証設定（skopeo対応）
+print_status "=== Phase 4.9.5: Harbor認証設定（skopeo対応） ==="
+print_debug "Harbor認証情報secretをGitHub Actions用に設定します"
 
-if [[ -f "$SCRIPT_DIR/../scripts/cert-manager/setup-ca-cert-manager.sh" ]]; then
-    print_debug "cert-manager CA証明書セットアップを実行中..."
-    bash "$SCRIPT_DIR/../scripts/cert-manager/setup-ca-cert-manager.sh"
-    print_status "✓ cert-manager CA証明書自動化完了"
-else
-    print_warning "setup-ca-cert-manager.sh が見つかりません。フォールバックで旧方式を実行"
-    if [[ -f "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh" ]]; then
-        print_debug "Harbor証明書修正スクリプト(旧方式)を実行中..."
-        bash "$SCRIPT_DIR/../scripts/harbor/harbor-cert-fix.sh"
-        print_status "✓ Harbor証明書修正完了"
-    else
-        print_warning "harbor-cert-fix.sh も見つかりません。手動で証明書修正してください"
-    fi
-fi
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# Harbor管理者パスワード取得 (正しいキー名)
+HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "KTvSwHaQy8l7Sx6j")
+
+# arc-systems namespace に harbor-auth secret 作成
+kubectl create secret generic harbor-auth \
+    --namespace arc-systems \
+    --from-literal=HARBOR_USERNAME="admin" \
+    --from-literal=HARBOR_PASSWORD="$HARBOR_ADMIN_PASSWORD" \
+    --from-literal=HARBOR_URL="192.168.122.100" \
+    --from-literal=HARBOR_PROJECT="sandbox" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✓ Harbor認証Secret (arc-systems) 作成完了"
+
+# 必要なネームスペースにHarbor Docker registry secret作成
+NAMESPACES=("default" "sandbox" "production" "staging")
+
+for namespace in "${NAMESPACES[@]}"; do
+    # ネームスペース作成（存在しない場合）
+    kubectl create namespace $namespace --dry-run=client -o yaml | kubectl apply -f -
+    
+    # harbor-http Docker registry secret作成
+    kubectl create secret docker-registry harbor-http \
+        --namespace $namespace \
+        --docker-server="192.168.122.100" \
+        --docker-username="admin" \
+        --docker-password="$HARBOR_ADMIN_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    
+    echo "✓ harbor-http secret ($namespace) 作成完了"
+done
+
+echo "✓ Harbor認証設定完了 - skopeo対応"
+EOF
+
+print_status "✓ Harbor認証設定（skopeo対応）完了"
 
 # Phase 4.10: GitHub Actions Runner Controller (ARC) セットアップ
 print_status "=== Phase 4.10: GitHub Actions Runner Controller セットアップ ==="
@@ -455,8 +478,13 @@ EOF
 
 print_status "✓ システム環境確認完了"
 
-print_status "=== ArgoCD→ESO従来順序版 Kubernetesプラットフォーム構築完了 ==="
+print_status "=== Kubernetesプラットフォーム構築完了（skopeo対応） ==="
 print_status "アクセス方法:"
 print_status "  ArgoCD UI: https://argocd.qroksera.com"
 print_status "  Harbor UI: https://harbor.qroksera.com"
 print_status "  LoadBalancer IP: 192.168.122.100"
+print_status ""
+print_status "Harbor push設定:"
+print_status "  - GitHub ActionsでskopeoによるTLS検証無効push対応"
+print_status "  - Harbor認証secret (arc-systems/harbor-auth) 設定済み"
+print_status "  - イメージプルsecret (各namespace/harbor-http) 設定済み"
