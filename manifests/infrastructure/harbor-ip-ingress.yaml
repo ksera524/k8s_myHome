@@ -18,9 +18,7 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - 192.168.122.100
-    secretName: harbor-tls-secret
+  - secretName: harbor-tls-secret
   rules:
   - http:
       paths:
