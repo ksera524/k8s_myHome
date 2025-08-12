@@ -127,10 +127,27 @@ metadata:
     app.kubernetes.io/name: argocd-rbac-cm
     app.kubernetes.io/part-of: argocd
 data:
-  # GitHubユーザー「ksera524」に管理者権限を付与
+  # GitHubユーザーID（99033723 = ksera631@gmail.com）に完全な管理者権限を付与
   policy.csv: |
-    # GitHubユーザー「ksera524」に管理者権限を付与
-    g, ksera524, role:admin
+    # GitHubユーザーID（99033723 = ksera631@gmail.com）に完全な管理者権限を付与
+    g, 99033723, role:admin
+
+    # 明示的なアクション権限を追加
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:admin, repositories, *, *, allow
+    p, role:admin, certificates, *, *, allow
+    p, role:admin, accounts, *, *, allow
+    p, role:admin, gpgkeys, *, *, allow
+    p, role:admin, logs, get, *, allow
+    p, role:admin, exec, create, */*, allow
+
+    # リソースアクション権限（restart等）
+    p, role:admin, applications, action/*, */*, allow
+    p, role:admin, applications, action/apps/Deployment/restart, */*, allow
+    p, role:admin, applications, action/apps/ReplicaSet/restart, */*, allow
+    p, role:admin, applications, action/apps/DaemonSet/restart, */*, allow
+    p, role:admin, applications, action/apps/StatefulSet/restart, */*, allow
   policy.default: role:readonly
 ---
 # ArgoCD Secret with GitHub OAuth Client ID (permanent)
