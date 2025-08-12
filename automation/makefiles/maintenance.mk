@@ -17,8 +17,8 @@ status:
 	@$(call k8s_exec_safe,kubectl get externalsecrets -A | grep -v NAMESPACE | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$refresh/$$status $$ready"; done) || echo "External Secrets状態が確認できません"
 	@echo ""
 	@echo "$(INFO) 重要なExternal Secrets詳細確認："
-	@$(call k8s_exec_safe,kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath='{.metadata.name}: {.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null && echo "") || echo "  github-auth-secret: 未確認"
-	@$(call k8s_exec_safe,kubectl get externalsecret slack-secret -n sandbox -o jsonpath='{.metadata.name}: {.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null && echo "") || echo "  slack-secret: 未確認"
+	@$(call k8s_exec_safe,kubectl get externalsecret github-auth-secret -n arc-systems --no-headers 2>/dev/null | awk '{print "  github-auth-secret: " $$6}') || echo "  github-auth-secret: 未確認"
+	@$(call k8s_exec_safe,kubectl get externalsecret slack-secret -n sandbox --no-headers 2>/dev/null | awk '{print "  slack-secret: " $$6}') || echo "  slack-secret: 未確認"
 	@echo ""
 
 # 全フェーズ検証
