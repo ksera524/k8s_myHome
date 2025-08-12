@@ -37,7 +37,7 @@ kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 
 GitHub Actions用のHarbor認証情報を arc-systems namespace に作成：
 
 ```yaml
-# manifests/external-secrets/harbor-externalsecrets.yaml
+# manifests/external-secrets/externalsecrets.yaml
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
