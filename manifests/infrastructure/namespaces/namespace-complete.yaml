@@ -1,0 +1,63 @@
+---
+# External Secrets System namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets-system
+  labels:
+    name: external-secrets-system
+    managed-by: argocd
+---
+# Harbor registry namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harbor
+  labels:
+    name: harbor
+    managed-by: argocd
+---
+# GitHub Actions Runner Controller namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-systems
+  labels:
+    name: arc-systems
+    managed-by: argocd
+---
+# Cloudflared tunnel namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflared
+  labels:
+    name: cloudflared
+    managed-by: argocd
+---
+# Applications namespace for user workloads
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: applications
+  labels:
+    name: applications
+    managed-by: argocd
+---
+# Monitoring namespace for observability stack
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    managed-by: argocd
+---
+# Development/testing namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sandbox
+  labels:
+    name: sandbox
+    managed-by: argocd
