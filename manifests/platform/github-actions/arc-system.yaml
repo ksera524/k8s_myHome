@@ -29,11 +29,8 @@ type: kubernetes.io/dockerconfigjson
 data:
   .dockerconfigjson: # Base64エンコードされたDocker config.jsonを設定
   # 生成方法:
-  # kubectl create secret docker-registry harbor-registry-secret \
-  #   --docker-server=192.168.122.100 \
-  #   --docker-username=admin \
-  #   --docker-password=Harbor12345 \
-  #   -n actions-runner-system --dry-run=client -o yaml
+  # External Secrets Operatorで自動生成されます
+  # Harbor認証情報はPulumi ESCから取得
 ---
 # 環境変数用ConfigMap
 apiVersion: v1
