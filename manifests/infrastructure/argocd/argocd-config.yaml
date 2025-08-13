@@ -148,7 +148,8 @@ data:
     p, role:admin, applications, action/apps/ReplicaSet/restart, */*, allow
     p, role:admin, applications, action/apps/DaemonSet/restart, */*, allow
     p, role:admin, applications, action/apps/StatefulSet/restart, */*, allow
-  policy.default: role:readonly
+  # 管理者以外はログイン不可（デフォルト権限なし）
+  policy.default: ""
 ---
 # ArgoCD Secret with GitHub OAuth Client ID (permanent)
 apiVersion: v1
