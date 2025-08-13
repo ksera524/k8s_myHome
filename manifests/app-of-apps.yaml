@@ -1,4 +1,30 @@
 # ArgoCD App-of-Apps パターン - 新しいmanifests構造対応版
+# Namespaces - 最初に作成（他すべてが依存）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: namespaces
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/namespaces
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# Infrastructure Services（namespace作成後）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
