@@ -149,17 +149,13 @@ print_status "=== Phase 4.5: 必要namespace作成 ==="
 print_debug "各コンポーネント用のnamespaceを事前作成します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# 必要なnamespaces作成
+# ArgoCD namespace作成（ArgoCD自体に必要）
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace cloudflared --dry-run=client -o yaml | kubectl apply -f -
 
-echo "✓ 必要namespace作成完了"
+echo "✓ ArgoCD namespace作成完了"
 EOF
 
-print_status "✓ 必要namespace作成完了"
+print_status "✓ ArgoCD namespace作成完了"
 
 # Phase 4.6: ArgoCD デプロイ
 print_status "=== Phase 4.6: ArgoCD デプロイ ==="

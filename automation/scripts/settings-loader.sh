@@ -120,6 +120,37 @@ export_important_variables() {
         print_debug "GITHUB_USERNAME環境変数を設定済み"
     fi
     
+    # ネットワーク設定の環境変数
+    if [[ -n "${NETWORK_CONTROL_PLANE_IP:-}" ]]; then
+        export K8S_CONTROL_PLANE_IP="${NETWORK_CONTROL_PLANE_IP}"
+        print_debug "K8S_CONTROL_PLANE_IP環境変数を設定済み: ${NETWORK_CONTROL_PLANE_IP}"
+    fi
+    
+    if [[ -n "${NETWORK_WORKER_1_IP:-}" ]]; then
+        export K8S_WORKER_1_IP="${NETWORK_WORKER_1_IP}"
+        print_debug "K8S_WORKER_1_IP環境変数を設定済み: ${NETWORK_WORKER_1_IP}"
+    fi
+    
+    if [[ -n "${NETWORK_WORKER_2_IP:-}" ]]; then
+        export K8S_WORKER_2_IP="${NETWORK_WORKER_2_IP}"
+        print_debug "K8S_WORKER_2_IP環境変数を設定済み: ${NETWORK_WORKER_2_IP}"
+    fi
+    
+    if [[ -n "${NETWORK_HARBOR_LB_IP:-}" ]]; then
+        export HARBOR_LB_IP="${NETWORK_HARBOR_LB_IP}"
+        print_debug "HARBOR_LB_IP環境変数を設定済み: ${NETWORK_HARBOR_LB_IP}"
+    fi
+    
+    if [[ -n "${NETWORK_METALLB_IP_START:-}" ]]; then
+        export METALLB_IP_START="${NETWORK_METALLB_IP_START}"
+        print_debug "METALLB_IP_START環境変数を設定済み: ${NETWORK_METALLB_IP_START}"
+    fi
+    
+    if [[ -n "${NETWORK_METALLB_IP_END:-}" ]]; then
+        export METALLB_IP_END="${NETWORK_METALLB_IP_END}"
+        print_debug "METALLB_IP_END環境変数を設定済み: ${NETWORK_METALLB_IP_END}"
+    fi
+    
 }
 
 # 自動応答関数群

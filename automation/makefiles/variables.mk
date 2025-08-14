@@ -17,10 +17,10 @@ SETTINGS_FILE := $(PROJECT_ROOT)/settings.toml
 COMMON_COLORS := $(SCRIPTS_DIR)/common-colors.sh
 SETTINGS_LOADER := $(SCRIPTS_DIR)/settings-loader.sh
 
-# Kubernetes クラスタ設定
-K8S_CONTROL_PLANE_IP := 192.168.122.10
-K8S_WORKER_1_IP := 192.168.122.11
-K8S_WORKER_2_IP := 192.168.122.12
+# Kubernetes クラスタ設定（settings.tomlで上書き可能）
+K8S_CONTROL_PLANE_IP := $(shell if [ -n "$${K8S_CONTROL_PLANE_IP}" ]; then echo "$${K8S_CONTROL_PLANE_IP}"; else echo "192.168.122.10"; fi)
+K8S_WORKER_1_IP := $(shell if [ -n "$${K8S_WORKER_1_IP}" ]; then echo "$${K8S_WORKER_1_IP}"; else echo "192.168.122.11"; fi)
+K8S_WORKER_2_IP := $(shell if [ -n "$${K8S_WORKER_2_IP}" ]; then echo "$${K8S_WORKER_2_IP}"; else echo "192.168.122.12"; fi)
 K8S_USER := k8suser
 
 # SSH設定

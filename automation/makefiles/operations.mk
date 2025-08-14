@@ -29,6 +29,7 @@ setup-slack-secret:
 load-settings:
 	$(call print_status,$(INFO),設定ファイル読み込み中...)
 	$(call load_settings)
+	$(call print_status,$(CHECK),設定ファイル読み込み完了)
 
 # 前提条件チェック
 check-prerequisites:
