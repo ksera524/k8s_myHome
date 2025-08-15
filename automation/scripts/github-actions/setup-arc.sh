@@ -5,35 +5,15 @@
 
 set -euo pipefail
 
-# GitHub認証情報管理ユーティリティを読み込み
+# 共通ライブラリを読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../common-k8s-utils.sh"
 source "$SCRIPT_DIR/../argocd/github-auth-utils.sh"
-source "$SCRIPT_DIR/../common-colors.sh"
 
 # GitHub認証情報をESO管理のK8s Secretから取得
 print_status "GitHub認証情報をK8s Secretから確認中..."
 
-# K8s Secret から GitHub 認証情報を取得（ESO管理）
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
-    print_debug "ESO管理のGitHub認証情報を取得中..."
-    
-    GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d' 2>/dev/null)
-    GITHUB_USERNAME=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_USERNAME}" | base64 -d' 2>/dev/null)
-    
-    if [[ -n "$GITHUB_TOKEN" && -n "$GITHUB_USERNAME" ]]; then
-        export GITHUB_TOKEN
-        export GITHUB_USERNAME
-        print_status "✓ ESO管理のGitHub認証情報取得完了"
-        print_debug "GITHUB_USERNAME: $GITHUB_USERNAME"
-        print_debug "GITHUB_TOKEN: ${GITHUB_TOKEN:0:8}... (先頭8文字のみ表示)"
-    else
-        print_error "K8s SecretからのGitHub認証情報取得に失敗"
-        exit 1
-    fi
-else
-    print_warning "github-auth Secret (arc-systems) が見つかりません"
+if ! get_github_credentials "arc-systems" "github-auth"; then
     print_status "従来方式でGitHub認証情報を確認中..."
     # フォールバック: 従来の方式
     if ! get_github_credentials; then
@@ -45,27 +25,7 @@ fi
 # Harbor認証情報をESO管理のK8s Secretから取得
 print_status "Harbor認証情報をK8s Secretから確認中..."
 
-# K8s Secret から Harbor 認証情報を取得（ESO管理）
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret harbor-auth -n arc-systems' >/dev/null 2>&1; then
-    print_debug "ESO管理のHarbor認証情報を取得中..."
-    
-    HARBOR_USERNAME=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_USERNAME}" | base64 -d' 2>/dev/null)
-    HARBOR_PASSWORD=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 \
-        'kubectl get secret harbor-auth -n arc-systems -o jsonpath="{.data.HARBOR_PASSWORD}" | base64 -d' 2>/dev/null)
-    
-    if [[ -n "$HARBOR_USERNAME" && -n "$HARBOR_PASSWORD" ]]; then
-        export HARBOR_USERNAME
-        export HARBOR_PASSWORD
-        print_status "✓ ESO管理のHarbor認証情報取得完了"
-        print_debug "HARBOR_USERNAME: $HARBOR_USERNAME"
-        print_debug "HARBOR_PASSWORD: ${HARBOR_PASSWORD:0:3}... (先頭3文字のみ表示)"
-    else
-        print_error "K8s SecretからのHarbor認証情報取得に失敗"
-        exit 1
-    fi
-else
-    print_warning "harbor-auth Secret (arc-systems) が見つかりません"
+if ! get_harbor_credentials "arc-systems" "harbor-auth"; then
     print_status "従来方式でHarbor認証情報を確認中..."
     
     # フォールバック: 従来の方式
