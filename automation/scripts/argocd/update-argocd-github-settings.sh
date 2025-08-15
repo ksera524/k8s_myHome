@@ -87,7 +87,7 @@ if [[ -n "$GITHUB_ORG" ]]; then
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
     "url": "https://argocd.qroksera.com",
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: Ov23li8T6IFuiuLcoSJa\\n    clientSecret: \\$dex.github.clientSecret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: $GITHUB_CLIENT_ID\\n    clientSecret: \\$dex.github.clientSecret\\n    orgs:\\n    - name: $GITHUB_ORG\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 
@@ -109,7 +109,7 @@ elif [[ -n "$GITHUB_USER" ]]; then
 kubectl patch configmap argocd-cm -n argocd --type merge -p '{
   "data": {
     "url": "https://argocd.qroksera.com",
-    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: Ov23li8T6IFuiuLcoSJa\\n    clientSecret: \\$dex.github.clientSecret\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
+    "dex.config": "connectors:\\n- type: github\\n  id: github\\n  name: GitHub\\n  config:\\n    clientId: $GITHUB_CLIENT_ID\\n    clientSecret: \\$dex.github.clientSecret\\n    redirectURI: https://argocd.qroksera.com/api/dex/callback"
   }
 }'
 

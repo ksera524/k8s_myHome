@@ -33,12 +33,12 @@ usb_device_name = "sdc"
 
 [pulumi]
 # https://app.pulumi.com/account/tokens で取得
-access_token = "pul-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+access_token = "${PULUMI_ACCESS_TOKEN}"  # 環境変数で設定
 
 
 [github]
 # GitHub Settings > Developer settings > Personal access tokens で取得
-personal_access_token = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+personal_access_token = "${GITHUB_TOKEN}"  # 環境変数またはESO経由で設定
 repository = "ksera524/k8s_myHome"
 username = "ksera524"
 
@@ -80,7 +80,7 @@ make all
 - `username`: GitHubユーザー名（ArgoCD OAuth用）
 
 ### [harbor]
-- `admin_password`: Harbor管理者パスワード（デフォルト: Harbor12345）
+- `admin_password`: Harbor管理者パスワード（ESO経由で管理）
 - `url`: Harbor URL（デフォルト: http://192.168.122.100）
 - `project`: Harbor Project名（デフォルト: library）
 

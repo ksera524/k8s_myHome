@@ -364,8 +364,12 @@ print_status "=== Phase 4.9.5: Harbor認証設定（skopeo対応） ==="
 print_debug "Harbor認証情報secretをGitHub Actions用に設定します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# Harbor管理者パスワード取得 (正しいキー名)
-HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "KTvSwHaQy8l7Sx6j")
+# Harbor管理者パスワード取得 (ESO経由)
+HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
+    echo "エラー: Harbor管理者パスワードをESOから取得できませんでした"
+    exit 1
+fi
 
 # arc-systems namespace に harbor-auth secret 作成
 kubectl create secret generic harbor-auth \
@@ -406,7 +410,11 @@ print_status "=== Phase 4.9.6: Containerd Harbor HTTP Registry設定 ==="
 print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
 
 # Harbor admin パスワード取得（ローカルで実行）
-HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo "KTvSwHaQy8l7Sx6j"')
+HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d')
+if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
+    print_error "エラー: Harbor管理者パスワードをESOから取得できませんでした"
+    exit 1
+fi
 
 print_debug "Worker1 (192.168.122.11) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.11 << EOF

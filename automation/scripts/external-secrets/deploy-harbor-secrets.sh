@@ -167,20 +167,14 @@ if kubectl get application external-secrets-config -n argocd >/dev/null 2>&1; th
     done
     
     if [ $timeout -le 0 ]; then
-        print_warning "ArgoCD経由でのExternalSecrets作成がタイムアウトしました"
-        print_debug "手動でExternalSecretsを作成します..."
-        # フォールバック: 手動作成
-        REFRESH_INTERVAL="20s" HARBOR_DEFAULT_PASSWORD="Harbor12345" HARBOR_URL="192.168.122.100" HARBOR_PROJECT="sandbox" \
-        envsubst < "/tmp/harbor-externalsecret.yaml" | kubectl apply -f -
-        print_status "✓ Harbor ExternalSecrets を手動作成しました"
+        print_error "エラー: ArgoCD経由でのExternalSecrets作成がタイムアウトしました"
+        print_error "ESO設定を確認してください"
+        exit 1
     fi
 else
-    print_warning "ArgoCD external-secrets-config application が見つかりません"
-    print_debug "手動でExternalSecretsを作成します..."
-    # フォールバック: 手動作成
-    REFRESH_INTERVAL="20s" HARBOR_DEFAULT_PASSWORD="Harbor12345" HARBOR_URL="192.168.122.100" HARBOR_PROJECT="sandbox" \
-    envsubst < "/tmp/harbor-externalsecret.yaml" | kubectl apply -f -
-    print_status "✓ Harbor ExternalSecrets を手動作成しました"
+    print_error "エラー: ArgoCD external-secrets-config application が見つかりません"
+    print_error "ESO設定を確認してください"
+    exit 1
 fi
 
 # ExternalSecret の同期を待機

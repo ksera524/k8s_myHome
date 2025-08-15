@@ -11,7 +11,7 @@
 # https://app.pulumi.com/account/tokens
 
 # 2. 環境変数を設定してから make all を実行
-export PULUMI_ACCESS_TOKEN="pul-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export PULUMI_ACCESS_TOKEN="your-actual-token-here"
 make all
 ```
 
@@ -35,10 +35,10 @@ make all
 
 ## 🔧 フォールバック動作について
 
-External Secrets が利用できない場合、自動的に従来の手動管理方式に切り替わります：
+External Secrets (ESO) が必須です：
 
-- Harbor管理者パスワードはデフォルト値 `Harbor12345` が使用されます
-- 手動でパスワードを変更する場合は、後でHarborの設定を更新してください
+- Harbor管理者パスワードはESO経由で管理されます
+- ESO設定が正常でない場合、デプロイは失敗します
 
 ## 📋 推奨設定手順
 

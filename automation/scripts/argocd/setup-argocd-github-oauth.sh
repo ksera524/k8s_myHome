@@ -50,11 +50,11 @@ if kubectl get secret argocd-secret -n argocd >/dev/null 2>&1; then
     echo "✅ argocd-secret存在"
     
     # Client ID確認
-    if kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientId}' | base64 -d | grep -q "Ov23li8T6IFuiuLcoSJa"; then
-        echo "✅ Client ID正しく設定済み: Ov23li8T6IFuiuLcoSJa"
+    CLIENT_ID_CURRENT=$(kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientId}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+    if [[ -n "$CLIENT_ID_CURRENT" ]]; then
+        echo "✅ Client ID設定済み: ${CLIENT_ID_CURRENT:0:8}..."
     else
-        CLIENT_ID_RAW=$(kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientId}' 2>/dev/null | base64 -d 2>/dev/null || echo "設定なし")
-        echo "❌ Client ID問題: '$CLIENT_ID_RAW'"
+        echo "❌ Client ID未設定"
     fi
     
     # Client Secret確認
@@ -156,7 +156,7 @@ print_status "=== ArgoCD GitHub OAuth確認完了 ==="
 
 echo ""
 echo "🔧 GitHub OAuth設定状況:"
-echo "- Client ID: Ov23li8T6IFuiuLcoSJa (GitOps管理)"
+echo "- Client ID: ESO/設定ファイル経由で管理"
 echo "- Client Secret: External Secret自動管理"
 echo "- 設定方式: GitOps + External Secret直接統合"
 echo ""
