@@ -1,36 +1,71 @@
-# Actions Runner Controller System - All in One
-# GitHub Personal Access Token Secret
-# 手動で設定する必要があります:
-# kubectl create secret generic controller-manager \
-#   --from-literal=github_token=YOUR_GITHUB_TOKEN \
-#   -n actions-runner-system
+# Actions Runner Controller System - External Secrets統合版
+# External Secrets Operatorで管理されるGitHub/Harbor認証情報を利用
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: actions-runner-system
 ---
-apiVersion: v1
-kind: Secret
+# External Secret for GitHub Token
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
   name: controller-manager
   namespace: actions-runner-system
-type: Opaque
-data:
-  github_token: # Base64エンコードされたGitHub Personal Access Tokenを設定
+spec:
+  refreshInterval: 20s
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: pulumi-esc-store
+  target:
+    name: controller-manager
+    creationPolicy: Owner
+  data:
+  - secretKey: github_token
+    remoteRef:
+      key: github
+      property: token
 ---
-# Harbor認証用Secret
-apiVersion: v1
-kind: Secret
+# External Secret for Harbor Registry
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
   name: harbor-registry-secret
   namespace: actions-runner-system
-type: kubernetes.io/dockerconfigjson
-data:
-  .dockerconfigjson: # Base64エンコードされたDocker config.jsonを設定
-  # 生成方法:
-  # External Secrets Operatorで自動生成されます
-  # Harbor認証情報はPulumi ESCから取得
+spec:
+  refreshInterval: 20s
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: pulumi-esc-store
+  target:
+    name: harbor-registry-secret
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {
+            "auths": {
+              "{{ .harbor_url }}": {
+                "username": "{{ .harbor_username }}",
+                "password": "{{ .harbor_password }}",
+                "auth": "{{ printf "%s:%s" .harbor_username .harbor_password | b64enc }}"
+              }
+            }
+          }
+  data:
+  - secretKey: harbor_url
+    remoteRef:
+      key: harbor
+      property: url
+  - secretKey: harbor_username
+    remoteRef:
+      key: harbor
+      property: username
+  - secretKey: harbor_password
+    remoteRef:
+      key: harbor
+      property: password
 ---
 # 環境変数用ConfigMap
 apiVersion: v1
@@ -242,8 +277,8 @@ metadata:
   namespace: actions-runner-system
 type: kubernetes.io/tls
 data:
-  tls.crt: # Base64エンコードされた自己署名証明書
-  tls.key: # Base64エンコードされた秘密鍵
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURBVENDQWVtZ0F3SUJBZ0lKQU1yM0NFaytLSkNQTUEwR0NTcUdTSWIzRFFFQkN3VUFNQkV4RHpBTkJnTlYKQkFNTUJuTmxjblpsY2pBZUZ3MHlOVEF4TVRFME16WXhOV0ZhRncweU5qQXhNVEF6TmpGbE5XSmFNQkV4RHpBTgpCZ05WQkFNTUJuTmxjblpsY2pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTXNYCkVTY2N3R1kxZk8waXMwaTVENTNidHgwQ2RXeFF5eFZZWXNrQWN3bnJKNVhIdHdmTVowR3JCclluYnNJMjE2YXMKSzE2TUZKbHJIVERzamxqTklBQStxYkVZSTVDQTFGd2xxWnZQSGxIVE9vZGN5WGgyRmpUUE5PSzMvUE9TN2pMVApuUEY0Zlh5WVE2MjFUMzMzdks2V3JVdFltTUJDNWxFUGFFTW82TjNQc0VGUmZCNld6Rzh3YmNLYlpDSUU4b3dBCko2eTZBOE1yYks1U1FjSWZRU2Y0dFNkUmFjWjlBanpYS1htbkFGMVl3UjMzZGFiUnNXU1BqaHBkeDJJWnp6dEUKQWJZcVVnR1RTVzFaK29XMFd0K29VTGFUVHVqOUhSS3ZqMVhTR3ZUenU5VlBZK2R3Ym5hb1k2SnU2VW5jUlpHUQpJZUJGYUVTTDY5c1NQdktWaFVNQ0F3RUFBYU5RTUU0d0hRWURWUjBPQkJZRUZOcWRGdUF4cmg1K09aMFRWb21PCklOV0gvN29HTDNQYkY1aGxFNzVxUDBEL1c2dTNXaDczckI3UkhUU1YwOTVPdmhoT3VTMWJPQjc5NllhS3FIMApwVGJBTmlSeVMwNEswcUcvQ3RLVytxNGtWajZvTVhJSVRJK1J2ZGdIU05Ca2lyNUVITktRVTJNNm1CQSttZVNSClZqUnVYOEhoUXNzZVRDbUgvaWpCSUpDMU1qRHUrNmNWZmpwZUVNdWxrcHpNQTMrSllJblkvNTRJRm1IK3pqSG8KaDlRclFkUE9HVWphM3ZzS25LRW5VK21oZHFaQlhmMWlLdUNLVnZRZTIxZVp4NTNINktaTTNHZWxCUXczcFdCVgpHS1ZBMFN3QXJXSWdCWnhQQTgxTUFGcWJpNHZYUEZ6OGRjK3dJREFRQUJveUFBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2UUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktjd2dnU2pBZ0VBQW9JQkFRRExGeEVuSE1CbU5YenQKSXJOSXVRK2QyN2NkQW5Wc1VNc1ZXR0xKQUhNSjZ5ZVZ4N2NIekdkQnF3YTJKMjdDTnRlbXJDdGVqQlNaYXgwdwo3STVZelNBQVBxbXhHQ09RZ05SY0phbWJ6eDVSMHpxSFhNbDRkaFkwenpUaXQvenprdTR5MDV6eGVIMThpbE90CnRVOTk5NnkrdGl5RnJXSmlBUXVaUkQyaERLT2pkejdCQlVYd2VsOHh2TUczQ20yUWlCUEtNQUNlc3VnUERLMnkKdVVrSENIMEVuK0xVblVXbkdmUUk4MXlsNXB3QmRXTUVkOTNXbTBiRmtqNDRhWGNkaUdjODdSQUcySzFJQmswaApBZ0VRdGZiRnRGcmZxRkMya3c3by9SMFN3OTFWMGhyMDg3dlZUMlBuY0c1MnFHT2lidWxKM0VXUmtDSGdSV2hFCmkrdmJFajd5bFlWREFnTUJBQUVDZ2dFQkFLamZjMDBjTXdTdGNKNUdCVTNTajV1TTJRRStMMldLV1Owa1JqTEQKcnRHV1pXSFZsdDJvdnJlb2ZNdVNhNFJNRVFXdU0zSkdRaXh0TEwyK0J4eEZ4SllUdVNNWXR1MHNGVjRma2dOaApzV1FqdVRJUGdIdHl5TVJiYUMwMFhWQ1lHdE5aSGljTkFzakR1RE9HUVFBUXczQzZPUkJ6YXhvdXJ5Z1RaMmxQCjR6NVZUS0pGd21xSVhWRGhSYkpLM1VKekMyeUJFU3pzdEx3N0hHeHhHeVpNR3IrMGszQnhvaHZ1UUttM0VsaXMKNHpFQlgyUFM5a3NTOUVEOGZCRlJWb3hWMTZPZVZDSTh3NXpJNnFGSm1mZVBHVUlZMklJRFNEcGFzaUZpdlpzMQpFU1dJemVMTVMzQWwrR0tuZnB0L1JVZXZqQk1VdW5wMnZrZzhYaFM5ZlZVQ2dZRUEreE1VNXVxdGFyQTJqMGlYCjh5M1ltWEZ1aXF6VGcwT0ZYYVJ4TmJhOHZoQ1NObkI1TFBJYWY5QVRwdlRPSjZDbG9HVGl1TFRvRXNNa25sWC8KTFVYRC9mZkRXRjNhT044a085eFFubFlBOSsySGNraHNjOWs0VHRZK2lXZGNON0JKTWJOTkdWNGd2NVdJOXVlUwpuemF1Q0FCcU1FbG55VjlGOHo3WGlqdmVDWXNDZ1lFQTNKQ0tyYVk3bERCKzBEdFBYOFpqV2FHQ0N0Rzd5QVpUCjBYMXRwQ1V6YzFVdTJ0cVNScGt2STlQdlFmUUlFQitiOFhuOWpReFk5NjFYTHlxVXVGUVB3bGZvblI5bTlxKyoKUjhzQkZjZVVsL2FpZzYxeGpoalYxdTYzclJGZkFyS0tvMHFJQ2JuYlZORHNqNlh6OEhlZGN2RHE4bUFrcDA3VQpmbjlrRWNWUVNBQT0KLS0tLS1FTkQgUFJJVkFURSBLRVktLS0tLQo=
 ---
 # Custom Resource Definitions
 apiVersion: apiextensions.k8s.io/v1
@@ -367,7 +402,7 @@ spec:
   replicas: 2
   template:
     spec:
-      repository: ksera524  # GitHubユーザー名に変更
+      repository: ksera524  # GitHubユーザー名
       labels:
         - self-hosted
         - linux
