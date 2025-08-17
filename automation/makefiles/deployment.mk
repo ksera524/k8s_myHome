@@ -61,8 +61,8 @@ platform:
 	@$(MAKE) wait-for-external-secrets || echo "$(WARNING) External Secrets同期で一部警告が発生しましたが続行します"
 	@echo "$(GEAR) ArgoCD GitHub OAuth設定中..."
 	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
-	@echo "$(ROCKET) GitHub Actions Runner Controller (ARC) はGitOps経由でデプロイされます..."
-	@echo "$(INFO) ARC Controller および RunnerScaleSet は manifests/platform/github-actions で管理されています"
+	@echo "$(ROCKET) GitHub Actions Runner Controller (ARC) セットアップ中..."
+	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	@echo "$(CHECK) Kubernetesプラットフォーム構築完了"
 
 # App-of-Apps強制デプロイ（内部ターゲット）
