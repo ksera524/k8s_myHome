@@ -1,0 +1,245 @@
+# GitHub Actions Multi-Repository Runner Scale Sets
+# 個人アカウントPATを使用した複数リポジトリ対応RunnerScaleSet群
+
+---
+# External Secret for GitHub Personal Access Token (共通)
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: github-multi-repo-secret
+  namespace: arc-systems
+spec:
+  refreshInterval: 20s
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: pulumi-esc-store
+  target:
+    name: github-multi-repo-secret
+    creationPolicy: Owner
+  data:
+  - secretKey: github_token
+    remoteRef:
+      key: github
+      property: token
+
+---
+# ServiceAccount for GitHub Actions Runner (共通)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-actions-runner
+  namespace: arc-systems
+  labels:
+    app.kubernetes.io/name: github-actions-runner
+    app.kubernetes.io/part-of: actions-runner-controller
+
+---
+# RunnerScaleSet for k8s_myHome repository
+apiVersion: actions.github.com/v1alpha1
+kind: RunnerScaleSet
+metadata:
+  name: k8s-myhome-runners
+  namespace: arc-systems
+  labels:
+    app.kubernetes.io/name: k8s-myhome-runners
+    app.kubernetes.io/part-of: actions-runner-controller
+    repo: k8s-myhome
+spec:
+  githubConfigUrl: https://github.com/ksera524/k8s_myHome
+  githubConfigSecret:
+    name: github-multi-repo-secret
+  runnerGroup: default
+  minRunners: 1
+  maxRunners: 3
+  runnerScaleSetName: k8s-myhome-runners
+  
+  containerMode:
+    type: "dind"
+  
+  template:
+    spec:
+      serviceAccountName: github-actions-runner
+      
+      containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+        - name: HARBOR_URL
+          value: "192.168.122.100"
+        - name: HARBOR_PROJECT
+          value: "sandbox"
+        - name: REPO_NAME
+          value: "k8s_myHome"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+      
+      - name: dind
+        image: docker:dind
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      
+      volumes:
+      - name: work
+        emptyDir: {}
+      - name: dind-sock
+        emptyDir: {}
+
+---
+# RunnerScaleSet for slack.rs repository
+apiVersion: actions.github.com/v1alpha1
+kind: RunnerScaleSet
+metadata:
+  name: slack-rs-runners
+  namespace: arc-systems
+  labels:
+    app.kubernetes.io/name: slack-rs-runners
+    app.kubernetes.io/part-of: actions-runner-controller
+    repo: slack-rs
+spec:
+  githubConfigUrl: https://github.com/ksera524/slack.rs
+  githubConfigSecret:
+    name: github-multi-repo-secret
+  runnerGroup: default
+  minRunners: 0
+  maxRunners: 2
+  runnerScaleSetName: slack-rs-runners
+  
+  containerMode:
+    type: "dind"
+  
+  template:
+    spec:
+      serviceAccountName: github-actions-runner
+      
+      containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+        - name: HARBOR_URL
+          value: "192.168.122.100"
+        - name: HARBOR_PROJECT
+          value: "sandbox"
+        - name: REPO_NAME
+          value: "slack.rs"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+      
+      - name: dind
+        image: docker:dind
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      
+      volumes:
+      - name: work
+        emptyDir: {}
+      - name: dind-sock
+        emptyDir: {}
+
+---
+# RunnerScaleSet for general shared usage (新規リポジトリ用のテンプレート)
+apiVersion: actions.github.com/v1alpha1
+kind: RunnerScaleSet
+metadata:
+  name: shared-runners
+  namespace: arc-systems
+  labels:
+    app.kubernetes.io/name: shared-runners
+    app.kubernetes.io/part-of: actions-runner-controller
+    purpose: shared
+spec:
+  # 共用目的のため、メインリポジトリを設定
+  githubConfigUrl: https://github.com/ksera524/k8s_myHome
+  githubConfigSecret:
+    name: github-multi-repo-secret
+  runnerGroup: default
+  minRunners: 0
+  maxRunners: 2
+  runnerScaleSetName: shared-runners
+  
+  containerMode:
+    type: "dind"
+  
+  template:
+    spec:
+      serviceAccountName: github-actions-runner
+      
+      containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+        - name: HARBOR_URL
+          value: "192.168.122.100"
+        - name: HARBOR_PROJECT
+          value: "sandbox"
+        - name: RUNNER_PURPOSE
+          value: "shared"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+      
+      - name: dind
+        image: docker:dind
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: work
+          mountPath: /home/runner/_work
+        - name: dind-sock
+          mountPath: /var/run
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      
+      volumes:
+      - name: work
+        emptyDir: {}
+      - name: dind-sock
+        emptyDir: {}
