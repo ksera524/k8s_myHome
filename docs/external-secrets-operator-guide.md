@@ -325,14 +325,14 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: github-actions-secrets
-  namespace: actions-runner-system
+  namespace: arc-systems
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: hcp-vault-secretstore
     kind: SecretStore
   target:
-    name: controller-manager
+    name: github-multi-repo-secret
     creationPolicy: Merge  # 既存Secretに追加
   data:
   - secretKey: github_token

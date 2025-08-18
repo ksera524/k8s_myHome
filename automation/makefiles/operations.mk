@@ -8,7 +8,7 @@ add-runner:
 		echo "使用方法: make add-runner REPO=repository-name"; \
 		exit 1; \
 	fi
-	$(call print_status,$(ROCKET),GitHub Actions Runner追加 (skopeo版): $(REPO))
+	$(call print_status,$(ROCKET),GitHub Actions Runner追加 (公式ARC対応): $(REPO))
 	@cd $(SCRIPTS_DIR)/github-actions && ./add-runner.sh $(REPO)
 	$(call print_status,$(CHECK),Runner追加完了)
 

@@ -329,14 +329,14 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: github-actions-controller
-  namespace: actions-runner-system
+  namespace: arc-systems
 spec:
   refreshInterval: 2h
   secretStoreRef:
     name: pulumi-esc-store
     kind: SecretStore
   target:
-    name: controller-manager
+    name: github-multi-repo-secret
     creationPolicy: Merge  # 既存Secretにマージ
   data:
   - secretKey: github_app_id
@@ -354,7 +354,7 @@ spec:
 
 ```bash
 # Controller Pod再起動
-kubectl rollout restart deployment/controller-manager -n actions-runner-system
+kubectl rollout restart deployment/arc-controller-gha-rs-controller -n arc-systems
 
 # Runner動作確認
 kubectl get runners --all-namespaces

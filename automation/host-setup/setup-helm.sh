@@ -59,11 +59,6 @@ if ping -c 1 192.168.122.10 &> /dev/null; then
         helm repo add harbor https://helm.goharbor.io
     fi
     
-    # Actions Runner Controller repository (将来のため)
-    if ! helm repo list | grep -q actions-runner-controller; then
-        echo "Actions Runner Controller repository追加中..."
-        helm repo add actions-runner-controller https://actions-runner-controller.github.io/actions-runner-controller
-    fi
     
     # Repository更新
     echo "Repository情報を更新中..."

@@ -2,7 +2,7 @@
 # デプロイメント関連のターゲット定義
 
 # 全自動デプロイ
-all: load-settings check-automation-readiness host-setup infrastructure platform post-deployment setup-github-actions
+all: load-settings check-automation-readiness host-setup infrastructure platform post-deployment setup-arc
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@$(MAKE) status
 

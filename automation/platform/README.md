@@ -64,9 +64,8 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 helm repo add harbor https://helm.goharbor.io
 helm install harbor harbor/harbor --namespace harbor --create-namespace
 
-# 6. Actions Runner Controller インストール (ArgoCD経由)
-helm repo add actions-runner-controller https://actions-runner-controller.github.io/actions-runner-controller
-helm install actions-runner-controller actions-runner-controller/actions-runner-controller --namespace actions-runner-system --create-namespace
+# 6. GitHub Actions Runner Controller (ARC) は make all で自動デプロイ
+# setup-arc.sh により自動的に公式 GitHub ARC がデプロイされます
 ```
 
 ## 構築内容
@@ -133,9 +132,9 @@ kubectl -n argocd get service argocd-server
 kubectl get pods -n harbor
 kubectl -n harbor get service harbor-core
 
-# Actions Runner Controller状態
-kubectl get pods -n actions-runner-system
-kubectl get runnerdeployment -n actions-runner-system
+# GitHub Actions Runner Controller (ARC) 状態
+kubectl get pods -n arc-systems
+kubectl get autoscalingrunnersets -n arc-systems
 ```
 
 ### LoadBalancer IP確認
@@ -386,19 +385,19 @@ sed '/^metadata:/a\
 
 ```bash
 # ARC Pod状態確認
-kubectl get pods -n actions-runner-system
+kubectl get pods -n arc-systems
 
-# Runner Deployment状態確認
-kubectl get runnerdeployment -n actions-runner-system
+# AutoScaling Runner Sets状態確認
+kubectl get autoscalingrunnersets -n arc-systems
 
 # Runner Pod状態確認
-kubectl get pods -n actions-runner-system | grep runner
+kubectl get pods -n arc-systems | grep runner
 
 # ARC Controller ログ確認
-kubectl -n actions-runner-system logs -l app.kubernetes.io/name=actions-runner-controller
+kubectl -n arc-systems logs -l app.kubernetes.io/name=gha-rs-controller
 
 # GitHub Token Secret確認
-kubectl -n actions-runner-system get secret controller-manager
+kubectl -n arc-systems get secret github-multi-repo-secret
 ```
 
 ### LoadBalancer IP取得失敗

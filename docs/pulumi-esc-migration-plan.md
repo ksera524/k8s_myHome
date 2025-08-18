@@ -147,14 +147,14 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: github-actions-secrets
-  namespace: actions-runner-system
+  namespace: arc-systems
 spec:
   refreshInterval: 2h
   secretStoreRef:
     kind: SecretStore
     name: pulumi-esc-store
   target:
-    name: controller-manager
+    name: github-multi-repo-secret
     creationPolicy: Merge
   data:
     - secretKey: github_app_id
