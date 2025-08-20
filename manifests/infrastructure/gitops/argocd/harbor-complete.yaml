@@ -1,0 +1,181 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://helm.goharbor.io'
+    targetRevision: 1.13.1
+    chart: harbor
+    helm:
+      values: |
+        expose:
+          type: ingress
+          tls:
+            enabled: false
+          ingress:
+            hosts:
+              core: harbor.local
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+        
+        externalURL: http://192.168.122.100
+        
+        # harborAdminPassword is managed via external secret
+        # See harbor-admin-secret for actual password value
+        
+        # External secret reference for admin password
+        # Harbor chart supports existingSecretAdminPassword and existingSecretAdminPasswordKey
+        existingSecretAdminPassword: harbor-admin-secret
+        existingSecretAdminPasswordKey: password
+        
+        persistence:
+          enabled: true
+          resourcePolicy: "keep"
+          persistentVolumeClaim:
+            registry:
+              size: 10Gi
+              storageClass: "local-storage"
+            jobservice:
+              size: 1Gi
+              storageClass: "local-storage"
+            database:
+              size: 1Gi
+              storageClass: "local-storage"
+            redis:
+              size: 1Gi
+              storageClass: "local-storage"
+            trivy:
+              size: 5Gi
+              storageClass: "local-storage"
+        
+        database:
+          type: internal
+        
+        redis:
+          type: internal
+        
+        trivy:
+          enabled: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+        
+        core:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+        
+        portal:
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        
+        registry:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+        
+        chartmuseum:
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        
+        jobservice:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 150m
+              memory: 256Mi
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# Harbor証明書用のArgoCD Application定義
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-cert
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ksera524/k8s_myHome.git'
+    targetRevision: HEAD
+    path: manifests/resources/infrastructure/cert-manager
+    directory:
+      include: 'harbor-certificate.yaml'
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+# Harbor CA信頼管理用のArgoCD Application定義
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-ca-trust
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ksera524/k8s_myHome.git'
+    targetRevision: HEAD
+    path: manifests/resources/infrastructure
+    directory:
+      include: 'harbor-ca-trust.yaml'
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

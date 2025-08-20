@@ -1,0 +1,70 @@
+# Working GitHub Actions Runner Controller Setup
+# 動作確認済みのARC設定 - make all時に自動適用
+
+---
+# ARC Controller values (Helm)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arc-controller-config
+  namespace: arc-systems
+data:
+  values.yaml: |
+    # 現在の動作設定は空（デフォルト使用）
+
+---
+# RunnerScaleSet values (Helm) - slack.rs用
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slack-rs-runners-config
+  namespace: arc-systems
+data:
+  values.yaml: |
+    containerMode:
+      type: dind
+    githubConfigSecret: github-multi-repo-secret
+    githubConfigUrl: https://github.com/ksera524/slack.rs
+    maxRunners: 3
+    minRunners: 0
+    template:
+      spec:
+        serviceAccountName: github-actions-runner
+
+---
+# RunnerScaleSet values (Helm) - k8s_myHome用
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-myhome-runners-config
+  namespace: arc-systems
+data:
+  values.yaml: |
+    containerMode:
+      type: dind
+    githubConfigSecret: github-multi-repo-secret
+    githubConfigUrl: https://github.com/ksera524/k8s_myHome
+    maxRunners: 3
+    minRunners: 1
+    template:
+      spec:
+        serviceAccountName: github-actions-runner
+
+---
+# 汎用shared runners設定
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-runners-config
+  namespace: arc-systems
+data:
+  values.yaml: |
+    containerMode:
+      type: dind
+    githubConfigSecret: github-multi-repo-secret
+    githubConfigUrl: https://github.com/ksera524/k8s_myHome
+    maxRunners: 2
+    minRunners: 0
+    template:
+      spec:
+        serviceAccountName: github-actions-runner
