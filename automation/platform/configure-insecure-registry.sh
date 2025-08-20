@@ -20,10 +20,10 @@ configure_node() {
     # containerd設定ファイルのバックアップと更新
     ssh k8suser@$node_ip << 'EOF'
         # containerd設定ディレクトリ作成
-        sudo mkdir -p /etc/containerd/certs.d/192.168.122.100
+        sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
         
         # Insecure Registry設定作成
-        sudo tee /etc/containerd/certs.d/192.168.122.100/hosts.toml > /dev/null << 'CONFIG'
+        sudo -n tee /etc/containerd/certs.d/192.168.122.100/hosts.toml > /dev/null << 'CONFIG'
 [host."http://192.168.122.100"]
   capabilities = ["pull", "resolve", "push"]
   skip_verify = true
@@ -31,7 +31,7 @@ configure_node() {
 CONFIG
         
         # containerd再起動
-        sudo systemctl restart containerd
+        sudo -n systemctl restart containerd
         
         echo "containerd設定完了: $(hostname)"
 EOF
@@ -76,15 +76,15 @@ configure_docker_daemon() {
     
     ssh k8suser@$node_ip << 'EOF'
         # Docker daemon.json設定
-        sudo mkdir -p /etc/docker
+        sudo -n mkdir -p /etc/docker
         
         # 既存設定確認と統合
         if [ -f /etc/docker/daemon.json ]; then
-            sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.backup
+            sudo -n cp /etc/docker/daemon.json /etc/docker/daemon.json.backup
         fi
         
         # Insecure Registry設定追加
-        sudo tee /etc/docker/daemon.json > /dev/null << 'DOCKER_CONFIG'
+        sudo -n tee /etc/docker/daemon.json > /dev/null << 'DOCKER_CONFIG'
 {
   "insecure-registries": [
     "192.168.122.100",
@@ -97,7 +97,7 @@ DOCKER_CONFIG
         
         # Docker再起動（Dockerが実行中の場合のみ）
         if systemctl is-active --quiet docker; then
-            sudo systemctl restart docker
+            sudo -n systemctl restart docker
             echo "Docker再起動完了: $(hostname)"
         else
             echo "Docker未実行: $(hostname)"

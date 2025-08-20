@@ -2,7 +2,7 @@
 # デプロイメント関連のターゲット定義
 
 # 全自動デプロイ
-all: load-settings check-automation-readiness host-setup infrastructure platform post-deployment setup-arc
+all: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment setup-arc _sudo-cleanup
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@$(MAKE) status
 
@@ -140,6 +140,14 @@ k8s-cluster: infrastructure
 
 k8s-infrastructure: platform
 	@echo "$(WARNING) k8s-infrastructureは非推奨です。platformを使用してください"
+
+# sudo権限維持（内部ターゲット）
+_sudo-keepalive:
+	@$(SCRIPTS_DIR)/sudo-keepalive.sh
+
+# sudo権限クリーンアップ（内部ターゲット）
+_sudo-cleanup:
+	@$(SCRIPTS_DIR)/sudo-cleanup.sh
 
 # 後方互換性のためのフェーズエイリアス
 .PHONY: phase1 phase2 phase3 phase4 phase2-3

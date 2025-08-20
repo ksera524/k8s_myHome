@@ -102,25 +102,25 @@ echo ""
 
 # 6. Check NFS setup
 print_status "6. Checking NFS setup..."
-if check_status "NFS exports" "sudo exportfs -v | grep -q $MOUNT_BASE/nfs-share"; then
+if check_status "NFS exports" "sudo -n exportfs -v | grep -q $MOUNT_BASE/nfs-share"; then
     print_success "NFS export is configured"
     
     # Test NFS mount
     TEST_MOUNT="/tmp/nfs-verify-$$"
     mkdir -p "$TEST_MOUNT"
     
-    if sudo mount -t nfs localhost:"$MOUNT_BASE/nfs-share" "$TEST_MOUNT" 2>/dev/null; then
+    if sudo -n mount -t nfs localhost:"$MOUNT_BASE/nfs-share" "$TEST_MOUNT" 2>/dev/null; then
         print_success "NFS mount test successful"
         
         # Test write access
-        if sudo touch "$TEST_MOUNT/test-file" 2>/dev/null; then
+        if sudo -n touch "$TEST_MOUNT/test-file" 2>/dev/null; then
             print_success "NFS write access working"
-            sudo rm -f "$TEST_MOUNT/test-file"
+            sudo -n rm -f "$TEST_MOUNT/test-file"
         else
             print_warning "NFS write access may be restricted"
         fi
         
-        sudo umount "$TEST_MOUNT"
+        sudo -n umount "$TEST_MOUNT"
     else
         print_error "NFS mount test failed"
         OVERALL_STATUS=1
@@ -158,8 +158,8 @@ if check_status "Default libvirt network" "virsh net-list --all | grep -q defaul
     else
         print_warning "Default libvirt network exists but is not active"
         print_status "Starting default network..."
-        sudo virsh net-start default
-        sudo virsh net-autostart default
+        sudo -n virsh net-start default
+        sudo -n virsh net-autostart default
     fi
 else
     print_warning "Default libvirt network not found"
@@ -203,7 +203,7 @@ NFS: $(systemctl is-active --quiet nfs-kernel-server && echo "✓ Active" || ech
 Mount Point: $MOUNT_BASE
 Mounted: $(mountpoint -q $MOUNT_BASE && echo "✓ Yes" || echo "✗ No")
 Available Space: $(df -BG $MOUNT_BASE 2>/dev/null | tail -1 | awk '{print $4}' || echo "Unknown")
-NFS Export: $(sudo exportfs -v 2>/dev/null | grep -q $MOUNT_BASE/nfs-share && echo "✓ Configured" || echo "✗ Not configured")
+NFS Export: $(sudo -n exportfs -v 2>/dev/null | grep -q $MOUNT_BASE/nfs-share && echo "✓ Configured" || echo "✗ Not configured")
 
 === User Permissions ===
 libvirt group: $(groups | grep -q libvirt && echo "✓ Member" || echo "✗ Not member")

@@ -19,21 +19,21 @@ print_debug "cloud-init/network-config.yamlの修正により、expectスクリ�
 
 # 1. 全てのVMを完全削除
 print_status "既存VMを削除中..."
-for vm in $(sudo virsh list --all --name); do
+for vm in $(sudo -n virsh list --all --name); do
     if [[ "$vm" == *"k8s"* ]]; then
         print_debug "削除中: $vm"
-        sudo virsh destroy "$vm" 2>/dev/null || true
-        sudo virsh undefine "$vm" --remove-all-storage 2>/dev/null || true
+        sudo -n virsh destroy "$vm" 2>/dev/null || true
+        sudo -n virsh undefine "$vm" --remove-all-storage 2>/dev/null || true
     fi
 done
 
 # 2. libvirt関連ファイル完全削除
 print_status "libvirt関連ファイルを削除中..."
-sudo rm -f /etc/libvirt/qemu/k8s-*.xml
-sudo rm -f /var/lib/libvirt/images/k8s-*
-sudo rm -f /var/lib/libvirt/images/*-init-*.iso
-sudo rm -f /var/lib/libvirt/images/ubuntu-base-*.img
-sudo rm -f /var/lib/libvirt/boot/k8s-*
+sudo -n rm -f /etc/libvirt/qemu/k8s-*.xml
+sudo -n rm -f /var/lib/libvirt/images/k8s-*
+sudo -n rm -f /var/lib/libvirt/images/*-init-*.iso
+sudo -n rm -f /var/lib/libvirt/images/ubuntu-base-*.img
+sudo -n rm -f /var/lib/libvirt/boot/k8s-*
 
 # 3. Terraform状態完全削除
 print_status "Terraform状態を削除中..."
@@ -45,8 +45,8 @@ rm -f tfplan
 print_status "AppArmorを無効化中..."
 if systemctl is-active --quiet apparmor; then
     print_debug "AppArmorを停止・無効化中..."
-    sudo systemctl stop apparmor
-    sudo systemctl disable apparmor
+    sudo -n systemctl stop apparmor
+    sudo -n systemctl disable apparmor
     print_status "AppArmorを無効化しました"
 else
     print_debug "AppArmorは既に無効化されています"
@@ -54,8 +54,8 @@ fi
 
 # libvirt関連のAppArmorプロファイルを無効化
 if command -v aa-disable >/dev/null 2>&1; then
-    sudo aa-disable /usr/sbin/libvirtd 2>/dev/null || true
-    sudo aa-disable /usr/lib/libvirt/virt-aa-helper 2>/dev/null || true
+    sudo -n aa-disable /usr/sbin/libvirtd 2>/dev/null || true
+    sudo -n aa-disable /usr/lib/libvirt/virt-aa-helper 2>/dev/null || true
     print_debug "libvirt関連AppArmorプロファイルを無効化"
 fi
 
@@ -64,16 +64,16 @@ print_status "libvirt権限設定を修正中..."
 
 # qemu.confのセキュリティ設定
 if ! grep -q '^security_driver = "none"' /etc/libvirt/qemu.conf; then
-    echo 'security_driver = "none"' | sudo tee -a /etc/libvirt/qemu.conf
+    echo 'security_driver = "none"' | sudo -n tee -a /etc/libvirt/qemu.conf
 fi
 
 # ユーザー・グループ設定確認
-sudo sed -i 's/^user = .*/user = "libvirt-qemu"/' /etc/libvirt/qemu.conf
-sudo sed -i 's/^group = .*/group = "kvm"/' /etc/libvirt/qemu.conf
+sudo -n sed -i 's/^user = .*/user = "libvirt-qemu"/' /etc/libvirt/qemu.conf
+sudo -n sed -i 's/^group = .*/group = "kvm"/' /etc/libvirt/qemu.conf
 
 # libvirtプールの権限設定
-sudo virsh pool-destroy default 2>/dev/null || true
-sudo virsh pool-undefine default 2>/dev/null || true
+sudo -n virsh pool-destroy default 2>/dev/null || true
+sudo -n virsh pool-undefine default 2>/dev/null || true
 
 cat > /tmp/default-pool.xml << 'EOF'
 <pool type='dir'>
@@ -89,29 +89,29 @@ cat > /tmp/default-pool.xml << 'EOF'
 </pool>
 EOF
 
-sudo virsh pool-define /tmp/default-pool.xml
-sudo virsh pool-start default
-sudo virsh pool-autostart default
+sudo -n virsh pool-define /tmp/default-pool.xml
+sudo -n virsh pool-start default
+sudo -n virsh pool-autostart default
 rm -f /tmp/default-pool.xml
 
 # ディレクトリ権限修正
-sudo chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
-sudo chmod 755 /var/lib/libvirt/images/
+sudo -n chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
+sudo -n chmod 755 /var/lib/libvirt/images/
 
 # 5. libvirtd完全再起動
 print_status "libvirtdを再起動中..."
-sudo systemctl stop libvirtd
-sudo systemctl stop virtlogd
+sudo -n systemctl stop libvirtd
+sudo -n systemctl stop virtlogd
 sleep 2
-sudo systemctl start virtlogd
-sudo systemctl start libvirtd
+sudo -n systemctl start virtlogd
+sudo -n systemctl start libvirtd
 sleep 3
 
 # 6. デフォルトネットワーク確認・修正
 print_status "libvirtネットワークを確認中..."
-if ! sudo virsh net-list | grep -q "default.*active"; then
-    sudo virsh net-start default
-    sudo virsh net-autostart default
+if ! sudo -n virsh net-list | grep -q "default.*active"; then
+    sudo -n virsh net-start default
+    sudo -n virsh net-autostart default
 fi
 
 print_status "=== 新しい設計でデプロイ開始 ==="
@@ -160,19 +160,19 @@ if [[ $? -eq 0 ]]; then
     
     # VMの作成確認
     print_status "VM状態を確認中..."
-    sudo virsh list --all
+    sudo -n virsh list --all
     
     # 権限問題が発生している可能性があるので再修正
     print_status "作成後の権限を修正中..."
-    sudo chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
-    sudo find /var/lib/libvirt/images/ -name "*.img" -exec chmod 644 {} \; 2>/dev/null || true
-    sudo find /var/lib/libvirt/images/ -name "*.qcow2" -exec chmod 644 {} \; 2>/dev/null || true
+    sudo -n chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
+    sudo -n find /var/lib/libvirt/images/ -name "*.img" -exec chmod 644 {} \; 2>/dev/null || true
+    sudo -n find /var/lib/libvirt/images/ -name "*.qcow2" -exec chmod 644 {} \; 2>/dev/null || true
     
     # VM起動確認
     sleep 10
     print_status "VM起動状況を確認中..."
     for i in {1..6}; do
-        VM_COUNT=$(sudo virsh list --state-running | grep k8s | wc -l)
+        VM_COUNT=$(sudo -n virsh list --state-running | grep k8s | wc -l)
         if [[ $VM_COUNT -eq 3 ]]; then
             print_status "全VM起動完了"
             break
@@ -185,7 +185,7 @@ if [[ $? -eq 0 ]]; then
     # ネットワーク確認
     print_status "ネットワーク設定を確認中..."
     sleep 20
-    sudo virsh net-dhcp-leases default
+    sudo -n virsh net-dhcp-leases default
     
     # VM起動完了待機とネットワーク確認
     print_status "VM起動完了とネットワーク設定を確認中..."
@@ -224,21 +224,21 @@ if [[ $? -eq 0 ]]; then
     echo "Terraformによりkubeadmクラスターが自動構築されています。"
     echo ""
     echo "=== 確認コマンド ==="
-    echo "VM状態: sudo virsh list --all"
+    echo "VM状態: sudo -n virsh list --all"
     echo "クラスター状態: ssh k8suser@192.168.122.10 'kubectl get nodes -o wide'"
     echo "Pod状態: ssh k8suser@192.168.122.10 'kubectl get pods --all-namespaces'"
     echo "kubeconfigコピー: scp k8suser@192.168.122.10:/home/k8suser/.kube/config ~/.kube/config-k8s-cluster"
-    echo "ネットワーク: sudo virsh net-dhcp-leases default"
+    echo "ネットワーク: sudo -n virsh net-dhcp-leases default"
     
 else
     print_error "=== デプロイ失敗 ==="
     print_error "デバッグ情報:"
     print_debug "VM状態:"
-    sudo virsh list --all
+    sudo -n virsh list --all
     print_debug "ネットワーク状態:"
-    sudo virsh net-list --all
+    sudo -n virsh net-list --all
     print_debug "DHCPリース:"
-    sudo virsh net-dhcp-leases default
+    sudo -n virsh net-dhcp-leases default
     print_debug "ファイル権限:"
     ls -la /var/lib/libvirt/images/ | head -10
     exit 1

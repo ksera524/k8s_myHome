@@ -58,7 +58,7 @@ fi
 echo ""
 print_warning "WARNING: This will set up /dev/$DEVICE_NAME for k8s storage"
 print_warning "Current partition table for /dev/$DEVICE_NAME:"
-sudo fdisk -l /dev/$DEVICE_NAME 2>/dev/null || echo "Could not read partition table"
+sudo -n fdisk -l /dev/$DEVICE_NAME 2>/dev/null || echo "Could not read partition table"
 
 echo ""
 if [[ "${AUTOMATION_AUTO_CONFIRM_OVERWRITE:-}" == "true" ]]; then
@@ -98,15 +98,15 @@ if [[ ! -b "$PARTITION_PATH" ]]; then
     
     if [[ "$CREATE_PARTITION" == "yes" ]]; then
         print_status "Creating new partition on $DEVICE_PATH"
-        sudo parted "$DEVICE_PATH" --script -- mklabel gpt
-        sudo parted "$DEVICE_PATH" --script -- mkpart primary ext4 0% 100%
+        sudo -n parted "$DEVICE_PATH" --script -- mklabel gpt
+        sudo -n parted "$DEVICE_PATH" --script -- mkpart primary ext4 0% 100%
         
         # Format the partition
         print_status "Formatting partition with ext4..."
-        sudo mkfs.ext4 -F "$PARTITION_PATH"
+        sudo -n mkfs.ext4 -F "$PARTITION_PATH"
         
         print_status "Setting filesystem label..."
-        sudo e2label "$PARTITION_PATH" "k8s-storage"
+        sudo -n e2label "$PARTITION_PATH" "k8s-storage"
     else
         print_error "Cannot proceed without a valid partition"
         exit 1
@@ -114,7 +114,7 @@ if [[ ! -b "$PARTITION_PATH" ]]; then
 fi
 
 # Get UUID
-UUID=$(sudo blkid -s UUID -o value "$PARTITION_PATH")
+UUID=$(sudo -n blkid -s UUID -o value "$PARTITION_PATH")
 if [[ -z "$UUID" ]]; then
     print_error "Could not get UUID for $PARTITION_PATH"
     exit 1
@@ -125,30 +125,30 @@ print_status "Found UUID: $UUID"
 # 4. Create mount directories
 MOUNT_BASE="/mnt/k8s-storage"
 print_status "Creating mount directories..."
-sudo mkdir -p "$MOUNT_BASE"
+sudo -n mkdir -p "$MOUNT_BASE"
 
 # 5. Set up fstab entry
 print_status "Setting up persistent mount in /etc/fstab..."
 
 # Backup fstab
-sudo cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
+sudo -n cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
 
 # Remove any existing entry for this UUID
-sudo sed -i "/UUID=$UUID/d" /etc/fstab
+sudo -n sed -i "/UUID=$UUID/d" /etc/fstab
 
 # Add new entry
-echo "UUID=$UUID $MOUNT_BASE ext4 defaults,noatime 0 2" | sudo tee -a /etc/fstab
+echo "UUID=$UUID $MOUNT_BASE ext4 defaults,noatime 0 2" | sudo -n tee -a /etc/fstab
 
 # 6. Mount the storage
 print_status "Mounting storage..."
-sudo systemctl daemon-reload
+sudo -n systemctl daemon-reload
 
 # Check if already mounted
 if mountpoint -q "$MOUNT_BASE"; then
     print_warning "Storage already mounted at $MOUNT_BASE"
 else
     # Attempt to mount
-    if sudo mount "$MOUNT_BASE" 2>/dev/null; then
+    if sudo -n mount "$MOUNT_BASE" 2>/dev/null; then
         print_status "Storage successfully mounted at $MOUNT_BASE"
     else
         print_error "Failed to mount storage at $MOUNT_BASE"
@@ -166,57 +166,57 @@ fi
 
 # 7. Create subdirectories after mounting
 print_status "Creating subdirectories..."
-sudo mkdir -p "$MOUNT_BASE/nfs-share"
-sudo mkdir -p "$MOUNT_BASE/local-volumes"
+sudo -n mkdir -p "$MOUNT_BASE/nfs-share"
+sudo -n mkdir -p "$MOUNT_BASE/local-volumes"
 
 # Create application-specific directories
 for app in cloudflared hitomi pepup rss slack; do
-    sudo mkdir -p "$MOUNT_BASE/local-volumes/$app"
+    sudo -n mkdir -p "$MOUNT_BASE/local-volumes/$app"
 done
 
 # 8. Set permissions
 print_status "Setting permissions..."
-sudo chown -R "$USER:$USER" "$MOUNT_BASE"
-sudo chmod -R 755 "$MOUNT_BASE"
+sudo -n chown -R "$USER:$USER" "$MOUNT_BASE"
+sudo -n chmod -R 755 "$MOUNT_BASE"
 
 # Set specific permissions for NFS share
-sudo chmod 777 "$MOUNT_BASE/nfs-share"
+sudo -n chmod 777 "$MOUNT_BASE/nfs-share"
 
 # 9. Install and configure NFS server
 print_status "Installing NFS server..."
-sudo apt update
-sudo apt install -y nfs-kernel-server
+sudo -n apt update
+sudo -n apt install -y nfs-kernel-server
 
 # Configure NFS exports
 print_status "Configuring NFS exports..."
 NFS_EXPORT="$MOUNT_BASE/nfs-share *(rw,sync,no_subtree_check,no_root_squash)"
 
 # Backup exports file
-sudo cp /etc/exports /etc/exports.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo -n cp /etc/exports /etc/exports.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 
 # Add NFS export (remove existing first)
-sudo sed -i "\|$MOUNT_BASE/nfs-share|d" /etc/exports
-echo "$NFS_EXPORT" | sudo tee -a /etc/exports
+sudo -n sed -i "\|$MOUNT_BASE/nfs-share|d" /etc/exports
+echo "$NFS_EXPORT" | sudo -n tee -a /etc/exports
 
 # Restart NFS services
 print_status "Starting NFS services..."
-sudo systemctl enable nfs-kernel-server
-sudo systemctl restart nfs-kernel-server
-sudo exportfs -ra
+sudo -n systemctl enable nfs-kernel-server
+sudo -n systemctl restart nfs-kernel-server
+sudo -n exportfs -ra
 
 # Ensure libvirtd is running for next steps
 print_status "Ensuring libvirtd service is running..."
-sudo systemctl start libvirtd
-sudo systemctl enable libvirtd
+sudo -n systemctl start libvirtd
+sudo -n systemctl enable libvirtd
 
 # 9. Test NFS mount locally
 print_status "Testing NFS mount..."
 TEST_MOUNT="/tmp/nfs-test"
 mkdir -p "$TEST_MOUNT"
 
-if sudo mount -t nfs localhost:"$MOUNT_BASE/nfs-share" "$TEST_MOUNT"; then
+if sudo -n mount -t nfs localhost:"$MOUNT_BASE/nfs-share" "$TEST_MOUNT"; then
     print_status "NFS mount test successful"
-    sudo umount "$TEST_MOUNT"
+    sudo -n umount "$TEST_MOUNT"
     rmdir "$TEST_MOUNT"
 else
     print_warning "NFS mount test failed, but continuing..."
@@ -249,7 +249,7 @@ $(for app in cloudflared hitomi pepup rss slack; do
 done)
 EOF
 
-sudo mv /tmp/k8s-storage-config.yaml "$MOUNT_BASE/k8s-storage-config.yaml"
+sudo -n mv /tmp/k8s-storage-config.yaml "$MOUNT_BASE/k8s-storage-config.yaml"
 
 print_status "Storage setup completed successfully!"
 
@@ -266,7 +266,7 @@ echo "=== Available Space ==="
 df -h "$MOUNT_BASE"
 echo ""
 echo "=== NFS Exports ==="
-sudo exportfs -v
+sudo -n exportfs -v
 echo ""
 
 print_status "Storage configuration saved to: $MOUNT_BASE/k8s-storage-config.yaml"
