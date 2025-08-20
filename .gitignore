@@ -110,6 +110,9 @@ values-production.yaml
 *-secret.yaml
 *-secrets.yaml
 
+# External Secrets definitions are safe to commit
+!manifests/platform/secrets/external-secrets/*-secret.yaml
+
 # Kubernetes manifests with secrets (if any)
 *-password.yaml
 *-token.yaml
