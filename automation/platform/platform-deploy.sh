@@ -236,6 +236,26 @@ kubectl wait --for=condition=Synced --timeout=300s application/external-secrets-
 kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/name=external-secrets --timeout=300s
 
 echo "✓ External Secrets Operator デプロイ完了"
+
+# App-of-Appsパターン適用（ESO作成後すぐに）
+echo "App-of-Apps適用中..."
+kubectl apply -f /tmp/app-of-apps.yaml
+
+# 基本Application（infrastructure, platform）の同期待機
+echo "基本Application同期待機中..."
+sleep 20
+
+# Infrastructure Application同期確認
+if kubectl get application infrastructure -n argocd 2>/dev/null; then
+    kubectl wait --for=condition=Synced --timeout=300s application/infrastructure -n argocd || echo "Infrastructure同期継続中"
+fi
+
+# Platform Application同期確認
+if kubectl get application platform -n argocd 2>/dev/null; then
+    kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "Platform同期継続中"
+fi
+
+echo "✓ App-of-Apps適用完了"
 EOF
 
 print_status "✓ External Secrets Operator デプロイ完了"
@@ -273,13 +293,38 @@ kubectl create secret generic pulumi-esc-token \
   --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# Platform Application同期を手動トリガー（ESOリソース適用のため）
-echo "Platform Application同期をトリガー中..."
-kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
-
-# Platform同期待機（ESO関連リソースが作成される）
-echo "Platform同期待機中（ESOリソース作成）..."
-kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "Platform同期継続中"
+# Platform Application存在確認
+if kubectl get application platform -n argocd 2>/dev/null; then
+    # Platform Application同期を手動トリガー（ESOリソース適用のため）
+    echo "Platform Application同期をトリガー中..."
+    kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
+    
+    # Platform同期待機（ESO関連リソースが作成される）
+    echo "Platform同期待機中（ESOリソース作成）..."
+    kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "Platform同期継続中"
+else
+    echo "Platform Application未作成、App-of-Apps適用確認中..."
+    # App-of-Appsが適用されているか確認
+    if ! kubectl get application app-of-apps -n argocd 2>/dev/null; then
+        echo "App-of-Apps再適用中..."
+        kubectl apply -f /tmp/app-of-apps.yaml
+        sleep 20
+    fi
+    
+    # Platform Application作成待機
+    timeout=60
+    while [ \$timeout -gt 0 ]; do
+        if kubectl get application platform -n argocd 2>/dev/null; then
+            echo "✓ Platform Application作成確認"
+            # 同期トリガー
+            kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
+            break
+        fi
+        echo "Platform Application作成待機中... (残り \${timeout}秒)"
+        sleep 5
+        timeout=\$((timeout - 5))
+    done
+fi
 
 # ClusterSecretStore準備完了待機
 echo "ClusterSecretStore準備完了待機中..."
@@ -337,14 +382,15 @@ print_status "=== Phase 4.9: Harbor デプロイ ==="
 print_debug "Harbor Private Registry をArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# App-of-Appsパターン適用
-kubectl apply -f /tmp/app-of-apps.yaml
-
-echo "Harbor Application同期待機中..."
-sleep 30
-
-# Harbor Application同期確認
-kubectl wait --for=condition=Synced --timeout=300s application/infrastructure -n argocd || echo "Harbor同期継続中"
+# Infrastructure Application確認（App-of-Appsは既に適用済み）
+if kubectl get application infrastructure -n argocd 2>/dev/null; then
+    echo "Infrastructure Application確認済み"
+    # Harbor Application同期確認
+    kubectl wait --for=condition=Synced --timeout=300s application/infrastructure -n argocd || echo "Harbor同期継続中"
+else
+    echo "Infrastructure Application未作成、App-of-Apps再確認中..."
+    kubectl get application -n argocd
+fi
 
 echo "✓ Harbor デプロイ完了"
 EOF
@@ -488,8 +534,13 @@ if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q Ready; 
     echo "✓ ClusterSecretStore確認OK"
 else
     echo "⚠️ ClusterSecretStore未検出、Platform同期を再実行..."
-    kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
-    sleep 30
+    # Platform Application存在確認
+    if kubectl get application platform -n argocd 2>/dev/null; then
+        kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
+        sleep 30
+    else
+        echo "Platform Application未作成、スキップ"
+    fi
 fi
 
 # Applications同期確認
