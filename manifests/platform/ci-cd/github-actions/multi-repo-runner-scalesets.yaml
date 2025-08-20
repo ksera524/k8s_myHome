@@ -3,7 +3,7 @@
 
 ---
 # External Secret for GitHub Personal Access Token (共通)
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: github-multi-repo-secret

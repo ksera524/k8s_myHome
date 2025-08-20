@@ -2,8 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - arc-controller.yaml
+  # ARC関連リソースは別途setup-arc.shで管理されるため一時除外
+  # - arc-controller.yaml
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
   - runner-docker-config.yaml
-  - multi-repo-runner-scalesets.yaml
+  # - multi-repo-runner-scalesets.yaml
