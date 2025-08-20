@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/infrastructure/namespaces
+    path: manifests/resources/infrastructure/namespaces
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -37,7 +37,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/infrastructure
+    path: manifests/resources/infrastructure
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
@@ -61,7 +61,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/external-secrets
+    path: manifests/config/secrets
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
@@ -84,7 +84,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/platform
+    path: manifests/resources/platform
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
@@ -107,7 +107,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/applications
+    path: manifests/apps/user-apps
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:

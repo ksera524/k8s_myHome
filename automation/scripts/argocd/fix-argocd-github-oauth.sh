@@ -39,7 +39,7 @@ if [ "$GITHUB_CONFIG_EXISTS" -eq 0 ] || [ "$URL_CONFIG_EXISTS" -eq 0 ]; then
     print_warning "GitHub OAuth設定が不完全です。修復中..."
     
     # ConfigMapファイルをクラスタに転送
-    ARGOCD_CONFIG_FILE="$PROJECT_ROOT/manifests/infrastructure/argocd/argocd-config.yaml"
+    ARGOCD_CONFIG_FILE="$PROJECT_ROOT/manifests/resources/infrastructure/argocd/argocd-config.yaml"
     
     if [ ! -f "$ARGOCD_CONFIG_FILE" ]; then
         print_error "ArgoCD ConfigMapファイルが見つかりません: $ARGOCD_CONFIG_FILE"

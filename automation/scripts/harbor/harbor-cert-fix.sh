@@ -69,7 +69,7 @@ echo "✓ Harbor PVディレクトリ準備完了"
 echo "1. 既存のHarbor証明書を削除し、新しいIP SAN証明書を適用中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl delete certificate harbor-tls-cert -n harbor --ignore-not-found=true'
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl delete secret harbor-tls-secret -n harbor --ignore-not-found=true'
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl apply -f -' < ../../../manifests/infrastructure/cert-manager/harbor-certificate.yaml
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl apply -f -' < ../../../manifests/resources/infrastructure/cert-manager/harbor-certificate.yaml
 
 echo "2. Harbor証明書の準備完了を待機中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl wait --for=condition=Ready certificate/harbor-tls-cert -n harbor --timeout=120s'
@@ -92,7 +92,7 @@ echo "2.4. Harbor jobservice再起動完了を待機中..."
 wait $JOBSERVICE_PID 2>/dev/null || echo "⚠️ Harbor jobservice再起動タイムアウト（続行）"
 
 echo "3. Harbor CA信頼DaemonSetを適用中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl apply -f -' < ../../../manifests/infrastructure/harbor-ca-trust.yaml
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl apply -f -' < ../../../manifests/resources/infrastructure/harbor-ca-trust.yaml
 
 echo "4. Harbor CA信頼DaemonSetの準備完了を待機中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl rollout status daemonset/harbor-ca-trust -n kube-system --timeout=300s'

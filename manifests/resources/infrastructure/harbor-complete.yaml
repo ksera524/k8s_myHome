@@ -141,7 +141,7 @@ spec:
   source:
     repoURL: 'https://github.com/ksera524/k8s_myHome.git'
     targetRevision: HEAD
-    path: manifests/infrastructure/cert-manager
+    path: manifests/resources/infrastructure/cert-manager
     directory:
       include: 'harbor-certificate.yaml'
   destination:
@@ -167,7 +167,7 @@ spec:
   source:
     repoURL: 'https://github.com/ksera524/k8s_myHome.git'
     targetRevision: HEAD
-    path: manifests/infrastructure
+    path: manifests/resources/infrastructure
     directory:
       include: 'harbor-ca-trust.yaml'
   destination:

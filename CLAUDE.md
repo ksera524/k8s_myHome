@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **Host Setup** (`automation/host-setup/`): Host preparation - Ubuntu 24.04 LTS setup
 2. **Infrastructure** (`automation/infrastructure/`): VM infrastructure + Kubernetes cluster - QEMU/KVM with libvirt + kubeadm-based 3-node cluster (統合実装)
 3. **Platform** (`automation/platform/`): Core platform services - MetalLB, NGINX, cert-manager, ArgoCD, Harbor
-4. **Applications** (`manifests/`, `app/`): Application deployment via GitOps
+4. **Applications** (`manifests/apps/`, `manifests/resources/applications/`): Application deployment via GitOps
 
 ### Key Infrastructure Components
 - **Cluster**: 1 Control Plane (192.168.122.10) + 2 Workers (192.168.122.11-12)
@@ -84,22 +84,26 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
   - **`host-setup/`**: Host preparation scripts
   - **`infrastructure/`**: VM infrastructure + Kubernetes cluster (Terraform統合実装)
   - **`platform/`**: Core platform services (MetalLB, NGINX, cert-manager, ArgoCD, Harbor)
-- **`manifests/`**: Organized Kubernetes manifests for all components
-  - **`infrastructure/`**: Core infrastructure (ArgoCD, MetalLB, cert-manager, Harbor, etc.)
-  - **`applications/`**: User applications (RSS, Hitomi, Pepup, Cloudflared, Slack)
-  - **`external-secrets/`**: External Secrets Operator and configurations  
-  - **`platform/`**: Platform services (GitHub Actions, monitoring)
+- **`manifests/`**: GitOps-specialized Kubernetes manifests
+  - **`00-bootstrap/`**: Bootstrap components (App-of-Apps)
+  - **`resources/infrastructure/`**: Core infrastructure (ArgoCD, MetalLB, cert-manager, Harbor)
+  - **`resources/platform/`**: Platform services (GitHub Actions, monitoring)
+  - **`resources/applications/`**: User application manifests (RSS, Hitomi, Pepup, Cloudflared, Slack)
+  - **`apps/user-apps/`**: ArgoCD Application definitions
+  - **`config/secrets/`**: External Secrets Operator configurations
+  - **`clusters/home-k8s/`**: Cluster-specific configurations
+  - **`projects/`**: ArgoCD Project definitions
 - **`diagrams/`**: Architecture diagrams (SVG format)
 
 ## Important Files
 
 ### Configuration
 - `automation/infrastructure/terraform.tfvars`: VM resource allocation
-- `manifests/app-of-apps.yaml`: ArgoCD root application
+- `manifests/00-bootstrap/app-of-apps.yaml`: ArgoCD root application
 
 ### Certificates & Security
-- `manifests/infrastructure/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
-- `manifests/infrastructure/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
+- `manifests/resources/infrastructure/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
+- `manifests/resources/infrastructure/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
 - `automation/platform/harbor-cert-fix.sh`: Fix Harbor certificate validation
 
 ### GitHub Actions
@@ -123,7 +127,7 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
 ## Development Notes
 
 ### GitOps Workflow
-All infrastructure changes should be made through Git commits to trigger ArgoCD synchronization. The App-of-Apps pattern manages all applications from `manifests/app-of-apps.yaml`.
+All infrastructure changes should be made through Git commits to trigger ArgoCD synchronization. The App-of-Apps pattern manages all applications from `manifests/00-bootstrap/app-of-apps.yaml`.
 
 ### Resource Constraints  
 VM resources are optimized for home lab environments:

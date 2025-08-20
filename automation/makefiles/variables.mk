@@ -10,7 +10,7 @@ HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
 INFRASTRUCTURE_DIR := $(PROJECT_ROOT)/infrastructure
 PLATFORM_DIR := $(PROJECT_ROOT)/platform
 SCRIPTS_DIR := $(PROJECT_ROOT)/scripts
-MANIFESTS_DIR := $(PROJECT_ROOT)/manifests
+MANIFESTS_DIR := $(PROJECT_ROOT)/manifests/resources
 
 # 設定ファイル
 SETTINGS_FILE := $(PROJECT_ROOT)/settings.toml
