@@ -73,11 +73,11 @@ spec:
           value: "k8s_myHome"
         resources:
           limits:
-            cpu: "2"
-            memory: "4Gi"
+            cpu: "1200m"
+            memory: "2Gi"
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "200m"
+            memory: "512Mi"
         volumeMounts:
         - name: work
           mountPath: /home/runner/_work
@@ -143,11 +143,11 @@ spec:
           value: "slack.rs"
         resources:
           limits:
-            cpu: "2"
-            memory: "4Gi"
+            cpu: "1200m"
+            memory: "2Gi"
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "200m"
+            memory: "512Mi"
         volumeMounts:
         - name: work
           mountPath: /home/runner/_work
@@ -214,11 +214,11 @@ spec:
           value: "shared"
         resources:
           limits:
-            cpu: "2"
-            memory: "4Gi"
+            cpu: "1200m"
+            memory: "2Gi"
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "200m"
+            memory: "512Mi"
         volumeMounts:
         - name: work
           mountPath: /home/runner/_work
