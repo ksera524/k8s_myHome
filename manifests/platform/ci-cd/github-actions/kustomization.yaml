@@ -6,5 +6,5 @@ resources:
   # - arc-controller.yaml
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
-  - runner-docker-config.yaml
+  # - runner-docker-config.yaml  # AutoscalingRunnerSet CRDが必要
   # - multi-repo-runner-scalesets.yaml
