@@ -40,7 +40,8 @@ scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/security/cert-ma
 scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
+# ArgoCD OAuth Secret は GitOps 経由で管理されるため、コピー不要
+# scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
@@ -272,41 +273,35 @@ kubectl create secret generic pulumi-esc-token \
   --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# ClusterSecretStore作成（Webhook Provider使用）
-kubectl apply -f - <<EOYAML
-apiVersion: external-secrets.io/v1alpha1
-kind: ClusterSecretStore
-metadata:
-  name: pulumi-esc-store
-spec:
-  provider:
-    webhook:
-      url: "https://api.pulumi.com/api/esc/environments/ksera/k8s_myHome/open"
-      headers:
-        Authorization: "Bearer {{ .accessToken }}"
-        Content-Type: "application/json"
-      body: "{}"
-      method: POST
-      auth:
-        secretRef:
-          secretAccessKey:
-            name: pulumi-esc-token
-            namespace: external-secrets-system
-            key: accessToken
-EOYAML
+# Platform Application同期を手動トリガー（ESOリソース適用のため）
+echo "Platform Application同期をトリガー中..."
+kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
+
+# Platform同期待機（ESO関連リソースが作成される）
+echo "Platform同期待機中（ESOリソース作成）..."
+kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "Platform同期継続中"
 
 # ClusterSecretStore準備完了待機
-sleep 15
-if kubectl get clustersecretstore pulumi-esc-store | grep -q Ready; then
-    echo "✓ ClusterSecretStore準備完了"
-    
-    # ArgoCD GitHub OAuth ExternalSecret作成
-    kubectl apply -f /tmp/argocd-github-oauth-secret.yaml
-    
-    # External Secret同期待機
+echo "ClusterSecretStore準備完了待機中..."
+timeout=60
+while [ \$timeout -gt 0 ]; do
+    if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q Ready; then
+        echo "✓ ClusterSecretStore準備完了"
+        break
+    fi
+    echo "ClusterSecretStore待機中... (残り \${timeout}秒)"
+    sleep 5
+    timeout=\$((timeout - 5))
+done
+
+if [ \$timeout -le 0 ]; then
+    echo "⚠️ ClusterSecretStore作成タイムアウト、手動Secret作成にフォールバック"
+    kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+else
+    # External Secret同期待機（ArgoCD GitHub OAuth）
     timeout=60
     while [ \$timeout -gt 0 ]; do
-        if kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' >/dev/null 2>&1; then
+        if kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' 2>/dev/null | grep -q .; then
             SECRET_LENGTH=\$(kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.dex\.github\.clientSecret}' | base64 -d | wc -c)
             if [ "\$SECRET_LENGTH" -gt 10 ]; then
                 echo "✓ ArgoCD GitHub OAuth ESO同期完了"
@@ -322,9 +317,6 @@ if kubectl get clustersecretstore pulumi-esc-store | grep -q Ready; then
         echo "⚠️ ESO同期タイムアウト、手動Secret作成にフォールバック"
         kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
     fi
-else
-    echo "⚠️ ClusterSecretStore未準備、手動Secret作成にフォールバック"
-    kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
 fi
 
 # ArgoCD GitHub OAuth ConfigMap適用
@@ -490,8 +482,22 @@ print_status "=== Phase 4.11: 各種Application デプロイ ==="
 print_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# ESOリソースが適用されているか確認
+echo "External Secrets リソース確認中..."
+if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q Ready; then
+    echo "✓ ClusterSecretStore確認OK"
+else
+    echo "⚠️ ClusterSecretStore未検出、Platform同期を再実行..."
+    kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"hook": {}}}}}'
+    sleep 30
+fi
+
 # Applications同期確認
 kubectl wait --for=condition=Synced --timeout=300s application/applications -n argocd || echo "Applications同期継続中"
+
+# アプリケーション用External Secrets確認
+echo "アプリケーション用External Secrets確認中..."
+kubectl get externalsecrets -A | grep -E "(cloudflared|slack)" || echo "アプリケーションExternal Secrets待機中"
 
 echo "✓ 各種Application デプロイ完了"
 EOF
@@ -512,6 +518,14 @@ kubectl get pods -n argocd -l app.kubernetes.io/component=server
 # External Secrets状態確認
 echo "External Secrets状態:"
 kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets
+
+# ClusterSecretStore状態確認
+echo "ClusterSecretStore状態:"
+kubectl get clustersecretstore pulumi-esc-store 2>/dev/null || echo "ClusterSecretStore未作成"
+
+# ExternalSecrets状態確認
+echo "ExternalSecrets状態:"
+kubectl get externalsecrets -A --no-headers | awk '{print "  - " $2 " (" $1 "): " $(NF)}' 2>/dev/null || echo "ExternalSecrets未作成"
 
 # Harbor状態確認
 echo "Harbor状態:"
