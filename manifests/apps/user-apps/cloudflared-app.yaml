@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/applications/cloudflared
+    path: manifests/resources/applications/cloudflared
   destination:
     server: https://kubernetes.default.svc
     namespace: cloudflared

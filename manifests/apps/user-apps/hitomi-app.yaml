@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/applications/hitomi
+    path: manifests/resources/applications/hitomi
   destination:
     server: https://kubernetes.default.svc
     namespace: sandbox
