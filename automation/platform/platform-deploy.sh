@@ -35,12 +35,12 @@ print_status "=== Kubernetes基盤構築開始 ==="
 # 0. マニフェストファイルの準備
 print_status "マニフェストファイルをリモートにコピー中..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "../../manifests/resources/infrastructure/metallb/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/resources/infrastructure/cert-manager/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/resources/infrastructure/storage/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/networking/metallb/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/security/cert-manager/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/resources/infrastructure/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/config/secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
+scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
