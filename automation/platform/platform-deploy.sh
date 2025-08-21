@@ -555,6 +555,17 @@ EOF
 
 print_status "✓ 各種Application デプロイ完了"
 
+# Phase 4.11: GitHub Actions Runner Controller (ARC) 設定
+print_status "=== Phase 4.11: GitHub Actions Runner Controller 設定 ==="
+print_debug "settings.tomlに基づいてARCをセットアップします"
+
+# 変数スコープの問題を避けるため、直接実行
+"$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" || {
+    print_warning "ARCセットアップで警告が発生しましたが続行します"
+}
+
+print_status "✓ GitHub Actions Runner Controller 設定完了"
+
 # Phase 4.12: システム環境確認
 print_status "=== Phase 4.12: システム環境確認 ==="
 print_debug "デプロイされたシステム全体の動作確認を行います"

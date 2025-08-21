@@ -2,9 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # ARC関連リソースは別途setup-arc.shで管理されるため一時除外
-  # - arc-controller.yaml
+  # ARC Controller
+  - arc-controller.yaml
+  # RBAC
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
+  # External Secrets (GitHub PATはESO経由で取得)
+  # Note: github-token-secretはplatform/secrets/external-secrets/externalsecrets.yamlで管理
+  # Runner ScaleSetはsetup-arc.shでsettings.tomlに基づいて作成
   # - runner-docker-config.yaml  # AutoscalingRunnerSet CRDが必要
   # - multi-repo-runner-scalesets.yaml

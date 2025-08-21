@@ -80,13 +80,22 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 EOF'
 
-# ARC Controller インストール・アップグレード
-print_status "🚀 ARC Controller インストール中..."
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm status arc-controller -n arc-systems' >/dev/null 2>&1; then
-    print_debug "既存のARC Controllerをアップグレード中..."
+# ARC Controller チェック
+print_status "🚀 ARC Controller 状態確認中..."
+# GitOps管理のARC Controllerが存在するか確認
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get deployment arc-controller-gha-rs-controller -n arc-systems' >/dev/null 2>&1; then
+    print_debug "GitOps管理のARC Controllerが検出されました"
+    # GitOps管理のControllerが動作しているか確認
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl wait --for=condition=available deployment/arc-controller-gha-rs-controller -n arc-systems --timeout=60s' >/dev/null 2>&1; then
+        print_status "✓ GitOps管理のARC Controllerが正常に動作しています"
+    else
+        print_error "GitOps管理のARC Controllerが正常に動作していません"
+    fi
+elif ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm status arc-controller -n arc-systems' >/dev/null 2>&1; then
+    print_debug "Helm管理のARC Controllerをアップグレード中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm upgrade arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems'
 else
-    print_debug "新規ARC Controllerをインストール中..."
+    print_debug "ARC Controllerが存在しません。Helmでインストール中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm install arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems --create-namespace'
 fi
 

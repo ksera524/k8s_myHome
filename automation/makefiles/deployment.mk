@@ -2,7 +2,7 @@
 # デプロイメント関連のターゲット定義
 
 # 全自動デプロイ
-all: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment setup-arc _sudo-cleanup
+all: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment _sudo-cleanup
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@$(MAKE) status
 
