@@ -1,0 +1,32 @@
+# Infrastructure Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # GitOps - ArgoCD and Harbor
+  - gitops/argocd/argocd-config.yaml
+  - gitops/argocd/argocd-ingress.yaml
+  - gitops/argocd/harbor-app.yaml
+  - gitops/argocd/harbor-ca-distribution.yaml
+  - gitops/argocd/harbor-ca-trust.yaml
+  - gitops/argocd/harbor-default-ingress.yaml
+  - gitops/argocd/harbor-ip-ingress.yaml
+  - gitops/argocd/harbor-storage.yaml
+  - gitops/argocd/local-path-provisioner.yaml
+  
+  # Networking
+  - networking/ingress-nginx/ingress-nginx-app.yaml
+  - networking/metallb/metallb-complete.yaml
+  - networking/metallb/metallb-config.yaml
+  - networking/metallb/metallb-ipaddress-pool.yaml
+  
+  # Security
+  - security/cert-manager/ca-issuer.yaml
+  - security/cert-manager/ca-secret.yaml
+  - security/cert-manager/ca-trust-daemonset.yaml
+  - security/cert-manager/cert-manager-complete.yaml
+  - security/cert-manager/cert-manager-selfsigned-issuer.yaml
+  - security/cert-manager/certificate.yaml
+  - security/cert-manager/cluster-issuer.yaml
+  - security/cert-manager/harbor-certificate.yaml
+  - security/cert-manager/issuer.yaml
