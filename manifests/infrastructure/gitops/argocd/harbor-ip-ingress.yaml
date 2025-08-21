@@ -12,13 +12,9 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    ingress.kubernetes.io/ssl-redirect: "true"
-    ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   ingressClassName: nginx
-  tls:
-  - secretName: harbor-tls-secret
   rules:
   - http:
       paths:
