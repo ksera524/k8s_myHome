@@ -1,0 +1,31 @@
+# Harbor ArgoCD Application - Bootstrap Level
+# This ensures Harbor is deployed as part of the infrastructure layer
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ksera524/k8s_myHome.git'
+    targetRevision: HEAD
+    path: manifests/infrastructure/gitops/harbor
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

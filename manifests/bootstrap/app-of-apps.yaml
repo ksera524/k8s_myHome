@@ -1,8 +1,38 @@
 # ArgoCD App-of-Apps パターン - 改善されたディレクトリ構造版
 # デプロイ順序: Core → Infrastructure → Platform → Applications
 
-# Core Components - 最初に作成（すべてが依存）
+# Local Path Provisioner - Harborより先にデプロイが必要
 ---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-path-provisioner
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rancher/local-path-provisioner
+    targetRevision: v0.0.24
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: local-path-storage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Core Components - 最初に作成（すべてが依存）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -115,6 +145,38 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Harbor Application - Infrastructure Component
+# Separate from infrastructure to ensure proper ArgoCD handling
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/ksera524/k8s_myHome.git'
+    targetRevision: HEAD
+    path: manifests/infrastructure/gitops/harbor
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
