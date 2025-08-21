@@ -43,19 +43,19 @@ spec:
           persistentVolumeClaim:
             registry:
               size: 10Gi
-              storageClass: "local-storage"
+              storageClass: "local-path"
             jobservice:
               size: 1Gi
-              storageClass: "local-storage"
+              storageClass: "local-path"
             database:
               size: 1Gi
-              storageClass: "local-storage"
+              storageClass: "local-path"
             redis:
               size: 1Gi
-              storageClass: "local-storage"
+              storageClass: "local-path"
             trivy:
               size: 5Gi
-              storageClass: "local-storage"
+              storageClass: "local-path"
         
         database:
           type: internal
