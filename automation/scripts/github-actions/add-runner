@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# GitHub Actions Runner Controller (ARC) - 新しいリポジトリ用Runner追加スクリプト
-# 公式GitHub ARC (v0.12.1) 対応版（シンプルなエイリアス）
-# 使用方法: ./add-runner <repository-name>
-
-# add-runner.sh の呼び出し
-exec "$(dirname "$0")/add-runner.sh" "$@"

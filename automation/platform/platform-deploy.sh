@@ -523,6 +523,46 @@ else
 EOF
 fi
 
+# Phase 4.10.5: settings.tomlのリポジトリを自動add-runner
+print_status "=== Phase 4.10.5: settings.tomlのリポジトリを自動add-runner ==="
+print_debug "settings.tomlからリポジトリリストを読み込み中..."
+
+SETTINGS_FILE="$SCRIPT_DIR/../settings.toml"
+if [[ -f "$SETTINGS_FILE" ]]; then
+    # arc_repositoriesセクションを解析
+    ARC_REPOS_TEMP=$(sed -n '/^arc_repositories = \[/,/^]/p' "$SETTINGS_FILE" | grep -E '^\s*\[".*"\s*,.*\]')
+    
+    if [[ -n "$ARC_REPOS_TEMP" ]]; then
+        print_debug "arc_repositories設定を発見しました"
+        
+        # 各リポジトリに対してadd-runner.shを実行
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            
+            # 正規表現で配列要素を抽出: ["name", min, max, "description"]
+            if [[ $line =~ \[\"([^\"]+)\",\ *([0-9]+),\ *([0-9]+), ]]; then
+                REPO_NAME="${BASH_REMATCH[1]}"
+                
+                print_status "🏃 $REPO_NAME のRunnerを追加中..."
+                
+                # add-runner.shを実行
+                if [[ -f "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" ]]; then
+                    bash "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" "$REPO_NAME"
+                    print_status "✓ $REPO_NAME Runner追加完了"
+                else
+                    print_error "add-runner.sh が見つかりません"
+                fi
+            fi
+        done <<< "$ARC_REPOS_TEMP"
+        
+        print_status "✓ settings.tomlのリポジトリ自動追加完了"
+    else
+        print_debug "arc_repositories設定が見つかりません（スキップ）"
+    fi
+else
+    print_warning "settings.tomlが見つかりません"
+fi
+
 # Phase 4.11: 各種Application デプロイ
 print_status "=== Phase 4.11: 各種Application デプロイ ==="
 print_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
@@ -555,16 +595,6 @@ EOF
 
 print_status "✓ 各種Application デプロイ完了"
 
-# Phase 4.11: GitHub Actions Runner Controller (ARC) 設定
-print_status "=== Phase 4.11: GitHub Actions Runner Controller 設定 ==="
-print_debug "settings.tomlに基づいてARCをセットアップします"
-
-# 変数スコープの問題を避けるため、直接実行
-"$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" || {
-    print_warning "ARCセットアップで警告が発生しましたが続行します"
-}
-
-print_status "✓ GitHub Actions Runner Controller 設定完了"
 
 # Phase 4.12: システム環境確認
 print_status "=== Phase 4.12: システム環境確認 ==="
@@ -625,3 +655,95 @@ print_status "Harbor push設定:"
 print_status "  - GitHub ActionsでskopeoによるTLS検証無効push対応"
 print_status "  - Harbor認証secret (arc-systems/harbor-auth) 設定済み"
 print_status "  - イメージプルsecret (各namespace/harbor-http) 設定済み"
+
+# Harbor IP Ingress を作成
+print_status "Harbor IP Ingress を作成中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+# Harbor IP Ingress が存在しない場合のみ作成
+if ! kubectl get ingress -n harbor harbor-ip-ingress >/dev/null 2>&1; then
+    echo "Harbor IP Ingress を作成中..."
+    kubectl apply -f - << 'INGRESS_EOF'
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor-ip-ingress
+  namespace: harbor
+  labels:
+    app: harbor
+    chart: harbor
+    heritage: Helm
+    release: harbor
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+      - path: /service/
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+      - path: /v2/
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+      - path: /chartrepo/
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+      - path: /c/
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-core
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: harbor-portal
+            port:
+              number: 80
+INGRESS_EOF
+    echo "✓ Harbor IP Ingress 作成完了"
+else
+    echo "✓ Harbor IP Ingress は既に存在します"
+fi
+EOF
+print_status "✓ Harbor IP Ingress 設定完了"
+
+# Harbor の動作確認
+print_status "Harbor の動作確認中..."
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl -s -f http://192.168.122.100/api/v2.0/systeminfo' >/dev/null 2>&1; then
+    print_status "✓ Harbor API が正常に応答しています"
+else
+    print_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
+fi
+
+print_status "🎉 すべての設定が完了しました！"
+print_status ""
+print_status "次のステップ:"
+print_status "  1. GitHub リポジトリに workflow ファイルを追加"
+print_status "  2. make add-runner REPO=your-repo でリポジトリ用の Runner を追加"
+print_status "  3. git push で GitHub Actions が自動実行されます"

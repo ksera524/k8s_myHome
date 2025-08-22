@@ -25,9 +25,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common Commands
 
-### Complete Deployment Workflow
+### Complete Deployment
 ```bash
-# Host Setup: Host preparation + Helm setup
+# 完全なインフラストラクチャ構築
+make all
+
+# GitHub Actions Runnerを追加
+make add-runner REPO=your-repository-name
+
+# ヘルプを表示
+make help
+```
+
+### Manual Deployment Steps
+```bash
+# Host Setup: Host preparation
 ./automation/host-setup/setup-host.sh
 # (logout/login required for group membership)
 ./automation/host-setup/setup-storage.sh  
@@ -35,14 +47,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Infrastructure: VM creation + Kubernetes cluster
 cd automation/infrastructure && ./clean-and-deploy.sh
-# VM構築とKubernetesクラスター構築が統合され、1つのコマンドで完了
 
-# Platform: Core platform services + Harbor cert fix + GitHub Actions (interactive)
-cd ../platform && ./phase4-deploy.sh
-# GitHub情報は対話式で入力またはスキップ可能
-
-# または個別にGitHub Actions設定
-./setup-arc.sh
+# Platform: Core platform services + GitOps deployment
+cd ../platform && ./platform-deploy.sh
+# settings.tomlのリポジトリは自動でRunner追加されます
 ```
 
 ### Operations & Troubleshooting
@@ -139,15 +147,15 @@ VM resources are optimized for home lab environments:
 - LoadBalancer pool: 192.168.122.100-150
 - Services accessible via LoadBalancer IPs
 
-### Harbor Certificate & GitHub Actions Integration
-Harbor証明書修正とGitHub Actions対応は自動化済み：
-- **Phase 4実行時**: `phase4-deploy.sh`で自動実行
-- **ARC設定時**: `setup-arc.sh`で自動実行
-- **手動実行**: `cd automation/phase4 && ./harbor-cert-fix.sh`
+### Harbor & GitHub Actions Integration
+HarborとGitHub Actions Runner Controller (ARC) の統合:
+- **GitOps管理**: ARC ControllerはArgoCD経由でHelm chartをデプロイ
+- **認証**: GitHub PATはExternal Secrets Operator経由で`github`キーから取得
+- **自動Runner追加**: `make all`時にsettings.tomlのリポジトリが自動追加
+- **個別追加**: `make add-runner REPO=repository-name`
 
-自動修正内容：
-- IP SAN（192.168.122.100）を含むHarbor証明書生成
-- CA信頼配布DaemonSet展開
-- Worker ノードのinsecure registry設定
-- GitHub Actions Runner自動再起動
-- Harbor HTTP Ingress追加（フォールバック用）
+Runner設定:
+- minRunners=1（推奨）: 常時1つのRunnerを起動
+- maxRunners=3: 最大3つまでスケール
+- Docker-in-Docker対応
+- skopeoによるHarbor push（TLS検証無効）
