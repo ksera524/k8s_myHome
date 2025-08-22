@@ -93,10 +93,46 @@ if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get deploymen
     fi
 elif ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm status arc-controller -n arc-systems' >/dev/null 2>&1; then
     print_debug "Helm管理のARC Controllerをアップグレード中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm upgrade arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems'
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm upgrade arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems --set crds.install=false'
 else
-    print_debug "ARC Controllerが存在しません。Helmでインストール中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm install arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems --create-namespace'
+    print_debug "ARC Controllerが存在しません。CRDとコントローラーをインストール中..."
+    # まず CRD をインストール
+    print_debug "ARC CRD をインストール中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'CRD_EOF'
+# Helm chart から CRD を抽出してインストール
+cd /tmp
+helm pull oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --version 0.12.1
+tar -xzf gha-runner-scale-set-controller-0.12.1.tgz
+cd gha-runner-scale-set-controller/crds
+
+# Python スクリプトで CRD のアノテーションを削除
+cat > /tmp/clean_crds.py << 'PYTHON_EOF'
+import yaml
+import os
+
+for filename in os.listdir("."):
+    if filename.endswith(".yaml"):
+        with open(filename, "r") as f:
+            doc = yaml.safe_load(f)
+        
+        if "metadata" in doc and "annotations" in doc["metadata"]:
+            doc["metadata"]["annotations"] = {}
+        
+        with open(filename, "w") as f:
+            yaml.dump(doc, f, default_flow_style=False)
+        
+        print(f"Cleaned {filename}")
+PYTHON_EOF
+
+python3 /tmp/clean_crds.py
+kubectl apply -f .
+cd /tmp
+rm -rf gha-runner-scale-set-controller* clean_crds.py
+CRD_EOF
+    
+    # Controller をインストール
+    print_debug "ARC Controller をインストール中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm install arc-controller oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller --namespace arc-systems --create-namespace --set crds.install=false'
 fi
 
 # settings.tomlからRunnerScaleSet設定を読み込んで作成

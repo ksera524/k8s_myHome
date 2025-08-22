@@ -22,8 +22,8 @@ fi
 
 REPOSITORY_NAME="$1"
 WORKFLOW_ONLY="${2:-}"
-# Runner名用（小文字変換、アンダースコアをハイフンに変換）
-RUNNER_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]_' '[:lower:]-')-runners"
+# Runner名用（小文字変換、ドットとアンダースコアをハイフンに変換）
+RUNNER_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')-runners"
 
 print_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
 print_debug "対象リポジトリ: $REPOSITORY_NAME"
@@ -292,25 +292,36 @@ jobs:
           exit 1
         fi
         
-        # Install skopeo for Docker registry operations with TLS skip
+        # Install skopeo for Docker registry operations
+        echo "Installing skopeo..."
         sudo apt-get update && sudo apt-get install -y skopeo
         
         # Build Docker images locally
         echo "Building Docker images..."
-        docker build -t local-$REPOSITORY_NAME:latest .
-        docker build -t local-$REPOSITORY_NAME:\${{ github.sha }} .
+        docker build -t $REPOSITORY_NAME:latest .
+        docker build -t $REPOSITORY_NAME:\${{ github.sha }} .
         
-        # Push using skopeo with TLS skip
-        echo "Pushing to Harbor using skopeo with TLS skip..."
+        # Push using skopeo with docker save/load approach
+        echo "Pushing to Harbor using skopeo..."
         
-        # Push using skopeo with intermediate files (avoid pipe issues)
-        docker save local-$REPOSITORY_NAME:latest -o /tmp/$REPOSITORY_NAME-latest.tar
-        skopeo copy --dest-tls-verify=false --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" docker-archive:/tmp/$REPOSITORY_NAME-latest.tar docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+        # Method 1: Try docker save with output redirect (more compatible)
+        echo "Using docker save with output redirect..."
+        docker save $REPOSITORY_NAME:latest > /tmp/$REPOSITORY_NAME-latest.tar
+        docker save $REPOSITORY_NAME:\${{ github.sha }} > /tmp/$REPOSITORY_NAME-sha.tar
         
-        docker save local-$REPOSITORY_NAME:\${{ github.sha }} -o /tmp/$REPOSITORY_NAME-sha.tar
-        skopeo copy --dest-tls-verify=false --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" docker-archive:/tmp/$REPOSITORY_NAME-sha.tar docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+        # Push to Harbor using skopeo
+        echo "Pushing images to Harbor..."
+        skopeo copy --insecure-policy --dest-tls-verify=false \\
+          --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
+          docker-archive:/tmp/$REPOSITORY_NAME-latest.tar \\
+          docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
         
-        echo "✅ Images pushed successfully to Harbor using skopeo"
+        skopeo copy --insecure-policy --dest-tls-verify=false \\
+          --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
+          docker-archive:/tmp/$REPOSITORY_NAME-sha.tar \\
+          docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+        
+        echo "✅ Images pushed successfully to Harbor"
         
     - name: Verify Harbor repository
       run: |
