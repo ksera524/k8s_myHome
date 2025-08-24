@@ -60,6 +60,8 @@ infrastructure:
 # Kubernetesプラットフォーム構築
 platform:
 	@echo "$(ROCKET) Kubernetesプラットフォーム構築開始"
+	@echo "$(KEY) ESO Prerequisites設定中..."
+	@bash -c 'source "$(SETTINGS_LOADER)" load && $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
 	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
 	@echo "$(INFO) App-of-Appsデプロイ強制実行中..."
 	@$(MAKE) _deploy-app-of-apps || echo "$(WARNING) App-of-Appsデプロイで警告が発生しましたが続行します"

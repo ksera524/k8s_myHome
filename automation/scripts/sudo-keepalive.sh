@@ -1,37 +1,11 @@
 #!/bin/bash
-# sudo権限を維持するためのバックグラウンドプロセス
-# make all実行中、sudoパスワードの再入力を防ぐ
+# レガシー互換性のためのラッパー
+# 新しいsudo-manager.shを使用
 
-# 色設定
-source "$(dirname "$0")/common-colors.sh" 2>/dev/null || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/sudo-manager.sh"
 
-# バックグラウンドでsudo権限を更新し続ける
-sudo_keepalive() {
-    while true; do
-        sudo -n true 2>/dev/null
-        sleep 50
-    done
-}
-
-# 既存のkeepaliveプロセスを確認
-if pgrep -f "sudo_keepalive" > /dev/null 2>&1; then
-    echo "⚠️ sudo keepaliveプロセスは既に実行中です"
-    exit 0
-fi
-
-# sudo権限を初期取得
-echo "🔐 make all実行のためsudo権限が必要です（パスワードは最初の1回のみ）"
-if ! sudo -v; then
-    echo "❌ sudo権限の取得に失敗しました"
-    exit 1
-fi
-
-# バックグラウンドでkeepaliveを開始
-sudo_keepalive &
-KEEPALIVE_PID=$!
-
-# プロセスIDを保存
-echo $KEEPALIVE_PID > /tmp/sudo_keepalive.pid
-
-echo "✅ sudo権限維持プロセスを開始しました (PID: $KEEPALIVE_PID)"
-echo "ℹ️  make all完了後、自動的に停止します"
+# レガシー互換性のため、従来の動作を維持
+print_status "sudo権限を維持します（新しいsudo-managerを使用）"
+acquire_sudo
+maintain_sudo

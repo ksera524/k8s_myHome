@@ -23,12 +23,12 @@ endef
 
 # SSH経由でのコマンド実行
 define k8s_exec
-	ssh $(SSH_OPTS) $(K8S_USER)@$(K8S_CONTROL_PLANE_IP) '$(1)'
+	timeout 30 ssh $(SSH_OPTS) $(K8S_USER)@$(K8S_CONTROL_PLANE_IP) '$(1)'
 endef
 
 # SSH経由での安全なコマンド実行（エラー無視）
 define k8s_exec_safe
-	ssh $(SSH_OPTS) $(K8S_USER)@$(K8S_CONTROL_PLANE_IP) '$(1)' 2>/dev/null || echo "$(WARNING) コマンド実行で警告が発生しましたが続行します"
+	timeout 30 ssh $(SSH_OPTS) $(K8S_USER)@$(K8S_CONTROL_PLANE_IP) '$(1)' 2>/dev/null || echo "$(WARNING) コマンド実行で警告が発生しましたが続行します"
 endef
 
 # kubectlコマンド実行

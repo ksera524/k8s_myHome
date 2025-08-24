@@ -1,0 +1,24 @@
+# ネットワーク設定
+# ホストおよびクラスターのネットワーク設定を定義
+
+host_network:
+  cidr: 192.168.122.0/24
+  gateway: 192.168.122.1
+  bridge: virbr0
+  
+metallb:
+  ip_pool:
+    name: default-pool
+    start: 192.168.122.100
+    end: 192.168.122.150
+    
+service_ips:
+  harbor: 192.168.122.100
+  ingress_nginx: 192.168.122.101
+  argocd: 192.168.122.102  # 将来の固定IP用に予約
+  
+port_forwarding:
+  argocd: 8080
+  harbor: 8081
+  prometheus: 9090
+  grafana: 3000

@@ -1,0 +1,83 @@
+# スクリプト依存関係定義ファイル
+# 各スクリプトの依存関係と実行順序を定義
+
+[scripts.common-colors]
+description = "カラー出力とステータス表示用共通関数"
+dependencies = []
+exports = ["print_status", "print_error", "print_warning", "print_success", "print_debug"]
+
+[scripts.common-ssh]
+description = "SSH接続用共通関数"
+dependencies = ["common-colors"]
+exports = ["k8s_ssh_control", "k8s_ssh_worker", "k8s_ssh_all_nodes", "k8s_kubectl", "k8s_scp"]
+
+[scripts.common-sudo]
+description = "sudo操作用共通関数"
+dependencies = []
+exports = ["sudo_n", "create_directory", "manage_service", "install_packages"]
+
+[scripts.common-validation]
+description = "検証用共通関数"
+dependencies = ["common-colors"]
+exports = ["check_network_connectivity", "check_port_open", "check_service_running", "check_kubectl_config"]
+
+[scripts.settings-loader]
+description = "settings.toml読み込みとexpect自動化"
+dependencies = ["common-colors"]
+exports = ["load_settings", "get_setting", "create_expect_response"]
+
+[scripts.common-k8s-utils]
+description = "Kubernetes操作用共通関数"
+dependencies = ["common-colors", "common-ssh"]
+exports = ["wait_for_argocd_sync", "configure_external_secrets", "get_secret_value"]
+
+[scripts.sudo-manager]
+description = "改善されたsudo権限管理"
+dependencies = ["common-colors"]
+exports = ["acquire_sudo", "maintain_sudo", "stop_maintain", "sudo_exec", "cleanup_sudo"]
+
+# 実行スクリプトの依存関係
+
+[scripts.setup-host]
+description = "ホストセットアップ"
+dependencies = ["common-colors", "common-sudo", "sudo-manager"]
+phase = "host-setup"
+order = 1
+
+[scripts.setup-storage]
+description = "ストレージセットアップ"
+dependencies = ["common-colors", "common-sudo", "common-validation"]
+phase = "host-setup"
+order = 2
+
+[scripts.clean-and-deploy]
+description = "インフラストラクチャデプロイ"
+dependencies = ["common-colors", "settings-loader"]
+phase = "infrastructure"
+order = 1
+
+[scripts.platform-deploy]
+description = "プラットフォームデプロイ"
+dependencies = ["common-colors", "common-ssh", "common-k8s-utils", "settings-loader"]
+phase = "platform"
+order = 1
+
+[scripts.add-runner]
+description = "GitHub Actions Runner追加"
+dependencies = ["common-colors", "common-k8s-utils", "settings-loader"]
+phase = "platform"
+order = 2
+
+# フェーズ定義
+
+[phases.host-setup]
+description = "ホスト準備フェーズ"
+scripts = ["setup-host", "setup-storage", "verify-setup"]
+
+[phases.infrastructure]
+description = "VM・Kubernetesクラスター構築フェーズ"
+scripts = ["clean-and-deploy"]
+
+[phases.platform]
+description = "プラットフォームサービス構築フェーズ"
+scripts = ["platform-deploy", "add-runner"]

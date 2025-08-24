@@ -1,0 +1,35 @@
+# Kubernetes クラスター設定
+# このファイルはクラスターの基本設定を定義します
+
+cluster:
+  name: home-k8s
+  version: v1.29.0
+  
+nodes:
+  control_plane:
+    - name: k8s-control-plane-1
+      ip: 192.168.122.10
+      cpu: 4
+      memory: 8192  # MB
+      disk: 50      # GB
+      
+  workers:
+    - name: k8s-worker-1
+      ip: 192.168.122.11
+      cpu: 2
+      memory: 4096
+      disk: 30
+      
+    - name: k8s-worker-2
+      ip: 192.168.122.12
+      cpu: 2
+      memory: 4096
+      disk: 30
+
+kubernetes:
+  api_port: 6443
+  pod_subnet: 10.244.0.0/16
+  service_subnet: 10.96.0.0/12
+  dns_domain: cluster.local
+  container_runtime: containerd
+  cni_plugin: flannel
