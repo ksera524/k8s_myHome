@@ -54,13 +54,20 @@ if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret 
     print_error "GitHub認証情報が見つかりません。make all を実行してください"
     exit 1
 fi
+print_status "✓ GitHub認証情報確認完了"
 
 # GitHub multi-repo secret確認/作成
 print_debug "GitHub multi-repo secret確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-multi-repo-secret -n arc-systems' >/dev/null 2>&1; then
     print_debug "github-multi-repo-secret を作成中..."
     GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-token -n arc-systems -o jsonpath="{.data.github_token}" | base64 -d')
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic github-multi-repo-secret --from-literal=github_token='$GITHUB_TOKEN' -n arc-systems"
+    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic github-multi-repo-secret --from-literal=github_token='$GITHUB_TOKEN' -n arc-systems"; then
+        print_debug "✓ github-multi-repo-secret 作成完了"
+    else
+        print_warning "⚠️ github-multi-repo-secret は既に存在するか、作成に失敗しました"
+    fi
+else
+    print_debug "✓ github-multi-repo-secret 確認済み"
 fi
 
 # Runner Scale Set作成
@@ -69,12 +76,13 @@ print_status "🏃 RunnerScaleSet作成中..."
 # 既存のRunnerを削除（存在する場合）
 if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm status '$RUNNER_NAME' -n arc-systems" >/dev/null 2>&1; then
     print_warning "既存の $RUNNER_NAME を削除中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm uninstall '$RUNNER_NAME' -n arc-systems"
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm uninstall '$RUNNER_NAME' -n arc-systems" || true
     sleep 5
 fi
 
 # RunnerScaleSetを作成（minRunners=1推奨）
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF
+HELM_INSTALL_RESULT=0
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF || HELM_INSTALL_RESULT=$?
 echo "=== RunnerScaleSet '$RUNNER_NAME' を作成中 ==="
 
 helm install $RUNNER_NAME \
@@ -85,10 +93,26 @@ helm install $RUNNER_NAME \
   --set maxRunners=3 \
   --set minRunners=1 \
   --set containerMode.type=dind \
-  --set template.spec.serviceAccountName=github-actions-runner
+  --set template.spec.serviceAccountName=github-actions-runner \
+  --wait --timeout=60s
 
 echo "✓ RunnerScaleSet '$RUNNER_NAME' 作成完了"
 EOF
+
+# Helm installの結果をチェック
+if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
+    print_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
+    print_debug "Helm install failed with exit code: $HELM_INSTALL_RESULT"
+    
+    # デバッグ情報を出力
+    print_debug "既存のHelm releasesを確認中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm list -n arc-systems" || true
+    
+    print_debug "ARC Controller Podの状態を確認中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get pods -n arc-systems | grep controller" || true
+    
+    exit 1
+fi
 
 # GitHub Actions workflow作成
 print_status "=== GitHub Actions workflow作成 ==="

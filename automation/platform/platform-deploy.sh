@@ -524,44 +524,80 @@ EOF
 fi
 
 # Phase 4.10.5: settings.tomlのリポジトリを自動add-runner
-print_status "=== Phase 4.10.5: settings.tomlのリポジトリを自動add-runner ==="
-print_debug "settings.tomlからリポジトリリストを読み込み中..."
+# この部分のエラーは無視して続行
+(
+    print_status "=== Phase 4.10.5: settings.tomlのリポジトリを自動add-runner ==="
+    print_debug "settings.tomlからリポジトリリストを読み込み中..."
 
-SETTINGS_FILE="$SCRIPT_DIR/../settings.toml"
-if [[ -f "$SETTINGS_FILE" ]]; then
-    # arc_repositoriesセクションを解析
-    ARC_REPOS_TEMP=$(sed -n '/^arc_repositories = \[/,/^]/p' "$SETTINGS_FILE" | grep -E '^\s*\[".*"\s*,.*\]')
-    
-    if [[ -n "$ARC_REPOS_TEMP" ]]; then
-        print_debug "arc_repositories設定を発見しました"
+    SETTINGS_FILE="$SCRIPT_DIR/../settings.toml"
+    if [[ -f "$SETTINGS_FILE" ]]; then
+        # arc_repositoriesセクションを解析
+        ARC_REPOS_TEMP=$(sed -n '/^arc_repositories = \[/,/^]/p' "$SETTINGS_FILE" | grep -E '^\s*\[".*"\s*,.*\]' || true)
         
-        # 各リポジトリに対してadd-runner.shを実行
-        while IFS= read -r line; do
-            [[ -z "$line" ]] && continue
+        if [[ -n "$ARC_REPOS_TEMP" ]]; then
+            print_debug "arc_repositories設定を発見しました"
             
-            # 正規表現で配列要素を抽出: ["name", min, max, "description"]
-            if [[ $line =~ \[\"([^\"]+)\",\ *([0-9]+),\ *([0-9]+), ]]; then
-                REPO_NAME="${BASH_REMATCH[1]}"
+            # リポジトリ数をカウント
+            REPO_COUNT=$(echo "$ARC_REPOS_TEMP" | wc -l)
+            print_debug "処理対象リポジトリ数: $REPO_COUNT"
+            
+            # 各リポジトリに対してadd-runner.shを実行
+            PROCESSED=0
+            FAILED=0
+            CURRENT=0
+            while IFS= read -r line; do
+                [[ -z "$line" ]] && continue
                 
-                print_status "🏃 $REPO_NAME のRunnerを追加中..."
-                
-                # add-runner.shを実行
-                if [[ -f "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" ]]; then
-                    bash "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" "$REPO_NAME"
-                    print_status "✓ $REPO_NAME Runner追加完了"
+                # 正規表現で配列要素を抽出: ["name", min, max, "description"]
+                if [[ $line =~ \[\"([^\"]+)\",\ *([0-9]+),\ *([0-9]+), ]]; then
+                    REPO_NAME="${BASH_REMATCH[1]}"
+                    MIN_RUNNERS="${BASH_REMATCH[2]}"
+                    MAX_RUNNERS="${BASH_REMATCH[3]}"
+                    ((CURRENT++))
+                    
+                    print_status "🏃 [$CURRENT/$REPO_COUNT] $REPO_NAME のRunnerを追加中... (min=$MIN_RUNNERS, max=$MAX_RUNNERS)"
+                    
+                    # add-runner.shを実行（エラーが発生しても継続）
+                    if [[ -f "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" ]]; then
+                        # エラーを無視して実行（stdinを保護）
+                        if bash "$SCRIPT_DIR/../scripts/github-actions/add-runner.sh" "$REPO_NAME" 2>&1 < /dev/null; then
+                            print_status "✓ $REPO_NAME Runner追加完了"
+                            ((PROCESSED++))
+                        else
+                            print_error "❌ $REPO_NAME Runner追加失敗"
+                            ((FAILED++))
+                        fi
+                        
+                        # 次のRunner作成前に少し待機（API制限回避）
+                        if [[ $CURRENT -lt $REPO_COUNT ]]; then
+                            print_debug "次のRunner作成前に5秒待機中..."
+                            sleep 5
+                        fi
+                    else
+                        print_error "add-runner.sh が見つかりません"
+                        # ファイルが見つからない場合は全て失敗とする
+                        FAILED=$((REPO_COUNT - PROCESSED))
+                        break
+                    fi
                 else
-                    print_error "add-runner.sh が見つかりません"
+                    print_warning "⚠️ 解析できない行: $line"
                 fi
+            done <<< "$ARC_REPOS_TEMP"
+            
+            print_status "✓ settings.tomlのリポジトリ自動追加完了 (成功: $PROCESSED, 失敗: $FAILED)"
+            
+            # 失敗があった場合は警告
+            if [[ $FAILED -gt 0 ]]; then
+                print_warning "⚠️ $FAILED 個のリポジトリでRunner追加に失敗しました"
+                print_warning "手動で 'make add-runner REPO=<name>' を実行してください"
             fi
-        done <<< "$ARC_REPOS_TEMP"
-        
-        print_status "✓ settings.tomlのリポジトリ自動追加完了"
+        else
+            print_debug "arc_repositories設定が見つかりません（スキップ）"
+        fi
     else
-        print_debug "arc_repositories設定が見つかりません（スキップ）"
+        print_warning "settings.tomlが見つかりません"
     fi
-else
-    print_warning "settings.tomlが見つかりません"
-fi
+) || print_warning "Runner自動追加でエラーが発生しましたが続行します"
 
 # Phase 4.11: 各種Application デプロイ
 print_status "=== Phase 4.11: 各種Application デプロイ ==="

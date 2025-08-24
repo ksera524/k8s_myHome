@@ -60,6 +60,16 @@ endef
 # 重要なログ表示
 logs:
 	$(call print_section,$(INFO),重要なログ表示)
+	@if [ -f "$(PROJECT_ROOT)/make-all.log" ]; then \
+		echo "$(INFO) 最新のmake allログ (最後の100行):"; \
+		echo "$(INFO) ログファイル: $(PROJECT_ROOT)/make-all.log"; \
+		echo ""; \
+		tail -n 100 $(PROJECT_ROOT)/make-all.log; \
+		echo ""; \
+	else \
+		echo "$(INFO) make allログが見つかりません"; \
+		echo ""; \
+	fi
 	$(call print_section,$(INFO),ArgoCD初期パスワード)
 	@$(call kubectl_exec,get secret argocd-initial-admin-secret -n $(ARGOCD_NAMESPACE) -o jsonpath='{.data.password}' | base64 -d) 2>/dev/null || echo "ArgoCD初期パスワードが取得できません"
 	@echo ""

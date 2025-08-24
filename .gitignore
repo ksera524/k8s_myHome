@@ -95,6 +95,9 @@ desktop.ini
 logs/
 log/
 
+# Make all log file
+make-all.log
+
 # Temporary files
 temp/
 tmp/

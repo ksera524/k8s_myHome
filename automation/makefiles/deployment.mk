@@ -2,7 +2,13 @@
 # デプロイメント関連のターゲット定義
 
 # 全自動デプロイ
-all: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment _sudo-cleanup
+all:
+	@echo "$(INFO) make all 実行開始: $$(date '+%Y-%m-%d %H:%M:%S')" | tee $(PROJECT_ROOT)/make-all.log
+	@echo "$(INFO) ログファイル: $(PROJECT_ROOT)/make-all.log" | tee -a $(PROJECT_ROOT)/make-all.log
+	@$(MAKE) _all-internal 2>&1 | tee -a $(PROJECT_ROOT)/make-all.log; exit $${PIPESTATUS[0]}
+
+# 内部実行用ターゲット（ログ記録のため分離）
+_all-internal: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment _sudo-cleanup
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@$(MAKE) status
 
