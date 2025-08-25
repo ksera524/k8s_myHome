@@ -8,12 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common-colors.sh"
 source "$SCRIPT_DIR/common-ssh.sh"
 
-# 環境変数を読み込む
-if [[ -f "$SCRIPT_DIR/../../config/secrets/.env" ]]; then
-    print_status "環境変数を読み込み中..."
-    source "$SCRIPT_DIR/../../config/secrets/.env"
+# 設定ファイルを読み込む
+if [[ -f "$SCRIPT_DIR/../settings.toml" ]]; then
+    print_status "settings.tomlから設定を読み込み中..."
+    source "$SCRIPT_DIR/settings-loader.sh" load 2>/dev/null || true
 else
-    print_error ".envファイルが見つかりません"
+    print_error "settings.tomlが見つかりません"
+    print_error "automation/settings.tomlを作成してください"
     exit 1
 fi
 

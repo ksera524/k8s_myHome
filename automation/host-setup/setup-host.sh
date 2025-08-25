@@ -19,11 +19,11 @@ print_status "Starting Phase 1: Host machine setup for k8s migration"
 
 # 1. System update
 print_status "Updating system packages..."
-sudo -n apt update && sudo -n apt upgrade -y
+sudo apt update && sudo apt upgrade -y
 
 # 2. Install virtualization packages
 print_status "Installing QEMU/KVM and libvirt packages..."
-sudo -n apt install -y \
+sudo apt install -y \
     qemu-kvm \
     libvirt-daemon-system \
     libvirt-clients \
@@ -35,7 +35,7 @@ sudo -n apt install -y \
 
 # 3. Install development and automation tools
 print_status "Installing development and automation tools..."
-sudo -n apt install -y \
+sudo apt install -y \
     git \
     curl \
     wget \
@@ -53,15 +53,15 @@ sudo -n apt install -y \
 # 4. Install Terraform
 print_status "Installing Terraform..."
 # 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo -n rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
+sudo rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
 wget -O- https://apt.releases.hashicorp.com/gpg | \
     gpg --dearmor | \
-    sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
     https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
-    sudo -n tee /etc/apt/sources.list.d/hashicorp.list
-sudo -n apt update
-sudo -n apt install -y terraform
+    sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update
+sudo apt install -y terraform
 
 # 5. Install Ansible
 print_status "Installing Ansible..."
@@ -69,42 +69,42 @@ sudo apt install -y ansible
 
 # 6. Install Docker (for building and testing)
 print_status "Installing Docker..."
-for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo -n apt-get remove $pkg; done
-sudo -n apt-get update
-sudo -n apt-get install -y ca-certificates curl
-sudo -n install -m 0755 -d /etc/apt/keyrings
-sudo -n curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo -n chmod a+r /etc/apt/keyrings/docker.asc
+for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo -n tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo -n apt-get update
-sudo -n apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # 7. Install kubectl
 print_status "Installing kubectl..."
 # 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo -n rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo -n gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo -n tee /etc/apt/sources.list.d/kubernetes.list
-sudo -n apt-get update
-sudo -n apt-get install -y kubectl
+sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubectl
 
 # 8. Install helm
 print_status "Installing Helm..."
 # 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo -n rm -f /usr/share/keyrings/helm.gpg
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo -n tee /usr/share/keyrings/helm.gpg > /dev/null
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo -n tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo -n apt-get update
-sudo -n apt-get install -y helm
+sudo rm -f /usr/share/keyrings/helm.gpg
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install -y helm
 
 # 9. Add user to required groups
 print_status "Adding user to required groups..."
-sudo -n usermod -aG libvirt $USER
-sudo -n usermod -aG kvm $USER
-sudo -n usermod -aG docker $USER
+sudo usermod -aG libvirt $USER
+sudo usermod -aG kvm $USER
+sudo usermod -aG docker $USER
 
 # 10. Check virtualization support
 print_status "Checking virtualization support..."
@@ -116,10 +116,10 @@ fi
 
 # 11. Enable and start services
 print_status "Enabling and starting required services..."
-sudo -n systemctl enable libvirtd
-sudo -n systemctl start libvirtd
-sudo -n systemctl enable docker
-sudo -n systemctl start docker
+sudo systemctl enable libvirtd
+sudo systemctl start libvirtd
+sudo systemctl enable docker
+sudo systemctl start docker
 
 # 12. Verify installations
 print_status "Verifying installations..."

@@ -4,13 +4,16 @@
 # 全自動デプロイ
 all:
 	@echo "$(INFO) make all 実行開始: $$(date '+%Y-%m-%d %H:%M:%S')" | tee $(PROJECT_ROOT)/make-all.log
-	@echo "$(INFO) ログファイル: $(PROJECT_ROOT)/make-all.log" | tee -a $(PROJECT_ROOT)/make-all.log
+	@echo "$(INFO) ログファイル: $(PROJECT_ROOT)/make-all.log"
+	@echo "$(INFO) sudo権限を事前に取得します..."
+	@sudo -v || (echo "$(ERROR) sudo権限の取得に失敗しました" && exit 1)
 	@$(MAKE) _all-internal 2>&1 | tee -a $(PROJECT_ROOT)/make-all.log; exit $${PIPESTATUS[0]}
+	@echo "$(INFO) make all 実行終了: $$(date '+%Y-%m-%d %H:%M:%S')" | tee -a $(PROJECT_ROOT)/make-all.log
 
 # 内部実行用ターゲット（ログ記録のため分離）
-_all-internal: _sudo-keepalive load-settings check-automation-readiness host-setup infrastructure platform post-deployment _sudo-cleanup
+_all-internal: load-settings check-automation-readiness host-setup infrastructure platform post-deployment
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
-	@$(MAKE) status
+	@$(MAKE) status || true
 
 # deployはallのエイリアス
 deploy: all
@@ -61,16 +64,16 @@ infrastructure:
 platform:
 	@echo "$(ROCKET) Kubernetesプラットフォーム構築開始"
 	@echo "$(KEY) ESO Prerequisites設定中..."
-	@bash -c 'source "$(SETTINGS_LOADER)" load && $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
 	@echo "$(INFO) App-of-Appsデプロイ強制実行中..."
 	@$(MAKE) _deploy-app-of-apps || echo "$(WARNING) App-of-Appsデプロイで警告が発生しましたが続行します"
 	@echo "$(INFO) External Secrets同期確認中..."
 	@$(MAKE) wait-for-external-secrets || echo "$(WARNING) External Secrets同期で一部警告が発生しましたが続行します"
 	@echo "$(GEAR) ArgoCD GitHub OAuth設定中..."
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	@echo "$(ROCKET) GitHub Actions Runner Controller (ARC) セットアップ中..."
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	@echo "$(CHECK) Kubernetesプラットフォーム構築完了"
 
 # App-of-Apps強制デプロイ（内部ターゲット）
@@ -104,13 +107,13 @@ post-deployment:
 	$(call force_argocd_sync)
 	@sleep 5
 	@$(MAKE) _check-cloudflared-app
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),ポストデプロイメント完了)
 
 # GitHub Actions Runner Controller (ARC) セットアップ（スタンドアロン）
 setup-arc:
 	$(call print_section,$(ROCKET),GitHub Actions Runner Controller セットアップ中...)
-	@bash -c 'source "$(SETTINGS_LOADER)" load && cd $(SCRIPTS_DIR)/github-actions && ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(SCRIPTS_DIR)/github-actions && ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),GitHub Actions Runner Controller セットアップ完了)
 
 # GitHub Actionsセットアップ（非推奨、setup-arcを使用）
@@ -133,7 +136,7 @@ _check-cloudflared-app:
 # ArgoCD GitHub OAuth修復
 fix-github-oauth:
 	$(call print_status,$(GEAR),ArgoCD GitHub OAuth設定修復中)
-	@cd $(PLATFORM_DIR) && ../scripts/argocd/fix-argocd-github-oauth.sh || echo "$(WARNING) GitHub OAuth修復で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && ../scripts/argocd/fix-argocd-github-oauth.sh' || echo "$(WARNING) GitHub OAuth修復で警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),ArgoCD GitHub OAuth設定修復完了)
 
 # 後方互換性用（非推奨）
@@ -149,13 +152,6 @@ k8s-cluster: infrastructure
 k8s-infrastructure: platform
 	@echo "$(WARNING) k8s-infrastructureは非推奨です。platformを使用してください"
 
-# sudo権限維持（内部ターゲット）
-_sudo-keepalive:
-	@$(SCRIPTS_DIR)/sudo-keepalive.sh
-
-# sudo権限クリーンアップ（内部ターゲット）
-_sudo-cleanup:
-	@$(SCRIPTS_DIR)/sudo-cleanup.sh
 
 # 後方互換性のためのフェーズエイリアス
 .PHONY: phase1 phase2 phase3 phase4 phase2-3

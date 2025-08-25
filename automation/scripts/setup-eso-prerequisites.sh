@@ -10,13 +10,13 @@ source "$SCRIPT_DIR/common-colors.sh"
 source "$SCRIPT_DIR/common-ssh.sh"
 
 # 設定ファイルを読み込む
-if [[ -f "$SCRIPT_DIR/../../config/secrets/.env" ]]; then
-    print_status "環境変数を読み込み中..."
-    source "$SCRIPT_DIR/../../config/secrets/.env"
-elif [[ -f "$SCRIPT_DIR/../settings.toml" ]]; then
-    # レガシー: settings.tomlから読み込み
-    print_warning "settings.tomlから読み込み（非推奨）"
+if [[ -f "$SCRIPT_DIR/../settings.toml" ]]; then
+    print_status "settings.tomlから設定を読み込み中..."
     source "$SCRIPT_DIR/settings-loader.sh" load 2>/dev/null || true
+else
+    print_error "settings.tomlが見つかりません"
+    print_error "automation/settings.tomlを作成してください"
+    exit 1
 fi
 
 # Pulumi Access Tokenの確認
