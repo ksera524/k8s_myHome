@@ -56,6 +56,16 @@ if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret 
 fi
 print_status "✓ GitHub認証情報確認完了"
 
+# Helm確認・インストール
+print_debug "Helm確認中..."
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'which helm' >/dev/null 2>&1; then
+    print_status "Helmをインストール中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
+    print_status "✓ Helmインストール完了"
+else
+    print_debug "✓ Helm確認済み"
+fi
+
 # GitHub multi-repo secret確認/作成
 print_debug "GitHub multi-repo secret確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-multi-repo-secret -n arc-systems' >/dev/null 2>&1; then
