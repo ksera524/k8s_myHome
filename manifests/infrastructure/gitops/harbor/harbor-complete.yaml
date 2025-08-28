@@ -5,8 +5,7 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd.argoproj.io/sync-wave: "-3"  # PVC作成後にデプロイ
+  # sync-waveを削除して通常の順序でデプロイ
 spec:
   project: default
   source:
@@ -46,11 +45,11 @@ spec:
             registry:
               size: 10Gi
               storageClass: "local-path"
-              existingClaim: "harbor-registry"
+              existingClaim: ""
             jobservice:
               size: 1Gi
               storageClass: "local-path"
-              existingClaim: "harbor-jobservice"
+              existingClaim: ""
             database:
               size: 1Gi
               storageClass: "local-path"

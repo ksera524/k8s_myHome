@@ -3,7 +3,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - harbor-pvc-patch.yaml      # sync-waveでPVCを先に作成
   - harbor-complete.yaml
   - harbor-external-ingress.yaml
-  - harbor-pvc-fix-job.yaml    # PostSync hookでPVC修正
+  - harbor-pvc-fix-job.yaml    # PostSync hookでPVC修正（念のため残す）
