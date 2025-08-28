@@ -5,6 +5,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"  # PVC作成後にデプロイ
 spec:
   project: default
   source:
@@ -44,18 +46,23 @@ spec:
             registry:
               size: 10Gi
               storageClass: "local-path"
+              existingClaim: "harbor-registry"
             jobservice:
               size: 1Gi
               storageClass: "local-path"
+              existingClaim: "harbor-jobservice"
             database:
               size: 1Gi
               storageClass: "local-path"
+              existingClaim: ""
             redis:
               size: 1Gi
               storageClass: "local-path"
+              existingClaim: ""
             trivy:
               size: 5Gi
               storageClass: "local-path"
+              existingClaim: ""
         
         database:
           type: internal
