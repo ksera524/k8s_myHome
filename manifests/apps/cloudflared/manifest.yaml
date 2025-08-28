@@ -3,6 +3,42 @@ kind: Namespace
 metadata:
   name: cloudflared
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: cloudflared
+data:
+  config.yaml: |
+    # Cloudflare Tunnel設定
+    # tunnel: 自動検出（トークン内に含まれる）
+    # credentials-file: 不要（トークンベース認証）
+    
+    # Ingress Rules
+    ingress:
+      # ArgoCD
+      - hostname: argocd.qroksera.com
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+        originRequest:
+          httpHostHeader: argocd.qroksera.com
+          noTLSVerify: true
+      
+      # Harbor
+      - hostname: harbor.qroksera.com
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+        originRequest:
+          httpHostHeader: harbor.qroksera.com
+          noTLSVerify: true
+      
+      # Workflow (将来用)
+      - hostname: workflow.qroksera.com
+        service: http://192.168.10.11:30001
+        originRequest:
+          noTLSVerify: true
+      
+      # 404をキャッチオール
+      - service: http_status:404
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,9 +59,10 @@ spec:
       containers:
       - name: cloudflared
         image: cloudflare/cloudflared:latest
-        command:
-        - cloudflared
+        args:
         - tunnel
+        - --config
+        - /etc/cloudflared/config/config.yaml
         - --metrics
         - 0.0.0.0:2000
         - run
@@ -37,6 +74,10 @@ spec:
             secretKeyRef:
               name: cloudflared
               key: token
+        volumeMounts:
+        - name: config
+          mountPath: /etc/cloudflared/config
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /ready
@@ -45,3 +86,15 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
           successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 2000
+          failureThreshold: 1
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+      volumes:
+      - name: config
+        configMap:
+          name: cloudflared-config

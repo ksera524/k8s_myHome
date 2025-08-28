@@ -5,12 +5,12 @@ kind: Kustomization
 
 resources:
   # MetalLB
-  - ../networking/metallb/metallb-app.yaml
-  - ../networking/metallb/metallb-config-app.yaml
+  - metallb-app.yaml
+  - metallb-config-app.yaml
   
-  # NGINX Ingress Controller
-  - ../networking/ingress-nginx/nginx-ingress-app.yaml
+  # NGINX Ingress Controller  
+  - nginx-ingress-app.yaml
   
   # cert-manager
-  - ../security/cert-manager/cert-manager-app.yaml
-  - ../security/cert-manager/cert-manager-config-app.yaml
+  - cert-manager-app.yaml
+  - cert-manager-config-app.yaml
