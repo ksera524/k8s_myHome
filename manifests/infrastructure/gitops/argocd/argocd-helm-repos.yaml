@@ -1,0 +1,11 @@
+# ArgoCD Helm Repository設定
+# HarborのHelm chartリポジトリを追加
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  helm.repositories: |
+    - url: https://helm.goharbor.io
+      name: harbor
