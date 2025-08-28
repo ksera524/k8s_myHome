@@ -1,8 +1,7 @@
-# Harbor Kustomization
+# Harbor Kustomization - 追加リソースのみ
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - harbor-complete.yaml
   - harbor-external-ingress.yaml
-  - harbor-pvc-fix-job.yaml    # PostSync hookでPVC修正（念のため残す）
+  # harbor-pvc-fix-job.yaml は一旦コメントアウト（Harbor本体がHelm経由でデプロイされるまで待つ必要があるため）
