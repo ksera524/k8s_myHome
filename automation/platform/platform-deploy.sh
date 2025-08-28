@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Kubernetes基盤構築スクリプト - ArgoCD→ESO従来順序版
-# MetalLB + Ingress Controller + cert-manager + ArgoCD → ESO → Harbor
+# Kubernetes基盤構築スクリプト - GitOps版
+# ArgoCD本体のみ手動インストール、他はすべてGitOps経由
 
 set -euo pipefail
 
@@ -35,13 +35,9 @@ print_status "=== Kubernetes基盤構築開始 ==="
 # 0. マニフェストファイルの準備
 print_status "マニフェストファイルをリモートにコピー中..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/networking/metallb/metallb-ipaddress-pool.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/security/cert-manager/cert-manager-selfsigned-issuer.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
+# ArgoCD関連ファイルのみコピー
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
-# ArgoCD OAuth Secret は GitOps 経由で管理されるため、コピー不要
-# scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
 print_status "✓ マニフェストファイルコピー完了"
 
@@ -71,83 +67,9 @@ else
     print_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
 fi
 
-# Phase 4.1: MetalLB インストール
-print_status "=== Phase 4.1: MetalLB インストール ==="
-print_debug "LoadBalancer機能を提供します"
-
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# MetalLB namespace作成
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
-
-# MetalLB起動まで待機
-echo "MetalLB Pod起動を待機中..."
-kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s
-
-# IPアドレスプール設定（libvirtデフォルトネットワーク範囲）
-kubectl apply -f /tmp/metallb-ipaddress-pool.yaml
-
-echo "✓ MetalLB設定完了"
-EOF
-
-print_status "✓ MetalLB インストール完了"
-
-# Phase 4.2: Ingress Controller (NGINX) インストール
-print_status "=== Phase 4.2: NGINX Ingress Controller インストール ==="
-print_debug "HTTP/HTTPSルーティング機能を提供します"
-
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# NGINX Ingress Controller インストール
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
-
-# Ingress Controller起動まで待機
-echo "NGINX Ingress Controller起動を待機中..."
-kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s
-
-# LoadBalancer ServiceのIP確認
-echo "LoadBalancer IP確認中..."
-kubectl -n ingress-nginx get service ingress-nginx-controller
-
-echo "✓ NGINX Ingress Controller設定完了"
-EOF
-
-print_status "✓ NGINX Ingress Controller インストール完了"
-
-# Phase 4.3: cert-manager インストール
-print_status "=== Phase 4.3: cert-manager インストール ==="
-print_debug "TLS証明書自動管理機能を提供します"
-
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# cert-manager インストール
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
-
-# cert-manager起動まで待機
-echo "cert-manager起動を待機中..."
-kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s
-
-# Self-signed ClusterIssuer作成（開発用）
-kubectl apply -f /tmp/cert-manager-selfsigned-issuer.yaml
-
-echo "✓ cert-manager設定完了"
-EOF
-
-print_status "✓ cert-manager インストール完了"
-
-# Phase 4.4: StorageClass設定
-print_status "=== Phase 4.4: StorageClass設定 ==="
-print_debug "永続ストレージ機能を設定します"
-
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
-# Local StorageClass作成
-kubectl apply -f /tmp/local-storage-class.yaml
-
-echo "✓ StorageClass設定完了"
-EOF
-
-print_status "✓ StorageClass設定完了"
-
-# Phase 4.5: 必要namespace作成
-print_status "=== Phase 4.5: 必要namespace作成 ==="
-print_debug "各コンポーネント用のnamespaceを事前作成します"
+# Phase 4.1: ArgoCD namespace作成
+print_status "=== Phase 4.1: ArgoCD namespace作成 ==="
+print_debug "ArgoCD用のnamespaceを作成します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # ArgoCD namespace作成（ArgoCD自体に必要）
@@ -158,8 +80,8 @@ EOF
 
 print_status "✓ ArgoCD namespace作成完了"
 
-# Phase 4.6: ArgoCD デプロイ
-print_status "=== Phase 4.6: ArgoCD デプロイ ==="
+# Phase 4.2: ArgoCD デプロイ
+print_status "=== Phase 4.2: ArgoCD デプロイ ==="
 print_debug "GitOps基盤をセットアップします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
@@ -179,16 +101,58 @@ echo "ArgoCD管理者パスワード:"
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 echo ""
 
-# ArgoCD Ingress設定（HTTP対応）
-kubectl apply -f /tmp/argocd-ingress.yaml
-
 echo "✓ ArgoCD基本設定完了"
 EOF
 
 print_status "✓ ArgoCD デプロイ完了"
 
-# Phase 4.7: ESO デプロイ (ArgoCD Application経由)
-print_status "=== Phase 4.7: External Secrets Operator デプロイ ==="
+# Phase 4.3: App-of-Appsパターン適用
+print_status "=== Phase 4.3: App-of-Appsパターン適用 ==="
+print_debug "GitOpsですべてのコンポーネントを管理します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# App-of-Apps適用
+echo "App-of-Apps適用中..."
+kubectl apply -f /tmp/app-of-apps.yaml
+
+# Core Infrastructure Application同期待機（MetalLB, NGINX, cert-manager）
+echo "Core Infrastructure Application同期待機中..."
+sleep 30
+
+if kubectl get application core-infrastructure -n argocd 2>/dev/null; then
+    kubectl wait --for=condition=Synced --timeout=300s application/core-infrastructure -n argocd || echo "Core Infrastructure同期継続中"
+    
+    # MetalLB, NGINX Ingress, cert-managerのデプロイ待機
+    echo "Core Infrastructureコンポーネントのデプロイ待機中..."
+    sleep 30
+    
+    # MetalLB確認
+    kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s || echo "MetalLBデプロイ中..."
+    
+    # NGINX Ingress Controller確認  
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s || echo "NGINX Ingressデプロイ中..."
+    
+    # cert-manager確認
+    kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s || echo "cert-managerデプロイ中..."
+    
+    # LoadBalancer IP確認
+    echo "LoadBalancer IP確認中..."
+    kubectl -n ingress-nginx get service ingress-nginx-controller
+fi
+
+# ArgoCD Ingress設定（Core Infrastructure完了後）
+kubectl apply -f /tmp/argocd-ingress.yaml
+
+echo "✓ App-of-Apps適用完了"
+EOF
+
+print_status "✓ App-of-Apps適用完了"
+
+
+
+
+# Phase 4.4: ESO デプロイ (ArgoCD Application経由)
+print_status "=== Phase 4.4: External Secrets Operator デプロイ ==="
 print_debug "Secret管理統合機能をArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
@@ -260,8 +224,8 @@ EOF
 
 print_status "✓ External Secrets Operator デプロイ完了"
 
-# Phase 4.8: ArgoCD GitHub OAuth設定 (ESO経由)
-print_status "=== Phase 4.8: ArgoCD GitHub OAuth設定 ==="
+# Phase 4.5: ArgoCD GitHub OAuth設定 (ESO経由)
+print_status "=== Phase 4.5: ArgoCD GitHub OAuth設定 ==="
 print_debug "GitHub OAuth設定をExternal Secrets経由で行います"
 
 # PULUMI_ACCESS_TOKEN確認
@@ -377,8 +341,8 @@ fi
 
 print_status "✓ ArgoCD GitHub OAuth設定完了"
 
-# Phase 4.9: Harbor デプロイ
-print_status "=== Phase 4.9: Harbor デプロイ ==="
+# Phase 4.6: Harbor デプロイ
+print_status "=== Phase 4.6: Harbor デプロイ ==="
 print_debug "Harbor Private Registry をArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
@@ -397,8 +361,8 @@ EOF
 
 print_status "✓ Harbor デプロイ完了"
 
-# Phase 4.9.5: Harbor認証設定（skopeo対応）
-print_status "=== Phase 4.9.5: Harbor認証設定（skopeo対応） ==="
+# Phase 4.7: Harbor認証設定（skopeo対応）
+print_status "=== Phase 4.7: Harbor認証設定（skopeo対応） ==="
 print_debug "Harbor認証情報secretをGitHub Actions用に設定します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
@@ -443,8 +407,8 @@ EOF
 
 print_status "✓ Harbor認証設定（skopeo対応）完了"
 
-# Phase 4.9.6: Worker ノード Containerd Harbor HTTP Registry設定
-print_status "=== Phase 4.9.6: Containerd Harbor HTTP Registry設定 ==="
+# Phase 4.8: Worker ノード Containerd Harbor HTTP Registry設定
+print_status "=== Phase 4.8: Containerd Harbor HTTP Registry設定 ==="
 print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
 
 # Harbor admin パスワード取得（ローカルで実行）
@@ -504,8 +468,8 @@ EOF
 
 print_status "✓ Containerd Harbor HTTP Registry設定完了"
 
-# Phase 4.10: GitHub Actions Runner Controller (ARC) セットアップ
-print_status "=== Phase 4.10: GitHub Actions Runner Controller セットアップ ==="
+# Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ
+print_status "=== Phase 4.9: GitHub Actions Runner Controller セットアップ ==="
 print_debug "GitHub Actions Runner Controller を直接セットアップします"
 
 # ARCセットアップスクリプト実行
@@ -523,10 +487,10 @@ else
 EOF
 fi
 
-# Phase 4.10.5: settings.tomlのリポジトリを自動add-runner
+# Phase 4.10: settings.tomlのリポジトリを自動add-runner
 # この部分のエラーは無視して続行
 (
-    print_status "=== Phase 4.10.5: settings.tomlのリポジトリを自動add-runner ==="
+    print_status "=== Phase 4.10: settings.tomlのリポジトリを自動add-runner ==="
     print_debug "settings.tomlからリポジトリリストを読み込み中..."
 
     SETTINGS_FILE="$SCRIPT_DIR/../settings.toml"
@@ -681,7 +645,7 @@ EOF
 
 print_status "✓ システム環境確認完了"
 
-print_status "=== Kubernetesプラットフォーム構築完了（skopeo対応） ==="
+print_status "=== Kubernetesプラットフォーム構築完了（GitOps版） ==="
 print_status "アクセス方法:"
 print_status "  ArgoCD UI: https://argocd.qroksera.com"
 print_status "  Harbor UI: https://harbor.qroksera.com"

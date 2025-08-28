@@ -1,7 +1,7 @@
 # ArgoCD App-of-Apps パターン - 改善されたディレクトリ構造版
-# デプロイ順序: Core → Infrastructure → Platform → Applications
+# デプロイ順序: Local Path Provisioner → Core Infrastructure → Core → Infrastructure → Platform → Applications
 
-# Local Path Provisioner - Harborより先にデプロイが必要
+# Local Path Provisioner - すべてのストレージに先立ってデプロイが必要
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -10,6 +10,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"  # 最初にデプロイ
 spec:
   project: default
   source:
@@ -32,7 +34,40 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# Core Components - 最初に作成（すべてが依存）
+# Core Infrastructure - MetalLB, NGINX Ingress, cert-manager
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: core-infrastructure
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"  # Local Path Provisionerの後
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/core-infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Core Components - 基本的なnamespaceとstorage class
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -40,6 +75,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"  # Core Infrastructureの後
 spec:
   project: default
   source:
@@ -62,7 +99,7 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# Infrastructure Layer - ネットワーク、セキュリティ、GitOps
+# Infrastructure Layer - ArgoCD設定、Harbor等
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -70,6 +107,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"  # Coreの後
 spec:
   project: default
   source:
@@ -100,6 +139,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"  # Infrastructureの後
 spec:
   project: default
   source:
@@ -129,6 +170,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"  # Platformの後
 spec:
   project: default
   source:
@@ -161,6 +204,8 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "35"  # Infrastructureの後、Platformより前
 spec:
   project: default
   source:

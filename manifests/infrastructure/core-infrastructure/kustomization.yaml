@@ -1,0 +1,16 @@
+# Core Infrastructure Kustomization
+# MetalLB, NGINX Ingress, cert-managerのArgoCD Applicationを管理
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # MetalLB
+  - ../networking/metallb/metallb-app.yaml
+  - ../networking/metallb/metallb-config-app.yaml
+  
+  # NGINX Ingress Controller
+  - ../networking/ingress-nginx/nginx-ingress-app.yaml
+  
+  # cert-manager
+  - ../security/cert-manager/cert-manager-app.yaml
+  - ../security/cert-manager/cert-manager-config-app.yaml
