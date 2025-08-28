@@ -115,6 +115,20 @@ ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@19
 echo "App-of-Apps適用中..."
 kubectl apply -f /tmp/app-of-apps.yaml
 
+# Local Path Provisionerの起動確認（最初にデプロイされる）
+echo "Local Path Provisioner の起動待機中..."
+sleep 20
+kubectl wait --namespace local-path-storage --for=condition=ready pod -l app=local-path-provisioner --timeout=300s || {
+    echo "警告: Local Path Provisionerの起動に時間がかかっています"
+}
+
+# StorageClassの存在確認
+if kubectl get storageclass local-path >/dev/null 2>&1; then
+    echo "✓ local-path StorageClass 確認完了"
+else
+    echo "エラー: local-path StorageClass が存在しません"
+fi
+
 # Core Infrastructure Application同期待機（MetalLB, NGINX, cert-manager）
 echo "Core Infrastructure Application同期待機中..."
 sleep 30
@@ -732,6 +746,125 @@ else
 fi
 EOF
 print_status "✓ Harbor IP Ingress 設定完了"
+
+# Harbor デプロイ状態の確認と修正
+print_status "Harbor デプロイ状態確認中..."
+
+# Harborデプロイの完了を待機（最大5分）
+print_debug "Harbor Application の同期待機中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# Harbor Applicationが存在するか確認
+if kubectl get application harbor -n argocd >/dev/null 2>&1; then
+    echo "Harbor Application 検出、同期状態を確認中..."
+    
+    # 同期完了またはエラーになるまで待機（最大5分）
+    TIMEOUT=300
+    while [ $TIMEOUT -gt 0 ]; do
+        SYNC_STATUS=$(kubectl get application harbor -n argocd -o jsonpath='{.status.sync.status}' || echo "Unknown")
+        HEALTH_STATUS=$(kubectl get application harbor -n argocd -o jsonpath='{.status.health.status}' || echo "Unknown")
+        
+        echo "Harbor Status - Sync: $SYNC_STATUS, Health: $HEALTH_STATUS (残り${TIMEOUT}秒)"
+        
+        if [ "$SYNC_STATUS" = "Synced" ] || [ "$HEALTH_STATUS" = "Degraded" ]; then
+            echo "Harbor デプロイ完了（またはPVC問題検出）"
+            break
+        fi
+        
+        sleep 10
+        TIMEOUT=$((TIMEOUT - 10))
+    done
+fi
+
+# Harbor namespaceの存在確認
+if ! kubectl get namespace harbor >/dev/null 2>&1; then
+    echo "Harbor namespace が存在しません。デプロイを待機中..."
+    kubectl wait --for=condition=Established namespace/harbor --timeout=60s || true
+fi
+EOF
+
+# Harbor PVC の確認と修正
+print_status "Harbor PVC 状態確認・修正中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+# 少し待機してPVCが作成されるのを待つ
+sleep 20
+
+# HarborのPVC状態を確認（複数回チェック）
+MAX_RETRY=3
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRY ]; do
+    echo "PVC確認試行: $((RETRY_COUNT + 1))/$MAX_RETRY"
+    
+    # StorageClass未設定またはPending状態のPVCを検出
+    PROBLEM_PVCS=$(kubectl get pvc -n harbor -o json 2>/dev/null | jq -r '.items[] | select((.spec.storageClassName == null or .spec.storageClassName == "") or .status.phase == "Pending") | .metadata.name' || echo "")
+    
+    if [ -z "$PROBLEM_PVCS" ]; then
+        echo "✓ すべてのHarbor PVCが正常です"
+        kubectl get pvc -n harbor
+        break
+    fi
+    
+    echo "問題のあるPVC検出: $PROBLEM_PVCS"
+    
+    # 各PVCを修正
+    for PVC_NAME in $PROBLEM_PVCS; do
+        echo "修正処理: $PVC_NAME"
+        
+        # PVC情報を取得
+        if kubectl get pvc -n harbor $PVC_NAME >/dev/null 2>&1; then
+            STORAGE_CLASS=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.spec.storageClassName}' || echo "")
+            SIZE=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.spec.resources.requests.storage}' || echo "1Gi")
+            
+            if [ -z "$STORAGE_CLASS" ]; then
+                echo "$PVC_NAME: StorageClass未設定を修正"
+                
+                # PVCを削除して再作成
+                kubectl delete pvc -n harbor $PVC_NAME --wait=false
+                sleep 2
+                
+                cat <<YAML | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $PVC_NAME
+  namespace: harbor
+  labels:
+    app: harbor
+    component: ${PVC_NAME#harbor-}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: $SIZE
+YAML
+                
+                echo "✓ $PVC_NAME 修正適用"
+            fi
+        fi
+    done
+    
+    # 修正後、少し待機
+    sleep 30
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+# 最終的なPVC状態を確認
+echo ""
+echo "=== Harbor PVC 最終状態 ==="
+kubectl get pvc -n harbor
+
+# Harbor Podの起動を待機
+echo ""
+echo "Harbor Pod 起動待機中..."
+kubectl wait --namespace harbor --for=condition=ready pod -l app=harbor --timeout=300s || echo "一部のPodがまだ起動中..."
+
+# Harbor Pod状態表示
+echo ""
+echo "=== Harbor Pod 状態 ==="
+kubectl get pods -n harbor
+EOF
 
 # Harbor の動作確認
 print_status "Harbor の動作確認中..."

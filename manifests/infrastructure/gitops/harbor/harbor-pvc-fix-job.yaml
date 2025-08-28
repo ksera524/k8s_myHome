@@ -1,0 +1,167 @@
+# Harbor PVC Fix Job - ArgoCD PostSync Hook
+# このJobはHarborデプロイ後に実行され、StorageClassが設定されていないPVCを修正します
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: harbor-pvc-fix-script
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+data:
+  fix-pvcs.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "Harbor PVC修正スクリプトを開始します..."
+    
+    # StorageClassが設定されていないPVCを検出
+    PENDING_PVCS=$(kubectl get pvc -n harbor -o json | jq -r '.items[] | select(.spec.storageClassName == null or .spec.storageClassName == "" or .status.phase == "Pending") | .metadata.name')
+    
+    if [ -z "$PENDING_PVCS" ]; then
+        echo "修正が必要なPVCはありません"
+        exit 0
+    fi
+    
+    echo "修正が必要なPVC: $PENDING_PVCS"
+    
+    # 各PVCを修正
+    for PVC_NAME in $PENDING_PVCS; do
+        echo "処理中: $PVC_NAME"
+        
+        # 現在のPVC情報を取得
+        STORAGE_SIZE=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.spec.resources.requests.storage}' || echo "1Gi")
+        ACCESS_MODE=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.spec.accessModes[0]}' || echo "ReadWriteOnce")
+        
+        # StorageClassが未設定の場合のみ修正
+        CURRENT_SC=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.spec.storageClassName}' || echo "")
+        if [ -z "$CURRENT_SC" ] && [ "$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.status.phase}')" = "Pending" ]; then
+            echo "$PVC_NAME: StorageClass未設定、修正します"
+            
+            # PVCを削除して再作成
+            kubectl delete pvc -n harbor $PVC_NAME --wait=false
+            
+            cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: $PVC_NAME
+      namespace: harbor
+      labels:
+        app: harbor
+        component: ${PVC_NAME#harbor-}
+    spec:
+      accessModes:
+      - $ACCESS_MODE
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: $STORAGE_SIZE
+    EOF
+            
+            echo "$PVC_NAME: 修正完了"
+            
+            # PVCがBoundになるまで待機（最大60秒）
+            TIMEOUT=60
+            while [ $TIMEOUT -gt 0 ]; do
+                PHASE=$(kubectl get pvc -n harbor $PVC_NAME -o jsonpath='{.status.phase}' || echo "")
+                if [ "$PHASE" = "Bound" ]; then
+                    echo "$PVC_NAME: Bound状態になりました"
+                    break
+                fi
+                echo "$PVC_NAME: 待機中... (残り${TIMEOUT}秒)"
+                sleep 5
+                TIMEOUT=$((TIMEOUT - 5))
+            done
+        else
+            echo "$PVC_NAME: 既にStorageClassが設定されているかBound状態です"
+        fi
+    done
+    
+    # 関連するPodの再起動
+    echo "Harbor Podの再起動を待機中..."
+    kubectl delete pod -n harbor -l app=harbor --force --grace-period=0 || true
+    sleep 10
+    
+    # 最終状態を確認
+    echo ""
+    echo "=== 最終的なPVC状態 ==="
+    kubectl get pvc -n harbor
+    echo ""
+    echo "Harbor PVC修正スクリプト完了"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-pvc-fix
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      name: harbor-pvc-fix
+    spec:
+      serviceAccountName: harbor-pvc-fix-sa
+      containers:
+      - name: fix-pvcs
+        image: bitnami/kubectl:1.29
+        command: ["/bin/bash"]
+        args: ["/scripts/fix-pvcs.sh"]
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: script
+        configMap:
+          name: harbor-pvc-fix-script
+          defaultMode: 0755
+      restartPolicy: OnFailure
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harbor-pvc-fix-sa
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harbor-pvc-fix-role
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "pods"]
+  verbs: ["get", "list", "delete", "create", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-pvc-fix-rolebinding
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: harbor-pvc-fix-role
+subjects:
+- kind: ServiceAccount
+  name: harbor-pvc-fix-sa
+  namespace: harbor

@@ -1,7 +1,7 @@
 # k8s_myHome Makefile
 # Kubernetes home infrastructure automation
 
-.PHONY: all clean add-runner help redeploy-k8s redeploy-platform
+.PHONY: all clean add-runner help redeploy-k8s redeploy-platform fix-issues
 
 # デフォルトターゲット
 help:
@@ -34,6 +34,9 @@ all:
 	cd automation/platform && ./platform-deploy.sh
 	@echo ""
 	@echo "=== 構築完了 ==="
+	@echo ""
+	@echo "Note: 初回デプロイ時にPVCやCRDの問題が発生した場合は、"
+	@echo "      'make fix-issues' を実行してください"
 
 # GitHub Actions Runner 追加
 add-runner:
@@ -61,6 +64,14 @@ redeploy-platform:
 	cd automation/platform && ./platform-deploy.sh
 	@echo ""
 	@echo "=== プラットフォーム再デプロイ完了 ==="
+
+# 問題修正
+fix-issues:
+	@echo "=== 既知の問題を修正 ==="
+	@echo "Harbor PVCとCRD同期問題を修正します..."
+	cd automation/platform && ./fix-storage-issues.sh
+	@echo ""
+	@echo "=== 修正完了 ==="
 
 # クリーンアップ
 clean:

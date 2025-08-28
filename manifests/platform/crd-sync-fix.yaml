@@ -1,0 +1,184 @@
+# CRD Sync Fix Job - MetalLB と ARC Controller の CRD 同期問題を修正
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crd-sync-fix-script
+  namespace: argocd
+data:
+  fix-crd-sync.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "CRD同期問題の修正を開始します..."
+    
+    # MetalLB CRD 修正
+    echo "=== MetalLB CRD 修正 ==="
+    OUT_OF_SYNC_METALLB=$(kubectl get application metallb -n argocd -o jsonpath='{.status.resources}' | \
+      jq -r '.[] | select(.status == "OutOfSync" and .kind == "CustomResourceDefinition") | .name' || echo "")
+    
+    if [ -n "$OUT_OF_SYNC_METALLB" ]; then
+        echo "OutOfSync MetalLB CRDs: $OUT_OF_SYNC_METALLB"
+        
+        # 古いCRDが存在する場合は削除
+        for CRD in $OUT_OF_SYNC_METALLB; do
+            echo "CRD確認: $CRD"
+            if kubectl get crd $CRD >/dev/null 2>&1; then
+                # バージョン確認
+                VERSION=$(kubectl get crd $CRD -o jsonpath='{.spec.versions[0].name}')
+                echo "$CRD バージョン: $VERSION"
+                
+                # v1beta1の場合は削除して再同期
+                if [[ "$VERSION" == *"beta"* ]]; then
+                    echo "$CRD は古いバージョンです。削除します..."
+                    kubectl delete crd $CRD || true
+                fi
+            fi
+        done
+        
+        # MetalLB Application を再同期
+        echo "MetalLB Application を再同期中..."
+        kubectl patch application metallb -n argocd --type merge \
+          -p '{"operation":{"sync":{"revision":"HEAD","prune":true,"syncOptions":["Replace=true"]}}}' || true
+        
+        sleep 30
+    else
+        echo "✓ MetalLB CRD は同期済みです"
+    fi
+    
+    # ARC Controller CRD 修正
+    echo ""
+    echo "=== ARC Controller CRD 修正 ==="
+    OUT_OF_SYNC_ARC=$(kubectl get application arc-controller -n argocd -o jsonpath='{.status.resources}' | \
+      jq -r '.[] | select(.status == "OutOfSync" and .kind == "CustomResourceDefinition") | .name' || echo "")
+    
+    if [ -n "$OUT_OF_SYNC_ARC" ]; then
+        echo "OutOfSync ARC CRDs: $OUT_OF_SYNC_ARC"
+        
+        # CRDが存在しない場合は作成を強制
+        for CRD in $OUT_OF_SYNC_ARC; do
+            echo "CRD確認: $CRD"
+            if ! kubectl get crd $CRD >/dev/null 2>&1; then
+                echo "$CRD が存在しません。作成を強制します..."
+            fi
+        done
+        
+        # ARC Controller Application を再同期
+        echo "ARC Controller Application を再同期中..."
+        kubectl patch application arc-controller -n argocd --type merge \
+          -p '{"operation":{"sync":{"revision":"HEAD","prune":true,"syncOptions":["Replace=true","CreateNamespace=true"]}}}' || true
+        
+        sleep 30
+    else
+        echo "✓ ARC Controller CRD は同期済みです"
+    fi
+    
+    # 最終状態確認
+    echo ""
+    echo "=== 最終状態確認 ==="
+    echo "MetalLB:"
+    kubectl get application metallb -n argocd -o jsonpath='{.status.sync.status}' || echo "Unknown"
+    echo ""
+    echo "ARC Controller:"
+    kubectl get application arc-controller -n argocd -o jsonpath='{.status.sync.status}' || echo "Unknown"
+    echo ""
+    echo "CRD一覧:"
+    kubectl get crd | grep -E "(metallb|actions.github)" || true
+    
+    echo ""
+    echo "CRD同期修正完了"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: crd-sync-fix
+  namespace: argocd
+spec:
+  # 毎日深夜2時に実行（日本時間）
+  schedule: "0 17 * * *"  # UTC 17:00 = JST 02:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          name: crd-sync-fix
+        spec:
+          serviceAccountName: crd-sync-fix-sa
+          containers:
+          - name: fix-crd
+            image: bitnami/kubectl:1.29
+            command: ["/bin/bash"]
+            args: ["/scripts/fix-crd-sync.sh"]
+            volumeMounts:
+            - name: script
+              mountPath: /scripts
+          volumes:
+          - name: script
+            configMap:
+              name: crd-sync-fix-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+
+---
+# 手動実行用Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: crd-sync-fix-manual
+  namespace: argocd
+spec:
+  template:
+    metadata:
+      name: crd-sync-fix
+    spec:
+      serviceAccountName: crd-sync-fix-sa
+      containers:
+      - name: fix-crd
+        image: bitnami/kubectl:1.29
+        command: ["/bin/bash"]
+        args: ["/scripts/fix-crd-sync.sh"]
+        volumeMounts:
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: script
+        configMap:
+          name: crd-sync-fix-script
+          defaultMode: 0755
+      restartPolicy: OnFailure
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crd-sync-fix-sa
+  namespace: argocd
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crd-sync-fix-role
+rules:
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "delete", "create", "patch"]
+- apiGroups: ["argoproj.io"]
+  resources: ["applications"]
+  verbs: ["get", "list", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crd-sync-fix-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crd-sync-fix-role
+subjects:
+- kind: ServiceAccount
+  name: crd-sync-fix-sa
+  namespace: argocd
