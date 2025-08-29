@@ -875,8 +875,59 @@ else
 fi
 
 print_status "🎉 すべての設定が完了しました！"
+
+# GitHub Actions Runner の自動セットアップ
+print_status ""
+print_status "=== GitHub Actions Runner 自動セットアップ ==="
+
+# settings.tomlからarc_repositoriesを読み込んでRunnerを追加
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETTINGS_FILE="${SCRIPT_DIR}/../settings.toml"
+ADD_RUNNER_SCRIPT="${SCRIPT_DIR}/../scripts/github-actions/add-runner.sh"
+
+if [[ -f "$SETTINGS_FILE" ]]; then
+    print_debug "settings.tomlから設定されたリポジトリを読み込み中..."
+    
+    # arc_repositories配列を読み込む（bashで解析）
+    # 形式: ["repo_name", min, max, "description"]
+    arc_repos=$(grep -A20 "^arc_repositories = \[" "$SETTINGS_FILE" | sed -n '/arc_repositories/,/\]/p' | grep '^\s*\[' | grep -v "^arc_repositories")
+    
+    if [[ -n "$arc_repos" ]]; then
+        repo_count=$(echo "$arc_repos" | wc -l)
+        print_status "🔍 ${repo_count} 個のリポジトリ用Runnerを追加します"
+        
+        # 各リポジトリを処理
+        echo "$arc_repos" | while IFS= read -r line; do
+            # ["repo_name", 1, 3, "description"] から repo_name を抽出
+            repo_name=$(echo "$line" | sed 's/.*\["\([^"]*\)".*/\1/')
+            
+            if [[ -n "$repo_name" ]]; then
+                print_status ""
+                print_status "🏃 ${repo_name} のRunner追加中..."
+                
+                # add-runner.shを実行
+                if [[ -x "$ADD_RUNNER_SCRIPT" ]]; then
+                    if "$ADD_RUNNER_SCRIPT" "$repo_name"; then
+                        print_status "✅ ${repo_name} のRunner追加完了"
+                    else
+                        print_warning "❌ ${repo_name} のRunner追加に失敗しました"
+                    fi
+                else
+                    print_error "add-runner.shが見つからないか実行可能ではありません: $ADD_RUNNER_SCRIPT"
+                fi
+            fi
+        done
+        
+        print_status ""
+        print_status "✨ すべてのRunnerの追加処理が完了しました"
+    else
+        print_debug "arc_repositoriesにリポジトリが設定されていません"
+    fi
+else
+    print_warning "settings.tomlが見つかりません"
+fi
+
 print_status ""
 print_status "次のステップ:"
-print_status "  1. GitHub リポジトリに workflow ファイルを追加"
-print_status "  2. make add-runner REPO=your-repo でリポジトリ用の Runner を追加"
-print_status "  3. git push で GitHub Actions が自動実行されます"
+print_status "  1. 追加のリポジトリがある場合: make add-runner REPO=your-repo"
+print_status "  2. git push で GitHub Actions が自動実行されます"
