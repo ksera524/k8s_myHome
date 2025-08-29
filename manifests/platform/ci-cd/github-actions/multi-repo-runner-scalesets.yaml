@@ -46,8 +46,7 @@ metadata:
     repo: k8s-myhome
 spec:
   githubConfigUrl: https://github.com/ksera524/k8s_myHome
-  githubConfigSecret:
-    name: github-multi-repo-secret
+  githubConfigSecret: github-multi-repo-secret
   runnerGroup: default
   minRunners: 1
   maxRunners: 3
@@ -116,8 +115,7 @@ metadata:
     repo: slack-rs
 spec:
   githubConfigUrl: https://github.com/ksera524/slack.rs
-  githubConfigSecret:
-    name: github-multi-repo-secret
+  githubConfigSecret: github-multi-repo-secret
   runnerGroup: default
   minRunners: 0
   maxRunners: 2
@@ -187,8 +185,7 @@ metadata:
 spec:
   # 共用目的のため、メインリポジトリを設定
   githubConfigUrl: https://github.com/ksera524/k8s_myHome
-  githubConfigSecret:
-    name: github-multi-repo-secret
+  githubConfigSecret: github-multi-repo-secret
   runnerGroup: default
   minRunners: 0
   maxRunners: 2

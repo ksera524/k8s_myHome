@@ -33,3 +33,6 @@ resources:
   - security/cert-manager/cluster-issuer.yaml
   - security/cert-manager/harbor-certificate.yaml
   - security/cert-manager/issuer.yaml
+  
+  # GitHub Actions Runner Controller
+  - gitops/arc/arc-controller.yaml
