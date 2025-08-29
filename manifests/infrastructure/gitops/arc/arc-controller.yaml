@@ -27,6 +27,10 @@ spec:
           requests:
             cpu: 50m
             memory: 64Mi
+        
+        # RBAC権限を拡張（Roleの作成を許可）
+        rbac:
+          create: true
   
   destination:
     server: https://kubernetes.default.svc
