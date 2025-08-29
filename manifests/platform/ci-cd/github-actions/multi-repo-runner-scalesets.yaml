@@ -34,9 +34,9 @@ metadata:
     app.kubernetes.io/part-of: actions-runner-controller
 
 ---
-# RunnerScaleSet for k8s_myHome repository
+# AutoscalingRunnerSet for k8s_myHome repository
 apiVersion: actions.github.com/v1alpha1
-kind: RunnerScaleSet
+kind: AutoscalingRunnerSet
 metadata:
   name: k8s-myhome-runners
   namespace: arc-systems
@@ -104,9 +104,9 @@ spec:
         emptyDir: {}
 
 ---
-# RunnerScaleSet for slack.rs repository
+# AutoscalingRunnerSet for slack.rs repository
 apiVersion: actions.github.com/v1alpha1
-kind: RunnerScaleSet
+kind: AutoscalingRunnerSet
 metadata:
   name: slack-rs-runners
   namespace: arc-systems
@@ -174,9 +174,9 @@ spec:
         emptyDir: {}
 
 ---
-# RunnerScaleSet for general shared usage (新規リポジトリ用のテンプレート)
+# AutoscalingRunnerSet for general shared usage (新規リポジトリ用のテンプレート)
 apiVersion: actions.github.com/v1alpha1
-kind: RunnerScaleSet
+kind: AutoscalingRunnerSet
 metadata:
   name: shared-runners
   namespace: arc-systems
