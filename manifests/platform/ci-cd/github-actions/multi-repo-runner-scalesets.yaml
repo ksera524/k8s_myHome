@@ -9,7 +9,7 @@ metadata:
   name: github-multi-repo-secret
   namespace: arc-systems
 spec:
-  refreshInterval: 20s
+  refreshInterval: 5m
   secretStoreRef:
     kind: ClusterSecretStore
     name: pulumi-esc-store
@@ -20,7 +20,7 @@ spec:
   - secretKey: github_token
     remoteRef:
       key: github
-      property: token
+      property: pat
 
 ---
 # ServiceAccount for GitHub Actions Runner (共通)
