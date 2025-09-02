@@ -164,9 +164,9 @@ if kubectl get application external-secrets-operator -n argocd 2>/dev/null; then
     # Pulumi Access Token Secret作成（ESO起動後すぐに）
     if [[ -n "${PULUMI_ACCESS_TOKEN}" ]]; then
         echo "Pulumi Access Token Secret作成中..."
-        kubectl create secret generic pulumi-esc-token \\
-          --namespace external-secrets-system \\
-          --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \\
+        kubectl create secret generic pulumi-esc-token \
+          --namespace external-secrets-system \
+          --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
           --dry-run=client -o yaml | kubectl apply -f -
         echo "✓ Pulumi Access Token Secret作成完了"
     else
