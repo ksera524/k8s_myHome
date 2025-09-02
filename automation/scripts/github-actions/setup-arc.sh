@@ -35,11 +35,11 @@ ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create namespace
 
 # GitHub認証Secret確認（ESOから取得されているはず）
 print_debug "GitHub認証情報確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-token -n arc-systems' >/dev/null 2>&1; then
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
     print_warning "GitHub認証情報が見つかりません。ESOが同期するまで待機中..."
     sleep 30
     
-    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-token -n arc-systems' >/dev/null 2>&1; then
+    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
         print_error "GitHub認証情報が作成されていません。External Secrets Operatorの設定を確認してください"
         exit 1
     fi
