@@ -115,6 +115,9 @@ values-production.yaml
 
 # External Secrets definitions are safe to commit
 !manifests/platform/secrets/external-secrets/*-secret.yaml
+# ArgoCD config files are safe to commit
+!manifests/platform/argocd-config/*-secret.yaml
+!manifests/platform/argocd-config/*-secrets.yaml
 
 # Kubernetes manifests with secrets (if any)
 *-password.yaml
