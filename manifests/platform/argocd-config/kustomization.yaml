@@ -5,7 +5,7 @@ kind: Kustomization
 
 resources:
   # ArgoCD ConfigMap (argocd-cm, argocd-rbac-cm)
-  - ../../infrastructure/gitops/argocd/argocd-config.yaml
+  - argocd-config.yaml
   # ArgoCD GitHub OAuth Secret (External Secret経由)
   - argocd-github-oauth-secret.yaml
   # Harbor Docker Registry Secrets (各namespace用)
