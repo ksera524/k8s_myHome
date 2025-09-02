@@ -240,7 +240,7 @@ fi
 echo "ClusterSecretStore準備完了待機中..."
 timeout=60
 while [ $timeout -gt 0 ]; do
-    if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q Ready; then
+    if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q True; then
         echo "✓ ClusterSecretStore準備完了"
         break
     fi
