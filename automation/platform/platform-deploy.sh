@@ -37,7 +37,8 @@ print_status "マニフェストファイルをリモートにコピー中..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
+# ArgoCD ConfigMapはGitOps経由で管理されるため、コピー不要
+# scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
 # ArgoCD OAuth Secret は GitOps 経由で管理されるため、コピー不要
 # scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
 scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
@@ -169,7 +170,10 @@ if kubectl get application external-secrets-operator -n argocd 2>/dev/null; then
           --dry-run=client -o yaml | kubectl apply -f -
         echo "✓ Pulumi Access Token Secret作成完了"
     else
-        echo "警告: PULUMI_ACCESS_TOKEN未設定、ESOはデフォルト動作になります"
+        echo "エラー: PULUMI_ACCESS_TOKEN が設定されていません"
+        echo "External Secrets Operator が正常に動作しません"
+        echo "settings.toml に Pulumi Access Token を設定してください"
+        exit 1
     fi
 fi
 
@@ -193,10 +197,10 @@ ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@19
 if kubectl get secret pulumi-esc-token -n external-secrets-system 2>/dev/null; then
     echo "✓ Pulumi Access Token Secret確認済み"
 else
-    echo "警告: Pulumi Access Token未設定、手動Secret作成にフォールバック"
-    # フォールバック: 手動でGitHub OAuth Secret作成
-    echo "GitHub OAuth Secret手動作成中..."
-    kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+    echo "エラー: Pulumi Access Token Secret が見つかりません"
+    echo "External Secrets Operator が正常に動作できません"
+    echo "settings.toml の [Pulumi] セクションに access_token を設定してください"
+    exit 1
 fi
 
 # Platform Application存在確認
@@ -246,8 +250,10 @@ while [ $timeout -gt 0 ]; do
 done
 
 if [ $timeout -le 0 ]; then
-    echo "⚠️ ClusterSecretStore作成タイムアウト、手動Secret作成にフォールバック"
-    kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+    echo "エラー: ClusterSecretStore作成タイムアウト"
+    echo "Pulumi ESC との接続が確立できませんでした"
+    echo "Pulumi Access Token が正しいか確認してください"
+    exit 1
 else
     # External Secret同期待機（ArgoCD GitHub OAuth）
     timeout=60
@@ -265,13 +271,15 @@ else
     done
     
     if [ $timeout -le 0 ]; then
-        echo "⚠️ ESO同期タイムアウト、手動Secret作成にフォールバック"
-        kubectl patch secret argocd-secret -n argocd -p '{"data":{"dex.github.clientSecret":"Z2hwX0ROUlVKVGxKNVVFeEtZTXIzODIzNnJ5Y1Uwd1A4VDI3ZGJmYw=="}}'
+        echo "エラー: External Secret同期タイムアウト"
+        echo "Pulumi ESC からのSecret取得に失敗しました"
+        echo "Pulumi ESC の設定とキーが正しいか確認してください"
+        exit 1
     fi
 fi
 
-# ArgoCD GitHub OAuth ConfigMap適用
-kubectl apply -f /tmp/argocd-config.yaml
+# ArgoCD GitHub OAuth ConfigMapはGitOps経由で同期されます
+echo "ArgoCD ConfigMapはPlatform Application経由で同期されます"
 
 # ArgoCD サーバー再起動
 kubectl rollout restart deployment argocd-server -n argocd
@@ -327,13 +335,10 @@ fi
 # Pulumi ESC準備状況確認
 PULUMI_TOKEN_EXISTS=$(kubectl get secret pulumi-esc-token -n external-secrets-system 2>/dev/null || echo "none")
 if [[ "$PULUMI_TOKEN_EXISTS" == "none" ]]; then
-    echo "警告: Pulumi Access Tokenが設定されていません。デフォルトパスワードを使用します。"
-    # デフォルトのharbor-admin-secret作成
-    kubectl create secret generic harbor-admin-secret \
-        --namespace harbor \
-        --from-literal=username="admin" \
-        --from-literal=password="Harbor12345" \
-        --dry-run=client -o yaml | kubectl apply -f -
+    echo "エラー: Pulumi Access Tokenが設定されていません"
+    echo "Harbor認証情報をExternal Secrets経由で取得できません"
+    echo "settings.toml の [Pulumi] セクションに access_token を設定してください"
+    exit 1
 else
     # External Secretリソースの存在確認
     echo "Harbor External Secretリソース確認中..."
@@ -360,26 +365,20 @@ while [ $timeout -gt 0 ]; do
     timeout=$((timeout - 5))
 done
 
-# Harbor管理者パスワード取得 (ESO経由またはデフォルト)
+# Harbor管理者パスワード取得 (ESO経由のみ)
 HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
 if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
-    echo "警告: ESOからHarborパスワードを取得できませんでした。デフォルトパスワードを使用します"
-    HARBOR_ADMIN_PASSWORD="Harbor12345"
+    echo "エラー: ESOからHarborパスワードを取得できませんでした"
+    echo "External Secretsの同期が完了していません"
+    echo "kubectl get externalsecret -n harbor で状態を確認してください"
+    exit 1
 fi
 
 # arc-systems namespace作成（存在しない場合）
 kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
 
-# arc-systems namespace に harbor-auth secret 作成
-kubectl create secret generic harbor-auth \
-    --namespace arc-systems \
-    --from-literal=HARBOR_USERNAME="admin" \
-    --from-literal=HARBOR_PASSWORD="$HARBOR_ADMIN_PASSWORD" \
-    --from-literal=HARBOR_URL="192.168.122.100" \
-    --from-literal=HARBOR_PROJECT="sandbox" \
-    --dry-run=client -o yaml | kubectl apply -f -
-
-echo "✓ Harbor認証Secret (arc-systems) 作成完了"
+# arc-systems namespace の harbor-auth secret は GitOps経由で作成されます
+echo "Harbor認証Secret (arc-systems) はGitOps経由で同期されます"
 
 # 必要なネームスペースにHarbor Docker registry secret作成
 NAMESPACES=("default" "sandbox" "production" "staging")
@@ -388,15 +387,7 @@ for namespace in "${NAMESPACES[@]}"; do
     # ネームスペース作成（存在しない場合）
     kubectl create namespace $namespace --dry-run=client -o yaml | kubectl apply -f -
     
-    # harbor-http Docker registry secret作成
-    kubectl create secret docker-registry harbor-http \
-        --namespace $namespace \
-        --docker-server="192.168.122.100" \
-        --docker-username="admin" \
-        --docker-password="$HARBOR_ADMIN_PASSWORD" \
-        --dry-run=client -o yaml | kubectl apply -f -
-    
-    echo "✓ harbor-http secret ($namespace) 作成完了"
+    echo "harbor-http secret ($namespace) はGitOps経由で同期されます"
 done
 
 echo "✓ Harbor認証設定完了 - skopeo対応"
@@ -411,8 +402,10 @@ print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追
 # Harbor admin パスワード取得（ローカルで実行）
 HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d')
 if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
-    print_warning "ESOからHarborパスワードを取得できませんでした。デフォルトパスワードを使用します"
-    HARBOR_ADMIN_PASSWORD="Harbor12345"
+    print_error "ESOからHarborパスワードを取得できませんでした"
+    print_error "External Secretsの同期が完了していません"
+    print_error "kubectl get externalsecret -n harbor で状態を確認してください"
+    exit 1
 fi
 
 print_debug "Worker1 (192.168.122.11) Containerd設定..."

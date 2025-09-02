@@ -49,6 +49,7 @@ make help
 cd automation/infrastructure && ./clean-and-deploy.sh
 
 # Platform: Core platform services + GitOps deployment
+# 重要: settings.tomlの[Pulumi]セクションにaccess_tokenが必須
 cd ../platform && ./platform-deploy.sh
 # settings.tomlのリポジトリは自動でRunner追加されます
 ```

@@ -1,0 +1,12 @@
+# ArgoCD設定用Kustomization
+# ConfigMapとExternal Secretを管理
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # ArgoCD ConfigMap (argocd-cm, argocd-rbac-cm)
+  - ../../infrastructure/gitops/argocd/argocd-config.yaml
+  # ArgoCD GitHub OAuth Secret (External Secret経由)
+  - argocd-github-oauth-secret.yaml
+  # Harbor Docker Registry Secrets (各namespace用)
+  - harbor-docker-registry-secrets.yaml

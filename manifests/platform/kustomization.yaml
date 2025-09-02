@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - secrets/external-secrets/
   - ci-cd/github-actions/
+  - argocd-config/
