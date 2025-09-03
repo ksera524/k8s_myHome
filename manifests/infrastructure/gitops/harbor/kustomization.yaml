@@ -3,5 +3,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - harbor-jobservice-pvc.yaml  # 事前作成PVC（sync-wave: -10）
   - harbor-complete.yaml
   - harbor-external-ingress.yaml

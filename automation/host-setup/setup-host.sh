@@ -17,6 +17,15 @@ fi
 
 print_status "Starting Phase 1: Host machine setup for k8s migration"
 
+# 0. Clean up problematic repositories (Helm 403 error fix)
+print_status "Cleaning up problematic APT repositories..."
+if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
+    print_warning "Removing broken Helm repository (403 error fix)..."
+    sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
+    sudo rm -f /usr/share/keyrings/helm.gpg
+    print_status "✓ Removed problematic Helm repository"
+fi
+
 # 1. System update
 print_status "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
@@ -70,7 +79,7 @@ sudo apt install -y ansible
 # 6. Install Docker (for building and testing)
 print_status "Installing Docker..."
 for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
-sudo apt-get update
+sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -79,7 +88,7 @@ echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
+sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # 7. Install kubectl
@@ -88,17 +97,26 @@ print_status "Installing kubectl..."
 sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-sudo apt-get update
+sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y kubectl
 
 # 8. Install helm
 print_status "Installing Helm..."
-# 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo rm -f /usr/share/keyrings/helm.gpg
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install -y helm
+# 古いHelmリポジトリファイルがあれば削除（403エラー対策）
+if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
+    print_status "Removing old Helm repository configuration..."
+    sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
+    sudo rm -f /usr/share/keyrings/helm.gpg
+fi
+# Helmの公式インストールスクリプトを使用（apt リポジトリの問題を回避）
+if ! command -v helm &> /dev/null; then
+    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    chmod 700 get_helm.sh
+    ./get_helm.sh
+    rm get_helm.sh
+else
+    print_status "Helm is already installed"
+fi
 
 # 9. Add user to required groups
 print_status "Adding user to required groups..."

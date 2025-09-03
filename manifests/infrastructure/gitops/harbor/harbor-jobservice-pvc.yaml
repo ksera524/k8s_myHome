@@ -1,0 +1,23 @@
+# Harbor Jobservice PVC事前作成
+# Helm Chartでの作成に問題がある場合の対処
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: harbor-jobservice
+  namespace: harbor
+  labels:
+    app: harbor
+    component: jobservice
+    chart: harbor
+    heritage: Helm
+    release: harbor
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-wave: "-10"  # Harborより先に作成
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
