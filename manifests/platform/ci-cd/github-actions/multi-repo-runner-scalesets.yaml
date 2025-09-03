@@ -1,26 +1,6 @@
 # GitHub Actions Multi-Repository Runner Scale Sets
 # 個人アカウントPATを使用した複数リポジトリ対応RunnerScaleSet群
-
----
-# External Secret for GitHub Personal Access Token (共通)
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: github-multi-repo-secret
-  namespace: arc-systems
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: pulumi-esc-store
-  target:
-    name: github-multi-repo-secret
-    creationPolicy: Owner
-  data:
-  - secretKey: github_token
-    remoteRef:
-      key: github
-      property: token
+# 注意: GitHub認証用のExternalSecretは platform/secrets/external-secrets/externalsecrets.yaml で管理されています
 
 ---
 # ServiceAccount for GitHub Actions Runner (共通)

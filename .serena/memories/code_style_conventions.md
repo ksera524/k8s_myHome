@@ -20,7 +20,7 @@
 
 ## Kubernetes リソース命名
 - namespace: kebab-case（例：`arc-systems`, `external-secrets-system`）
-- secrets: 用途別命名（例：`harbor-auth`, `github-token`, `pulumi-access-token`）
+- secrets: 用途別命名（例：`harbor-auth`, `github-auth`, `pulumi-access-token`）
 - 日本語コメントでリソース説明追加
 
 ## GitOps管理

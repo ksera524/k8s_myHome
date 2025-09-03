@@ -50,7 +50,7 @@ print_status "✓ k8sクラスタ接続OK"
 
 # GitHub認証情報確認
 print_debug "GitHub認証情報確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-token -n arc-systems' >/dev/null 2>&1; then
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
     print_error "GitHub認証情報が見つかりません。make all を実行してください"
     exit 1
 fi
@@ -70,7 +70,7 @@ fi
 print_debug "GitHub multi-repo secret確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-multi-repo-secret -n arc-systems' >/dev/null 2>&1; then
     print_debug "github-multi-repo-secret を作成中..."
-    GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-token -n arc-systems -o jsonpath="{.data.github_token}" | base64 -d')
+    GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d')
     if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic github-multi-repo-secret --from-literal=github_token='$GITHUB_TOKEN' -n arc-systems"; then
         print_debug "✓ github-multi-repo-secret 作成完了"
     else

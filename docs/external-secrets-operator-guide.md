@@ -332,10 +332,10 @@ spec:
     name: hcp-vault-secretstore
     kind: SecretStore
   target:
-    name: github-multi-repo-secret
+    name: github-auth
     creationPolicy: Merge  # 既存Secretに追加
   data:
-  - secretKey: github_token
+  - secretKey: GITHUB_TOKEN
     remoteRef:
       key: k8s-myhome/github/token
   - secretKey: github_app_id
