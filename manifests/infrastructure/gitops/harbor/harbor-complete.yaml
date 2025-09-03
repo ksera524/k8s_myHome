@@ -47,7 +47,6 @@ spec:
             jobservice:
               size: 1Gi
               storageClass: "local-path"
-              existingClaim: "harbor-jobservice"  # 事前作成PVCを使用
             database:
               size: 1Gi
               storageClass: "local-path"
