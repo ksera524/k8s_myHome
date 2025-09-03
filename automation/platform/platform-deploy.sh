@@ -137,28 +137,64 @@ sleep 30
 # MetalLB同期確認
 if kubectl get application metallb -n argocd 2>/dev/null; then
     echo "MetalLB同期待機中..."
-    kubectl wait --for=condition=Synced --timeout=300s application/metallb -n argocd || echo "MetalLB同期継続中"
-    kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app=metallb --timeout=300s || echo "MetalLB Pod起動待機中"
+    # Health状態の確認（OutOfSyncでもHealthyなら問題ない）
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application metallb -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ]; then
+            echo "✓ MetalLB: Healthy"
+            break
+        fi
+        echo "MetalLB Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
+    kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app.kubernetes.io/name=metallb --timeout=300s 2>/dev/null || echo "MetalLB Pod確認中..."
 fi
 
 # NGINX Ingress同期確認
 if kubectl get application ingress-nginx -n argocd 2>/dev/null; then
     echo "NGINX Ingress同期待機中..."
-    kubectl wait --for=condition=Synced --timeout=300s application/ingress-nginx -n argocd || echo "NGINX Ingress同期継続中"
-    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s || echo "NGINX Ingress Pod起動待機中"
+    # Health状態の確認
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application ingress-nginx -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ]; then
+            echo "✓ NGINX Ingress: Healthy"
+            break
+        fi
+        echo "NGINX Ingress Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s 2>/dev/null || echo "NGINX Ingress Pod確認中..."
 fi
 
 # cert-manager同期確認
 if kubectl get application cert-manager -n argocd 2>/dev/null; then
     echo "cert-manager同期待機中..."
-    kubectl wait --for=condition=Synced --timeout=300s application/cert-manager -n argocd || echo "cert-manager同期継続中"
+    # Health状態の確認
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application cert-manager -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ]; then
+            echo "✓ cert-manager: Healthy"
+            break
+        fi
+        echo "cert-manager Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
     kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s || echo "cert-manager Pod起動待機中"
 fi
 
 # ESO同期確認
 if kubectl get application external-secrets-operator -n argocd 2>/dev/null; then
     echo "External Secrets Operator同期待機中..."
-    kubectl wait --for=condition=Synced --timeout=300s application/external-secrets-operator -n argocd || echo "ESO同期継続中"
+    # Health状態の確認
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application external-secrets-operator -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ]; then
+            echo "✓ External Secrets Operator: Healthy"
+            break
+        fi
+        echo "ESO Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
     kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/name=external-secrets --timeout=300s || echo "ESO Pod起動待機中"
     
     # Pulumi Access Token Secret作成（ESO起動後すぐに）
@@ -179,7 +215,17 @@ fi
 
 # Platform Application同期確認
 if kubectl get application platform -n argocd 2>/dev/null; then
-    kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "Platform同期継続中"
+    echo "Platform Application同期待機中..."
+    # Health状態の確認
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application platform -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ]; then
+            echo "✓ Platform Application: Healthy"
+            break
+        fi
+        echo "Platform Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
 fi
 
 echo "✓ App-of-Apps適用完了"
@@ -574,7 +620,19 @@ else
 fi
 
 # Applications同期確認
-kubectl wait --for=condition=Synced --timeout=300s application/applications -n argocd || echo "Applications同期継続中"
+if kubectl get application applications -n argocd 2>/dev/null; then
+    echo "Applications同期待機中..."
+    # Health状態の確認
+    for i in {1..30}; do
+        HEALTH=$(kubectl get application applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
+        if [ "$HEALTH" = "Healthy" ] || [ "$HEALTH" = "Progressing" ]; then
+            echo "✓ Applications: $HEALTH"
+            break
+        fi
+        echo "Applications Health: $HEALTH (待機中 $i/30)"
+        sleep 10
+    done
+fi
 
 # アプリケーション用External Secrets確認
 echo "アプリケーション用External Secrets確認中..."

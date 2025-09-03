@@ -1,0 +1,16 @@
+# デフォルトバックエンド用Ingress
+# IPアドレス直接アクセス時にデフォルトページを表示
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: default-backend
+  namespace: ingress-nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  defaultBackend:
+    service:
+      name: ingress-nginx-defaultbackend
+      port:
+        number: 80
