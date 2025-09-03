@@ -282,6 +282,34 @@ else
     done
 fi
 
+# External Secrets Webhook準備完了待機
+echo "External Secrets Webhook準備確認中..."
+timeout=60
+while [ $timeout -gt 0 ]; do
+    # Webhookサービスへの接続確認
+    if kubectl run test-webhook --image=busybox --rm -i --restart=Never -- \
+        wget -q -O- --timeout=2 \
+        https://external-secrets-operator-webhook.external-secrets-system.svc:443/readyz 2>/dev/null; then
+        echo "✓ External Secrets Webhook準備完了"
+        break
+    fi
+    # 代替チェック: Webhookポッドが Ready状態か確認
+    if kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets-webhook 2>/dev/null | grep -q "1/1.*Running"; then
+        echo "✓ External Secrets Webhook Pod準備完了"
+        # 追加で5秒待機してWebhookが完全に起動するまで待つ
+        sleep 5
+        break
+    fi
+    echo "External Secrets Webhook待機中... (残り ${timeout}秒)"
+    sleep 5
+    timeout=$((timeout - 5))
+done
+
+if [ $timeout -le 0 ]; then
+    echo "警告: External Secrets Webhook準備タイムアウト"
+    echo "処理を継続しますが、External Secretの作成に失敗する可能性があります"
+fi
+
 # ClusterSecretStore準備完了待機
 echo "ClusterSecretStore準備完了待機中..."
 timeout=60
