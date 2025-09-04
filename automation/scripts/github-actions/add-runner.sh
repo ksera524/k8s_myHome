@@ -13,29 +13,46 @@ source "$SCRIPTS_ROOT/common-colors.sh"
 
 # 引数確認
 if [[ $# -lt 1 ]]; then
-    print_error "使用方法: $0 <repository-name>"
-    print_error "例: $0 my-awesome-project"
+    print_error "使用方法: $0 <repository-name> [min-runners] [max-runners]"
+    print_error "例: $0 my-awesome-project 1 3"
     exit 1
 fi
 
 REPOSITORY_NAME="$1"
+# デフォルト値を設定（引数が渡されない場合）
+MIN_RUNNERS="${2:-1}"
+MAX_RUNNERS="${3:-3}"
 # Runner名生成（小文字変換、ドット・アンダースコアをハイフンに変換）
 RUNNER_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')-runners"
 
 print_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
 print_debug "対象リポジトリ: $REPOSITORY_NAME"
 print_debug "Runner名: $RUNNER_NAME"
+print_debug "Min Runners: $MIN_RUNNERS"
+print_debug "Max Runners: $MAX_RUNNERS"
 
 # GitHubユーザー名を取得（settings.tomlから）
+# settings.tomlはautomation直下にある
 SETTINGS_FILE="$SCRIPTS_ROOT/../settings.toml"
 if [[ ! -f "$SETTINGS_FILE" ]]; then
-    print_error "settings.tomlが見つかりません: $SETTINGS_FILE"
-    exit 1
+    # 別の場所も試す（プロジェクトルートから実行される場合）
+    SETTINGS_FILE="$SCRIPTS_ROOT/../../settings.toml"
+    if [[ ! -f "$SETTINGS_FILE" ]]; then
+        # platform-deploy.shから呼ばれる場合
+        SETTINGS_FILE="$(dirname "$SCRIPTS_ROOT")/settings.toml"
+        if [[ ! -f "$SETTINGS_FILE" ]]; then
+            print_error "settings.tomlが見つかりません"
+            print_error "automation/settings.tomlを作成してください"
+            exit 1
+        fi
+    fi
 fi
 
+print_debug "settings.tomlファイル: $SETTINGS_FILE"
 GITHUB_USERNAME=$(grep '^username = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2)
 if [[ -z "$GITHUB_USERNAME" ]]; then
     print_error "settings.tomlのgithub.usernameが設定されていません"
+    print_error "ファイル: $SETTINGS_FILE"
     exit 1
 fi
 print_debug "GitHub Username: $GITHUB_USERNAME"
@@ -91,23 +108,9 @@ if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm status '$RUNNER_
 fi
 
 # RunnerScaleSetを作成（minRunners=1推奨）
+print_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << EOF || HELM_INSTALL_RESULT=$?
-echo "=== RunnerScaleSet '$RUNNER_NAME' を作成中 ==="
-
-helm install $RUNNER_NAME \
-  oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
-  --namespace arc-systems \
-  --set githubConfigUrl="https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME" \
-  --set githubConfigSecret="github-multi-repo-secret" \
-  --set maxRunners=3 \
-  --set minRunners=1 \
-  --set containerMode.type=dind \
-  --set template.spec.serviceAccountName=github-actions-runner \
-  --wait --timeout=60s
-
-echo "✓ RunnerScaleSet '$RUNNER_NAME' 作成完了"
-EOF
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "echo '=== RunnerScaleSet $RUNNER_NAME を作成中 ==='; helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --wait --timeout=60s && echo '✓ RunnerScaleSet $RUNNER_NAME 作成完了'" || HELM_INSTALL_RESULT=$?
 
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then

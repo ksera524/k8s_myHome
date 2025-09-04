@@ -11,14 +11,20 @@ status:
 	$(call print_section,$(INFO),ArgoCD Applications状態)
 	@$(call kubectl_exec,get applications -n $(ARGOCD_NAMESPACE)) 2>/dev/null || echo "ArgoCD Applicationsが確認できません"
 	$(call print_section,$(INFO),LoadBalancer IP)
-	@$(call kubectl_exec,get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}') 2>/dev/null || echo "LoadBalancer IPが取得できません"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}"' 2>/dev/null || echo "LoadBalancer IPが取得できません"
 	@echo ""
 	$(call print_section,$(INFO),External Secrets状態)
 	@$(call k8s_exec_safe,kubectl get externalsecrets -A | grep -v NAMESPACE | while read ns name store refresh status ready; do echo "  $$name ($$ns): $$refresh/$$status $$ready"; done) || echo "External Secrets状態が確認できません"
 	@echo ""
-	@echo "$(INFO) 重要なExternal Secrets詳細確認："
-	@echo "  github-auth-secret: 確認をスキップ"
-	@echo "  slack-secret: 確認をスキップ"
+	$(call print_section,$(INFO),GitHub Actions Runner状態)
+	@echo "ARC Controller:"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n arc-systems -l app.kubernetes.io/name=gha-rs-controller --no-headers 2>/dev/null | awk '"'"'{print "  - " $$1 ": " $$2 " " $$3}'"'"'' || echo "  ARC Controller未起動"
+	@echo "AutoscalingRunnerSets:"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get autoscalingrunnersets -n arc-systems --no-headers 2>/dev/null | awk '"'"'{print "  - " $$1 ": Min=" $$2 " Max=" $$3 " Current=" $$4}'"'"'' || echo "  AutoscalingRunnerSets未作成"
+	@echo "Runner Pods:"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get pods -n arc-systems -l app.kubernetes.io/name=runner --no-headers 2>/dev/null | head -5 | awk '"'"'{print "  - " $$1 ": " $$2 " " $$3}'"'"'' || echo "  Runner Pods未起動"
+	@echo "Helm Releases:"
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm list -n arc-systems 2>/dev/null | grep -v NAME | awk '"'"'{print "  - " $$1 " (" $$9 "): " $$8}'"'"'' 2>/dev/null || echo "  Helm Releases未作成"
 	@echo ""
 
 # 全フェーズ検証
