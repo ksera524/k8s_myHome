@@ -27,6 +27,8 @@ spec:
         maxRunners: 3
         containerMode:
           type: dind
+        controllerServiceAccount:
+          name: arc-controller-gha-rs-controller
         template:
           spec:
             serviceAccountName: github-actions-runner
@@ -65,6 +67,8 @@ spec:
         maxRunners: 3
         containerMode:
           type: dind
+        controllerServiceAccount:
+          name: arc-controller-gha-rs-controller
         template:
           spec:
             serviceAccountName: github-actions-runner
