@@ -34,11 +34,11 @@ spec:
   
   syncPolicy:
     automated:
-      prune: true
+      prune: false  # Runnerを削除しないようにpruneを無効化
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - Replace=true
+      - RespectIgnoreDifferences=true  # Replaceを削除
     retry:
       limit: 5
       backoff:
