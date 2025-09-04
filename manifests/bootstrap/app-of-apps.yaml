@@ -318,6 +318,12 @@ spec:
       values: |
         installCRDs: true
         replicaCount: 1
+        # Webhook無効化（開発環境用）
+        # ArgoCDとの互換性問題を回避
+        webhook:
+          create: false
+        certController:
+          create: false
         resources:
           limits:
             cpu: 100m
