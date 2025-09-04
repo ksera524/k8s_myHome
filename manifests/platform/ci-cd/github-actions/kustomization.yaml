@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   # ARC Controller (ArgoCD Application経由でHelm chartをデプロイ)
-  # - arc-controller.yaml  # Helmで直接管理するため無効化
+  - arc-controller.yaml
   # RBAC
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
