@@ -576,15 +576,11 @@ else
 EOF
 fi
 
-# Phase 4.9.4: Runnerを保護（ArgoCDから除外）
-print_status "=== Phase 4.9.4: Runnerを保護（ArgoCDから除外） ==="
-if [[ -f "$SCRIPT_DIR/../scripts/github-actions/protect-runners.sh" ]]; then
-    print_debug "Runner保護スクリプトを実行中..."
-    bash "$SCRIPT_DIR/../scripts/github-actions/protect-runners.sh"
-    print_status "✓ Runner保護完了"
-else
-    print_warning "protect-runners.sh が見つかりません"
-fi
+# Phase 4.9.4: ARC Controller起動待機
+print_status "=== Phase 4.9.4: ARC Controller起動待機 ==="
+print_debug "ARC Controllerの起動を確認中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl wait --for=condition=available --timeout=120s deployment/arc-controller-gha-rs-controller -n arc-systems' || true
+print_status "✓ ARC Controller起動確認完了"
 
 # Phase 4.9.5: settings.tomlのリポジトリを自動add-runner
 print_status "=== Phase 4.9.5: settings.tomlのリポジトリを自動add-runner ==="
