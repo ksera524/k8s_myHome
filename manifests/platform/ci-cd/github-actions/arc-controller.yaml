@@ -32,6 +32,24 @@ spec:
     server: https://kubernetes.default.svc
     namespace: arc-systems
   
+  # RunnerリソースをArgoCDの管理外にする
+  ignoreDifferences:
+    - group: actions.github.com
+      kind: AutoscalingRunnerSet
+      jsonPointers:
+        - /spec
+        - /status
+    - group: actions.github.com
+      kind: EphemeralRunner
+      jsonPointers:
+        - /spec
+        - /status
+    - group: ""
+      kind: Secret
+      name: github-multi-repo-secret
+      jsonPointers:
+        - /data
+  
   syncPolicy:
     automated:
       prune: false  # Runnerを削除しないようにpruneを無効化
