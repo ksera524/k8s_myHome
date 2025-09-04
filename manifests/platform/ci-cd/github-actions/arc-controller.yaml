@@ -15,9 +15,9 @@ spec:
     chart: gha-runner-scale-set-controller
     helm:
       values: |
-        # CRDはHelm chartで自動インストール
+        # CRDは別途手動インストール（サイズ制限回避のため）
         crds:
-          install: true
+          install: false
         
         # リソース制限
         resources:
@@ -56,7 +56,9 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true  # Replaceを削除
+      - RespectIgnoreDifferences=true
+      - ServerSideApply=true  # 大きなCRDを扱うため
+      - SkipSchemaValidation=true  # CRDのvalidation制限を回避
     retry:
       limit: 5
       backoff:
