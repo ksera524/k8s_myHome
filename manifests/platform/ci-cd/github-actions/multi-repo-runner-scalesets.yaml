@@ -40,13 +40,18 @@ spec:
     spec:
       serviceAccountName: github-actions-runner
       
+      hostAliases:
+      - ip: "192.168.122.100"
+        hostnames:
+        - "harbor.local"
+      
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100:80"
+          value: "harbor.local"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -110,13 +115,18 @@ spec:
     spec:
       serviceAccountName: github-actions-runner
       
+      hostAliases:
+      - ip: "192.168.122.100"
+        hostnames:
+        - "harbor.local"
+      
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100:80"
+          value: "harbor.local"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -181,13 +191,18 @@ spec:
     spec:
       serviceAccountName: github-actions-runner
       
+      hostAliases:
+      - ip: "192.168.122.100"
+        hostnames:
+        - "harbor.local"
+      
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100:80"
+          value: "harbor.local"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: RUNNER_PURPOSE

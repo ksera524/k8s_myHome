@@ -110,7 +110,7 @@ fi
 # RunnerScaleSetを作成（minRunners=1推奨）
 print_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "echo '=== RunnerScaleSet $RUNNER_NAME を作成中 ==='; helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --wait --timeout=60s && echo '✓ RunnerScaleSet $RUNNER_NAME 作成完了'" || HELM_INSTALL_RESULT=$?
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "echo '=== RunnerScaleSet $RUNNER_NAME を作成中 ==='; helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --wait --timeout=60s && echo '✓ RunnerScaleSet $RUNNER_NAME 作成完了'" || HELM_INSTALL_RESULT=$?
 
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
@@ -217,20 +217,18 @@ jobs:
         docker save $REPOSITORY_NAME:latest > /tmp/$REPOSITORY_NAME-latest.tar
         docker save $REPOSITORY_NAME:\${{ github.sha }} > /tmp/$REPOSITORY_NAME-sha.tar
         
-        # Harbor URLにポート番号を追加（HTTP:80）
-        if [[ ! "\$HARBOR_URL" == *":"* ]]; then
-          HARBOR_URL="\$HARBOR_URL:80"
-        fi
+        # /etc/hostsにharbor.localを追加
+        echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
         
         skopeo copy --insecure-policy --dest-tls-verify=false \\
           --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
           docker-archive:/tmp/$REPOSITORY_NAME-latest.tar \\
-          docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+          docker://harbor.local/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
         
         skopeo copy --insecure-policy --dest-tls-verify=false \\
           --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
           docker-archive:/tmp/$REPOSITORY_NAME-sha.tar \\
-          docker://\$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+          docker://harbor.local/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
         
         echo "✅ Images pushed successfully to Harbor"
         
