@@ -418,12 +418,15 @@ fi
 echo "✓ Harbor デプロイ完了"
 
 # Harbor External URL修正（harbor.local使用）
+# 注: Helm ChartはexternalURLをEXT_ENDPOINTに反映しないため、手動修正が必要
 echo "Harbor External URL設定を修正中..."
-if kubectl get cm harbor-core -n harbor 2>/dev/null | grep -q "EXT_ENDPOINT"; then
-    # 既にデプロイされている場合はConfigMapを修正
+sleep 10  # ConfigMapが作成されるまで待機
+if kubectl get cm harbor-core -n harbor 2>/dev/null; then
+    # ConfigMapのEXT_ENDPOINTを修正
     kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]' || true
-    # Harbor core再起動
+    # Harbor core再起動して設定を反映
     kubectl rollout restart deployment/harbor-core -n harbor || true
+    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
     echo "✓ Harbor External URLをharbor.localに修正"
 fi
 EOF
