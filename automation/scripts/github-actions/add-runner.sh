@@ -220,15 +220,16 @@ jobs:
         # /etc/hostsにharbor.localを追加
         echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
         
+        # Harborのポートを明示的に指定
         skopeo copy --insecure-policy --dest-tls-verify=false \\
           --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
           docker-archive:/tmp/$REPOSITORY_NAME-latest.tar \\
-          docker://harbor.local/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+          docker://harbor.local:80/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
         
         skopeo copy --insecure-policy --dest-tls-verify=false \\
           --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
           docker-archive:/tmp/$REPOSITORY_NAME-sha.tar \\
-          docker://harbor.local/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+          docker://harbor.local:80/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
         
         echo "✅ Images pushed successfully to Harbor"
         
