@@ -46,7 +46,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100"
+          value: "192.168.122.100:80"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -116,7 +116,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100"
+          value: "192.168.122.100:80"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -187,7 +187,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "192.168.122.100"
+          value: "192.168.122.100:80"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: RUNNER_PURPOSE

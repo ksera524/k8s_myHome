@@ -212,10 +212,15 @@ jobs:
         docker build -t $REPOSITORY_NAME:latest .
         docker build -t $REPOSITORY_NAME:\${{ github.sha }} .
         
-        # Push using skopeo
+        # Push using skopeo - エラー修正: ポート番号を明示的に指定
         echo "Pushing to Harbor using skopeo..."
         docker save $REPOSITORY_NAME:latest > /tmp/$REPOSITORY_NAME-latest.tar
         docker save $REPOSITORY_NAME:\${{ github.sha }} > /tmp/$REPOSITORY_NAME-sha.tar
+        
+        # Harbor URLにポート番号を追加（HTTP:80）
+        if [[ ! "\$HARBOR_URL" == *":"* ]]; then
+          HARBOR_URL="\$HARBOR_URL:80"
+        fi
         
         skopeo copy --insecure-policy --dest-tls-verify=false \\
           --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
