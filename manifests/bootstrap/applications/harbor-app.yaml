@@ -29,7 +29,7 @@ spec:
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
         
-        externalURL: http://192.168.122.100
+        externalURL: http://harbor.local
         
         # External secret reference for admin password
         existingSecretAdminPassword: harbor-admin-secret

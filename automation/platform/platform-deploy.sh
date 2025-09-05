@@ -416,6 +416,16 @@ else
 fi
 
 echo "✓ Harbor デプロイ完了"
+
+# Harbor External URL修正（harbor.local使用）
+echo "Harbor External URL設定を修正中..."
+if kubectl get cm harbor-core -n harbor 2>/dev/null | grep -q "EXT_ENDPOINT"; then
+    # 既にデプロイされている場合はConfigMapを修正
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]' || true
+    # Harbor core再起動
+    kubectl rollout restart deployment/harbor-core -n harbor || true
+    echo "✓ Harbor External URLをharbor.localに修正"
+fi
 EOF
 
 print_status "✓ Harbor デプロイ完了"
@@ -512,16 +522,19 @@ ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@19
 # Containerd設定バックアップ
 sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
 
+# /etc/hostsにharbor.localを追加
+echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+
 # Harbor Registry設定追加（HTTP + 認証）
 sudo -n tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
 
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."192.168.122.100"]
-  endpoint = ["http://192.168.122.100"]
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
+  endpoint = ["http://harbor.local"]
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".tls]
+[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
   insecure_skip_verify = true
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".auth]
+[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".auth]
   username = "admin"
   password = "${HARBOR_ADMIN_PASSWORD}"
 CONTAINERD_EOF
@@ -536,16 +549,19 @@ ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@19
 # Containerd設定バックアップ
 sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
 
+# /etc/hostsにharbor.localを追加
+echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+
 # Harbor Registry設定追加（HTTP + 認証）
 sudo -n tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
 
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."192.168.122.100"]
-  endpoint = ["http://192.168.122.100"]
+[plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
+  endpoint = ["http://harbor.local"]
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".tls]
+[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
   insecure_skip_verify = true
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."192.168.122.100".auth]
+[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".auth]
   username = "admin"
   password = "${HARBOR_ADMIN_PASSWORD}"
 CONTAINERD_EOF
