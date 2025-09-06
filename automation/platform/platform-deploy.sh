@@ -494,8 +494,16 @@ fi
 # arc-systems namespace作成（存在しない場合）
 kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
 
-# arc-systems namespace の harbor-auth secret は GitOps経由で作成されます
-echo "Harbor認証Secret (arc-systems) はGitOps経由で同期されます"
+# GitHub Actions用のharbor-auth secret作成
+echo "GitHub Actions用harbor-auth secret作成中..."
+kubectl create secret generic harbor-auth \
+  --namespace=arc-systems \
+  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_USERNAME="admin" \
+  --from-literal=HARBOR_PASSWORD="${HARBOR_ADMIN_PASSWORD}" \
+  --from-literal=HARBOR_PROJECT="sandbox" \
+  --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ harbor-auth secret作成完了"
 
 # 必要なネームスペースにHarbor Docker registry secret作成
 NAMESPACES=("default" "sandbox" "production" "staging")
