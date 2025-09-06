@@ -10,34 +10,30 @@
 # - settings.toml は .gitignore に追加済み
 # - リポジトリにコミットしないでください
 
+# ========================================
+# ホストセットアップ設定（make all時に使用）
+# ========================================
 [host_setup]
 # USB外部ストレージデバイス名
 # lsblk コマンドで確認してください
 # 例: "sdb", "sdc", "nvme0n1"
 usb_device_name = ""
 
-[kubernetes]
-# Kubernetes APT鍵ファイル上書き確認
-# 通常は "y" を設定
-overwrite_kubernetes_keyring = "y"
-
+# ========================================
+# Pulumi設定（External Secrets Operator用）
+# ========================================
 [pulumi]
 # Pulumi Access Token (必須)
 # 取得方法: https://app.pulumi.com/account/tokens
 # 形式: pul-で始まる40文字の英数字
 access_token = ""
 
-
+# ========================================
+# GitHub設定（GitHub Actions Runner用）
+# ========================================
 [github]
-# GitHub Personal Access Token（GitHub Actions用）
-# 取得方法: GitHub Settings > Developer settings > Personal access tokens
-# 権限: repo, workflow, admin:org (組織使用時)
-personal_access_token = ""
-
-# GitHub Repository (例: username/repository)
-repository = ""
-
-# GitHubユーザー名（ArgoCD OAuth用）
+# GitHubユーザー名（必須）
+# add-runner.sh, ArgoCD OAuth設定で使用
 username = ""
 
 # GitHub Actions Runner Controller (ARC) 対象リポジトリリスト
@@ -74,38 +70,9 @@ username = ""
 #     runs-on: slack-rs-runners      # slack.rs専用
 arc_repositories = []
 
-[network]
-# ネットワーク設定（ホスト環境に合わせて調整）
-host_network_cidr = "192.168.122.0/24"
-host_gateway_ip = "192.168.122.1"
-
-# Kubernetes クラスタIP（libvirtデフォルト範囲）
-control_plane_ip = "192.168.122.10"
-worker_1_ip = "192.168.122.11"
-worker_2_ip = "192.168.122.12"
-
-# MetalLB LoadBalancer IP範囲
-metallb_ip_start = "192.168.122.100"
-metallb_ip_end = "192.168.122.150"
-
-# サービス用固定IP
-harbor_lb_ip = "192.168.122.100"
-ingress_lb_ip = "192.168.122.101"
-
-# 内部サービスポート（通常は変更不要）
-argocd_port_forward = 8080
-harbor_port_forward = 8081
-kubernetes_api_port = 6443
-
-
+# ========================================
+# 自動化オプション（settings-loader.shで使用）
+# ========================================
 [automation]
-# 自動化オプション
+# 確認プロンプトを自動でYesにする
 auto_confirm_overwrite = true
-enable_external_secrets = true
-enable_github_actions = true
-# CloudflaredはExternal Secrets Operatorから自動取得
-
-[logging]
-# ログ設定
-debug = false
-verbose = true
