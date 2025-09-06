@@ -6,3 +6,4 @@ resources:
   - harbor-external-ingress.yaml
   - harbor-ext-endpoint-fix.yaml
   - harbor-config-cronjob.yaml
+  - harbor-node-hostaliases.yaml

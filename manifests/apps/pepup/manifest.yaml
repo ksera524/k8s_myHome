@@ -13,7 +13,7 @@ spec:
         spec:
           containers:
             - name: pepup
-              image: 192.168.122.100/sandbox/pepup:latest
+              image: harbor.local/sandbox/pepup:latest
               imagePullPolicy: Always
               env:
                 - name: USERNAME
