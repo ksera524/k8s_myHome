@@ -410,25 +410,30 @@ if kubectl get application harbor -n argocd 2>/dev/null; then
     echo "Harbor Pods起動待機中..."
     sleep 30
     kubectl wait --namespace harbor --for=condition=ready pod --selector=app=harbor --timeout=300s || echo "Harbor Pod起動待機中"
+    
+    # Harbor External URL修正（harbor.local使用）
+    # 注: Helm ChartはexternalURLをEXT_ENDPOINTに反映しないため、手動修正が必要
+    echo "Harbor External URL設定を修正中..."
+    
+    # Harbor coreが完全に起動してから修正
+    echo "Harbor core deployment確認中..."
+    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
+    
+    # ConfigMapのEXT_ENDPOINTを修正
+    echo "ConfigMap harbor-core のEXT_ENDPOINTを修正中..."
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]' || true
+    
+    # Harbor core再起動して設定を反映
+    echo "Harbor core再起動中..."
+    kubectl rollout restart deployment/harbor-core -n harbor || true
+    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
+    echo "✓ Harbor External URLをharbor.localに修正"
 else
     echo "Harbor Application未作成、App-of-Apps確認中..."
     kubectl get application -n argocd
 fi
 
 echo "✓ Harbor デプロイ完了"
-
-# Harbor External URL修正（harbor.local使用）
-# 注: Helm ChartはexternalURLをEXT_ENDPOINTに反映しないため、手動修正が必要
-echo "Harbor External URL設定を修正中..."
-sleep 10  # ConfigMapが作成されるまで待機
-if kubectl get cm harbor-core -n harbor 2>/dev/null; then
-    # ConfigMapのEXT_ENDPOINTを修正
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]' || true
-    # Harbor core再起動して設定を反映
-    kubectl rollout restart deployment/harbor-core -n harbor || true
-    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
-    echo "✓ Harbor External URLをharbor.localに修正"
-fi
 EOF
 
 print_status "✓ Harbor デプロイ完了"
@@ -503,6 +508,20 @@ for namespace in "${NAMESPACES[@]}"; do
 done
 
 echo "✓ Harbor認証設定完了 - skopeo対応"
+
+# 最終確認: Harbor EXT_ENDPOINTが正しく設定されているか確認
+echo "Harbor EXT_ENDPOINT最終確認..."
+CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
+if [[ "$CURRENT_EXT_ENDPOINT" != "http://harbor.local" ]]; then
+    echo "警告: EXT_ENDPOINTが正しくありません: $CURRENT_EXT_ENDPOINT"
+    echo "修正を再実行中..."
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+    kubectl rollout restart deployment/harbor-core -n harbor
+    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
+    echo "✓ Harbor EXT_ENDPOINT修正完了"
+else
+    echo "✓ Harbor EXT_ENDPOINTは正しく設定されています: $CURRENT_EXT_ENDPOINT"
+fi
 EOF
 
 print_status "✓ Harbor認証設定（skopeo対応）完了"
