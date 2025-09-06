@@ -1,0 +1,24 @@
+# Harbor Core Deploymentパッチ
+# EXT_ENDPOINTを環境変数で直接オーバーライド
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-core
+  namespace: harbor
+spec:
+  template:
+    spec:
+      containers:
+      - name: core
+        env:
+        # 最重要: EXT_ENDPOINTを強制的にオーバーライド
+        - name: EXT_ENDPOINT
+          value: "http://harbor.local"
+        # CORE_URLも念のため設定
+        - name: CORE_URL
+          value: "http://harbor.local"
+        # Registry URLも設定
+        - name: REGISTRY_URL
+          value: "http://harbor-registry:5000"
+        # ConfigMapの値を確実にオーバーライド
+        # envはenvFromより優先される

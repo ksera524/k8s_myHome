@@ -546,3 +546,48 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+---
+# Harbor Patch Application - Harbor設定を修正
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-patch
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"  # Harbor(wave 10)の後に実行
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/gitops/harbor
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: false  # パッチを削除しない
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false  # Harborが既に作成済み
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: harbor-core
+      jsonPointers:
+        - /data/EXT_ENDPOINT
+    - group: apps
+      kind: Deployment
+      name: harbor-core
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
