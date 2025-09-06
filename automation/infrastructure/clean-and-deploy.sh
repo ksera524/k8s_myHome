@@ -14,21 +14,17 @@ source "$SCRIPT_DIR/../scripts/common-colors.sh"
 print_status "=== 完全クリーンアップ開始 ==="
 
 # 0. 必要なパッケージの確認（expectは削除）
-print_status "基本パッケージを確認中..."
-print_debug "cloud-init/network-config.yamlの修正により、expectスクリプトは不要"
+which jq >/dev/null 2>&1 || sudo apt-get install -y jq 2>/dev/null
 
 # 1. 全てのVMを完全削除
-print_status "既存VMを削除中..."
 for vm in $(sudo -n virsh list --all --name); do
     if [[ "$vm" == *"k8s"* ]]; then
-        print_debug "削除中: $vm"
         sudo -n virsh destroy "$vm" 2>/dev/null || true
         sudo -n virsh undefine "$vm" --remove-all-storage 2>/dev/null || true
     fi
 done
 
 # 2. libvirt関連ファイル完全削除
-print_status "libvirt関連ファイルを削除中..."
 sudo -n rm -f /etc/libvirt/qemu/k8s-*.xml
 sudo -n rm -f /var/lib/libvirt/images/k8s-*
 sudo -n rm -f /var/lib/libvirt/images/*-init-*.iso
@@ -36,18 +32,14 @@ sudo -n rm -f /var/lib/libvirt/images/ubuntu-base-*.img
 sudo -n rm -f /var/lib/libvirt/boot/k8s-*
 
 # 3. Terraform状態完全削除
-print_status "Terraform状態を削除中..."
 rm -rf .terraform/
 rm -f terraform.tfstate*
 rm -f tfplan
 
 # 4. AppArmor無効化（libvirt権限問題の根本解決）
-print_status "AppArmorを無効化中..."
 if systemctl is-active --quiet apparmor; then
-    print_debug "AppArmorを停止・無効化中..."
-    sudo -n systemctl stop apparmor
-    sudo -n systemctl disable apparmor
-    print_status "AppArmorを無効化しました"
+    sudo -n systemctl stop apparmor 2>/dev/null
+    sudo -n systemctl disable apparmor 2>/dev/null
 else
     print_debug "AppArmorは既に無効化されています"
 fi

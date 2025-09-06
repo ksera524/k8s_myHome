@@ -18,45 +18,34 @@ source "$SCRIPT_DIR/../scripts/common-colors.sh"
 
 # 設定ファイル読み込み（環境変数が未設定の場合）
 if [[ -f "$SCRIPT_DIR/../scripts/settings-loader.sh" ]]; then
-    print_debug "settings.tomlから設定を読み込み中..."
     source "$SCRIPT_DIR/../scripts/settings-loader.sh" load 2>/dev/null || true
     
     # settings.tomlからのPULUMI_ACCESS_TOKEN設定を確認・適用
     if [[ -n "${PULUMI_ACCESS_TOKEN:-}" ]]; then
-        print_debug "settings.tomlからPulumi Access Token読み込み完了"
+        :
     elif [[ -n "${PULUMI_PULUMI_ACCESS_TOKEN:-}" ]]; then
         export PULUMI_ACCESS_TOKEN="${PULUMI_PULUMI_ACCESS_TOKEN}"
-        print_debug "settings.tomlのPulumi.access_tokenを環境変数に設定完了"
     fi
 fi
 
 print_status "=== Kubernetes基盤構築開始 ==="
 
 # 0. マニフェストファイルの準備
-print_status "マニフェストファイルをリモートにコピー中..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/
-# ArgoCD ConfigMapはGitOps経由で管理されるため、コピー不要
-# scp -o StrictHostKeyChecking=no "../../manifests/infrastructure/gitops/argocd/argocd-config.yaml" k8suser@192.168.122.10:/tmp/
-# ArgoCD OAuth Secret は GitOps 経由で管理されるため、コピー不要
-# scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/argocd-github-oauth-secret.yaml" k8suser@192.168.122.10:/tmp/
-scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/
-# ClusterSecretStore マニフェストもコピー（フォールバック用）
+scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
+scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
 scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/pulumi-esc-secretstore.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null || true
-print_status "✓ マニフェストファイルコピー完了"
 
 # 1. 前提条件確認
 print_status "前提条件を確認中..."
 
 # SSH known_hosts クリーンアップ
-print_debug "SSH known_hosts をクリーンアップ中..."
 ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.10' 2>/dev/null || true
 ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.11' 2>/dev/null || true  
 ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.12' 2>/dev/null || true
 
 # k8sクラスタ接続確認
-print_debug "k8sクラスタ接続を確認中..."
 if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
     print_error "k8sクラスタに接続できません"
     print_error "Phase 3のk8sクラスタ構築を先に完了してください"
@@ -79,21 +68,15 @@ print_debug "MetalLB, NGINX Ingress, cert-managerはArgoCD経由でデプロイ�
 
 
 # Phase 4.4: StorageClass設定
-print_status "=== Phase 4.4: StorageClass設定 ==="
-print_debug "永続ストレージ機能を設定します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # Local StorageClass作成
 kubectl apply -f /tmp/local-storage-class.yaml
 
-echo "✓ StorageClass設定完了"
 EOF
 
-print_status "✓ StorageClass設定完了"
-
 # Phase 4.5: ArgoCD デプロイ
-print_status "=== Phase 4.5: ArgoCD デプロイ ==="
-print_debug "GitOps基盤をセットアップします"
+print_status "ArgoCD デプロイ中..."
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
 # ArgoCD namespace作成（ArgoCD自体に必要）
@@ -103,11 +86,9 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # ArgoCD起動まで待機
-echo "ArgoCD起動を待機中..."
 kubectl wait --namespace argocd --for=condition=ready pod --selector=app.kubernetes.io/component=server --timeout=300s
 
 # ArgoCD insecureモード設定（HTTPアクセス対応）
-echo "ArgoCD insecureモード設定中..."
 kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data":{"server.insecure":"true"}}'
 
 # ArgoCD管理者パスワード取得・表示
@@ -138,50 +119,41 @@ sleep 30
 
 # MetalLB同期確認
 if kubectl get application metallb -n argocd 2>/dev/null; then
-    echo "MetalLB同期待機中..."
-    # Health状態の確認（OutOfSyncでもHealthyなら問題ない）
     for i in {1..30}; do
         HEALTH=$(kubectl get application metallb -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
         if [ "$HEALTH" = "Healthy" ]; then
             echo "✓ MetalLB: Healthy"
             break
         fi
-        echo "MetalLB Health: $HEALTH (待機中 $i/30)"
         sleep 10
     done
-    kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app.kubernetes.io/name=metallb --timeout=300s 2>/dev/null || echo "MetalLB Pod確認中..."
+    kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app.kubernetes.io/name=metallb --timeout=300s 2>/dev/null || true
 fi
 
 # NGINX Ingress同期確認
 if kubectl get application ingress-nginx -n argocd 2>/dev/null; then
-    echo "NGINX Ingress同期待機中..."
-    # Health状態の確認
     for i in {1..30}; do
         HEALTH=$(kubectl get application ingress-nginx -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
         if [ "$HEALTH" = "Healthy" ]; then
             echo "✓ NGINX Ingress: Healthy"
             break
         fi
-        echo "NGINX Ingress Health: $HEALTH (待機中 $i/30)"
         sleep 10
     done
-    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s 2>/dev/null || echo "NGINX Ingress Pod確認中..."
+    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s 2>/dev/null || true
 fi
 
 # cert-manager同期確認
 if kubectl get application cert-manager -n argocd 2>/dev/null; then
-    echo "cert-manager同期待機中..."
-    # Health状態の確認
     for i in {1..30}; do
         HEALTH=$(kubectl get application cert-manager -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
         if [ "$HEALTH" = "Healthy" ]; then
             echo "✓ cert-manager: Healthy"
             break
         fi
-        echo "cert-manager Health: $HEALTH (待機中 $i/30)"
         sleep 10
     done
-    kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s || echo "cert-manager Pod起動待機中"
+    kubectl wait --namespace cert-manager --for=condition=ready pod --selector=app.kubernetes.io/instance=cert-manager --timeout=300s 2>/dev/null || true
 fi
 
 # ESO同期確認
