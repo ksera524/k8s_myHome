@@ -32,8 +32,9 @@ crash.log
 terraform.rc
 .terraformrc
 
-automation/k8s-infrastructure/.github/
-automation/scripts/github-actions/.github
+# GitHub Actions workflows (not used in this repo)
+.github/
+**/.github/
 
 # Settings files with potential secrets
 automation/settings.toml
