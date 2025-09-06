@@ -96,14 +96,14 @@ wait-for-external-secrets:
 	slack_secret_ready=false; \
 	while [ $$timeout -gt 0 ]; do \
 		if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
-			ready_status=$$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			ready_status=$$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[0].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$ready_status" = "True" ]; then \
 				echo "$(CHECK) github-auth-secret External Secret準備完了"; \
 				github_secret_ready=true; \
 			fi; \
 		fi; \
 		if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret slack-secret -n sandbox' >/dev/null 2>&1; then \
-			ready_status=$$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret slack-secret -n sandbox -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
+			ready_status=$$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret slack-secret -n sandbox -o jsonpath="{.status.conditions[0].status}"' 2>/dev/null || echo "False"); \
 			if [ "$$ready_status" = "True" ]; then \
 				echo "$(CHECK) slack-secret External Secret準備完了"; \
 				slack_secret_ready=true; \
