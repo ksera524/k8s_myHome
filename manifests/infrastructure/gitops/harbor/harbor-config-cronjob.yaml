@@ -1,0 +1,80 @@
+# Harbor設定を定期的に修正するCronJob
+# ArgoCDの自動同期で設定が戻ってしまう問題に対処
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: harbor-config-fix
+  namespace: harbor
+spec:
+  schedule: "*/5 * * * *"  # 5分ごとに実行
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: harbor-config-fix
+          restartPolicy: OnFailure
+          containers:
+          - name: fix-config
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Harbor ConfigMapのEXT_ENDPOINTを確認と修正
+              CURRENT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
+              
+              if [ "$CURRENT" != "http://harbor.local" ]; then
+                echo "$(date): Fixing EXT_ENDPOINT from $CURRENT to http://harbor.local"
+                kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+                kubectl rollout restart deployment/harbor-core -n harbor
+              fi
+              
+              # harbor-auth secretも確認
+              HARBOR_URL=$(kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_URL}' 2>/dev/null | base64 -d)
+              if [ "$HARBOR_URL" != "harbor.local" ]; then
+                echo "$(date): Fixing harbor-auth secret"
+                HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
+                kubectl create secret generic harbor-auth \
+                  --namespace=arc-systems \
+                  --from-literal=HARBOR_URL="harbor.local" \
+                  --from-literal=HARBOR_USERNAME="admin" \
+                  --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
+                  --from-literal=HARBOR_PROJECT="sandbox" \
+                  --dry-run=client -o yaml | kubectl apply -f -
+              fi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harbor-config-fix
+  namespace: harbor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: harbor-config-fix
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "patch", "update", "create"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/status"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: harbor-config-fix
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: harbor-config-fix
+subjects:
+- kind: ServiceAccount
+  name: harbor-config-fix
+  namespace: harbor

@@ -37,6 +37,7 @@ help:
 	@echo "$(ROCKET) 個別操作"
 	@echo "  make add-runner REPO=<name>  - GitHub Actions Runner追加"
 	@echo "  make setup-arc               - Actions Runner Controller設定"
+	@echo "  make harbor-fix              - Harbor設定修正（EXT_ENDPOINT修正）"
 	@echo "  make harbor-cert-fix         - Harbor証明書修正"
 	@echo "  make setup-slack-secret      - Slack Secret手動設定"
 	@echo ""

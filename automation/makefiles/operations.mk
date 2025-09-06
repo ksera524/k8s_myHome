@@ -14,6 +14,25 @@ add-runner:
 
 # Actions Runner Controller設定 - deployment.mkに移動済み
 
+# Harbor設定修正
+harbor-fix:
+	$(call print_status,$(ROCKET),Harbor設定修正)
+	@ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 '\
+		echo "Harbor EXT_ENDPOINT修正中..." && \
+		kubectl patch cm harbor-core -n harbor --type json -p "[{\"op\": \"replace\", \"path\": \"/data/EXT_ENDPOINT\", \"value\": \"http://harbor.local\"}]" && \
+		kubectl rollout restart deployment/harbor-core -n harbor && \
+		kubectl rollout status deployment/harbor-core -n harbor --timeout=120s && \
+		HARBOR_PASSWORD=$$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" | base64 -d) && \
+		kubectl create secret generic harbor-auth \
+			--namespace=arc-systems \
+			--from-literal=HARBOR_URL="harbor.local" \
+			--from-literal=HARBOR_USERNAME="admin" \
+			--from-literal=HARBOR_PASSWORD="$${HARBOR_PASSWORD}" \
+			--from-literal=HARBOR_PROJECT="sandbox" \
+			--dry-run=client -o yaml | kubectl apply -f - && \
+		echo "✓ Harbor設定修正完了"'
+	$(call print_status,$(CHECK),Harbor設定修正完了)
+
 # Harbor証明書修正（skopeo対応により不要）
 harbor-cert-fix:
 	$(call print_status,$(INFO),skopeo対応によりHarbor証明書修正は不要です)
