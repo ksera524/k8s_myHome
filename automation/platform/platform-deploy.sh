@@ -938,6 +938,45 @@ else
     print_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
 fi
 
+# 最終段階: Harbor EXT_ENDPOINT修正（ArgoCDの同期後に必ず実行）
+print_status "=== 最終調整: Harbor EXT_ENDPOINT設定 ==="
+print_debug "ArgoCDによる同期後のHarbor設定を修正します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+echo "Harbor ConfigMap最終修正中..."
+
+# ArgoCDの同期が完了するまで少し待つ
+sleep 10
+
+# Harbor ConfigMapのEXT_ENDPOINTを修正
+CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
+if [[ "$CURRENT_EXT_ENDPOINT" != "http://harbor.local" ]]; then
+    echo "EXT_ENDPOINTを修正中: $CURRENT_EXT_ENDPOINT → http://harbor.local"
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+    
+    # Harbor core再起動
+    kubectl rollout restart deployment/harbor-core -n harbor
+    kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
+    echo "✓ Harbor EXT_ENDPOINT修正完了"
+else
+    echo "✓ Harbor EXT_ENDPOINTは既に正しく設定されています"
+fi
+
+# harbor-auth secretも再確認
+echo "harbor-auth secret確認中..."
+HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
+kubectl create secret generic harbor-auth \
+  --namespace=arc-systems \
+  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_USERNAME="admin" \
+  --from-literal=HARBOR_PASSWORD="${HARBOR_ADMIN_PASSWORD}" \
+  --from-literal=HARBOR_PROJECT="sandbox" \
+  --dry-run=client -o yaml | kubectl apply -f -
+echo "✓ harbor-auth secret更新完了"
+EOF
+
+print_status "✓ Harbor最終調整完了"
+
 print_status "🎉 すべての設定が完了しました！"
 print_status ""
 print_status "次のステップ:"

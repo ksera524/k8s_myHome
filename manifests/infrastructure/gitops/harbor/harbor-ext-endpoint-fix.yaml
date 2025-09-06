@@ -1,0 +1,100 @@
+# Harbor EXT_ENDPOINT修正Job
+# ArgoCDがHarborを同期した後にEXT_ENDPOINTを修正する
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-ext-endpoint-fix
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      serviceAccountName: harbor-ext-endpoint-fix
+      restartPolicy: OnFailure
+      containers:
+      - name: fix-ext-endpoint
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Fixing Harbor EXT_ENDPOINT..."
+          
+          # Wait for Harbor to be ready
+          sleep 30
+          
+          # Check current EXT_ENDPOINT
+          CURRENT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}')
+          echo "Current EXT_ENDPOINT: $CURRENT"
+          
+          if [ "$CURRENT" != "http://harbor.local" ]; then
+            echo "Patching ConfigMap..."
+            kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+            
+            echo "Restarting Harbor core..."
+            kubectl rollout restart deployment/harbor-core -n harbor
+            kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
+            
+            echo "✓ Harbor EXT_ENDPOINT fixed"
+          else
+            echo "✓ EXT_ENDPOINT is already correct"
+          fi
+          
+          # Also update harbor-auth secret in arc-systems
+          echo "Updating harbor-auth secret..."
+          HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
+          
+          kubectl create secret generic harbor-auth \
+            --namespace=arc-systems \
+            --from-literal=HARBOR_URL="harbor.local" \
+            --from-literal=HARBOR_USERNAME="admin" \
+            --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
+            --from-literal=HARBOR_PROJECT="sandbox" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✓ harbor-auth secret updated"
+---
+# ServiceAccount for the Job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harbor-ext-endpoint-fix
+  namespace: harbor
+---
+# ClusterRole for the Job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: harbor-ext-endpoint-fix
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments/status"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get"]
+---
+# ClusterRoleBinding for the Job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: harbor-ext-endpoint-fix
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: harbor-ext-endpoint-fix
+subjects:
+- kind: ServiceAccount
+  name: harbor-ext-endpoint-fix
+  namespace: harbor

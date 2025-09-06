@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - harbor-external-ingress.yaml
+  - harbor-ext-endpoint-fix.yaml
