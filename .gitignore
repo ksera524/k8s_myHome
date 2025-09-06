@@ -4,6 +4,7 @@
 
 # Ignore Terraform plan files
 *.tfplan
+tfplan
 
 # Ignore backup files created by Terraform
 *.backup
