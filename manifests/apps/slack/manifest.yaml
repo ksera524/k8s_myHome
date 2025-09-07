@@ -20,7 +20,7 @@ spec:
         - name: harbor-http
       containers:
       - name: slack
-        image: harbor.local/sandbox/slack.rs:latest
+        image: 192.168.122.100/sandbox/slack.rs:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
