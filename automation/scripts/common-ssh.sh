@@ -2,8 +2,14 @@
 # SSH接続用共通関数
 # 重複するSSH接続パターンを統一
 
+# settings.toml から設定読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/settings-loader.sh" ]]; then
+    source "$SCRIPT_DIR/settings-loader.sh" load 2>/dev/null || true
+fi
+
 # デフォルト設定
-DEFAULT_SSH_USER="k8suser"
+DEFAULT_SSH_USER="${K8S_USER:-k8suser}"
 DEFAULT_SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10"
 
 # コントロールプレーンへのSSH

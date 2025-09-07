@@ -30,30 +30,36 @@ fi
 
 print_status "=== Kubernetes基盤構築開始 ==="
 
+# IPアドレス設定（settings.tomlから取得、デフォルト値付き）
+CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
+WORKER_1_IP="${K8S_WORKER_1_IP:-192.168.122.11}"
+WORKER_2_IP="${K8S_WORKER_2_IP:-192.168.122.12}"
+HARBOR_IP="${HARBOR_IP:-192.168.122.100}"
+
 # 0. マニフェストファイルの準備
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
-scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
-scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null
-scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/pulumi-esc-secretstore.yaml" k8suser@192.168.122.10:/tmp/ 2>/dev/null || true
+scp -o StrictHostKeyChecking=no "../../manifests/core/storage-classes/local-storage-class.yaml" k8suser@${CONTROL_PLANE_IP}:/tmp/ 2>/dev/null
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/../templates/platform/argocd-ingress.yaml" k8suser@${CONTROL_PLANE_IP}:/tmp/ 2>/dev/null
+scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8suser@${CONTROL_PLANE_IP}:/tmp/ 2>/dev/null
+scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/pulumi-esc-secretstore.yaml" k8suser@${CONTROL_PLANE_IP}:/tmp/ 2>/dev/null || true
 
 # 1. 前提条件確認
 print_status "前提条件を確認中..."
 
 # SSH known_hosts クリーンアップ
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.10' 2>/dev/null || true
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.11' 2>/dev/null || true  
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R '192.168.122.12' 2>/dev/null || true
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R "${CONTROL_PLANE_IP}" 2>/dev/null || true
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R "${WORKER_1_IP}" 2>/dev/null || true  
+ssh-keygen -f "$HOME/.ssh/known_hosts" -R "${WORKER_2_IP}" 2>/dev/null || true
 
 # k8sクラスタ接続確認
-if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
+if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
     print_error "k8sクラスタに接続できません"
     print_error "Phase 3のk8sクラスタ構築を先に完了してください"
     print_error "注意: このスクリプトはUbuntuホストマシンで実行してください（WSL2不可）"
     exit 1
 fi
 
-READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
+READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
 if [[ $READY_NODES -lt 2 ]]; then
     print_error "Ready状態のNodeが2台未満です（現在: $READY_NODES台）"
     exit 1
@@ -69,7 +75,7 @@ print_debug "MetalLB, NGINX Ingress, cert-managerはArgoCD経由でデプロイ�
 
 # Phase 4.4: StorageClass設定
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Local StorageClass作成
 kubectl apply -f /tmp/local-storage-class.yaml
 
@@ -78,7 +84,7 @@ EOF
 # Phase 4.5: ArgoCD デプロイ
 print_status "ArgoCD デプロイ中..."
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # ArgoCD namespace作成（ArgoCD自体に必要）
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
@@ -108,7 +114,9 @@ print_status "✓ ArgoCD デプロイ完了"
 print_status "=== Phase 4.6: App-of-Apps パターン適用 ==="
 print_debug "すべてのApplicationをGitOps管理でデプロイします"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << EOF
+# 環境変数を明示的にエクスポート
+export PULUMI_ACCESS_TOKEN="${PULUMI_ACCESS_TOKEN}"
 # App-of-Appsパターン適用（すべてのApplicationを管理）
 echo "App-of-Apps適用中..."
 kubectl apply -f /tmp/app-of-apps.yaml
@@ -212,7 +220,7 @@ print_status "=== Phase 4.7: ArgoCD GitHub OAuth設定 ==="
 print_debug "GitHub OAuth設定をExternal Secrets経由で行います"
 
 # Pulumi Access TokenがEOFブロック内で既に作成されているか確認
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Pulumi Access Token Secretの存在確認
 if kubectl get secret pulumi-esc-token -n external-secrets-system 2>/dev/null; then
     echo "✓ Pulumi Access Token Secret確認済み"
@@ -365,7 +373,7 @@ print_status "✓ ArgoCD GitHub OAuth設定完了"
 print_status "=== Phase 4.8: Harbor デプロイ ==="
 print_debug "Harbor Private Registry をArgoCD経由でデプロイします"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Platform Application同期確認（External Secretsリソース適用のため）
 if kubectl get application platform -n argocd 2>/dev/null; then
     echo "Platform Application同期確認中（Harbor External Secretsのため）..."
@@ -414,7 +422,7 @@ print_status "✓ Harbor デプロイ完了"
 print_status "=== Phase 4.8.5: Harbor認証設定（skopeo対応） ==="
 print_debug "Harbor認証情報secretをGitHub Actions用に設定します"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Harbor Pod起動待機
 echo "Harbor Pod起動を待機中..."
 if kubectl get pods -n harbor 2>/dev/null | grep -q harbor; then
@@ -511,7 +519,7 @@ print_status "=== Phase 4.8.6: Containerd Harbor HTTP Registry設定 ==="
 print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
 
 # Harbor admin パスワード取得（ローカルで実行）
-HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d')
+HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d')
 if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
     print_error "ESOからHarborパスワードを取得できませんでした"
     print_error "External Secretsの同期が完了していません"
@@ -587,7 +595,7 @@ if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
     print_status "✓ ARC セットアップ完了"
 else
     print_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
-    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+    ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
     # Platform Application同期確認
     kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
     echo "✓ ARC デプロイ完了"
@@ -597,7 +605,7 @@ fi
 # Phase 4.9.4: ARC Controller起動待機
 print_status "=== Phase 4.9.4: ARC Controller起動待機 ==="
 print_debug "ARC Controllerの起動を確認中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl wait --for=condition=available --timeout=120s deployment/arc-controller-gha-rs-controller -n arc-systems' || true
+ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'kubectl wait --for=condition=available --timeout=120s deployment/arc-controller-gha-rs-controller -n arc-systems' || true
 print_status "✓ ARC Controller起動確認完了"
 
 # Phase 4.9.5: settings.tomlのリポジトリを自動add-runner
@@ -629,7 +637,7 @@ if [[ -f "$SETTINGS_FILE" ]]; then
         CURRENT=0
         
         # SSH接続確認を先に実施
-        if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
+        if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
             print_error "k8sクラスタに接続できません。Runner追加をスキップします"
         else
             while IFS= read -r line; do
@@ -697,7 +705,7 @@ fi
 print_status "=== Phase 4.10: 各種Application デプロイ ==="
 print_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # ESOリソースが適用されているか確認
 echo "External Secrets リソース確認中..."
 if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q Ready; then
@@ -742,7 +750,7 @@ print_status "✓ 各種Application デプロイ完了"
 print_status "=== Phase 4.11: システム環境確認 ==="
 print_debug "デプロイされたシステム全体の動作確認を行います"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 echo "=== 最終システム状態確認 ==="
 
 # ArgoCD状態確認
@@ -827,7 +835,7 @@ print_status "  - イメージプルsecret (各namespace/harbor-http) 設定済�
 
 # Harbor IP Ingress を作成
 print_status "Harbor IP Ingress を作成中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
+ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Harbor IP Ingress が存在しない場合のみ作成
 if ! kubectl get ingress -n harbor harbor-ip-ingress >/dev/null 2>&1; then
     echo "Harbor IP Ingress を作成中..."
@@ -904,7 +912,7 @@ print_status "✓ Harbor IP Ingress 設定完了"
 
 # Harbor の動作確認
 print_status "Harbor の動作確認中..."
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl -s -f http://192.168.122.100/api/v2.0/systeminfo' >/dev/null 2>&1; then
+if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f http://${HARBOR_IP}/api/v2.0/systeminfo" >/dev/null 2>&1; then
     print_status "✓ Harbor API が正常に応答しています"
 else
     print_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
@@ -914,7 +922,7 @@ fi
 print_status "=== 最終調整: Harbor EXT_ENDPOINT設定 ==="
 print_debug "ArgoCDによる同期後のHarbor設定を修正します"
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << 'EOF'
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 echo "Harbor ConfigMap最終修正中..."
 
 # ArgoCDの同期が完了するまで少し待つ

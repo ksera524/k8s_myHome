@@ -3,12 +3,146 @@
 #
 # 使用方法:
 # 1. cp settings.toml.example settings.toml
-# 2. 必要な値を設定
+# 2. 必要な値を設定（秘匿情報のみ）
 # 3. make all 実行
 #
 # セキュリティ注意:
 # - settings.toml は .gitignore に追加済み
 # - リポジトリにコミットしないでください
+
+# ========================================
+# Kubernetes クラスタ設定
+# ========================================
+[kubernetes]
+# クラスタ名
+cluster_name = "home-k8s"
+# Kubernetesバージョン
+version = "v1.29.0"
+# Kubernetesユーザー
+user = "k8suser"
+# SSH秘密鍵パス
+ssh_key_path = "/home/k8suser/.ssh/id_ed25519"
+
+# ========================================
+# ネットワーク設定（デフォルト値・通常変更不要）
+# ========================================
+[network]
+# ホストネットワーク設定
+network_cidr = "192.168.122.0/24"
+gateway_ip = "192.168.122.1"
+
+# Kubernetes ノードIP
+control_plane_ip = "192.168.122.10"
+worker_1_ip = "192.168.122.11"
+worker_2_ip = "192.168.122.12"
+
+# Kubernetes内部ネットワーク
+pod_network_cidr = "10.244.0.0/16"
+service_cidr = "10.96.0.0/12"
+
+# MetalLB LoadBalancer IP範囲
+metallb_ip_start = "192.168.122.100"
+metallb_ip_end = "192.168.122.150"
+
+# サービス固定IP
+harbor_lb_ip = "192.168.122.100"
+ingress_lb_ip = "192.168.122.101"
+argocd_lb_ip = "192.168.122.102"
+
+# サービスポート
+kubernetes_api_port = 6443
+argocd_port_forward = 8080
+harbor_port_forward = 8081
+
+# ========================================
+# Harbor設定
+# ========================================
+[harbor]
+# Harbor URL（変更不要）
+url = "harbor.local"
+# Harbor HTTPポート
+http_port = 80
+# Harbor HTTPSポート（未使用）
+https_port = 443
+# デフォルトプロジェクト
+project = "sandbox"
+# 管理者ユーザー名
+admin_username = "admin"
+# 管理者パスワード（External Secrets経由で取得）
+admin_password = "Harbor12345"
+# レジストリサイズ
+registry_size = "100Gi"
+# データベースサイズ
+database_size = "10Gi"
+
+# ========================================
+# アプリケーションバージョン
+# ========================================
+[versions]
+# インフラコンポーネント
+metallb = "0.13.12"
+ingress_nginx = "4.8.2"
+cert_manager = "1.13.3"
+argocd = "5.51.6"
+harbor = "1.13.1"
+external_secrets = "0.9.11"
+
+# CNI
+flannel = "latest"
+
+# ========================================
+# ストレージ設定
+# ========================================
+[storage]
+# ストレージベースディレクトリ
+base_dir = "/data"
+# NFSシェアディレクトリ
+nfs_share = "/data/nfs-share"
+# ローカルボリュームディレクトリ
+local_volumes = "/data/local-volumes"
+# StorageClass名
+default_storage_class = "local-path"
+
+# ========================================
+# タイムアウト設定（秒）
+# ========================================
+[timeout]
+# デフォルトタイムアウト
+default = 300
+# kubectl コマンドタイムアウト
+kubectl = 120
+# Helm コマンドタイムアウト
+helm = 300
+# ArgoCD 同期タイムアウト
+argocd_sync = 600
+# SSH接続タイムアウト
+ssh_connect = 10
+# Terraform タイムアウト
+terraform = 600
+
+# ========================================
+# リトライ設定
+# ========================================
+[retry]
+# デフォルトリトライ回数
+count = 3
+# リトライ間隔（秒）
+delay = 5
+# 最大リトライ間隔（秒）
+max_delay = 60
+
+# ========================================
+# ログ設定
+# ========================================
+[logging]
+# ログディレクトリ
+log_dir = "/var/log/k8s-myhome"
+# ログレベル (DEBUG, INFO, WARN, ERROR)
+log_level = "INFO"
+# デバッグモード
+debug = false
+# 詳細出力
+verbose = false
 
 # ========================================
 # ホストセットアップ設定（make all時に使用）
@@ -23,16 +157,22 @@ usb_device_name = ""
 # Pulumi設定（External Secrets Operator用）
 # ========================================
 [pulumi]
-# Pulumi Access Token (必須)
+# Pulumi Access Token (必須・要入力)
 # 取得方法: https://app.pulumi.com/account/tokens
 # 形式: pul-で始まる40文字の英数字
 access_token = ""
+# Pulumi組織名
+organization = "ksera"
+# Pulumiプロジェクト名
+project = "k8s"
+# Pulumi環境名
+environment = "secret"
 
 # ========================================
 # GitHub設定（GitHub Actions Runner用）
 # ========================================
 [github]
-# GitHubユーザー名（必須）
+# GitHubユーザー名（必須・要入力）
 # add-runner.sh, ArgoCD OAuth設定で使用
 username = ""
 
@@ -76,3 +216,11 @@ arc_repositories = []
 [automation]
 # 確認プロンプトを自動でYesにする
 auto_confirm_overwrite = true
+# External Secrets Operatorを有効化
+enable_external_secrets = true
+# GitHub Actions Runnerを有効化
+enable_github_actions = true
+# モニタリングを有効化
+enable_monitoring = false
+# バックアップを有効化
+enable_backup = false

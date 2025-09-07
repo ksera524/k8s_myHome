@@ -17,11 +17,19 @@ SETTINGS_FILE := $(PROJECT_ROOT)/settings.toml
 COMMON_COLORS := $(SCRIPTS_DIR)/common-colors.sh
 SETTINGS_LOADER := $(SCRIPTS_DIR)/settings-loader.sh
 
+# settings.tomlから設定を読み込み
+ifneq ($(wildcard $(SETTINGS_FILE)),)
+    -include $(shell source $(SETTINGS_LOADER) load >/dev/null 2>&1 && env | grep -E '^(K8S_|HARBOR_|ARGOCD_|METALLB_)' | sed 's/^/export /')
+endif
+
 # Kubernetes クラスタ設定（settings.tomlで上書き可能）
-K8S_CONTROL_PLANE_IP := $(shell if [ -n "$${K8S_CONTROL_PLANE_IP}" ]; then echo "$${K8S_CONTROL_PLANE_IP}"; else echo "192.168.122.10"; fi)
-K8S_WORKER_1_IP := $(shell if [ -n "$${K8S_WORKER_1_IP}" ]; then echo "$${K8S_WORKER_1_IP}"; else echo "192.168.122.11"; fi)
-K8S_WORKER_2_IP := $(shell if [ -n "$${K8S_WORKER_2_IP}" ]; then echo "$${K8S_WORKER_2_IP}"; else echo "192.168.122.12"; fi)
-K8S_USER := k8suser
+K8S_CONTROL_PLANE_IP ?= 192.168.122.10
+K8S_WORKER_1_IP ?= 192.168.122.11
+K8S_WORKER_2_IP ?= 192.168.122.12
+K8S_USER ?= k8suser
+HARBOR_IP ?= 192.168.122.100
+INGRESS_IP ?= 192.168.122.101
+ARGOCD_IP ?= 192.168.122.102
 
 # SSH設定
 SSH_OPTS := -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5
