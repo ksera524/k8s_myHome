@@ -176,13 +176,13 @@ kubectl apply -f /tmp/app-of-apps.yaml
 
 # 基盤インフラApplication同期待機
 echo "基盤インフラApplication同期待機中..."
-sleep 30
+sleep 15
 
 # MetalLB同期確認
 if kubectl get application metallb -n argocd 2>/dev/null; then
     for i in {1..30}; do
-        HEALTH=$(kubectl get application metallb -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ]; then
+        HEALTH=$(kubectl get application metallb -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ]; then
             echo "✓ MetalLB: Healthy"
             break
         fi
@@ -194,8 +194,8 @@ fi
 # NGINX Ingress同期確認
 if kubectl get application ingress-nginx -n argocd 2>/dev/null; then
     for i in {1..30}; do
-        HEALTH=$(kubectl get application ingress-nginx -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ]; then
+        HEALTH=$(kubectl get application ingress-nginx -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ]; then
             echo "✓ NGINX Ingress: Healthy"
             break
         fi
@@ -207,8 +207,8 @@ fi
 # cert-manager同期確認
 if kubectl get application cert-manager -n argocd 2>/dev/null; then
     for i in {1..30}; do
-        HEALTH=$(kubectl get application cert-manager -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ]; then
+        HEALTH=$(kubectl get application cert-manager -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ]; then
             echo "✓ cert-manager: Healthy"
             break
         fi
@@ -222,12 +222,12 @@ if kubectl get application external-secrets-operator -n argocd 2>/dev/null; then
     echo "External Secrets Operator同期待機中..."
     # Health状態の確認
     for i in {1..30}; do
-        HEALTH=$(kubectl get application external-secrets-operator -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ]; then
+        HEALTH=$(kubectl get application external-secrets-operator -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ]; then
             echo "✓ External Secrets Operator: Healthy"
             break
         fi
-        echo "ESO Health: $HEALTH (待機中 $i/30)"
+        echo "ESO Health: ${HEALTH} (待機中 $i/30)"
         sleep 10
     done
     kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/name=external-secrets --timeout=300s || echo "ESO Pod起動待機中"
@@ -284,12 +284,12 @@ if kubectl get application platform -n argocd 2>/dev/null; then
     echo "Platform Application同期待機中..."
     # Health状態の確認
     for i in {1..30}; do
-        HEALTH=$(kubectl get application platform -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ]; then
+        HEALTH=$(kubectl get application platform -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ]; then
             echo "✓ Platform Application: Healthy"
             break
         fi
-        echo "Platform Health: $HEALTH (待機中 $i/30)"
+        echo "Platform Health: ${HEALTH} (待機中 $i/30)"
         sleep 10
     done
 fi
@@ -800,12 +800,12 @@ if kubectl get application applications -n argocd 2>/dev/null; then
     echo "Applications同期待機中..."
     # Health状態の確認
     for i in {1..30}; do
-        HEALTH=$(kubectl get application applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null)
-        if [ "$HEALTH" = "Healthy" ] || [ "$HEALTH" = "Progressing" ]; then
-            echo "✓ Applications: $HEALTH"
+        HEALTH=$(kubectl get application applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        if [ "${HEALTH}" = "Healthy" ] || [ "${HEALTH}" = "Progressing" ]; then
+            echo "✓ Applications: ${HEALTH}"
             break
         fi
-        echo "Applications Health: $HEALTH (待機中 $i/30)"
+        echo "Applications Health: ${HEALTH} (待機中 $i/30)"
         sleep 10
     done
 fi

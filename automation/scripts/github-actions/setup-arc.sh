@@ -1,112 +1,83 @@
 #!/bin/bash
-
-# GitHub Actions Runner Controller (ARC) セットアップスクリプト
-# 公式ARC対応版 - クリーンでシンプルな実装
+# GitHub Actions Runner Controller (ARC) Setup Script
 
 set -euo pipefail
 
-# 共通ライブラリを読み込み
+# スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "$SCRIPTS_ROOT/common-k8s-utils.sh"
-source "$SCRIPTS_ROOT/common-logging.sh"
+AUTOMATION_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-log_status "=== GitHub Actions Runner Controller セットアップ開始 ==="
+# 共通関数の読み込み
+source "${SCRIPT_DIR}/../common-logging.sh"
+source "${SCRIPT_DIR}/../settings-loader.sh"
 
-# k8sクラスタ接続確認
-log_debug "k8sクラスタ接続確認中..."
-if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
-    log_error "k8sクラスタに接続できません"
-    exit 1
-fi
-log_status "✓ k8sクラスタ接続OK"
+# 設定ファイル読み込み
+load_settings "${AUTOMATION_DIR}/settings.toml"
 
-# Helm動作確認
-log_debug "Helm動作確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'which helm' >/dev/null 2>&1; then
-    log_status "Helmをインストール中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
-fi
-log_status "✓ Helm準備完了"
+log_status "GitHub Actions Runner Controller (ARC) セットアップ開始..."
 
-# 名前空間作成
-log_debug "arc-systems namespace確認・作成中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -'
+CONTROL_PLANE_IP="192.168.122.10"
 
-# GitHub認証Secret確認（ESOから取得されているはず）
-log_debug "GitHub認証情報確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
-    log_warning "GitHub認証情報が見つかりません。ESOが同期するまで待機中..."
-    sleep 30
-    
-    if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
-        log_error "GitHub認証情報が作成されていません。External Secrets Operatorの設定を確認してください"
-        exit 1
-    fi
-fi
-log_status "✓ GitHub認証情報確認完了"
-
-# ServiceAccount・RBAC作成
-log_debug "ServiceAccount・RBAC設定中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl apply -f - <<EOF
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: github-actions-runner
-  namespace: arc-systems
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: github-actions-secret-reader
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: github-actions-secret-reader
-subjects:
-- kind: ServiceAccount
-  name: github-actions-runner
-  namespace: arc-systems
-roleRef:
-  kind: ClusterRole
-  name: github-actions-secret-reader
-  apiGroup: rbac.authorization.k8s.io
-EOF'
-
-log_status "✓ ServiceAccount・RBAC設定完了"
-
-# ARC Controller状態確認（GitOpsでデプロイされているはず）
-log_status "🚀 ARC Controller 状態確認中..."
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get application arc-controller -n argocd' >/dev/null 2>&1; then
-    log_status "✓ ARC Controller はGitOps経由でデプロイされています"
-else
-    log_warning "ARC Controller ApplicationがArgoCDに見つかりません"
-fi
-
-# 状態確認
-log_status "📊 ARC状態確認中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
-echo "=== ARC Controller 状態 ==="
-kubectl get deployment -n arc-systems | grep controller || echo "Controller未デプロイ"
-
-echo -e "\n=== Pods 状態 ==="
-kubectl get pods -n arc-systems
-
-echo -e "\n=== CRD 状態 ==="
-kubectl get crd | grep actions.github.com || echo "ARC CRD未インストール"
+# ARC namespace作成
+log_status "ARC namespace作成中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace arc-runners --dry-run=client -o yaml | kubectl apply -f -
 EOF
 
-log_status "✅ GitHub Actions Runner Controller セットアップ完了"
-log_status ""
-log_status "📋 次のステップ:"
-log_status "   • make add-runner REPO=your-repo でRunnerを追加"
-log_status "   • GitHubリポジトリにworkflowファイルをコミット"
-log_status ""
-log_status "🔐 認証: GitHub PAT (ESO管理)"
-log_status "🐳 環境: Docker-in-Docker対応"
-log_status "🚀 管理: GitOps + Helm"
+# GitHub認証情報はExternal Secrets Operatorが管理するため、手動作成は不要
+# External Secretsが自動的にgithub-authシークレットを作成・更新する
+
+# Harbor認証情報Secret作成
+log_status "Harbor認証情報Secret作成中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+kubectl create secret generic harbor-auth \
+  --namespace arc-systems \
+  --from-literal=HARBOR_USERNAME="admin" \
+  --from-literal=HARBOR_PASSWORD="te3CFrgdMaBJTCg4UWJv" \
+  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_PROJECT="sandbox" \
+  --dry-run=client -o yaml | kubectl apply -f -
+EOF
+
+# GitHub Actions Runner用ServiceAccount作成
+log_status "GitHub Actions Runner ServiceAccount作成中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+kubectl create serviceaccount github-actions-runner \
+  --namespace arc-systems \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create rolebinding github-actions-runner-binding \
+  --namespace arc-systems \
+  --clusterrole=admin \
+  --serviceaccount=arc-systems:github-actions-runner \
+  --dry-run=client -o yaml | kubectl apply -f -
+EOF
+
+# Helm確認・インストール
+log_status "Helm確認中..."
+if ! ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'which helm' >/dev/null 2>&1; then
+    log_status "Helmをインストール中..."
+    ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
+    log_status "✓ Helmインストール完了"
+else
+    log_debug "✓ Helm確認済み"
+fi
+
+# ARC Controller Helm chart インストール
+log_status "ARC Controller Helm chart インストール中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# Helm リポジトリ追加
+helm repo add actions-runner-controller https://actions-runner-controller.github.io/actions-runner-controller
+helm repo update
+
+# ARC Controller インストール
+helm upgrade --install arc \
+  --namespace arc-systems \
+  --create-namespace \
+  --set syncPeriod=1m \
+  actions-runner-controller/actions-runner-controller \
+  --wait || true
+EOF
+
+log_success "GitHub Actions Runner Controller (ARC) セットアップ完了"

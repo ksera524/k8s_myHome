@@ -88,27 +88,8 @@ wait-for-k8s-cluster:
 		exit 1; \
 	fi
 
-# GitHub External Secret同期完了待機（ARC setup用）
-wait-for-external-secrets:
-	@echo "$(INFO) GitHub External Secret同期完了を待機中..."
-	@timeout=60; \
-	github_secret_ready=false; \
-	while [ $$timeout -gt 0 ]; do \
-		if ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret github-auth-secret -n arc-systems' >/dev/null 2>&1; then \
-			ready_status=$$(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=5 k8suser@$(K8S_CONTROL_PLANE_IP) 'kubectl get externalsecret github-auth-secret -n arc-systems -o jsonpath="{.status.conditions[?(@.type==\"Ready\")].status}"' 2>/dev/null || echo "False"); \
-			if [ "$$ready_status" = "True" ]; then \
-				echo "$(CHECK) github-auth-secret External Secret準備完了"; \
-				github_secret_ready=true; \
-				break; \
-			fi; \
-		fi; \
-		echo "$(INFO) GitHub External Secret待機中... (残り $$timeout 秒)"; \
-		sleep 5; \
-		timeout=$$((timeout - 5)); \
-	done; \
-	if [ "$$github_secret_ready" = "false" ]; then \
-		echo "$(WARNING) GitHub External Secret準備がタイムアウトしました"; \
-		echo "$(INFO) setup-arc.sh が失敗する可能性があります"; \
-	fi
+# GitHub External Secret同期完了待機（削除：External Secrets Operatorが自動同期するため不要）
+# External Secrets Operatorは20秒間隔で自動的に同期を行い、
+# GitOpsパターンにより必要なシークレットは自動的に作成される
 
 # 削除された複雑な内部関数（簡素化のため）

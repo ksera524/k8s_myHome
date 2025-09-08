@@ -90,9 +90,14 @@ load_settings() {
         return 1
     fi
     
-    log_status "設定ファイル読み込み中: $SETTINGS_FILE"
+    # NON_INTERACTIVEまたはQUIET_LOGSモードでは詳細ログを抑制
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ "${QUIET_LOGS:-false}" != "true" ]]; then
+        log_status "設定ファイル読み込み中: $SETTINGS_FILE"
+    fi
     parse_toml "$SETTINGS_FILE"
-    log_status "設定ファイル読み込み完了"
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ "${QUIET_LOGS:-false}" != "true" ]]; then
+        log_status "設定ファイル読み込み完了"
+    fi
     
     # 重要な環境変数の設定
     export_important_variables

@@ -32,9 +32,6 @@ make all
 
 # GitHub Actions Runnerを追加
 make add-runner REPO=your-repository-name
-
-# ヘルプを表示
-make help
 ```
 
 ### Manual Deployment Steps

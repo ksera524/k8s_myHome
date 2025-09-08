@@ -64,16 +64,14 @@ infrastructure:
 platform:
 	@echo "$(ROCKET) Kubernetesプラットフォーム構築開始"
 	@echo "$(KEY) ESO Prerequisites設定中..."
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && NON_INTERACTIVE=true $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
 	@echo "$(INFO) App-of-Appsデプロイ強制実行中..."
 	@$(MAKE) _deploy-app-of-apps || echo "$(WARNING) App-of-Appsデプロイで警告が発生しましたが続行します"
-	@echo "$(INFO) External Secrets同期確認中..."
-	@$(MAKE) wait-for-external-secrets || echo "$(WARNING) External Secrets同期で一部警告が発生しましたが続行します"
 	@echo "$(GEAR) ArgoCD GitHub OAuth設定中..."
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	@echo "$(ROCKET) GitHub Actions Runner Controller (ARC) セットアップ中..."
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && cd $(SCRIPTS_DIR)/github-actions && NON_INTERACTIVE=true ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	@echo "$(CHECK) Kubernetesプラットフォーム構築完了"
 
 # App-of-Apps強制デプロイ（内部ターゲット）
@@ -99,15 +97,14 @@ _deploy-app-of-apps:
 # ポストデプロイメント処理
 post-deployment:
 	$(call print_section,$(GEAR),ポストデプロイメント: GitOps同期とGitHub OAuth設定確認中...)
-	@sleep $(GITOPS_SYNC_WAIT)  # GitOps同期待機
+	@sleep 5  # GitOps初期同期待機
 	$(call print_status,$(RECYCLE),External Secrets設定強制同期中...)
 	$(call force_argocd_sync)
-	@sleep 10  # ArgoCD同期待機
+	@sleep 5  # ArgoCD同期待機
 	$(call print_status,$(CLOUD),ArgoCD App-of-Apps同期でCloudflaredアプリケーション確認中...)
 	$(call force_argocd_sync)
-	@sleep 5
+	@sleep 3
 	@$(MAKE) _check-cloudflared-app
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ../scripts/argocd/setup-argocd-github-oauth.sh' || echo "$(WARNING) ArgoCD GitHub OAuth設定で警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),ポストデプロイメント完了)
 
 # GitHub Actions Runner Controller (ARC) セットアップ（スタンドアロン）
