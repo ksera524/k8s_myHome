@@ -12,35 +12,35 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-print_status() {
+log_status() {
     echo -e "${GREEN}[INFO]${NC} $1"
 }
 
-print_error() {
+log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-print_warning() {
+log_warning() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
-print_debug() {
+log_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-print_status "=== ESO Webhook 根本的修正スクリプト ==="
-print_warning "このスクリプトはESO ValidatingWebhookを無効化します（開発環境用）"
+log_status "=== ESO Webhook 根本的修正スクリプト ==="
+log_warning "このスクリプトはESO ValidatingWebhookを無効化します（開発環境用）"
 echo
 
 # k8sクラスタ接続確認
-print_status "k8sクラスタ接続確認中..."
+log_status "k8sクラスタ接続確認中..."
 if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
-    print_error "k8sクラスタに接続できません"
+    log_error "k8sクラスタに接続できません"
     exit 1
 fi
 
 # 現状確認
-print_status "現在のESO Webhook状態を確認中..."
+log_status "現在のESO Webhook状態を確認中..."
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 echo "=== ValidatingWebhookConfigurations ==="
 kubectl get validatingwebhookconfigurations | grep -E "external|secret"
@@ -55,12 +55,12 @@ echo
 read -p "ESO ValidatingWebhookを無効化しますか？ (y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    print_warning "処理をキャンセルしました"
+    log_warning "処理をキャンセルしました"
     exit 0
 fi
 
 # 修正処理
-print_status "ESO Webhook無効化処理を開始..."
+log_status "ESO Webhook無効化処理を開始..."
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 set -e
@@ -139,6 +139,6 @@ kubectl get externalsecrets -A 2>/dev/null | head -5 || echo "External Secrets�
 echo "✓ ESO Webhook無効化処理完了"
 EOF
 
-print_status "=== ESO Webhook修正完了 ==="
-print_status "ValidatingWebhookを無効化しました"
-print_warning "注意: 本番環境では適切な証明書管理（cert-manager等）を検討してください"
+log_status "=== ESO Webhook修正完了 ==="
+log_status "ValidatingWebhookを無効化しました"
+log_warning "注意: 本番環境では適切な証明書管理（cert-manager等）を検討してください"

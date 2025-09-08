@@ -7,31 +7,31 @@ set -euo pipefail
 
 # 共通カラー定義を読み込み
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../scripts/common-colors.sh"
+source "$SCRIPT_DIR/../scripts/common-logging.sh"
 
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
-   print_error "This script should not be run as root"
+   log_error "This script should not be run as root"
    exit 1
 fi
 
-print_status "Starting Phase 1: Host machine setup for k8s migration"
+log_status "Starting Phase 1: Host machine setup for k8s migration"
 
 # 0. Clean up problematic repositories (Helm 403 error fix)
-print_status "Cleaning up problematic APT repositories..."
+log_status "Cleaning up problematic APT repositories..."
 if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
-    print_warning "Removing broken Helm repository (403 error fix)..."
+    log_warning "Removing broken Helm repository (403 error fix)..."
     sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
     sudo rm -f /usr/share/keyrings/helm.gpg
-    print_status "✓ Removed problematic Helm repository"
+    log_status "✓ Removed problematic Helm repository"
 fi
 
 # 1. System update
-print_status "Updating system packages..."
+log_status "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
 # 2. Install virtualization packages
-print_status "Installing QEMU/KVM and libvirt packages..."
+log_status "Installing QEMU/KVM and libvirt packages..."
 sudo apt install -y \
     qemu-kvm \
     libvirt-daemon-system \
@@ -43,7 +43,7 @@ sudo apt install -y \
     cpu-checker
 
 # 3. Install development and automation tools
-print_status "Installing development and automation tools..."
+log_status "Installing development and automation tools..."
 sudo apt install -y \
     git \
     curl \
@@ -60,7 +60,7 @@ sudo apt install -y \
     lsb-release
 
 # 4. Install Terraform
-print_status "Installing Terraform..."
+log_status "Installing Terraform..."
 # 既存のキーファイルを削除してから作成（上書き確認を回避）
 sudo rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
 wget -O- https://apt.releases.hashicorp.com/gpg | \
@@ -73,11 +73,11 @@ sudo apt update
 sudo apt install -y terraform
 
 # 5. Install Ansible
-print_status "Installing Ansible..."
+log_status "Installing Ansible..."
 sudo apt install -y ansible
 
 # 6. Install Docker (for building and testing)
-print_status "Installing Docker..."
+log_status "Installing Docker..."
 for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
 sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y ca-certificates curl
@@ -92,7 +92,7 @@ sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # 7. Install kubectl
-print_status "Installing kubectl..."
+log_status "Installing kubectl..."
 # 既存のキーファイルを削除してから作成（上書き確認を回避）
 sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -101,10 +101,10 @@ sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y kubectl
 
 # 8. Install helm
-print_status "Installing Helm..."
+log_status "Installing Helm..."
 # 古いHelmリポジトリファイルがあれば削除（403エラー対策）
 if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
-    print_status "Removing old Helm repository configuration..."
+    log_status "Removing old Helm repository configuration..."
     sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
     sudo rm -f /usr/share/keyrings/helm.gpg
 fi
@@ -115,32 +115,32 @@ if ! command -v helm &> /dev/null; then
     ./get_helm.sh
     rm get_helm.sh
 else
-    print_status "Helm is already installed"
+    log_status "Helm is already installed"
 fi
 
 # 9. Add user to required groups
-print_status "Adding user to required groups..."
+log_status "Adding user to required groups..."
 sudo usermod -aG libvirt $USER
 sudo usermod -aG kvm $USER
 sudo usermod -aG docker $USER
 
 # 10. Check virtualization support
-print_status "Checking virtualization support..."
+log_status "Checking virtualization support..."
 if kvm-ok; then
-    print_status "KVM virtualization is supported"
+    log_status "KVM virtualization is supported"
 else
-    print_warning "KVM virtualization may not be fully supported. Please check BIOS settings."
+    log_warning "KVM virtualization may not be fully supported. Please check BIOS settings."
 fi
 
 # 11. Enable and start services
-print_status "Enabling and starting required services..."
+log_status "Enabling and starting required services..."
 sudo systemctl enable libvirtd
 sudo systemctl start libvirtd
 sudo systemctl enable docker
 sudo systemctl start docker
 
 # 12. Verify installations
-print_status "Verifying installations..."
+log_status "Verifying installations..."
 
 # Check versions
 echo "=== Installation Verification ==="
@@ -161,9 +161,9 @@ echo ""
 echo "=== Group Membership ==="
 echo "Groups for user $USER: $(groups $USER)"
 
-print_status "Phase 1 setup completed successfully!"
-print_warning "Please log out and log back in (or run 'newgrp libvirt && newgrp docker') to refresh group membership."
-print_status "After re-login, run: ./setup-storage.sh to continue with storage setup"
+log_status "Phase 1 setup completed successfully!"
+log_warning "Please log out and log back in (or run 'newgrp libvirt && newgrp docker') to refresh group membership."
+log_status "After re-login, run: ./setup-storage.sh to continue with storage setup"
 
 # Create next step reminder
 cat > /tmp/next-steps.txt << EOF
@@ -176,12 +176,12 @@ Next steps:
 
 EOF
 
-print_status "Next steps saved to /tmp/next-steps.txt"
+log_status "Next steps saved to /tmp/next-steps.txt"
 
 # Helm セットアップを実行
-print_status "Helmセットアップを実行中..."
+log_status "Helmセットアップを実行中..."
 if [[ -f "$(dirname "$0")/setup-helm.sh" ]]; then
     "$(dirname "$0")/setup-helm.sh"
 else
-    print_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
+    log_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
 fi

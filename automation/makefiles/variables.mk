@@ -14,7 +14,7 @@ MANIFESTS_DIR := $(PROJECT_ROOT)/manifests/resources
 
 # 設定ファイル
 SETTINGS_FILE := $(PROJECT_ROOT)/settings.toml
-COMMON_COLORS := $(SCRIPTS_DIR)/common-colors.sh
+COMMON_LOGGING := $(SCRIPTS_DIR)/common-logging.sh
 SETTINGS_LOADER := $(SCRIPTS_DIR)/settings-loader.sh
 
 # settings.tomlから設定を読み込み

@@ -9,12 +9,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPTS_ROOT/common-k8s-utils.sh"
-source "$SCRIPTS_ROOT/common-colors.sh"
+source "$SCRIPTS_ROOT/common-logging.sh"
 
 # 引数確認
 if [[ $# -lt 1 ]]; then
-    print_error "使用方法: $0 <repository-name> [min-runners] [max-runners]"
-    print_error "例: $0 my-awesome-project 1 3"
+    log_error "使用方法: $0 <repository-name> [min-runners] [max-runners]"
+    log_error "例: $0 my-awesome-project 1 3"
     exit 1
 fi
 
@@ -25,11 +25,11 @@ MAX_RUNNERS="${3:-3}"
 # Runner名生成（小文字変換、ドット・アンダースコアをハイフンに変換）
 RUNNER_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')-runners"
 
-print_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
-print_debug "対象リポジトリ: $REPOSITORY_NAME"
-print_debug "Runner名: $RUNNER_NAME"
-print_debug "Min Runners: $MIN_RUNNERS"
-print_debug "Max Runners: $MAX_RUNNERS"
+log_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
+log_debug "対象リポジトリ: $REPOSITORY_NAME"
+log_debug "Runner名: $RUNNER_NAME"
+log_debug "Min Runners: $MIN_RUNNERS"
+log_debug "Max Runners: $MAX_RUNNERS"
 
 # GitHubユーザー名を取得（settings.tomlから）
 # settings.tomlはautomation直下にある
@@ -41,104 +41,104 @@ if [[ ! -f "$SETTINGS_FILE" ]]; then
         # platform-deploy.shから呼ばれる場合
         SETTINGS_FILE="$(dirname "$SCRIPTS_ROOT")/settings.toml"
         if [[ ! -f "$SETTINGS_FILE" ]]; then
-            print_error "settings.tomlが見つかりません"
-            print_error "automation/settings.tomlを作成してください"
+            log_error "settings.tomlが見つかりません"
+            log_error "automation/settings.tomlを作成してください"
             exit 1
         fi
     fi
 fi
 
-print_debug "settings.tomlファイル: $SETTINGS_FILE"
+log_debug "settings.tomlファイル: $SETTINGS_FILE"
 GITHUB_USERNAME=$(grep '^username = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2)
 if [[ -z "$GITHUB_USERNAME" ]]; then
-    print_error "settings.tomlのgithub.usernameが設定されていません"
-    print_error "ファイル: $SETTINGS_FILE"
+    log_error "settings.tomlのgithub.usernameが設定されていません"
+    log_error "ファイル: $SETTINGS_FILE"
     exit 1
 fi
-print_debug "GitHub Username: $GITHUB_USERNAME"
+log_debug "GitHub Username: $GITHUB_USERNAME"
 
 # k8sクラスタ接続確認
-print_debug "k8sクラスタ接続確認中..."
+log_debug "k8sクラスタ接続確認中..."
 if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
-    print_error "k8sクラスタに接続できません"
+    log_error "k8sクラスタに接続できません"
     exit 1
 fi
-print_status "✓ k8sクラスタ接続OK"
+log_status "✓ k8sクラスタ接続OK"
 
 # GitHub認証情報確認
-print_debug "GitHub認証情報確認中..."
+log_debug "GitHub認証情報確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
-    print_error "GitHub認証情報が見つかりません。make all を実行してください"
+    log_error "GitHub認証情報が見つかりません。make all を実行してください"
     exit 1
 fi
-print_status "✓ GitHub認証情報確認完了"
+log_status "✓ GitHub認証情報確認完了"
 
 # Helm確認・インストール
-print_debug "Helm確認中..."
+log_debug "Helm確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'which helm' >/dev/null 2>&1; then
-    print_status "Helmをインストール中..."
+    log_status "Helmをインストール中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
-    print_status "✓ Helmインストール完了"
+    log_status "✓ Helmインストール完了"
 else
-    print_debug "✓ Helm確認済み"
+    log_debug "✓ Helm確認済み"
 fi
 
 # GitHub multi-repo secret確認/作成
-print_debug "GitHub multi-repo secret確認中..."
+log_debug "GitHub multi-repo secret確認中..."
 if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-multi-repo-secret -n arc-systems' >/dev/null 2>&1; then
-    print_debug "github-multi-repo-secret を作成中..."
+    log_debug "github-multi-repo-secret を作成中..."
     GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d')
     if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic github-multi-repo-secret --from-literal=github_token='$GITHUB_TOKEN' -n arc-systems"; then
-        print_debug "✓ github-multi-repo-secret 作成完了"
+        log_debug "✓ github-multi-repo-secret 作成完了"
     else
-        print_warning "⚠️ github-multi-repo-secret は既に存在するか、作成に失敗しました"
+        log_warning "⚠️ github-multi-repo-secret は既に存在するか、作成に失敗しました"
     fi
 else
-    print_debug "✓ github-multi-repo-secret 確認済み"
+    log_debug "✓ github-multi-repo-secret 確認済み"
 fi
 
 # Runner Scale Set作成
-print_status "🏃 RunnerScaleSet作成中..."
+log_status "🏃 RunnerScaleSet作成中..."
 
 # 既存のRunnerを削除（存在する場合）
 if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm status '$RUNNER_NAME' -n arc-systems" >/dev/null 2>&1; then
-    print_warning "既存の $RUNNER_NAME を削除中..."
+    log_warning "既存の $RUNNER_NAME を削除中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm uninstall '$RUNNER_NAME' -n arc-systems" || true
     sleep 5
 fi
 
 # RunnerScaleSetを作成（minRunners=1推奨）
-print_status "🏃 Helm install実行中..."
+log_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
 
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
-    print_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
-    print_debug "Helm install failed with exit code: $HELM_INSTALL_RESULT"
+    log_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
+    log_debug "Helm install failed with exit code: $HELM_INSTALL_RESULT"
     
     # デバッグ情報を出力
-    print_debug "既存のHelm releasesを確認中..."
+    log_debug "既存のHelm releasesを確認中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm list -n arc-systems" || true
     
-    print_debug "ARC Controller Podの状態を確認中..."
+    log_debug "ARC Controller Podの状態を確認中..."
     ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get pods -n arc-systems | grep controller" || true
     
     exit 1
 fi
 
 # GitHub Actions workflow作成
-print_status "=== GitHub Actions workflow作成 ==="
+log_status "=== GitHub Actions workflow作成 ==="
 
 WORKFLOW_DIR=".github/workflows"
 WORKFLOW_FILE="$WORKFLOW_DIR/build-and-push-$REPOSITORY_NAME.yml"
 
 # .github/workflowsディレクトリ作成
 mkdir -p "$WORKFLOW_DIR"
-print_debug "Workflowディレクトリ作成: $WORKFLOW_DIR"
+log_debug "Workflowディレクトリ作成: $WORKFLOW_DIR"
 
 # workflow.yamlファイル作成
-print_debug "Workflowファイル作成中: $WORKFLOW_FILE"
+log_debug "Workflowファイル作成中: $WORKFLOW_FILE"
 cat > "$WORKFLOW_FILE" << WORKFLOW_EOF
 # GitHub Actions workflow for $REPOSITORY_NAME
 # Auto-generated by add-runner.sh (公式ARC対応版)
@@ -242,21 +242,21 @@ jobs:
 WORKFLOW_EOF
 
 # 完了メッセージ
-print_status "=== セットアップ完了 ==="
-print_status ""
-print_status "✅ RunnerScaleSet作成:"
-print_status "   - $RUNNER_NAME (minRunners=1, maxRunners=3)"
-print_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
-print_status ""
-print_status "✅ GitHub Actions workflow作成:"
-print_status "   - $WORKFLOW_FILE"
-print_status ""
-print_status "📝 次のステップ:"
-print_status "1. GitHub リポジトリに Commit & Push"
-print_status "   git add $WORKFLOW_FILE"
-print_status "   git commit -m \"Add GitHub Actions workflow for $REPOSITORY_NAME\""
-print_status "   git push"
-print_status "2. GitHub ActionsでCI/CDテスト実行"
-print_status "3. Harborでイメージ確認: http://192.168.122.100"
-print_status ""
-print_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"
+log_status "=== セットアップ完了 ==="
+log_status ""
+log_status "✅ RunnerScaleSet作成:"
+log_status "   - $RUNNER_NAME (minRunners=1, maxRunners=3)"
+log_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
+log_status ""
+log_status "✅ GitHub Actions workflow作成:"
+log_status "   - $WORKFLOW_FILE"
+log_status ""
+log_status "📝 次のステップ:"
+log_status "1. GitHub リポジトリに Commit & Push"
+log_status "   git add $WORKFLOW_FILE"
+log_status "   git commit -m \"Add GitHub Actions workflow for $REPOSITORY_NAME\""
+log_status "   git push"
+log_status "2. GitHub ActionsでCI/CDテスト実行"
+log_status "3. Harborでイメージ確認: http://192.168.122.100"
+log_status ""
+log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"

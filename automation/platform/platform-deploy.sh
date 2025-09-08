@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../scripts/argocd/github-auth-utils.sh"
 
 # 共通色設定スクリプトを読み込み（settings-loader.shより先に）
-source "$SCRIPT_DIR/../scripts/common-colors.sh"
+source "$SCRIPT_DIR/../scripts/common-logging.sh"
 
 # 設定ファイル読み込み（環境変数が未設定の場合）
 if [[ -f "$SCRIPT_DIR/../scripts/settings-loader.sh" ]]; then
@@ -28,7 +28,7 @@ if [[ -f "$SCRIPT_DIR/../scripts/settings-loader.sh" ]]; then
     fi
 fi
 
-print_status "=== Kubernetes基盤構築開始 ==="
+log_status "=== Kubernetes基盤構築開始 ==="
 
 # IPアドレス設定（settings.tomlから取得、デフォルト値付き）
 CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
@@ -44,7 +44,7 @@ scp -o StrictHostKeyChecking=no "../../manifests/bootstrap/app-of-apps.yaml" k8s
 scp -o StrictHostKeyChecking=no "../../manifests/platform/secrets/external-secrets/pulumi-esc-secretstore.yaml" k8suser@${CONTROL_PLANE_IP}:/tmp/ 2>/dev/null || true
 
 # 1. 前提条件確認
-print_status "前提条件を確認中..."
+log_status "前提条件を確認中..."
 
 # SSH known_hosts クリーンアップ
 ssh-keygen -f "$HOME/.ssh/known_hosts" -R "${CONTROL_PLANE_IP}" 2>/dev/null || true
@@ -53,23 +53,23 @@ ssh-keygen -f "$HOME/.ssh/known_hosts" -R "${WORKER_2_IP}" 2>/dev/null || true
 
 # k8sクラスタ接続確認
 if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
-    print_error "k8sクラスタに接続できません"
-    print_error "Phase 3のk8sクラスタ構築を先に完了してください"
-    print_error "注意: このスクリプトはUbuntuホストマシンで実行してください（WSL2不可）"
+    log_error "k8sクラスタに接続できません"
+    log_error "Phase 3のk8sクラスタ構築を先に完了してください"
+    log_error "注意: このスクリプトはUbuntuホストマシンで実行してください（WSL2不可）"
     exit 1
 fi
 
 READY_NODES=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes --no-headers' | grep -c Ready || echo "0")
 if [[ $READY_NODES -lt 2 ]]; then
-    print_error "Ready状態のNodeが2台未満です（現在: $READY_NODES台）"
+    log_error "Ready状態のNodeが2台未満です（現在: $READY_NODES台）"
     exit 1
 else
-    print_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
+    log_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
 fi
 
 # Phase 4.1-4.3: 基盤インフラ（MetalLB, NGINX Ingress, cert-manager）はGitOps管理へ移行
-print_status "=== Phase 4.1-4.3: 基盤インフラはGitOps管理 ==="
-print_debug "MetalLB, NGINX Ingress, cert-managerはArgoCD経由でデプロイされます"
+log_status "=== Phase 4.1-4.3: 基盤インフラはGitOps管理 ==="
+log_debug "MetalLB, NGINX Ingress, cert-managerはArgoCD経由でデプロイされます"
 
 
 
@@ -82,7 +82,7 @@ kubectl apply -f /tmp/local-storage-class.yaml
 EOF
 
 # Phase 4.5: ArgoCD デプロイ
-print_status "ArgoCD デプロイ中..."
+log_status "ArgoCD デプロイ中..."
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # ArgoCD namespace作成（ArgoCD自体に必要）
@@ -108,11 +108,64 @@ kubectl apply -f /tmp/argocd-ingress.yaml
 echo "✓ ArgoCD基本設定完了"
 EOF
 
-print_status "✓ ArgoCD デプロイ完了"
+log_status "✓ ArgoCD デプロイ完了"
 
 # Phase 4.6: App-of-Apps デプロイ
-print_status "=== Phase 4.6: App-of-Apps パターン適用 ==="
-print_debug "すべてのApplicationをGitOps管理でデプロイします"
+log_status "=== Phase 4.6: App-of-Apps パターン適用 ==="
+log_debug "すべてのApplicationをGitOps管理でデプロイします"
+
+# ESO Prerequisites: Pulumi Access Token Secretを事前に作成
+log_status "ESO Prerequisites設定中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << PRE_EOF
+# External Secrets namespace作成
+kubectl create namespace external-secrets-system --dry-run=client -o yaml | kubectl apply -f -
+
+# Pulumi Access Token Secret作成（ESOデプロイ前に必要）
+if [[ -n "${PULUMI_ACCESS_TOKEN}" ]]; then
+    echo "Pulumi Access Token Secret作成中..."
+    kubectl create secret generic pulumi-esc-token \
+      --namespace external-secrets-system \
+      --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    echo "✓ Pulumi Access Token Secret作成完了"
+    
+    # RBAC設定も事前に作成
+    echo "ESO RBAC設定中..."
+    kubectl apply -f - <<'RBAC_EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-secrets-kubernetes-provider
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-secrets-kubernetes-provider
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-secrets-kubernetes-provider
+subjects:
+- kind: ServiceAccount
+  name: external-secrets-operator
+  namespace: external-secrets-system
+RBAC_EOF
+    echo "✓ ESO RBAC設定完了"
+else
+    echo "エラー: PULUMI_ACCESS_TOKEN が設定されていません"
+    exit 1
+fi
+PRE_EOF
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << EOF
 # 環境変数を明示的にエクスポート
@@ -179,20 +232,51 @@ if kubectl get application external-secrets-operator -n argocd 2>/dev/null; then
     done
     kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/name=external-secrets --timeout=300s || echo "ESO Pod起動待機中"
     
-    # Pulumi Access Token Secret作成（ESO起動後すぐに）
-    if [[ -n "${PULUMI_ACCESS_TOKEN}" ]]; then
-        echo "Pulumi Access Token Secret作成中..."
-        kubectl create secret generic pulumi-esc-token \
-          --namespace external-secrets-system \
-          --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
-          --dry-run=client -o yaml | kubectl apply -f -
-        echo "✓ Pulumi Access Token Secret作成完了"
+    # Pulumi Access Token Secretの確認（既に作成済みのはず）
+    if kubectl get secret pulumi-esc-token -n external-secrets-system >/dev/null 2>&1; then
+        echo "✓ Pulumi Access Token Secret確認済み"
     else
-        echo "エラー: PULUMI_ACCESS_TOKEN が設定されていません"
-        echo "External Secrets Operator が正常に動作しません"
-        echo "settings.toml に Pulumi Access Token を設定してください"
-        exit 1
+        echo "警告: Pulumi Access Token Secretが見つかりません。再作成中..."
+        if [[ -n "${PULUMI_ACCESS_TOKEN}" ]]; then
+            kubectl create secret generic pulumi-esc-token \
+              --namespace external-secrets-system \
+              --from-literal=accessToken="${PULUMI_ACCESS_TOKEN}" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            echo "✓ Pulumi Access Token Secret作成完了"
+        fi
     fi
+    
+    # ClusterSecretStoreをすぐに作成（ESOが起動したら）
+    echo "ClusterSecretStore作成中..."
+    kubectl apply -f - <<'STORE_EOF'
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: pulumi-esc-store
+spec:
+  provider:
+    pulumi:
+      apiUrl: https://api.pulumi.com/api/esc
+      organization: ksera
+      project: k8s
+      environment: secret
+      accessToken:
+        secretRef:
+          name: pulumi-esc-token
+          namespace: external-secrets-system
+          key: accessToken
+STORE_EOF
+    echo "✓ ClusterSecretStore作成完了"
+    
+    # ClusterSecretStoreの準備完了を待つ
+    for i in {1..10}; do
+        if kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+            echo "✓ ClusterSecretStore Ready"
+            break
+        fi
+        echo "ClusterSecretStore準備待機中... ($i/10)"
+        sleep 3
+    done
 fi
 
 # Platform Application同期確認
@@ -213,11 +297,11 @@ fi
 echo "✓ App-of-Apps適用完了"
 EOF
 
-print_status "✓ App-of-Apps デプロイ完了"
+log_status "✓ App-of-Apps デプロイ完了"
 
 # Phase 4.7: ArgoCD GitHub OAuth設定 (ESO経由)
-print_status "=== Phase 4.7: ArgoCD GitHub OAuth設定 ==="
-print_debug "GitHub OAuth設定をExternal Secrets経由で行います"
+log_status "=== Phase 4.7: ArgoCD GitHub OAuth設定 ==="
+log_debug "GitHub OAuth設定をExternal Secrets経由で行います"
 
 # Pulumi Access TokenがEOFブロック内で既に作成されているか確認
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
@@ -289,21 +373,12 @@ argocd app sync platform --replace --force --server-side 2>/dev/null || \
   kubectl patch application platform -n argocd --type merge -p '{"operation": {"sync": {"syncStrategy": {"apply": {"force": true}}}}}' 2>/dev/null || true
 sleep 10
 
-# ClusterSecretStore準備完了待機
-echo "ClusterSecretStore準備完了待機中..."
-timeout=120
-while [ $timeout -gt 0 ]; do
-    if kubectl get clustersecretstore pulumi-esc-store 2>/dev/null | grep -q True; then
-        echo "✓ ClusterSecretStore準備完了"
-        break
-    fi
-    
-    # 30秒経過してもClusterSecretStoreが作成されない場合は手動作成を試みる
-    if [ $timeout -eq 90 ]; then
-        echo "ClusterSecretStore作成を手動で試行中..."
-        # Platform Applicationから直接適用
-        kubectl apply -f /tmp/pulumi-esc-secretstore.yaml 2>/dev/null || \
-        cat <<'SECRETSTORE_EOF' | kubectl apply -f - 2>/dev/null || true
+# ClusterSecretStore確認（既にESO起動時に作成済み）
+if kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+    echo "✓ ClusterSecretStore準備完了"
+else
+    echo "警告: ClusterSecretStoreがまだReadyではありません。再作成中..."
+    kubectl apply -f - <<'STORE_EOF'
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
@@ -320,13 +395,12 @@ spec:
           name: pulumi-esc-token
           namespace: external-secrets-system
           key: accessToken
-SECRETSTORE_EOF
-    fi
-    
-    echo "ClusterSecretStore待機中... (残り ${timeout}秒)"
+STORE_EOF
     sleep 5
-    timeout=$((timeout - 5))
-done
+    if kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+        echo "✓ ClusterSecretStore作成完了"
+    fi
+fi
 
 if [ $timeout -le 0 ]; then
     echo "エラー: ClusterSecretStore作成タイムアウト"
@@ -367,11 +441,11 @@ kubectl rollout status deployment argocd-server -n argocd --timeout=300s
 echo "✓ ArgoCD GitHub OAuth設定完了"
 EOF
 
-print_status "✓ ArgoCD GitHub OAuth設定完了"
+log_status "✓ ArgoCD GitHub OAuth設定完了"
 
 # Phase 4.8: Harbor デプロイ
-print_status "=== Phase 4.8: Harbor デプロイ ==="
-print_debug "Harbor Private Registry をArgoCD経由でデプロイします"
+log_status "=== Phase 4.8: Harbor デプロイ ==="
+log_debug "Harbor Private Registry をArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Platform Application同期確認（External Secretsリソース適用のため）
@@ -416,11 +490,11 @@ fi
 echo "✓ Harbor デプロイ完了"
 EOF
 
-print_status "✓ Harbor デプロイ完了"
+log_status "✓ Harbor デプロイ完了"
 
 # Phase 4.8.5: Harbor認証設定（skopeo対応）
-print_status "=== Phase 4.8.5: Harbor認証設定（skopeo対応） ==="
-print_debug "Harbor認証情報secretをGitHub Actions用に設定します"
+log_status "=== Phase 4.8.5: Harbor認証設定（skopeo対応） ==="
+log_debug "Harbor認証情報secretをGitHub Actions用に設定します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Harbor Pod起動待機
@@ -512,22 +586,22 @@ else
 fi
 EOF
 
-print_status "✓ Harbor認証設定（skopeo対応）完了"
+log_status "✓ Harbor認証設定（skopeo対応）完了"
 
 # Phase 4.8.6: Worker ノード Containerd Harbor HTTP Registry設定
-print_status "=== Phase 4.8.6: Containerd Harbor HTTP Registry設定 ==="
-print_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
+log_status "=== Phase 4.8.6: Containerd Harbor HTTP Registry設定 ==="
+log_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
 
 # Harbor admin パスワード取得（ローカルで実行）
 HARBOR_ADMIN_PASSWORD=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} 'kubectl get secret harbor-admin-secret -n harbor -o jsonpath="{.data.password}" 2>/dev/null | base64 -d')
 if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
-    print_error "ESOからHarborパスワードを取得できませんでした"
-    print_error "External Secretsの同期が完了していません"
-    print_error "kubectl get externalsecret -n harbor で状態を確認してください"
+    log_error "ESOからHarborパスワードを取得できませんでした"
+    log_error "External Secretsの同期が完了していません"
+    log_error "kubectl get externalsecret -n harbor で状態を確認してください"
     exit 1
 fi
 
-print_debug "Worker1 (192.168.122.11) Containerd設定..."
+log_debug "Worker1 (192.168.122.11) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.11 << EOF
 # Containerd設定バックアップ
 sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
@@ -554,7 +628,7 @@ sudo -n systemctl restart containerd
 echo "✓ Worker1 Containerd設定完了"
 EOF
 
-print_debug "Worker2 (192.168.122.12) Containerd設定..."
+log_debug "Worker2 (192.168.122.12) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.12 << EOF
 # Containerd設定バックアップ
 sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
@@ -581,20 +655,20 @@ sudo -n systemctl restart containerd
 echo "✓ Worker2 Containerd設定完了"
 EOF
 
-print_status "✓ Containerd Harbor HTTP Registry設定完了"
+log_status "✓ Containerd Harbor HTTP Registry設定完了"
 
 # Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ
-print_status "=== Phase 4.9: GitHub Actions Runner Controller セットアップ ==="
-print_debug "GitHub Actions Runner Controller を直接セットアップします"
+log_status "=== Phase 4.9: GitHub Actions Runner Controller セットアップ ==="
+log_debug "GitHub Actions Runner Controller を直接セットアップします"
 
 # ARCセットアップスクリプト実行
 if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
-    print_debug "ARC セットアップスクリプトを実行中..."
+    log_debug "ARC セットアップスクリプトを実行中..."
     export NON_INTERACTIVE=true
     bash "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"
-    print_status "✓ ARC セットアップ完了"
+    log_status "✓ ARC セットアップ完了"
 else
-    print_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
+    log_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
     ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
     # Platform Application同期確認
     kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
@@ -603,33 +677,33 @@ EOF
 fi
 
 # Phase 4.9.4: ARC Controller起動待機
-print_status "=== Phase 4.9.4: ARC Controller起動待機 ==="
-print_debug "ARC Controllerの起動を確認中..."
+log_status "=== Phase 4.9.4: ARC Controller起動待機 ==="
+log_debug "ARC Controllerの起動を確認中..."
 ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'kubectl wait --for=condition=available --timeout=120s deployment/arc-controller-gha-rs-controller -n arc-systems' || true
-print_status "✓ ARC Controller起動確認完了"
+log_status "✓ ARC Controller起動確認完了"
 
 # Phase 4.9.5: settings.tomlのリポジトリを自動add-runner
-print_status "=== Phase 4.9.5: settings.tomlのリポジトリを自動add-runner ==="
-print_debug "settings.tomlからリポジトリリストを読み込み中..."
+log_status "=== Phase 4.9.5: settings.tomlのリポジトリを自動add-runner ==="
+log_debug "settings.tomlからリポジトリリストを読み込み中..."
 
 SETTINGS_FILE="$SCRIPT_DIR/../settings.toml"
 if [[ -f "$SETTINGS_FILE" ]]; then
-    print_debug "settings.tomlが見つかりました: $SETTINGS_FILE"
+    log_debug "settings.tomlが見つかりました: $SETTINGS_FILE"
     # arc_repositoriesセクションを解析
     # 複数行配列に対応するため、開始から終了まで全て取得して解析
     # コメント行（#で始まる行）と空行を除外し、配列要素のみを抽出
     ARC_REPOS_TEMP=$(awk '/^arc_repositories = \[/,/^\]/' "$SETTINGS_FILE" | grep -E '^\s*\["' | grep -v '^arc_repositories' || true)
     
     if [[ -n "$ARC_REPOS_TEMP" ]]; then
-        print_debug "arc_repositories設定を発見しました"
-        print_debug "取得した設定内容:"
+        log_debug "arc_repositories設定を発見しました"
+        log_debug "取得した設定内容:"
         echo "$ARC_REPOS_TEMP" | while IFS= read -r line; do
-            print_debug "  > $line"
+            log_debug "  > $line"
         done
         
         # リポジトリ数をカウント
         REPO_COUNT=$(echo "$ARC_REPOS_TEMP" | wc -l)
-        print_debug "処理対象リポジトリ数: $REPO_COUNT"
+        log_debug "処理対象リポジトリ数: $REPO_COUNT"
         
         # 各リポジトリに対してadd-runner.shを実行
         PROCESSED=0
@@ -638,7 +712,7 @@ if [[ -f "$SETTINGS_FILE" ]]; then
         
         # SSH接続確認を先に実施
         if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
-            print_error "k8sクラスタに接続できません。Runner追加をスキップします"
+            log_error "k8sクラスタに接続できません。Runner追加をスキップします"
         else
             while IFS= read -r line; do
                 [[ -z "$line" ]] && continue
@@ -651,7 +725,7 @@ if [[ -f "$SETTINGS_FILE" ]]; then
                     MAX_RUNNERS="${BASH_REMATCH[3]}"
                     CURRENT=$((CURRENT+1))
                     
-                    print_status "🏃 [$CURRENT/$REPO_COUNT] $REPO_NAME のRunnerを追加中... (min=$MIN_RUNNERS, max=$MAX_RUNNERS)"
+                    log_status "🏃 [$CURRENT/$REPO_COUNT] $REPO_NAME のRunnerを追加中... (min=$MIN_RUNNERS, max=$MAX_RUNNERS)"
                     
                     # add-runner.shを実行
                     ADD_RUNNER_SCRIPT="$SCRIPT_DIR/../scripts/github-actions/add-runner.sh"
@@ -661,49 +735,49 @@ if [[ -f "$SETTINGS_FILE" ]]; then
                         
                         # add-runner.shを通常実行（サブシェル内ではない）
                         if bash "$ADD_RUNNER_SCRIPT" "$REPO_NAME" "$MIN_RUNNERS" "$MAX_RUNNERS" < /dev/null; then
-                            print_status "✓ $REPO_NAME Runner追加完了"
+                            log_status "✓ $REPO_NAME Runner追加完了"
                             PROCESSED=$((PROCESSED+1))
                         else
                             EXIT_CODE=$?
-                            print_error "❌ $REPO_NAME Runner追加失敗 (exit code: $EXIT_CODE)"
-                            print_debug "エラー詳細は上記のログを確認してください"
+                            log_error "❌ $REPO_NAME Runner追加失敗 (exit code: $EXIT_CODE)"
+                            log_debug "エラー詳細は上記のログを確認してください"
                             FAILED=$((FAILED+1))
                         fi
                         
                         # 次のRunner作成前に少し待機（API制限回避）
                         if [[ $CURRENT -lt $REPO_COUNT ]]; then
-                            print_debug "次のRunner作成前に5秒待機中..."
+                            log_debug "次のRunner作成前に5秒待機中..."
                             sleep 5
                         fi
                     else
-                        print_error "add-runner.sh が見つかりません: $ADD_RUNNER_SCRIPT"
+                        log_error "add-runner.sh が見つかりません: $ADD_RUNNER_SCRIPT"
                         # ファイルが見つからない場合は全て失敗とする
                         FAILED=$((REPO_COUNT - PROCESSED))
                         break
                     fi
                 else
-                    print_warning "⚠️ 解析できない行: $line"
+                    log_warning "⚠️ 解析できない行: $line"
                 fi
             done <<< "$ARC_REPOS_TEMP"
         fi
         
-        print_status "✓ settings.tomlのリポジトリ自動追加完了 (成功: $PROCESSED, 失敗: $FAILED)"
+        log_status "✓ settings.tomlのリポジトリ自動追加完了 (成功: $PROCESSED, 失敗: $FAILED)"
         
         # 失敗があった場合は警告
         if [[ $FAILED -gt 0 ]]; then
-            print_warning "⚠️ $FAILED 個のリポジトリでRunner追加に失敗しました"
-            print_warning "手動で 'make add-runner REPO=<name>' を実行してください"
+            log_warning "⚠️ $FAILED 個のリポジトリでRunner追加に失敗しました"
+            log_warning "手動で 'make add-runner REPO=<name>' を実行してください"
         fi
     else
-        print_debug "arc_repositories設定が見つかりません（スキップ）"
+        log_debug "arc_repositories設定が見つかりません（スキップ）"
     fi
 else
-    print_warning "settings.tomlが見つかりません"
+    log_warning "settings.tomlが見つかりません"
 fi
 
 # Phase 4.10: 各種Application デプロイ
-print_status "=== Phase 4.10: 各種Application デプロイ ==="
-print_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
+log_status "=== Phase 4.10: 各種Application デプロイ ==="
+log_debug "Cloudflared等のApplicationをArgoCD経由でデプロイします"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # ESOリソースが適用されているか確認
@@ -743,12 +817,12 @@ kubectl get externalsecrets -A | grep -E "(cloudflared|slack)" || echo "アプ�
 echo "✓ 各種Application デプロイ完了"
 EOF
 
-print_status "✓ 各種Application デプロイ完了"
+log_status "✓ 各種Application デプロイ完了"
 
 
 # Phase 4.11: システム環境確認
-print_status "=== Phase 4.11: システム環境確認 ==="
-print_debug "デプロイされたシステム全体の動作確認を行います"
+log_status "=== Phase 4.11: システム環境確認 ==="
+log_debug "デプロイされたシステム全体の動作確認を行います"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 echo "=== 最終システム状態確認 ==="
@@ -813,28 +887,28 @@ kubectl get applications -n argocd --no-headers | awk '{print "  - " $1 " (" $2 
 echo "✓ システム環境確認完了"
 EOF
 
-print_status "✓ システム環境確認完了"
+log_status "✓ システム環境確認完了"
 
-print_status "=== Kubernetesプラットフォーム構築完了 ==="
-print_status ""
-print_status "📊 デプロイサマリー:"
-print_status "  ✓ ArgoCD: GitOps管理基盤"
-print_status "  ✓ Harbor: プライベートコンテナレジストリ"
-print_status "  ✓ External Secrets: シークレット管理"
-print_status "  ✓ GitHub Actions Runner: CI/CDパイプライン"
-print_status ""
-print_status "🔗 アクセス方法:"
-print_status "  ArgoCD UI: https://argocd.qroksera.com"
-print_status "  Harbor UI: https://harbor.qroksera.com"
-print_status "  LoadBalancer IP: 192.168.122.100"
-print_status ""
-print_status "Harbor push設定:"
-print_status "  - GitHub ActionsでskopeoによるTLS検証無効push対応"
-print_status "  - Harbor認証secret (arc-systems/harbor-auth) 設定済み"
-print_status "  - イメージプルsecret (各namespace/harbor-http) 設定済み"
+log_status "=== Kubernetesプラットフォーム構築完了 ==="
+log_status ""
+log_status "📊 デプロイサマリー:"
+log_status "  ✓ ArgoCD: GitOps管理基盤"
+log_status "  ✓ Harbor: プライベートコンテナレジストリ"
+log_status "  ✓ External Secrets: シークレット管理"
+log_status "  ✓ GitHub Actions Runner: CI/CDパイプライン"
+log_status ""
+log_status "🔗 アクセス方法:"
+log_status "  ArgoCD UI: https://argocd.qroksera.com"
+log_status "  Harbor UI: https://harbor.qroksera.com"
+log_status "  LoadBalancer IP: 192.168.122.100"
+log_status ""
+log_status "Harbor push設定:"
+log_status "  - GitHub ActionsでskopeoによるTLS検証無効push対応"
+log_status "  - Harbor認証secret (arc-systems/harbor-auth) 設定済み"
+log_status "  - イメージプルsecret (各namespace/harbor-http) 設定済み"
 
 # Harbor IP Ingress を作成
-print_status "Harbor IP Ingress を作成中..."
+log_status "Harbor IP Ingress を作成中..."
 ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Harbor IP Ingress が存在しない場合のみ作成
 if ! kubectl get ingress -n harbor harbor-ip-ingress >/dev/null 2>&1; then
@@ -908,19 +982,19 @@ else
     echo "✓ Harbor IP Ingress は既に存在します"
 fi
 EOF
-print_status "✓ Harbor IP Ingress 設定完了"
+log_status "✓ Harbor IP Ingress 設定完了"
 
 # Harbor の動作確認
-print_status "Harbor の動作確認中..."
+log_status "Harbor の動作確認中..."
 if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f http://${HARBOR_IP}/api/v2.0/systeminfo" >/dev/null 2>&1; then
-    print_status "✓ Harbor API が正常に応答しています"
+    log_status "✓ Harbor API が正常に応答しています"
 else
-    print_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
+    log_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
 fi
 
 # 最終段階: Harbor EXT_ENDPOINT修正（ArgoCDの同期後に必ず実行）
-print_status "=== 最終調整: Harbor EXT_ENDPOINT設定 ==="
-print_debug "ArgoCDによる同期後のHarbor設定を修正します"
+log_status "=== 最終調整: Harbor EXT_ENDPOINT設定 ==="
+log_debug "ArgoCDによる同期後のHarbor設定を修正します"
 
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 echo "Harbor ConfigMap最終修正中..."
@@ -955,11 +1029,11 @@ kubectl create secret generic harbor-auth \
 echo "✓ harbor-auth secret更新完了"
 EOF
 
-print_status "✓ Harbor最終調整完了"
+log_status "✓ Harbor最終調整完了"
 
-print_status "🎉 すべての設定が完了しました！"
-print_status ""
-print_status "次のステップ:"
-print_status "  1. GitHub リポジトリに workflow ファイルを追加"
-print_status "  2. make add-runner REPO=your-repo でリポジトリ用の Runner を追加"
-print_status "  3. git push で GitHub Actions が自動実行されます"
+log_status "🎉 すべての設定が完了しました！"
+log_status ""
+log_status "次のステップ:"
+log_status "  1. GitHub リポジトリに workflow ファイルを追加"
+log_status "  2. make add-runner REPO=your-repo でリポジトリ用の Runner を追加"
+log_status "  3. git push で GitHub Actions が自動実行されます"

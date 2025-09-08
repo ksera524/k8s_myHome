@@ -5,35 +5,21 @@
 
 set -euo pipefail
 
-# 色設定
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# 統一ログ機能を読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common-logging.sh"
 
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-print_status "=== External Secrets Operator 修正スクリプト ==="
+log_status "=== External Secrets Operator 修正スクリプト ==="
 
 # k8sクラスタ接続確認
-print_status "k8sクラスタ接続確認中..."
+log_status "k8sクラスタ接続確認中..."
 if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
-    print_error "k8sクラスタに接続できません"
+    log_error "k8sクラスタに接続できません"
     exit 1
 fi
 
 # ESOの状態確認
-print_status "External Secrets Operatorの現在の状態:"
+log_status "External Secrets Operatorの現在の状態:"
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 echo "=== ESO Pods ==="
 kubectl get pods -n external-secrets-system
@@ -49,12 +35,12 @@ EOF
 read -p "ESOのWebhook証明書問題を修正しますか？ (y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    print_warning "修正をキャンセルしました"
+    log_warning "修正をキャンセルしました"
     exit 0
 fi
 
 # 修正処理
-print_status "External Secrets Operator修正処理を開始します..."
+log_status "External Secrets Operator修正処理を開始します..."
 
 ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 << 'EOF'
 set -e
@@ -154,8 +140,8 @@ kubectl get externalsecrets -A 2>/dev/null | head -10 || echo "External Secrets�
 echo "✓ ESO修正処理完了"
 EOF
 
-print_status "=== External Secrets Operator修正完了 ==="
-print_status "問題が続く場合は以下を確認してください:"
-print_status "1. settings.tomlのPulumi.access_tokenが正しく設定されているか"
-print_status "2. GitHub Personal Access Tokenが有効か"
-print_status "3. ネットワーク接続に問題がないか"
+log_status "=== External Secrets Operator修正完了 ==="
+log_status "問題が続く場合は以下を確認してください:"
+log_status "1. settings.tomlのPulumi.access_tokenが正しく設定されているか"
+log_status "2. GitHub Personal Access Tokenが有効か"
+log_status "3. ネットワーク接続に問題がないか"

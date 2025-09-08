@@ -3,7 +3,7 @@
 # 統一されたエラー処理とロギング
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common-colors.sh" || true
+source "$SCRIPT_DIR/common-logging.sh" || true
 
 # エラーログファイル
 ERROR_LOG_DIR="${ERROR_LOG_DIR:-/tmp/k8s-myhome-logs}"
@@ -40,10 +40,10 @@ handle_error() {
     } >> "$ERROR_LOG_FILE"
     
     # コンソールにエラー表示
-    print_error "エラーが発生しました (終了コード: $exit_code)"
-    print_error "場所: ${BASH_SOURCE[1]:-unknown}:${line_number}"
-    print_error "コマンド: $command"
-    print_error "詳細はログを確認してください: $ERROR_LOG_FILE"
+    log_error "エラーが発生しました (終了コード: $exit_code)"
+    log_error "場所: ${BASH_SOURCE[1]:-unknown}:${line_number}"
+    log_error "コマンド: $command"
+    log_error "詳細はログを確認してください: $ERROR_LOG_FILE"
     
     # クリーンアップ関数が定義されていれば実行
     if declare -f cleanup_on_error >/dev/null; then
@@ -66,10 +66,10 @@ retry_command() {
             return 0
         else
             local exit_code=$?
-            print_warning "コマンド失敗 (試行 $attempt/$max_attempts): ${command[*]}"
+            log_warning "コマンド失敗 (試行 $attempt/$max_attempts): ${command[*]}"
             
             if [[ $attempt -lt $max_attempts ]]; then
-                print_status "${delay}秒後に再試行します..."
+                log_status "${delay}秒後に再試行します..."
                 sleep "$delay"
             fi
             
@@ -77,7 +77,7 @@ retry_command() {
         fi
     done
     
-    print_error "最大試行回数に達しました: ${command[*]}"
+    log_error "最大試行回数に達しました: ${command[*]}"
     return $exit_code
 }
 
@@ -104,7 +104,7 @@ timeout_command() {
             kill -TERM $pid
             sleep 2
             kill -KILL $pid 2>/dev/null || true
-            print_error "コマンドがタイムアウトしました: ${command[*]}"
+            log_error "コマンドがタイムアウトしました: ${command[*]}"
             return 124
         fi
         
@@ -120,7 +120,7 @@ run_if() {
     if eval "$condition"; then
         "$@"
     else
-        print_debug "条件を満たさないためスキップ: $condition"
+        log_debug "条件を満たさないためスキップ: $condition"
     fi
 }
 
@@ -133,7 +133,7 @@ safe_backup() {
         mkdir -p "$backup_dir"
         local backup_file="$backup_dir/$(basename "$file").$(date +%Y%m%d-%H%M%S).bak"
         cp -p "$file" "$backup_file"
-        print_status "バックアップ作成: $backup_file"
+        log_status "バックアップ作成: $backup_file"
     fi
 }
 
@@ -150,7 +150,7 @@ create_checkpoint() {
         # 追加の状態情報を保存できる
     } > "$checkpoint_file"
     
-    print_status "チェックポイント作成: $checkpoint_name"
+    log_status "チェックポイント作成: $checkpoint_name"
 }
 
 # プログレス表示
@@ -186,7 +186,7 @@ rotate_logs() {
     if [[ $count -gt $max_logs ]]; then
         for ((i=$max_logs; i<$count; i++)); do
             rm -f "${logs[$i]}"
-            print_debug "古いログを削除: ${logs[$i]}"
+            log_debug "古いログを削除: ${logs[$i]}"
         done
     fi
 }
@@ -202,8 +202,8 @@ set_debug_mode() {
 # エラーサマリー表示
 show_error_summary() {
     if [[ -f "$ERROR_LOG_FILE" ]] && [[ -s "$ERROR_LOG_FILE" ]]; then
-        print_warning "=== エラーサマリー ==="
+        log_warning "=== エラーサマリー ==="
         tail -n 20 "$ERROR_LOG_FILE"
-        print_warning "===================="
+        log_warning "===================="
     fi
 }

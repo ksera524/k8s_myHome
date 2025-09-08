@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 共通色設定スクリプトを読み込み
-source "$SCRIPT_DIR/../scripts/common-colors.sh"
+source "$SCRIPT_DIR/../scripts/common-logging.sh"
 
 # Track overall status
 OVERALL_STATUS=0
@@ -30,11 +30,11 @@ check_status() {
     fi
 }
 
-print_status "=== Phase 1 Setup Verification ==="
+log_status "=== Phase 1 Setup Verification ==="
 echo ""
 
 # 1. Check system packages
-print_status "1. Checking installed packages..."
+log_status "1. Checking installed packages..."
 check_status "QEMU/KVM" "which qemu-system-x86_64"
 check_status "libvirt" "which virsh"
 check_status "Terraform" "which terraform"
@@ -46,17 +46,17 @@ check_status "Helm" "which helm"
 echo ""
 
 # 2. Check virtualization support
-print_status "2. Checking virtualization support..."
+log_status "2. Checking virtualization support..."
 if check_status "KVM support" "kvm-ok"; then
-    print_success "Hardware virtualization is supported"
+    log_success "Hardware virtualization is supported"
 else
-    print_warning "Hardware virtualization may not be available"
+    log_warning "Hardware virtualization may not be available"
 fi
 
 echo ""
 
 # 3. Check services
-print_status "3. Checking services..."
+log_status "3. Checking services..."
 check_status "libvirtd service" "systemctl is-active --quiet libvirtd"
 check_status "Docker service" "systemctl is-active --quiet docker"
 check_status "NFS server" "systemctl is-active --quiet nfs-kernel-server"
@@ -64,7 +64,7 @@ check_status "NFS server" "systemctl is-active --quiet nfs-kernel-server"
 echo ""
 
 # 4. Check user permissions
-print_status "4. Checking user permissions..."
+log_status "4. Checking user permissions..."
 check_status "libvirt group membership" "groups | grep -q libvirt"
 check_status "kvm group membership" "groups | grep -q kvm"
 check_status "docker group membership" "groups | grep -q docker"
@@ -72,18 +72,18 @@ check_status "docker group membership" "groups | grep -q docker"
 echo ""
 
 # 5. Check storage setup
-print_status "5. Checking storage setup..."
+log_status "5. Checking storage setup..."
 MOUNT_BASE="/mnt/k8s-storage"
 
 if check_status "Storage mount point" "mountpoint -q $MOUNT_BASE"; then
-    print_success "Storage is properly mounted at $MOUNT_BASE"
+    log_success "Storage is properly mounted at $MOUNT_BASE"
     
     # Check available space
     AVAILABLE_SPACE=$(df -BG "$MOUNT_BASE" | tail -1 | awk '{print $4}' | sed 's/G//')
     if [[ $AVAILABLE_SPACE -gt 10 ]]; then
-        print_success "Available space: ${AVAILABLE_SPACE}GB (sufficient)"
+        log_success "Available space: ${AVAILABLE_SPACE}GB (sufficient)"
     else
-        print_warning "Available space: ${AVAILABLE_SPACE}GB (may be insufficient)"
+        log_warning "Available space: ${AVAILABLE_SPACE}GB (may be insufficient)"
     fi
     
     # Check directory structure
@@ -95,46 +95,46 @@ if check_status "Storage mount point" "mountpoint -q $MOUNT_BASE"; then
         check_status "$app directory" "test -d $MOUNT_BASE/local-volumes/$app"
     done
 else
-    print_error "Storage is not properly mounted"
+    log_error "Storage is not properly mounted"
 fi
 
 echo ""
 
 # 6. Check NFS setup
-print_status "6. Checking NFS setup..."
+log_status "6. Checking NFS setup..."
 if check_status "NFS exports" "sudo -n exportfs -v | grep -q $MOUNT_BASE/nfs-share"; then
-    print_success "NFS export is configured"
+    log_success "NFS export is configured"
     
     # Test NFS mount
     TEST_MOUNT="/tmp/nfs-verify-$$"
     mkdir -p "$TEST_MOUNT"
     
     if sudo -n mount -t nfs localhost:"$MOUNT_BASE/nfs-share" "$TEST_MOUNT" 2>/dev/null; then
-        print_success "NFS mount test successful"
+        log_success "NFS mount test successful"
         
         # Test write access
         if sudo -n touch "$TEST_MOUNT/test-file" 2>/dev/null; then
-            print_success "NFS write access working"
+            log_success "NFS write access working"
             sudo -n rm -f "$TEST_MOUNT/test-file"
         else
-            print_warning "NFS write access may be restricted"
+            log_warning "NFS write access may be restricted"
         fi
         
         sudo -n umount "$TEST_MOUNT"
     else
-        print_error "NFS mount test failed"
+        log_error "NFS mount test failed"
         OVERALL_STATUS=1
     fi
     
     rmdir "$TEST_MOUNT"
 else
-    print_error "NFS export is not configured"
+    log_error "NFS export is not configured"
 fi
 
 echo ""
 
 # 7. Check tool versions
-print_status "7. Tool versions..."
+log_status "7. Tool versions..."
 echo "Terraform: $(terraform version -json 2>/dev/null | jq -r '.terraform_version' 2>/dev/null || terraform version | head -1)"
 echo "Ansible: $(ansible --version | head -1)"
 echo "Docker: $(docker --version)"
@@ -144,31 +144,31 @@ echo "Helm: $(helm version --short)"
 echo ""
 
 # 8. Check network connectivity
-print_status "8. Checking network connectivity..."
+log_status "8. Checking network connectivity..."
 check_status "Internet connectivity" "ping -c 1 8.8.8.8"
 check_status "DNS resolution" "nslookup google.com"
 
 echo ""
 
 # 9. Check libvirt network
-print_status "9. Checking libvirt network..."
+log_status "9. Checking libvirt network..."
 if check_status "Default libvirt network" "virsh net-list --all | grep -q default"; then
     if virsh net-list | grep -q "default.*active"; then
-        print_success "Default libvirt network is active"
+        log_success "Default libvirt network is active"
     else
-        print_warning "Default libvirt network exists but is not active"
-        print_status "Starting default network..."
+        log_warning "Default libvirt network exists but is not active"
+        log_status "Starting default network..."
         sudo -n virsh net-start default
         sudo -n virsh net-autostart default
     fi
 else
-    print_warning "Default libvirt network not found"
+    log_warning "Default libvirt network not found"
 fi
 
 echo ""
 
 # 10. Generate readiness report
-print_status "10. Generating readiness report..."
+log_status "10. Generating readiness report..."
 
 REPORT_FILE="/tmp/k8s-setup-readiness-$(date +%Y%m%d_%H%M%S).txt"
 
@@ -217,21 +217,21 @@ KVM: $(kvm-ok >/dev/null 2>&1 && echo "✓ Supported" || echo "✗ Not supported
 $(if [[ $OVERALL_STATUS -eq 0 ]]; then echo "✓ READY - All checks passed"; else echo "✗ NOT READY - Some checks failed"; fi)
 EOF
 
-print_status "Readiness report saved to: $REPORT_FILE"
+log_status "Readiness report saved to: $REPORT_FILE"
 
 echo ""
 echo "=== Summary ==="
 if [[ $OVERALL_STATUS -eq 0 ]]; then
-    print_success "✓ All verification checks passed!"
-    print_success "Your system is ready for Phase 2 (VM construction)"
-    print_status "Next step: cd automation/terraform && terraform init"
+    log_success "✓ All verification checks passed!"
+    log_success "Your system is ready for Phase 2 (VM construction)"
+    log_status "Next step: cd automation/terraform && terraform init"
 else
-    print_error "✗ Some verification checks failed"
-    print_error "Please resolve the issues before proceeding to Phase 2"
-    print_status "Review the readiness report: $REPORT_FILE"
+    log_error "✗ Some verification checks failed"
+    log_error "Please resolve the issues before proceeding to Phase 2"
+    log_status "Review the readiness report: $REPORT_FILE"
 fi
 
 echo ""
-print_status "Phase 1 verification completed"
+log_status "Phase 1 verification completed"
 
 exit $OVERALL_STATUS

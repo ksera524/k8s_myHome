@@ -4,7 +4,7 @@
 
 # 共通関数を読み込む
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common-colors.sh" || true
+source "${SCRIPT_DIR}/common-logging.sh" || true
 
 # ネットワーク接続確認
 check_network_connectivity() {
@@ -14,7 +14,7 @@ check_network_connectivity() {
     if ping -c 1 -W "$timeout" "$target" &> /dev/null; then
         return 0
     else
-        print_error "ネットワーク接続できません: $target"
+        log_error "ネットワーク接続できません: $target"
         return 1
     fi
 }
@@ -39,7 +39,7 @@ check_service_running() {
     if systemctl is-active --quiet "$service"; then
         return 0
     else
-        print_error "サービスが稼働していません: $service"
+        log_error "サービスが稼働していません: $service"
         return 1
     fi
 }
@@ -51,7 +51,7 @@ check_command_exists() {
     if command -v "$cmd" &> /dev/null; then
         return 0
     else
-        print_error "コマンドが見つかりません: $cmd"
+        log_error "コマンドが見つかりません: $cmd"
         return 1
     fi
 }
@@ -66,7 +66,7 @@ check_disk_space() {
     if [[ $available_gb -ge $required_gb ]]; then
         return 0
     else
-        print_error "ディスク容量不足: ${available_gb}GB < ${required_gb}GB required"
+        log_error "ディスク容量不足: ${available_gb}GB < ${required_gb}GB required"
         return 1
     fi
 }
@@ -80,7 +80,7 @@ check_memory() {
     if [[ $available_gb -ge $required_gb ]]; then
         return 0
     else
-        print_error "メモリ不足: ${available_gb}GB < ${required_gb}GB required"
+        log_error "メモリ不足: ${available_gb}GB < ${required_gb}GB required"
         return 1
     fi
 }
@@ -94,7 +94,7 @@ check_cpu_cores() {
     if [[ $cores -ge $required ]]; then
         return 0
     else
-        print_error "CPU不足: ${cores} < ${required} cores required"
+        log_error "CPU不足: ${cores} < ${required} cores required"
         return 1
     fi
 }
@@ -107,7 +107,7 @@ check_k8s_api() {
     if check_port_open "$host" "$port"; then
         return 0
     else
-        print_error "Kubernetes APIに接続できません: $host:$port"
+        log_error "Kubernetes APIに接続できません: $host:$port"
         return 1
     fi
 }
@@ -118,11 +118,11 @@ check_kubectl_config() {
         if kubectl cluster-info &> /dev/null; then
             return 0
         else
-            print_error "kubectl設定が無効です"
+            log_error "kubectl設定が無効です"
             return 1
         fi
     else
-        print_error "kubectl設定ファイルが見つかりません"
+        log_error "kubectl設定ファイルが見つかりません"
         return 1
     fi
 }
@@ -130,13 +130,13 @@ check_kubectl_config() {
 # Docker/Containerd確認
 check_container_runtime() {
     if systemctl is-active --quiet docker; then
-        print_status "Container runtime: Docker"
+        log_status "Container runtime: Docker"
         return 0
     elif systemctl is-active --quiet containerd; then
-        print_status "Container runtime: containerd"
+        log_status "Container runtime: containerd"
         return 0
     else
-        print_error "コンテナランタイムが稼働していません"
+        log_error "コンテナランタイムが稼働していません"
         return 1
     fi
 }
@@ -193,7 +193,7 @@ check_required_env() {
     done
     
     if [[ ${#missing[@]} -gt 0 ]]; then
-        print_error "必須環境変数が設定されていません: ${missing[*]}"
+        log_error "必須環境変数が設定されていません: ${missing[*]}"
         return 1
     fi
     
@@ -215,7 +215,7 @@ verify_file_checksum() {
             actual_checksum=$(md5sum "$file" | awk '{print $1}')
             ;;
         *)
-            print_error "不明なアルゴリズム: $algorithm"
+            log_error "不明なアルゴリズム: $algorithm"
             return 1
             ;;
     esac
@@ -223,7 +223,7 @@ verify_file_checksum() {
     if [[ "$actual_checksum" == "$expected_checksum" ]]; then
         return 0
     else
-        print_error "チェックサム不一致: $file"
+        log_error "チェックサム不一致: $file"
         return 1
     fi
 }

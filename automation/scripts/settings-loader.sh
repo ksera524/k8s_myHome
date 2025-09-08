@@ -10,31 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTOMATION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SETTINGS_FILE="$AUTOMATION_DIR/settings.toml"
 
-# 共通色設定スクリプトを読み込み
-source "$SCRIPT_DIR/common-colors.sh"
-
-# 設定固有の印刷関数を定義（[SETTINGS]プレフィックス）
-print_settings_status() {
-    echo "📋 [SETTINGS] $1"
-}
-
-print_settings_warning() {
-    echo "⚠️  [SETTINGS] $1"
-}
-
-print_settings_error() {
-    echo "❌ [SETTINGS] $1"
-}
-
-print_settings_debug() {
-    echo "🔍 [SETTINGS] $1"
-}
-
-# 後方互換性のためのエイリアス
-print_status() { print_settings_status "$1"; }
-print_warning() { print_settings_warning "$1"; }
-print_error() { print_settings_error "$1"; }
-print_debug() { print_settings_debug "$1"; }
+# 統一ログ機能を読み込み
+source "$SCRIPT_DIR/common-logging.sh"
 
 # TOMLパーサー（拡張版）
 # セクション[section]とkey=valueのペアを抽出
@@ -94,11 +71,11 @@ parse_toml() {
                 # 特別な変数マッピング: PULUMI_ACCESS_TOKEN
                 if [[ "$section" == "pulumi" && "$key" == "access_token" ]]; then
                     export PULUMI_ACCESS_TOKEN="$value"
-                    print_debug "設定読み込み: PULUMI_ACCESS_TOKEN=***masked***"
+                    log_debug "設定読み込み: PULUMI_ACCESS_TOKEN=***masked***"
                 elif [[ "$value" != "" && ! "$key" =~ (token|password) ]]; then
-                    print_debug "設定読み込み: ${env_name}=${value}"
+                    log_debug "設定読み込み: ${env_name}=${value}"
                 elif [[ "$value" != "" ]]; then
-                    print_debug "設定読み込み: ${env_name}=***masked***"
+                    log_debug "設定読み込み: ${env_name}=***masked***"
                 fi
             fi
         fi
@@ -108,14 +85,14 @@ parse_toml() {
 # 設定ファイル読み込み
 load_settings() {
     if [[ ! -f "$SETTINGS_FILE" ]]; then
-        print_warning "設定ファイルが見つかりません: $SETTINGS_FILE"
-        print_warning "デフォルト設定で実行されます"
+        log_warning "設定ファイルが見つかりません: $SETTINGS_FILE"
+        log_warning "デフォルト設定で実行されます"
         return 1
     fi
     
-    print_status "設定ファイル読み込み中: $SETTINGS_FILE"
+    log_status "設定ファイル読み込み中: $SETTINGS_FILE"
     parse_toml "$SETTINGS_FILE"
-    print_status "設定ファイル読み込み完了"
+    log_status "設定ファイル読み込み完了"
     
     # 重要な環境変数の設定
     export_important_variables
@@ -128,256 +105,256 @@ export_important_variables() {
     # Kubernetes設定
     if [[ -n "${KUBERNETES_CLUSTER_NAME:-}" ]]; then
         export K8S_CLUSTER_NAME="${KUBERNETES_CLUSTER_NAME}"
-        print_debug "K8S_CLUSTER_NAME環境変数を設定済み: ${KUBERNETES_CLUSTER_NAME}"
+        log_debug "K8S_CLUSTER_NAME環境変数を設定済み: ${KUBERNETES_CLUSTER_NAME}"
     fi
     
     if [[ -n "${KUBERNETES_VERSION:-}" ]]; then
         export K8S_VERSION="${KUBERNETES_VERSION}"
-        print_debug "K8S_VERSION環境変数を設定済み: ${KUBERNETES_VERSION}"
+        log_debug "K8S_VERSION環境変数を設定済み: ${KUBERNETES_VERSION}"
     fi
     
     if [[ -n "${KUBERNETES_USER:-}" ]]; then
         export K8S_USER="${KUBERNETES_USER}"
-        print_debug "K8S_USER環境変数を設定済み: ${KUBERNETES_USER}"
+        log_debug "K8S_USER環境変数を設定済み: ${KUBERNETES_USER}"
     fi
     
     if [[ -n "${KUBERNETES_SSH_KEY_PATH:-}" ]]; then
         export K8S_SSH_KEY="${KUBERNETES_SSH_KEY_PATH}"
-        print_debug "K8S_SSH_KEY環境変数を設定済み: ${KUBERNETES_SSH_KEY_PATH}"
+        log_debug "K8S_SSH_KEY環境変数を設定済み: ${KUBERNETES_SSH_KEY_PATH}"
     fi
     
     # ネットワーク設定の環境変数
     if [[ -n "${NETWORK_CONTROL_PLANE_IP:-}" ]]; then
         export K8S_CONTROL_PLANE_IP="${NETWORK_CONTROL_PLANE_IP}"
         export CONTROL_PLANE_IP="${NETWORK_CONTROL_PLANE_IP}"
-        print_debug "K8S_CONTROL_PLANE_IP環境変数を設定済み: ${NETWORK_CONTROL_PLANE_IP}"
+        log_debug "K8S_CONTROL_PLANE_IP環境変数を設定済み: ${NETWORK_CONTROL_PLANE_IP}"
     fi
     
     if [[ -n "${NETWORK_WORKER_1_IP:-}" ]]; then
         export K8S_WORKER_1_IP="${NETWORK_WORKER_1_IP}"
         export WORKER_1_IP="${NETWORK_WORKER_1_IP}"
-        print_debug "K8S_WORKER_1_IP環境変数を設定済み: ${NETWORK_WORKER_1_IP}"
+        log_debug "K8S_WORKER_1_IP環境変数を設定済み: ${NETWORK_WORKER_1_IP}"
     fi
     
     if [[ -n "${NETWORK_WORKER_2_IP:-}" ]]; then
         export K8S_WORKER_2_IP="${NETWORK_WORKER_2_IP}"
         export WORKER_2_IP="${NETWORK_WORKER_2_IP}"
-        print_debug "K8S_WORKER_2_IP環境変数を設定済み: ${NETWORK_WORKER_2_IP}"
+        log_debug "K8S_WORKER_2_IP環境変数を設定済み: ${NETWORK_WORKER_2_IP}"
     fi
     
     if [[ -n "${NETWORK_GATEWAY_IP:-}" ]]; then
         export GATEWAY_IP="${NETWORK_GATEWAY_IP}"
-        print_debug "GATEWAY_IP環境変数を設定済み: ${NETWORK_GATEWAY_IP}"
+        log_debug "GATEWAY_IP環境変数を設定済み: ${NETWORK_GATEWAY_IP}"
     fi
     
     if [[ -n "${NETWORK_POD_NETWORK_CIDR:-}" ]]; then
         export POD_NETWORK_CIDR="${NETWORK_POD_NETWORK_CIDR}"
-        print_debug "POD_NETWORK_CIDR環境変数を設定済み: ${NETWORK_POD_NETWORK_CIDR}"
+        log_debug "POD_NETWORK_CIDR環境変数を設定済み: ${NETWORK_POD_NETWORK_CIDR}"
     fi
     
     if [[ -n "${NETWORK_SERVICE_CIDR:-}" ]]; then
         export SERVICE_CIDR="${NETWORK_SERVICE_CIDR}"
-        print_debug "SERVICE_CIDR環境変数を設定済み: ${NETWORK_SERVICE_CIDR}"
+        log_debug "SERVICE_CIDR環境変数を設定済み: ${NETWORK_SERVICE_CIDR}"
     fi
     
     # MetalLB設定
     if [[ -n "${NETWORK_METALLB_IP_START:-}" ]]; then
         export METALLB_IP_START="${NETWORK_METALLB_IP_START}"
-        print_debug "METALLB_IP_START環境変数を設定済み: ${NETWORK_METALLB_IP_START}"
+        log_debug "METALLB_IP_START環境変数を設定済み: ${NETWORK_METALLB_IP_START}"
     fi
     
     if [[ -n "${NETWORK_METALLB_IP_END:-}" ]]; then
         export METALLB_IP_END="${NETWORK_METALLB_IP_END}"
-        print_debug "METALLB_IP_END環境変数を設定済み: ${NETWORK_METALLB_IP_END}"
+        log_debug "METALLB_IP_END環境変数を設定済み: ${NETWORK_METALLB_IP_END}"
     fi
     
     # サービス固定IP（network.harbor_ipの場合）
     if [[ -n "${NETWORK_HARBOR_IP:-}" ]]; then
         export HARBOR_IP="${NETWORK_HARBOR_IP}"
         export HARBOR_LB_IP="${NETWORK_HARBOR_IP}"
-        print_debug "HARBOR_IP環境変数を設定済み: ${NETWORK_HARBOR_IP}"
+        log_debug "HARBOR_IP環境変数を設定済み: ${NETWORK_HARBOR_IP}"
     fi
     
     # サービス固定IP（network.harbor_lb_ipの場合 - 互換性のため）
     if [[ -n "${NETWORK_HARBOR_LB_IP:-}" ]]; then
         export HARBOR_IP="${NETWORK_HARBOR_LB_IP}"
         export HARBOR_LB_IP="${NETWORK_HARBOR_LB_IP}"
-        print_debug "HARBOR_IP環境変数を設定済み: ${NETWORK_HARBOR_LB_IP}"
+        log_debug "HARBOR_IP環境変数を設定済み: ${NETWORK_HARBOR_LB_IP}"
     fi
     
     if [[ -n "${NETWORK_INGRESS_IP:-}" ]]; then
         export INGRESS_IP="${NETWORK_INGRESS_IP}"
         export INGRESS_LB_IP="${NETWORK_INGRESS_IP}"
-        print_debug "INGRESS_IP環境変数を設定済み: ${NETWORK_INGRESS_IP}"
+        log_debug "INGRESS_IP環境変数を設定済み: ${NETWORK_INGRESS_IP}"
     fi
     
     if [[ -n "${NETWORK_ARGOCD_IP:-}" ]]; then
         export ARGOCD_IP="${NETWORK_ARGOCD_IP}"
         export ARGOCD_LB_IP="${NETWORK_ARGOCD_IP}"
-        print_debug "ARGOCD_IP環境変数を設定済み: ${NETWORK_ARGOCD_IP}"
+        log_debug "ARGOCD_IP環境変数を設定済み: ${NETWORK_ARGOCD_IP}"
     fi
     
     # ポート設定
     if [[ -n "${NETWORK_KUBERNETES_API_PORT:-}" ]]; then
         export K8S_API_PORT="${NETWORK_KUBERNETES_API_PORT}"
-        print_debug "K8S_API_PORT環境変数を設定済み: ${NETWORK_KUBERNETES_API_PORT}"
+        log_debug "K8S_API_PORT環境変数を設定済み: ${NETWORK_KUBERNETES_API_PORT}"
     fi
     
     if [[ -n "${NETWORK_ARGOCD_PORT_FORWARD:-}" ]]; then
         export ARGOCD_PORT_FORWARD="${NETWORK_ARGOCD_PORT_FORWARD}"
-        print_debug "ARGOCD_PORT_FORWARD環境変数を設定済み: ${NETWORK_ARGOCD_PORT_FORWARD}"
+        log_debug "ARGOCD_PORT_FORWARD環境変数を設定済み: ${NETWORK_ARGOCD_PORT_FORWARD}"
     fi
     
     if [[ -n "${NETWORK_HARBOR_PORT_FORWARD:-}" ]]; then
         export HARBOR_PORT_FORWARD="${NETWORK_HARBOR_PORT_FORWARD}"
-        print_debug "HARBOR_PORT_FORWARD環境変数を設定済み: ${NETWORK_HARBOR_PORT_FORWARD}"
+        log_debug "HARBOR_PORT_FORWARD環境変数を設定済み: ${NETWORK_HARBOR_PORT_FORWARD}"
     fi
     
     # Harbor設定
     if [[ -n "${HARBOR_URL:-}" ]]; then
         export HARBOR_URL="${HARBOR_URL}"
-        print_debug "HARBOR_URL環境変数を設定済み: ${HARBOR_URL}"
+        log_debug "HARBOR_URL環境変数を設定済み: ${HARBOR_URL}"
     fi
     
     if [[ -n "${HARBOR_HTTP_PORT:-}" ]]; then
         export HARBOR_HTTP_PORT="${HARBOR_HTTP_PORT}"
-        print_debug "HARBOR_HTTP_PORT環境変数を設定済み: ${HARBOR_HTTP_PORT}"
+        log_debug "HARBOR_HTTP_PORT環境変数を設定済み: ${HARBOR_HTTP_PORT}"
     fi
     
     if [[ -n "${HARBOR_PROJECT:-}" ]]; then
         export HARBOR_PROJECT="${HARBOR_PROJECT}"
-        print_debug "HARBOR_PROJECT環境変数を設定済み: ${HARBOR_PROJECT}"
+        log_debug "HARBOR_PROJECT環境変数を設定済み: ${HARBOR_PROJECT}"
     fi
     
     if [[ -n "${HARBOR_ADMIN_USERNAME:-}" ]]; then
         export HARBOR_ADMIN_USERNAME="${HARBOR_ADMIN_USERNAME}"
-        print_debug "HARBOR_ADMIN_USERNAME環境変数を設定済み: ${HARBOR_ADMIN_USERNAME}"
+        log_debug "HARBOR_ADMIN_USERNAME環境変数を設定済み: ${HARBOR_ADMIN_USERNAME}"
     fi
     
     if [[ -n "${HARBOR_ADMIN_PASSWORD:-}" ]]; then
         export HARBOR_ADMIN_PASSWORD="${HARBOR_ADMIN_PASSWORD}"
-        print_debug "HARBOR_ADMIN_PASSWORD環境変数を設定済み: ***masked***"
+        log_debug "HARBOR_ADMIN_PASSWORD環境変数を設定済み: ***masked***"
     fi
     
     # ストレージ設定
     if [[ -n "${STORAGE_BASE_DIR:-}" ]]; then
         export STORAGE_BASE_DIR="${STORAGE_BASE_DIR}"
-        print_debug "STORAGE_BASE_DIR環境変数を設定済み: ${STORAGE_BASE_DIR}"
+        log_debug "STORAGE_BASE_DIR環境変数を設定済み: ${STORAGE_BASE_DIR}"
     fi
     
     if [[ -n "${STORAGE_NFS_SHARE:-}" ]]; then
         export NFS_SHARE_DIR="${STORAGE_NFS_SHARE}"
-        print_debug "NFS_SHARE_DIR環境変数を設定済み: ${STORAGE_NFS_SHARE}"
+        log_debug "NFS_SHARE_DIR環境変数を設定済み: ${STORAGE_NFS_SHARE}"
     fi
     
     if [[ -n "${STORAGE_LOCAL_VOLUMES:-}" ]]; then
         export LOCAL_VOLUMES_DIR="${STORAGE_LOCAL_VOLUMES}"
-        print_debug "LOCAL_VOLUMES_DIR環境変数を設定済み: ${STORAGE_LOCAL_VOLUMES}"
+        log_debug "LOCAL_VOLUMES_DIR環境変数を設定済み: ${STORAGE_LOCAL_VOLUMES}"
     fi
     
     # バージョン設定
     if [[ -n "${VERSIONS_METALLB:-}" ]]; then
         export METALLB_VERSION="${VERSIONS_METALLB}"
-        print_debug "METALLB_VERSION環境変数を設定済み: ${VERSIONS_METALLB}"
+        log_debug "METALLB_VERSION環境変数を設定済み: ${VERSIONS_METALLB}"
     fi
     
     if [[ -n "${VERSIONS_INGRESS_NGINX:-}" ]]; then
         export INGRESS_NGINX_VERSION="${VERSIONS_INGRESS_NGINX}"
-        print_debug "INGRESS_NGINX_VERSION環境変数を設定済み: ${VERSIONS_INGRESS_NGINX}"
+        log_debug "INGRESS_NGINX_VERSION環境変数を設定済み: ${VERSIONS_INGRESS_NGINX}"
     fi
     
     if [[ -n "${VERSIONS_CERT_MANAGER:-}" ]]; then
         export CERT_MANAGER_VERSION="${VERSIONS_CERT_MANAGER}"
-        print_debug "CERT_MANAGER_VERSION環境変数を設定済み: ${VERSIONS_CERT_MANAGER}"
+        log_debug "CERT_MANAGER_VERSION環境変数を設定済み: ${VERSIONS_CERT_MANAGER}"
     fi
     
     if [[ -n "${VERSIONS_ARGOCD:-}" ]]; then
         export ARGOCD_VERSION="${VERSIONS_ARGOCD}"
-        print_debug "ARGOCD_VERSION環境変数を設定済み: ${VERSIONS_ARGOCD}"
+        log_debug "ARGOCD_VERSION環境変数を設定済み: ${VERSIONS_ARGOCD}"
     fi
     
     if [[ -n "${VERSIONS_HARBOR:-}" ]]; then
         export HARBOR_VERSION="${VERSIONS_HARBOR}"
-        print_debug "HARBOR_VERSION環境変数を設定済み: ${VERSIONS_HARBOR}"
+        log_debug "HARBOR_VERSION環境変数を設定済み: ${VERSIONS_HARBOR}"
     fi
     
     if [[ -n "${VERSIONS_EXTERNAL_SECRETS:-}" ]]; then
         export EXTERNAL_SECRETS_VERSION="${VERSIONS_EXTERNAL_SECRETS}"
-        print_debug "EXTERNAL_SECRETS_VERSION環境変数を設定済み: ${VERSIONS_EXTERNAL_SECRETS}"
+        log_debug "EXTERNAL_SECRETS_VERSION環境変数を設定済み: ${VERSIONS_EXTERNAL_SECRETS}"
     fi
     
     # Pulumi設定
     if [[ -n "${PULUMI_ACCESS_TOKEN:-}" ]]; then
         export PULUMI_ACCESS_TOKEN="${PULUMI_ACCESS_TOKEN}"
-        print_debug "PULUMI_ACCESS_TOKEN環境変数を設定済み"
+        log_debug "PULUMI_ACCESS_TOKEN環境変数を設定済み"
     fi
     
     if [[ -n "${PULUMI_ORGANIZATION:-}" ]]; then
         export PULUMI_ORGANIZATION="${PULUMI_ORGANIZATION}"
-        print_debug "PULUMI_ORGANIZATION環境変数を設定済み: ${PULUMI_ORGANIZATION}"
+        log_debug "PULUMI_ORGANIZATION環境変数を設定済み: ${PULUMI_ORGANIZATION}"
     fi
     
     if [[ -n "${PULUMI_PROJECT:-}" ]]; then
         export PULUMI_PROJECT="${PULUMI_PROJECT}"
-        print_debug "PULUMI_PROJECT環境変数を設定済み: ${PULUMI_PROJECT}"
+        log_debug "PULUMI_PROJECT環境変数を設定済み: ${PULUMI_PROJECT}"
     fi
     
     if [[ -n "${PULUMI_ENVIRONMENT:-}" ]]; then
         export PULUMI_ENVIRONMENT="${PULUMI_ENVIRONMENT}"
-        print_debug "PULUMI_ENVIRONMENT環境変数を設定済み: ${PULUMI_ENVIRONMENT}"
+        log_debug "PULUMI_ENVIRONMENT環境変数を設定済み: ${PULUMI_ENVIRONMENT}"
     fi
     
     # GitHub設定
     if [[ -n "${GITHUB_USERNAME:-}" ]]; then
         export GITHUB_USERNAME="${GITHUB_USERNAME}"
-        print_debug "GITHUB_USERNAME環境変数を設定済み: ${GITHUB_USERNAME}"
+        log_debug "GITHUB_USERNAME環境変数を設定済み: ${GITHUB_USERNAME}"
     fi
     
     if [[ -n "${GITHUB_ARC_REPOSITORIES:-}" ]]; then
         export GITHUB_ARC_REPOSITORIES="${GITHUB_ARC_REPOSITORIES}"
-        print_debug "GITHUB_ARC_REPOSITORIES環境変数を設定済み"
+        log_debug "GITHUB_ARC_REPOSITORIES環境変数を設定済み"
     fi
     
     # タイムアウト設定
     if [[ -n "${TIMEOUT_DEFAULT:-}" ]]; then
         export DEFAULT_TIMEOUT="${TIMEOUT_DEFAULT}"
-        print_debug "DEFAULT_TIMEOUT環境変数を設定済み: ${TIMEOUT_DEFAULT}"
+        log_debug "DEFAULT_TIMEOUT環境変数を設定済み: ${TIMEOUT_DEFAULT}"
     fi
     
     if [[ -n "${TIMEOUT_KUBECTL:-}" ]]; then
         export KUBECTL_TIMEOUT="${TIMEOUT_KUBECTL}"
-        print_debug "KUBECTL_TIMEOUT環境変数を設定済み: ${TIMEOUT_KUBECTL}"
+        log_debug "KUBECTL_TIMEOUT環境変数を設定済み: ${TIMEOUT_KUBECTL}"
     fi
     
     if [[ -n "${TIMEOUT_HELM:-}" ]]; then
         export HELM_TIMEOUT="${TIMEOUT_HELM}"
-        print_debug "HELM_TIMEOUT環境変数を設定済み: ${TIMEOUT_HELM}"
+        log_debug "HELM_TIMEOUT環境変数を設定済み: ${TIMEOUT_HELM}"
     fi
     
     if [[ -n "${TIMEOUT_ARGOCD_SYNC:-}" ]]; then
         export ARGOCD_SYNC_TIMEOUT="${TIMEOUT_ARGOCD_SYNC}"
-        print_debug "ARGOCD_SYNC_TIMEOUT環境変数を設定済み: ${TIMEOUT_ARGOCD_SYNC}"
+        log_debug "ARGOCD_SYNC_TIMEOUT環境変数を設定済み: ${TIMEOUT_ARGOCD_SYNC}"
     fi
     
     if [[ -n "${TIMEOUT_TERRAFORM:-}" ]]; then
         export TERRAFORM_TIMEOUT="${TIMEOUT_TERRAFORM}"
-        print_debug "TERRAFORM_TIMEOUT環境変数を設定済み: ${TIMEOUT_TERRAFORM}"
+        log_debug "TERRAFORM_TIMEOUT環境変数を設定済み: ${TIMEOUT_TERRAFORM}"
     fi
     
     # リトライ設定
     if [[ -n "${RETRY_COUNT:-}" ]]; then
         export RETRY_COUNT="${RETRY_COUNT}"
-        print_debug "RETRY_COUNT環境変数を設定済み: ${RETRY_COUNT}"
+        log_debug "RETRY_COUNT環境変数を設定済み: ${RETRY_COUNT}"
     fi
     
     if [[ -n "${RETRY_DELAY:-}" ]]; then
         export RETRY_DELAY="${RETRY_DELAY}"
-        print_debug "RETRY_DELAY環境変数を設定済み: ${RETRY_DELAY}"
+        log_debug "RETRY_DELAY環境変数を設定済み: ${RETRY_DELAY}"
     fi
     
     if [[ -n "${RETRY_MAX_DELAY:-}" ]]; then
         export RETRY_MAX_DELAY="${RETRY_MAX_DELAY}"
-        print_debug "RETRY_MAX_DELAY環境変数を設定済み: ${RETRY_MAX_DELAY}"
+        log_debug "RETRY_MAX_DELAY環境変数を設定済み: ${RETRY_MAX_DELAY}"
     fi
 }
 
@@ -441,8 +418,8 @@ auto_answer_confirm() {
 setup_auto_responses() {
     # expectがインストールされているかチェック
     if ! command -v expect >/dev/null 2>&1; then
-        print_warning "expectコマンドが見つかりません"
-        print_warning "sudo apt-get install expect でインストールできます"
+        log_warning "expectコマンドが見つかりません"
+        log_warning "sudo apt-get install expect でインストールできます"
         return 1
     fi
     
@@ -527,7 +504,7 @@ expect {
 }
 EOF
     chmod +x "/tmp/auto_responses.exp"
-    print_debug "自動応答スクリプトを作成: /tmp/auto_responses.exp"
+    log_debug "自動応答スクリプトを作成: /tmp/auto_responses.exp"
 }
 
 # 設定値取得関数
@@ -565,7 +542,7 @@ main() {
             shift
             load_settings
             setup_auto_responses
-            print_status "自動応答でコマンド実行: $*"
+            log_status "自動応答でコマンド実行: $*"
             /tmp/auto_responses.exp "$@"
             ;;
         *)

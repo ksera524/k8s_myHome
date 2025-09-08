@@ -9,9 +9,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 共通色設定スクリプトを読み込み
-source "$SCRIPT_DIR/../scripts/common-colors.sh"
+source "$SCRIPT_DIR/../scripts/common-logging.sh"
 
-print_status "=== 完全クリーンアップ開始 ==="
+log_status "=== 完全クリーンアップ開始 ==="
 
 # 0. 必要なパッケージの確認（expectは削除）
 which jq >/dev/null 2>&1 || sudo apt-get install -y jq 2>/dev/null
@@ -41,18 +41,18 @@ if systemctl is-active --quiet apparmor; then
     sudo -n systemctl stop apparmor 2>/dev/null
     sudo -n systemctl disable apparmor 2>/dev/null
 else
-    print_debug "AppArmorは既に無効化されています"
+    log_debug "AppArmorは既に無効化されています"
 fi
 
 # libvirt関連のAppArmorプロファイルを無効化
 if command -v aa-disable >/dev/null 2>&1; then
     sudo -n aa-disable /usr/sbin/libvirtd 2>/dev/null || true
     sudo -n aa-disable /usr/lib/libvirt/virt-aa-helper 2>/dev/null || true
-    print_debug "libvirt関連AppArmorプロファイルを無効化"
+    log_debug "libvirt関連AppArmorプロファイルを無効化"
 fi
 
 # 5. libvirt権限問題の根本修正
-print_status "libvirt権限設定を修正中..."
+log_status "libvirt権限設定を修正中..."
 
 # qemu.confのセキュリティ設定
 if ! grep -q '^security_driver = "none"' /etc/libvirt/qemu.conf; then
@@ -91,7 +91,7 @@ sudo -n chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
 sudo -n chmod 755 /var/lib/libvirt/images/
 
 # 5. libvirtd完全再起動
-print_status "libvirtdを再起動中..."
+log_status "libvirtdを再起動中..."
 sudo -n systemctl stop libvirtd
 sudo -n systemctl stop virtlogd
 sleep 2
@@ -100,17 +100,17 @@ sudo -n systemctl start libvirtd
 sleep 3
 
 # 6. デフォルトネットワーク確認・修正
-print_status "libvirtネットワークを確認中..."
+log_status "libvirtネットワークを確認中..."
 if ! sudo -n virsh net-list | grep -q "default.*active"; then
     sudo -n virsh net-start default
     sudo -n virsh net-autostart default
 fi
 
-print_status "=== 新しい設計でデプロイ開始 ==="
+log_status "=== 新しい設計でデプロイ開始 ==="
 
 # 7. SSH鍵確認
 if [[ ! -f ~/.ssh/id_rsa ]]; then
-    print_status "SSH鍵を生成中..."
+    log_status "SSH鍵を生成中..."
     ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
 fi
 
@@ -125,86 +125,86 @@ network_gateway = "192.168.122.1"
 EOF
 
 # 9. main.tfのネットワーク設定修正
-print_status "main.tfのネットワーク設定を修正中..."
+log_status "main.tfのネットワーク設定を修正中..."
 if [[ -f main.tf ]]; then
     # wait_for_lease問題を修正
     sed -i 's/wait_for_lease = true/wait_for_lease = false/g' main.tf
-    print_debug "wait_for_lease = false に変更"
+    log_debug "wait_for_lease = false に変更"
 else
-    print_error "main.tf が見つかりません"
+    log_error "main.tf が見つかりません"
     exit 1
 fi
 
 # 10. Terraform初期化＆プラン
-print_status "Terraformを初期化中..."
+log_status "Terraformを初期化中..."
 terraform init
 
-print_status "Terraformプランを作成中..."
+log_status "Terraformプランを作成中..."
 terraform plan -out=tfplan
 
 # 11. デプロイ実行
-print_status "VM構築を開始中..."
+log_status "VM構築を開始中..."
 terraform apply tfplan
 
 # 12. デプロイ後の確認・修正
 if [[ $? -eq 0 ]]; then
-    print_status "=== 初期デプロイ完了 ==="
+    log_status "=== 初期デプロイ完了 ==="
     
     # VMの作成確認
-    print_status "VM状態を確認中..."
+    log_status "VM状態を確認中..."
     sudo -n virsh list --all
     
     # 権限問題が発生している可能性があるので再修正
-    print_status "作成後の権限を修正中..."
+    log_status "作成後の権限を修正中..."
     sudo -n chown -R libvirt-qemu:kvm /var/lib/libvirt/images/
     sudo -n find /var/lib/libvirt/images/ -name "*.img" -exec chmod 644 {} \; 2>/dev/null || true
     sudo -n find /var/lib/libvirt/images/ -name "*.qcow2" -exec chmod 644 {} \; 2>/dev/null || true
     
     # VM起動確認
     sleep 10
-    print_status "VM起動状況を確認中..."
+    log_status "VM起動状況を確認中..."
     for i in {1..6}; do
         VM_COUNT=$(sudo -n virsh list --state-running | grep k8s | wc -l)
         if [[ $VM_COUNT -eq 3 ]]; then
-            print_status "全VM起動完了"
+            log_status "全VM起動完了"
             break
         else
-            print_debug "VM起動待機中... ($i/6) 起動中: $VM_COUNT/3"
+            log_debug "VM起動待機中... ($i/6) 起動中: $VM_COUNT/3"
             sleep 10
         fi
     done
     
     # ネットワーク確認
-    print_status "ネットワーク設定を確認中..."
+    log_status "ネットワーク設定を確認中..."
     sleep 20
     sudo -n virsh net-dhcp-leases default
     
     # VM起動完了待機とネットワーク確認
-    print_status "VM起動完了とネットワーク設定を確認中..."
-    print_debug "cloud-init/network-config.yamlで既にens3設定済みのため、expectによる修正は不要"
+    log_status "VM起動完了とネットワーク設定を確認中..."
+    log_debug "cloud-init/network-config.yamlで既にens3設定済みのため、expectによる修正は不要"
     
     # cloud-initの完了を待機
     sleep 60
     
     # SSH接続テスト
-    print_status "SSH接続テスト中..."
+    log_status "SSH接続テスト中..."
     sleep 20  # ネットワーク設定の反映を待機
     
     for ip in 192.168.122.10 192.168.122.11 192.168.122.12; do
         if ping -c 3 "$ip" >/dev/null 2>&1; then
-            print_status "✓ $ip への接続OK"
+            log_status "✓ $ip への接続OK"
             # SSH接続テスト
             if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@"$ip" "echo 'SSH接続成功'" 2>/dev/null; then
-                print_status "✓ $ip へのSSH接続OK"
+                log_status "✓ $ip へのSSH接続OK"
             else
-                print_warning "⚠ $ip へのSSH接続失敗（cloud-init実行中またはネットワーク設定要確認）"
+                log_warning "⚠ $ip へのSSH接続失敗（cloud-init実行中またはネットワーク設定要確認）"
             fi
         else
-            print_warning "⚠ $ip への接続失敗（ネットワーク設定要確認）"
+            log_warning "⚠ $ip への接続失敗（ネットワーク設定要確認）"
         fi
     done
     
-    print_status "=== デプロイ完了 ==="
+    log_status "=== デプロイ完了 ==="
     echo ""
     echo "=== VM接続情報 ==="
     echo "Control Plane: ssh k8suser@192.168.122.10"
@@ -223,15 +223,15 @@ if [[ $? -eq 0 ]]; then
     echo "ネットワーク: sudo -n virsh net-dhcp-leases default"
     
 else
-    print_error "=== デプロイ失敗 ==="
-    print_error "デバッグ情報:"
-    print_debug "VM状態:"
+    log_error "=== デプロイ失敗 ==="
+    log_error "デバッグ情報:"
+    log_debug "VM状態:"
     sudo -n virsh list --all
-    print_debug "ネットワーク状態:"
+    log_debug "ネットワーク状態:"
     sudo -n virsh net-list --all
-    print_debug "DHCPリース:"
+    log_debug "DHCPリース:"
     sudo -n virsh net-dhcp-leases default
-    print_debug "ファイル権限:"
+    log_debug "ファイル権限:"
     ls -la /var/lib/libvirt/images/ | head -10
     exit 1
 fi
