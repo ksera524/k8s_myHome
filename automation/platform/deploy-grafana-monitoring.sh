@@ -72,24 +72,22 @@ done
 # Secret存在確認
 if ! kubectl get secret grafana-cloud-monitoring -n monitoring >/dev/null 2>&1; then
     echo "エラー: Grafana Cloud認証情報を取得できませんでした"
-    echo "Pulumi ESCに以下のキーが設定されているか確認してください:"
-    echo "  - grafana-monitoring/api_token"
-    echo "  - grafana-monitoring/metrics_username"
-    echo "  - grafana-monitoring/logs_username"
-    echo "  - grafana-monitoring/otlp_username"
+    echo "Pulumi ESCに 'grafana' キーが設定されているか確認してください"
     exit 1
 fi
 
-# 認証情報取得
+# 認証情報取得（API Tokenのみ）
 API_TOKEN=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.api-token}' | base64 -d)
-METRICS_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.metrics-username}' | base64 -d)
-LOGS_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.logs-username}' | base64 -d)
-OTLP_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.otlp-username}' | base64 -d)
 
-if [[ -z "$API_TOKEN" || -z "$METRICS_USERNAME" || -z "$LOGS_USERNAME" || -z "$OTLP_USERNAME" ]]; then
-    echo "エラー: 認証情報が不完全です"
+if [[ -z "$API_TOKEN" ]]; then
+    echo "エラー: API Tokenを取得できませんでした"
     exit 1
 fi
+
+# ユーザー名は固定値
+METRICS_USERNAME="2666273"
+LOGS_USERNAME="1328813"
+OTLP_USERNAME="1371019"
 
 echo "✓ 認証情報取得完了"
 EOF
@@ -97,11 +95,13 @@ EOF
 # Grafana k8s-monitoring values ファイル作成
 log_status "Grafana k8s-monitoring values ファイル作成中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
-# 認証情報取得
+# 認証情報取得（API Tokenのみ）
 API_TOKEN=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.api-token}' | base64 -d)
-METRICS_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.metrics-username}' | base64 -d)
-LOGS_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.logs-username}' | base64 -d)
-OTLP_USERNAME=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.otlp-username}' | base64 -d)
+
+# ユーザー名は固定値
+METRICS_USERNAME="2666273"
+LOGS_USERNAME="1328813"
+OTLP_USERNAME="1371019"
 
 # Values ファイル作成
 cat > /tmp/grafana-k8s-monitoring-values.yaml << VALUES_EOF

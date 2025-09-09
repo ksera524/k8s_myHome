@@ -1035,11 +1035,11 @@ log_status "✓ Harbor最終調整完了"
 log_status "=== Phase 4.12: Grafana k8s-monitoring デプロイ ==="
 log_debug "Grafana Cloud への監視機能を自動セットアップします"
 
-# 注意: Grafana Cloud認証情報はPulumi ESCの "grafana-monitoring" パスに以下のキーで設定してください:
-# - api_token: Grafana Cloud API Token
-# - metrics_username: Prometheus用ユーザー名 (例: "2666273")
-# - logs_username: Loki用ユーザー名 (例: "1328813")
-# - otlp_username: OTLP用ユーザー名 (例: "1371019")
+# 注意: Grafana Cloud API TokenはPulumi ESCの "grafana" キーに設定してください
+# ユーザー名は固定値として設定済み:
+# - metrics_username: "2666273"
+# - logs_username: "1328813"
+# - otlp_username: "1371019"
 
 log_warning "Grafana k8s-monitoring のデプロイはスキップされました"
 log_warning "Grafana Cloud認証情報をPulumi ESCに設定後、以下のコマンドを実行してください:"
