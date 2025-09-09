@@ -514,40 +514,6 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# Promtail - Grafana Cloudへのログ転送（Platform後にデプロイ）
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: promtail
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd.argoproj.io/sync-wave: "11"
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: HEAD
-    path: manifests/apps/monitoring
-    directory:
-      include: 'promtail-app.yaml'
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: argocd
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
----
 # User Applications - 最後にデプロイ
 apiVersion: argoproj.io/v1alpha1
 kind: Application
