@@ -103,7 +103,7 @@ METRICS_USERNAME="2666273"
 LOGS_USERNAME="1328813"
 OTLP_USERNAME="1371019"
 
-# Values ファイル作成
+# Values ファイル作成（remoteConfigを無効化してシンプルに）
 cat > /tmp/grafana-k8s-monitoring-values.yaml << VALUES_EOF
 cluster:
   name: k8s-myhome
@@ -114,14 +114,14 @@ destinations:
     auth:
       type: basic
       username: "${METRICS_USERNAME}"
-      password: ${API_TOKEN}
+      password: "${API_TOKEN}"
   - name: grafana-cloud-logs
     type: loki
     url: https://logs-prod-030.grafana.net/loki/api/v1/push
     auth:
       type: basic
       username: "${LOGS_USERNAME}"
-      password: ${API_TOKEN}
+      password: "${API_TOKEN}"
   - name: gc-otlp-endpoint
     type: otlp
     url: https://otlp-gateway-prod-ap-northeast-0.grafana.net/otlp
@@ -129,7 +129,7 @@ destinations:
     auth:
       type: basic
       username: "${OTLP_USERNAME}"
-      password: ${API_TOKEN}
+      password: "${API_TOKEN}"
     metrics:
       enabled: true
     logs:
@@ -171,93 +171,26 @@ alloy-metrics:
   enabled: true
   alloy:
     extraEnv:
-      - name: GCLOUD_RW_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: grafana-cloud-monitoring
-            key: api-token
       - name: CLUSTER_NAME
         value: k8s-myhome
-      - name: NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: GCLOUD_FM_COLLECTOR_ID
-        value: grafana-k8s-monitoring-\$(CLUSTER_NAME)-\$(NAMESPACE)-\$(POD_NAME)
   remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: existingSecret
-      existingSecretName: grafana-cloud-monitoring
-      existingSecretUsernameKey: otlp-username
-      existingSecretPasswordKey: api-token
+    enabled: false  # remoteConfigを無効化
 alloy-singleton:
   enabled: true
   alloy:
     extraEnv:
-      - name: GCLOUD_RW_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: grafana-cloud-monitoring
-            key: api-token
       - name: CLUSTER_NAME
         value: k8s-myhome
-      - name: NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: GCLOUD_FM_COLLECTOR_ID
-        value: grafana-k8s-monitoring-\$(CLUSTER_NAME)-\$(NAMESPACE)-\$(POD_NAME)
   remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: existingSecret
-      existingSecretName: grafana-cloud-monitoring
-      existingSecretUsernameKey: otlp-username
-      existingSecretPasswordKey: api-token
+    enabled: false  # remoteConfigを無効化
 alloy-logs:
   enabled: true
   alloy:
     extraEnv:
-      - name: GCLOUD_RW_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: grafana-cloud-monitoring
-            key: api-token
       - name: CLUSTER_NAME
         value: k8s-myhome
-      - name: NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: NODE_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: spec.nodeName
-      - name: GCLOUD_FM_COLLECTOR_ID
-        value: grafana-k8s-monitoring-\$(CLUSTER_NAME)-\$(NAMESPACE)-alloy-logs-\$(NODE_NAME)
   remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: existingSecret
-      existingSecretName: grafana-cloud-monitoring
-      existingSecretUsernameKey: otlp-username
-      existingSecretPasswordKey: api-token
+    enabled: false  # remoteConfigを無効化
 alloy-receiver:
   enabled: true
   alloy:
@@ -275,35 +208,10 @@ alloy-receiver:
         targetPort: 9411
         protocol: TCP
     extraEnv:
-      - name: GCLOUD_RW_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: grafana-cloud-monitoring
-            key: api-token
       - name: CLUSTER_NAME
         value: k8s-myhome
-      - name: NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: NODE_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: spec.nodeName
-      - name: GCLOUD_FM_COLLECTOR_ID
-        value: grafana-k8s-monitoring-\$(CLUSTER_NAME)-\$(NAMESPACE)-alloy-receiver-\$(NODE_NAME)
   remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: existingSecret
-      existingSecretName: grafana-cloud-monitoring
-      existingSecretUsernameKey: otlp-username
-      existingSecretPasswordKey: api-token
+    enabled: false  # remoteConfigを無効化
 VALUES_EOF
 
 echo "✓ Values ファイル作成完了"

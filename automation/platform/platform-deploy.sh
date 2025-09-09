@@ -1035,15 +1035,17 @@ log_status "✓ Harbor最終調整完了"
 log_status "=== Phase 4.12: Grafana k8s-monitoring デプロイ ==="
 log_debug "Grafana Cloud への監視機能を自動セットアップします"
 
-# 注意: Grafana Cloud API TokenはPulumi ESCの "grafana" キーに設定してください
-# ユーザー名は固定値として設定済み:
-# - metrics_username: "2666273"
-# - logs_username: "1328813"
-# - otlp_username: "1371019"
-
-log_warning "Grafana k8s-monitoring のデプロイはスキップされました"
-log_warning "Grafana Cloud認証情報をPulumi ESCに設定後、以下のコマンドを実行してください:"
-log_warning "  cd automation/platform && ./deploy-grafana-monitoring.sh"
+# Grafana k8s-monitoring を自動デプロイ
+if [[ -f "$SCRIPT_DIR/deploy-grafana-monitoring.sh" ]]; then
+    log_status "Grafana k8s-monitoring を自動デプロイ中..."
+    export NON_INTERACTIVE=true
+    bash "$SCRIPT_DIR/deploy-grafana-monitoring.sh" || {
+        log_warning "Grafana k8s-monitoring のデプロイに失敗しました"
+        log_warning "後で手動実行: cd automation/platform && ./deploy-grafana-monitoring.sh"
+    }
+else
+    log_warning "deploy-grafana-monitoring.sh が見つかりません"
+fi
 
 log_status "🎉 すべての設定が完了しました！"
 log_status ""
