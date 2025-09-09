@@ -20,31 +20,72 @@ CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
 
 log_status "=== Grafana k8s-monitoring デプロイ開始 ==="
 
+# デバッグ情報出力
+log_status "デバッグ情報:"
+log_status "  NON_INTERACTIVE: ${NON_INTERACTIVE:-未設定}"
+log_status "  CONTROL_PLANE_IP: $CONTROL_PLANE_IP"
+log_status "  実行ディレクトリ: $(pwd)"
+log_status "  実行ユーザー: $(whoami)"
+
 # 前提条件確認
 log_status "前提条件を確認中..."
 
 # k8sクラスタ接続確認
-if ! ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
-    log_error "k8sクラスタに接続できません"
+log_status "k8sクラスタ接続確認中..."
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=10 k8suser@${CONTROL_PLANE_IP} 'kubectl get nodes' >/dev/null 2>&1; then
+    log_status "✓ k8sクラスタ接続確認完了"
+else
+    log_error "❌ k8sクラスタに接続できません"
+    log_error "接続先: k8suser@${CONTROL_PLANE_IP}"
+    log_error "SSH接続を確認してください"
     exit 1
 fi
 
 # External Secrets Operator確認
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
-echo "External Secrets Operator確認中..."
-if ! kubectl get deployment -n external-secrets-system external-secrets-operator >/dev/null 2>&1; then
-    echo "エラー: External Secrets Operatorがインストールされていません"
+log_status "External Secrets Operator確認中..."
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+echo "External Secrets Operator状態確認中..."
+
+# ESO Deployment確認
+if kubectl get deployment -n external-secrets-system external-secrets-operator >/dev/null 2>&1; then
+    echo "✓ External Secrets Operator Deployment存在確認"
+    # Pod状態確認
+    ESO_READY=$(kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets --no-headers 2>/dev/null | grep Running | wc -l)
+    echo "✓ ESO Running Pods: $ESO_READY"
+    if [ "$ESO_READY" -eq "0" ]; then
+        echo "⚠️ 警告: ESO Podが Running 状態ではありません"
+        kubectl get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets 2>/dev/null || echo "ESO Podが見つかりません"
+    fi
+else
+    echo "❌ エラー: External Secrets Operatorがインストールされていません"
     exit 1
 fi
 
 # ClusterSecretStore確認
-if ! kubectl get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
-    echo "エラー: ClusterSecretStore pulumi-esc-storeが存在しません"
+if kubectl get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
+    echo "✓ ClusterSecretStore pulumi-esc-store存在確認"
+    # Ready状態確認
+    STORE_READY=$(kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+    echo "✓ ClusterSecretStore Ready状態: $STORE_READY"
+    if [ "$STORE_READY" != "True" ]; then
+        echo "⚠️ 警告: ClusterSecretStoreがReady状態ではありません"
+        echo "しかし、デプロイは継続します（Secretが同期される可能性があります）"
+    fi
+else
+    echo "❌ エラー: ClusterSecretStore pulumi-esc-storeが存在しません"
+    echo "External Secrets経由でGrafana認証情報を取得できません"
     exit 1
 fi
 
 echo "✓ External Secrets Operator準備完了"
 EOF
+then
+    log_status "✓ External Secrets Operator確認完了"
+else
+    ESO_EXIT_CODE=$?
+    log_error "❌ External Secrets Operator確認失敗 (exit code: $ESO_EXIT_CODE)"
+    exit 1
+fi
 
 # External Secret マニフェストをコピー
 log_status "External Secret マニフェストを適用中..."
@@ -219,39 +260,110 @@ EOF
 
 # Helm リポジトリ追加とデプロイ
 log_status "Grafana k8s-monitoring をデプロイ中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
-# Helm リポジトリ追加
-helm repo add grafana https://grafana.github.io/helm-charts 2>/dev/null || true
-helm repo update
+if ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# デバッグ情報
+echo "Helmコマンド実行準備中..."
+echo "NON_INTERACTIVE: ${NON_INTERACTIVE:-未設定}"
 
-# Grafana k8s-monitoring をインストール
-echo "Grafana k8s-monitoring Helm chart をインストール中..."
-helm upgrade --install grafana-k8s-monitoring grafana/k8s-monitoring \
+# Helm リポジトリ追加
+echo "Helm リポジトリ追加中..."
+if helm repo add grafana https://grafana.github.io/helm-charts 2>/dev/null; then
+    echo "✓ Grafana Helm repository追加成功"
+else
+    echo "⚠️ Grafana Helm repository追加で警告（既存の可能性）"
+fi
+
+if helm repo update; then
+    echo "✓ Helm repository更新成功"
+else
+    echo "❌ Helm repository更新失敗"
+    exit 1
+fi
+
+# 既存のリリースを確認
+echo "既存のGrafana k8s-monitoring リリース確認中..."
+if helm list -n monitoring | grep -q grafana-k8s-monitoring; then
+    echo "⚠️ 既存のgrafana-k8s-monitoringリリースが見つかりました"
+    echo "既存リリースの状態:"
+    helm list -n monitoring | grep grafana-k8s-monitoring || true
+    echo "アップグレードを実行します..."
+    HELM_ACTION="upgrade"
+else
+    echo "✓ 新規インストールを実行します"
+    HELM_ACTION="install"
+fi
+
+# Grafana k8s-monitoring をインストール/アップグレード
+echo "Grafana k8s-monitoring Helm chart を${HELM_ACTION}中..."
+echo "タイムアウト設定: 15分"
+
+# NON_INTERACTIVE環境では--waitを使用せず、後でPod起動を確認
+if helm upgrade --install grafana-k8s-monitoring grafana/k8s-monitoring \
   --namespace monitoring \
   -f /tmp/grafana-k8s-monitoring-values.yaml \
-  --timeout 10m \
-  --wait || echo "Grafana k8s-monitoring インストール継続中..."
+  --timeout 15m \
+  --create-namespace; then
+    echo "✓ Helm chart ${HELM_ACTION} 成功"
+else
+    HELM_EXIT_CODE=$?
+    echo "❌ Helm chart ${HELM_ACTION} 失敗 (exit code: $HELM_EXIT_CODE)"
+    echo "既存リリースの状態確認:"
+    helm list -n monitoring || true
+    echo "Pod状態確認:"
+    kubectl get pods -n monitoring || true
+    exit 1
+fi
+EOF
+then
+    log_status "✓ Helm chart デプロイ成功"
+else
+    HELM_DEPLOY_EXIT_CODE=$?
+    log_error "❌ Helm chart デプロイ失敗 (exit code: $HELM_DEPLOY_EXIT_CODE)"
+    exit 1
+fi
 
+log_status "Pod起動確認を実行中..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
 # Pod の起動を待機
 echo "Grafana k8s-monitoring Pod 起動待機中..."
-sleep 30
+sleep 20
 
 # Pod の状態確認
-echo "Grafana k8s-monitoring Pod 状態:"
-kubectl get pods -n monitoring
+echo "現在のPod状態:"
+kubectl get pods -n monitoring 2>/dev/null || echo "monitoring namespace内にPodが見つかりません"
 
-# すべての Pod が Running になるまで待機（最大3分）
-for i in {1..18}; do
+# すべての Pod が Running になるまで待機（最大5分）
+echo "Pod起動完了待機中（最大5分）..."
+for i in {1..30}; do
+    # 全Pod数を取得
+    TOTAL_PODS=$(kubectl get pods -n monitoring --no-headers 2>/dev/null | wc -l || echo "0")
+    # Running状態のPod数を取得
+    RUNNING_PODS=$(kubectl get pods -n monitoring --no-headers 2>/dev/null | grep Running | wc -l || echo "0")
+    # Pending/Error状態のPod数を取得
     PENDING_PODS=$(kubectl get pods -n monitoring --no-headers 2>/dev/null | grep -v Running | wc -l || echo "0")
-    if [ "$PENDING_PODS" -eq "0" ]; then
+    
+    echo "Pod状態確認 ($i/30): Total=$TOTAL_PODS, Running=$RUNNING_PODS, Others=$PENDING_PODS"
+    
+    if [ "$TOTAL_PODS" -gt "0" ] && [ "$PENDING_PODS" -eq "0" ]; then
         echo "✓ すべての Grafana k8s-monitoring Pod が起動しました"
         break
+    elif [ "$TOTAL_PODS" -eq "0" ]; then
+        echo "⚠️ 警告: Podが見つかりません。Helmリリースを確認中..."
+        helm list -n monitoring | grep grafana || echo "Helmリリースが見つかりません"
     fi
-    echo "Pod 起動待機中... (残り Pending: $PENDING_PODS)"
-    sleep 10
+    
+    if [ "$i" -eq "30" ]; then
+        echo "⚠️ 警告: Pod起動完了を待機中にタイムアウトしました"
+        echo "現在のPod状態:"
+        kubectl get pods -n monitoring 2>/dev/null || echo "Podの取得に失敗"
+        echo "デプロイは継続しますが、手動でPod状態を確認してください"
+    else
+        sleep 10
+    fi
 done
 
-echo "✓ Grafana k8s-monitoring デプロイ完了"
+echo "✓ Grafana k8s-monitoring デプロイ処理完了"
+EOF
 echo ""
 echo "デプロイされたコンポーネント:"
 echo "  - kube-state-metrics: クラスターメトリクス収集"

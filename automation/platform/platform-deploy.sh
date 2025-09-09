@@ -1035,16 +1035,41 @@ log_status "✓ Harbor最終調整完了"
 log_status "=== Phase 4.12: Grafana k8s-monitoring デプロイ ==="
 log_debug "Grafana Cloud への監視機能を自動セットアップします"
 
+# デバッグ情報出力
+log_debug "SCRIPT_DIR: $SCRIPT_DIR"
+log_debug "deploy-grafana-monitoring.shのパス確認中: $SCRIPT_DIR/deploy-grafana-monitoring.sh"
+
 # Grafana k8s-monitoring を自動デプロイ
 if [[ -f "$SCRIPT_DIR/deploy-grafana-monitoring.sh" ]]; then
+    log_status "✓ deploy-grafana-monitoring.sh が見つかりました"
     log_status "Grafana k8s-monitoring を自動デプロイ中..."
+    
+    # 事前条件確認
+    log_debug "NON_INTERACTIVE環境での実行準備中..."
     export NON_INTERACTIVE=true
-    bash "$SCRIPT_DIR/deploy-grafana-monitoring.sh" || {
-        log_warning "Grafana k8s-monitoring のデプロイに失敗しました"
+    
+    # 実行前にスクリプトの実行可能性を確認
+    if [[ -x "$SCRIPT_DIR/deploy-grafana-monitoring.sh" ]]; then
+        log_debug "✓ スクリプトは実行可能です"
+    else
+        log_warning "⚠️ スクリプトに実行権限がありません。権限を付与中..."
+        chmod +x "$SCRIPT_DIR/deploy-grafana-monitoring.sh"
+    fi
+    
+    log_debug "deploy-grafana-monitoring.sh実行開始"
+    if bash "$SCRIPT_DIR/deploy-grafana-monitoring.sh"; then
+        log_status "✓ Grafana k8s-monitoring デプロイ完了"
+    else
+        DEPLOY_EXIT_CODE=$?
+        log_error "❌ Grafana k8s-monitoring のデプロイに失敗しました (exit code: $DEPLOY_EXIT_CODE)"
         log_warning "後で手動実行: cd automation/platform && ./deploy-grafana-monitoring.sh"
-    }
+        log_warning "デバッグ情報: NON_INTERACTIVE=$NON_INTERACTIVE"
+    fi
 else
-    log_warning "deploy-grafana-monitoring.sh が見つかりません"
+    log_error "❌ deploy-grafana-monitoring.sh が見つかりません"
+    log_debug "確認されたパス: $SCRIPT_DIR/deploy-grafana-monitoring.sh"
+    log_debug "ディレクトリ内容確認:"
+    ls -la "$SCRIPT_DIR/" | grep -E "(deploy-grafana|monitoring)" || log_debug "関連ファイルが見つかりません"
 fi
 
 log_status "🎉 すべての設定が完了しました！"
