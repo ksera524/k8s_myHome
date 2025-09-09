@@ -1031,9 +1031,24 @@ EOF
 
 log_status "✓ Harbor最終調整完了"
 
+# Phase 4.12: Grafana k8s-monitoring デプロイ
+log_status "=== Phase 4.12: Grafana k8s-monitoring デプロイ ==="
+log_debug "Grafana Cloud への監視機能を自動セットアップします"
+
+# 注意: Grafana Cloud認証情報はPulumi ESCの "grafana-monitoring" パスに以下のキーで設定してください:
+# - api_token: Grafana Cloud API Token
+# - metrics_username: Prometheus用ユーザー名 (例: "2666273")
+# - logs_username: Loki用ユーザー名 (例: "1328813")
+# - otlp_username: OTLP用ユーザー名 (例: "1371019")
+
+log_warning "Grafana k8s-monitoring のデプロイはスキップされました"
+log_warning "Grafana Cloud認証情報をPulumi ESCに設定後、以下のコマンドを実行してください:"
+log_warning "  cd automation/platform && ./deploy-grafana-monitoring.sh"
+
 log_status "🎉 すべての設定が完了しました！"
 log_status ""
 log_status "次のステップ:"
 log_status "  1. GitHub リポジトリに workflow ファイルを追加"
 log_status "  2. make add-runner REPO=your-repo でリポジトリ用の Runner を追加"
 log_status "  3. git push で GitHub Actions が自動実行されます"
+log_status "  4. Grafana Cloud でメトリクス、ログ、トレースを確認"
