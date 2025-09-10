@@ -2,7 +2,8 @@
 # 共通変数と設定値の定義
 
 # プロジェクト基本設定
-PROJECT_ROOT := $(shell pwd)
+# automationディレクトリを絶対パスで指定
+PROJECT_ROOT := /home/ksera/k8s_myHome/automation
 PROJECT_NAME := k8s_myHome
 
 # ディレクトリ構造
@@ -10,7 +11,7 @@ HOST_SETUP_DIR := $(PROJECT_ROOT)/host-setup
 INFRASTRUCTURE_DIR := $(PROJECT_ROOT)/infrastructure
 PLATFORM_DIR := $(PROJECT_ROOT)/platform
 SCRIPTS_DIR := $(PROJECT_ROOT)/scripts
-MANIFESTS_DIR := $(PROJECT_ROOT)/manifests/resources
+MANIFESTS_DIR := /home/ksera/k8s_myHome/manifests/resources
 
 # 設定ファイル
 SETTINGS_FILE := $(PROJECT_ROOT)/settings.toml

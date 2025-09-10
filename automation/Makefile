@@ -19,7 +19,7 @@ include makefiles/maintenance.mk
 .PHONY: dev-info dev-ssh dev-argocd dev-harbor
 .PHONY: vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure
 .PHONY: phase1 phase2 phase3 phase4 phase2-3
-.PHONY: _sudo-keepalive _sudo-cleanup _all-internal
+.PHONY: _sudo-keepalive _sudo-cleanup _all-internal _deploy-grafana-monitoring _deploy-app-of-apps _check-cloudflared-app
 
 # デフォルトターゲット - ヘルプ表示
 help:

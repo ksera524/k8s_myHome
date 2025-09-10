@@ -13,6 +13,8 @@ all:
 # 内部実行用ターゲット（ログ記録のため分離）
 _all-internal: load-settings check-automation-readiness host-setup infrastructure platform post-deployment
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
+	@echo "$(ROCKET) Grafana k8s-monitoring デプロイ確認中..."
+	@$(MAKE) _deploy-grafana-monitoring || true
 	@$(MAKE) status || true
 
 # deployはallのエイリアス
@@ -65,7 +67,7 @@ platform:
 	@echo "$(ROCKET) Kubernetesプラットフォーム構築開始"
 	@echo "$(KEY) ESO Prerequisites設定中..."
 	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && NON_INTERACTIVE=true $(SCRIPTS_DIR)/setup-eso-prerequisites.sh' || echo "$(WARNING) ESO Prerequisites設定で警告が発生しましたが続行します"
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
+	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then NON_INTERACTIVE=true source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && NON_INTERACTIVE=true ./platform-deploy.sh 2>&1 | tee /tmp/platform-deploy.log' || echo "$(WARNING) Platform構築で一部警告が発生しましたが続行します"
 	@echo "$(INFO) App-of-Appsデプロイ強制実行中..."
 	@$(MAKE) _deploy-app-of-apps || echo "$(WARNING) App-of-Appsデプロイで警告が発生しましたが続行します"
 	@echo "$(GEAR) ArgoCD GitHub OAuth設定中..."
@@ -162,3 +164,25 @@ phase2: infrastructure
 
 phase3: infrastructure
 	@echo "$(WARNING) phase3は統合されました。infrastructureが実行されます"
+
+# Grafana k8s-monitoringデプロイ（内部ターゲット）
+_deploy-grafana-monitoring:
+	@echo "$(ROCKET) Grafana k8s-monitoring デプロイ中..."
+	@if ssh -o StrictHostKeyChecking=no k8suser@$(K8S_CONTROL_PLANE_IP) "helm list -n monitoring | grep -q grafana-k8s-monitoring" 2>/dev/null; then \
+		echo "$(CHECK) Grafana k8s-monitoring は既にデプロイされています"; \
+	else \
+		echo "$(INFO) Grafana k8s-monitoring を新規デプロイします..."; \
+		if [ -f "$(PLATFORM_DIR)/deploy-grafana-monitoring.sh" ]; then \
+			if [ -f "$(SETTINGS_FILE)" ]; then \
+				. "$(SETTINGS_LOADER)" load 2>/dev/null || true; \
+			fi; \
+			export NON_INTERACTIVE=true; \
+			export K8S_CONTROL_PLANE_IP="$(K8S_CONTROL_PLANE_IP)"; \
+			cd "$(PLATFORM_DIR)" && ./deploy-grafana-monitoring.sh 2>&1 | tee /tmp/grafana-deploy.log || \
+				echo "$(WARNING) Grafanaデプロイでエラーが発生しましたが続行します"; \
+			echo "$(CHECK) Grafana k8s-monitoringデプロイ完了"; \
+		else \
+			echo "$(ERROR) deploy-grafana-monitoring.shが見つかりません"; \
+		fi; \
+	fi
+

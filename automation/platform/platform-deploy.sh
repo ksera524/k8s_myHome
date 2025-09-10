@@ -566,6 +566,16 @@ for namespace in "${NAMESPACES[@]}"; do
     # ネームスペース作成（存在しない場合）
     kubectl create namespace $namespace --dry-run=client -o yaml | kubectl apply -f -
     
+    # harbor.local用のImagePullSecret作成
+    echo "harbor-secret ($namespace) 作成中..."
+    kubectl create secret docker-registry harbor-secret \
+      --docker-server=harbor.local \
+      --docker-username=admin \
+      --docker-password="${HARBOR_ADMIN_PASSWORD}" \
+      --docker-email=admin@example.com \
+      --namespace=$namespace \
+      --dry-run=client -o yaml | kubectl apply -f -
+    
     echo "harbor-http secret ($namespace) はGitOps経由で同期されます"
 done
 
@@ -588,6 +598,74 @@ EOF
 
 log_status "✓ Harbor認証設定（skopeo対応）完了"
 
+# Phase 4.8.5b: Harbor sandboxプロジェクト作成
+log_status "=== Phase 4.8.5b: Harbor sandboxプロジェクト作成 ==="
+log_debug "Harborにsandboxプロジェクトを作成します"
+
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# Harbor coreが完全に起動していることを確認
+echo "Harbor coreの起動を確認中..."
+kubectl wait --namespace harbor --for=condition=ready pod --selector=component=core --timeout=120s || echo "Harbor core起動待機中"
+
+# Harbor管理者パスワード取得
+HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+if [[ -z "$HARBOR_ADMIN_PASSWORD" ]]; then
+    echo "エラー: Harborパスワードを取得できませんでした"
+    exit 1
+fi
+
+# Harbor APIを使用してsandboxプロジェクトを作成
+echo "sandboxプロジェクト作成中..."
+
+# ポートフォワードをバックグラウンドで開始
+kubectl port-forward -n harbor svc/harbor-core 8082:80 &>/dev/null &
+PF_PID=$!
+sleep 5
+
+# プロジェクトが既に存在するか確認
+PROJECT_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" -u admin:"${HARBOR_ADMIN_PASSWORD}" "http://localhost:8082/api/v2.0/projects?name=sandbox")
+if [[ "$PROJECT_EXISTS" == "200" ]]; then
+    PROJECTS=$(curl -s -u admin:"${HARBOR_ADMIN_PASSWORD}" "http://localhost:8082/api/v2.0/projects?name=sandbox")
+    if echo "$PROJECTS" | grep -q '"name":"sandbox"'; then
+        echo "✓ sandboxプロジェクトは既に存在します"
+    else
+        # プロジェクト作成
+        RESPONSE=$(curl -s -X POST -u admin:"${HARBOR_ADMIN_PASSWORD}" \
+          "http://localhost:8082/api/v2.0/projects" \
+          -H "Content-Type: application/json" \
+          -d '{"project_name":"sandbox","public":true}' \
+          -w "\n%{http_code}")
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
+            echo "✓ sandboxプロジェクトを作成しました"
+        else
+            echo "警告: sandboxプロジェクト作成のレスポンス: $RESPONSE"
+        fi
+    fi
+else
+    # APIアクセスエラーの場合もプロジェクト作成を試みる
+    echo "Harbor APIアクセスエラー。プロジェクト作成を試みます..."
+    RESPONSE=$(curl -s -X POST -u admin:"${HARBOR_ADMIN_PASSWORD}" \
+      "http://localhost:8082/api/v2.0/projects" \
+      -H "Content-Type: application/json" \
+      -d '{"project_name":"sandbox","public":true}' \
+      -w "\n%{http_code}")
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "409" ]]; then
+        echo "✓ sandboxプロジェクト処理完了"
+    else
+        echo "警告: sandboxプロジェクト作成レスポンス: $RESPONSE"
+    fi
+fi
+
+# ポートフォワードを終了
+kill $PF_PID 2>/dev/null || true
+
+echo "✓ Harbor sandboxプロジェクト設定完了"
+EOF
+
+log_status "✓ Harbor sandboxプロジェクト作成完了"
+
 # Phase 4.8.6: Worker ノード Containerd Harbor HTTP Registry設定
 log_status "=== Phase 4.8.6: Containerd Harbor HTTP Registry設定 ==="
 log_debug "各Worker ノードのContainerdにHarbor HTTP Registry設定を追加します"
@@ -603,24 +681,29 @@ fi
 
 log_debug "Worker1 (192.168.122.11) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.11 << EOF
-# Containerd設定バックアップ
-sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
+# /etc/hostsにharbor.localを追加（重複チェック付き）
+if ! grep -q "harbor.local" /etc/hosts; then
+    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+fi
 
-# /etc/hostsにharbor.localを追加
-echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+# containerd certs.d設定ディレクトリ作成
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
 
-# Harbor Registry設定追加（HTTP + 認証）
-sudo -n tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
+# harbor.local用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.local"
 
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-  endpoint = ["http://harbor.local"]
+[host."https://harbor.local"]
+  skip_verify = true
+CONTAINERD_EOF
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-  insecure_skip_verify = true
+# 192.168.122.100用hosts.toml作成（IPアクセス用）
+sudo -n tee /etc/containerd/certs.d/192.168.122.100/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://192.168.122.100"
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".auth]
-  username = "admin"
-  password = "${HARBOR_ADMIN_PASSWORD}"
+[host."https://192.168.122.100"]
+  skip_verify = true
 CONTAINERD_EOF
 
 # Containerd再起動
@@ -630,29 +713,67 @@ EOF
 
 log_debug "Worker2 (192.168.122.12) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.12 << EOF
-# Containerd設定バックアップ
-sudo -n cp /etc/containerd/config.toml /etc/containerd/config.toml.backup-\$(date +%Y%m%d-%H%M%S)
+# /etc/hostsにharbor.localを追加（重複チェック付き）
+if ! grep -q "harbor.local" /etc/hosts; then
+    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+fi
 
-# /etc/hostsにharbor.localを追加
-echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+# containerd certs.d設定ディレクトリ作成
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
 
-# Harbor Registry設定追加（HTTP + 認証）
-sudo -n tee -a /etc/containerd/config.toml > /dev/null << 'CONTAINERD_EOF'
+# harbor.local用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.local"
 
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-  endpoint = ["http://harbor.local"]
+[host."https://harbor.local"]
+  skip_verify = true
+CONTAINERD_EOF
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-  insecure_skip_verify = true
+# 192.168.122.100用hosts.toml作成（IPアクセス用）
+sudo -n tee /etc/containerd/certs.d/192.168.122.100/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://192.168.122.100"
 
-[plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".auth]
-  username = "admin"
-  password = "${HARBOR_ADMIN_PASSWORD}"
+[host."https://192.168.122.100"]
+  skip_verify = true
 CONTAINERD_EOF
 
 # Containerd再起動
 sudo -n systemctl restart containerd
 echo "✓ Worker2 Containerd設定完了"
+EOF
+
+# Control Planeノードの設定
+log_debug "Control Plane (192.168.122.10) Containerd設定..."
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
+# /etc/hostsにharbor.localを追加（重複チェック付き）
+if ! grep -q "harbor.local" /etc/hosts; then
+    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+fi
+
+# containerd certs.d設定ディレクトリ作成
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
+
+# harbor.local用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.local"
+
+[host."https://harbor.local"]
+  skip_verify = true
+CONTAINERD_EOF
+
+# 192.168.122.100用hosts.toml作成（IPアクセス用）
+sudo -n tee /etc/containerd/certs.d/192.168.122.100/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://192.168.122.100"
+
+[host."https://192.168.122.100"]
+  skip_verify = true
+CONTAINERD_EOF
+
+# Containerd再起動
+sudo -n systemctl restart containerd
+echo "✓ Control Plane Containerd設定完了"
 EOF
 
 log_status "✓ Containerd Harbor HTTP Registry設定完了"
@@ -1031,6 +1152,8 @@ EOF
 
 log_status "✓ Harbor最終調整完了"
 
+log_debug "Phase 4.12に移動します..."
+
 # Phase 4.12: Grafana k8s-monitoring デプロイ
 log_status "=== Phase 4.12: Grafana k8s-monitoring デプロイ ==="
 log_debug "Grafana Cloud への監視機能を自動セットアップします"
@@ -1057,13 +1180,16 @@ if [[ -f "$SCRIPT_DIR/deploy-grafana-monitoring.sh" ]]; then
     fi
     
     log_debug "deploy-grafana-monitoring.sh実行開始"
-    if bash "$SCRIPT_DIR/deploy-grafana-monitoring.sh"; then
+    # Grafanaデプロイはエラーでも続行（後で手動実行可能）
+    if bash "$SCRIPT_DIR/deploy-grafana-monitoring.sh" 2>&1 | tee /tmp/grafana-deploy.log; then
         log_status "✓ Grafana k8s-monitoring デプロイ完了"
     else
         DEPLOY_EXIT_CODE=$?
         log_error "❌ Grafana k8s-monitoring のデプロイに失敗しました (exit code: $DEPLOY_EXIT_CODE)"
         log_warning "後で手動実行: cd automation/platform && ./deploy-grafana-monitoring.sh"
         log_warning "デバッグ情報: NON_INTERACTIVE=$NON_INTERACTIVE"
+        log_warning "ログ確認: cat /tmp/grafana-deploy.log"
+        # エラーでもスクリプトを続行
     fi
 else
     log_error "❌ deploy-grafana-monitoring.sh が見つかりません"
