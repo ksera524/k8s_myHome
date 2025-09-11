@@ -566,17 +566,7 @@ for namespace in "${NAMESPACES[@]}"; do
     # ネームスペース作成（存在しない場合）
     kubectl create namespace $namespace --dry-run=client -o yaml | kubectl apply -f -
     
-    # harbor.local用のImagePullSecret作成
-    echo "harbor-secret ($namespace) 作成中..."
-    kubectl create secret docker-registry harbor-secret \
-      --docker-server=harbor.local \
-      --docker-username=admin \
-      --docker-password="${HARBOR_ADMIN_PASSWORD}" \
-      --docker-email=admin@example.com \
-      --namespace=$namespace \
-      --dry-run=client -o yaml | kubectl apply -f -
-    
-    echo "harbor-http secret ($namespace) はGitOps経由で同期されます"
+    echo "harbor-registry secret ($namespace) はGitOps経由で同期されます"
 done
 
 echo "✓ Harbor認証設定完了 - skopeo対応"

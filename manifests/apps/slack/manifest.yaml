@@ -17,7 +17,7 @@ spec:
     spec:
       restartPolicy: Always
       imagePullSecrets:
-        - name: harbor-secret
+        - name: harbor-registry
       containers:
       - name: slack
         image: harbor.local/sandbox/slack.rs:latest

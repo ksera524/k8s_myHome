@@ -31,5 +31,5 @@ spec:
                       name: tidb
                       key: uri
           imagePullSecrets:
-            - name: harbor
+            - name: harbor-registry
           restartPolicy: OnFailure

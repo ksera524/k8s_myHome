@@ -54,4 +54,4 @@ spec:
                       key: port
           restartPolicy: Never
           imagePullSecrets:
-            - name: harbor-http
+            - name: harbor-registry
