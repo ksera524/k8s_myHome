@@ -8,4 +8,4 @@ resources:
   - argocd-config.yaml
   # ArgoCD GitHub OAuth Secret は secrets/external-secrets/ で管理されるため削除
   # Harbor Docker Registry Secrets (各namespace用)
-  - harbor-docker-registry-secrets.yaml
+  - harbor-unified-registry-secrets.yaml
