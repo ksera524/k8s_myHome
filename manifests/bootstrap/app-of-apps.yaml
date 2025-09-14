@@ -514,16 +514,48 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# User Applications - 最後にデプロイ
+# User Application Definitions - ArgoCD Application定義
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: applications
+  name: user-application-definitions
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "12"  # Loki Stack後にデプロイ
+    argocd.argoproj.io/sync-wave: "11"  # Platform後、実際のアプリ前にデプロイ
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/bootstrap/applications/user-apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false  # argoCDネームスペースは既に存在
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# User Application Manifests - アプリケーションの実際のマニフェスト
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: user-applications
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"  # Application定義後にデプロイ
 spec:
   project: default
   source:
