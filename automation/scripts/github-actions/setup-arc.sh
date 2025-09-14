@@ -28,13 +28,20 @@ EOF
 # GitHub認証情報はExternal Secrets Operatorが管理するため、手動作成は不要
 # External Secretsが自動的にgithub-authシークレットを作成・更新する
 
-# Harbor認証情報Secret作成
-log_status "Harbor認証情報Secret作成中..."
+# Harbor認証情報Secret作成（ESO経由で取得）
+log_status "Harbor認証情報Secret確認中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# ESOからHarborパスワードを取得
+HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
+if [[ -z "$HARBOR_PASSWORD" ]]; then
+    echo "エラー: ESOからHarborパスワードを取得できませんでした"
+    exit 1
+fi
+
 kubectl create secret generic harbor-auth \
   --namespace arc-systems \
   --from-literal=HARBOR_USERNAME="admin" \
-  --from-literal=HARBOR_PASSWORD="te3CFrgdMaBJTCg4UWJv" \
+  --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
   --from-literal=HARBOR_URL="harbor.local" \
   --from-literal=HARBOR_PROJECT="sandbox" \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -43,15 +50,25 @@ EOF
 # GitHub Actions Runner用ServiceAccount作成
 log_status "GitHub Actions Runner ServiceAccount作成中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# ServiceAccount作成
 kubectl create serviceaccount github-actions-runner \
   --namespace arc-systems \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# 権限設定（Secretアクセス用）
 kubectl create rolebinding github-actions-runner-binding \
   --namespace arc-systems \
   --clusterrole=admin \
   --serviceaccount=arc-systems:github-actions-runner \
   --dry-run=client -o yaml | kubectl apply -f -
+
+# ServiceAccount確認
+if kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 2>&1; then
+    echo "✓ ServiceAccount github-actions-runner 作成完了"
+else
+    echo "❌ ServiceAccount作成失敗"
+    exit 1
+fi
 EOF
 
 # Helm確認・インストール

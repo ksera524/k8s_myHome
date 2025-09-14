@@ -86,9 +86,9 @@ log_status "接続モード: $([ "$USE_SSH" = true ] && echo 'SSH経由' || echo
 # External Secrets Operator確認と起動待機
 log_status "External Secrets Operator確認中..."
 
-# ArgoCD経由でESOがデプロイされるまで待機（最大120秒）
+# ArgoCD経由でESOがデプロイされるまで待機（最大300秒）
 log_status "External Secrets Operatorの起動待機中..."
-for i in {1..24}; do
+for i in {1..60}; do
     # 正しいラベルを使用してESO Podを検索（より確実な方法）
     ESO_POD_OUTPUT=$(kubectl_exec get pods -n external-secrets-system -l app.kubernetes.io/name=external-secrets --no-headers 2>/dev/null || echo "")
     if [ -n "$ESO_POD_OUTPUT" ]; then
@@ -111,12 +111,12 @@ for i in {1..24}; do
     if [ "$ESO_TOTAL" -eq "0" ]; then
         # namespaceが存在するか確認
         if ! kubectl_exec get namespace external-secrets-system >/dev/null 2>&1; then
-            echo "  ESO待機中... ($i/24) - Namespace: 未作成"
+            echo "  ESO待機中... ($i/60) - Namespace: 未作成"
         else
-            echo "  ESO待機中... ($i/24) - Pod: デプロイ待ち"
+            echo "  ESO待機中... ($i/60) - Pod: デプロイ待ち"
         fi
     else
-        echo "  ESO待機中... ($i/24) - Pod: $ESO_RUNNING/$ESO_TOTAL"
+        echo "  ESO待機中... ($i/60) - Pod: $ESO_RUNNING/$ESO_TOTAL"
     fi
     
     # CRDがインストールされているか確認
@@ -130,7 +130,7 @@ for i in {1..24}; do
         break
     fi
     
-    if [ "$i" -eq "24" ]; then
+    if [ "$i" -eq "60" ]; then
         log_warning "⚠️ External Secrets Operatorの起動待機がタイムアウトしました"
         log_warning "Pod状態: Running=$ESO_RUNNING, Total=$ESO_TOTAL"
         log_warning "CRD状態: $([ "$CRD_EXISTS" -gt "0" ] && echo "インストール済み" || echo "未インストール")"
@@ -164,27 +164,21 @@ for i in {1..24}; do
     sleep 5
 done
 
-# ClusterSecretStoreの起動待機（最大60秒）
-log_status "ClusterSecretStoreの起動待機中..."
-for i in {1..12}; do
-    if kubectl_exec get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
-        STORE_STATUS=$(kubectl_exec get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
-        if [ "$STORE_STATUS" = "True" ]; then
-            log_status "✓ ClusterSecretStore pulumi-esc-store Ready"
+# ClusterSecretStoreの存在確認のみ（Pulumi ESCではStatusが正しく更新されないため）
+log_status "ClusterSecretStore確認中..."
+if kubectl_exec get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
+    log_status "✓ ClusterSecretStore pulumi-esc-store 存在確認"
+else
+    log_warning "⚠️ ClusterSecretStore未作成、作成待機中..."
+    for i in {1..6}; do
+        if kubectl_exec get clustersecretstore pulumi-esc-store >/dev/null 2>&1; then
+            log_status "✓ ClusterSecretStore作成確認"
             break
-        else
-            echo "  ClusterSecretStore待機中... ($i/12) - Status: $STORE_STATUS"
         fi
-    else
-        echo "  ClusterSecretStore待機中... ($i/12) - 未作成"
-    fi
-    
-    if [ "$i" -eq "12" ]; then
-        log_warning "⚠️ ClusterSecretStoreがReadyになりませんでした"
-        log_warning "しかし、デプロイは継続します"
-    fi
-    sleep 5
-done
+        echo "  ClusterSecretStore待機中... ($i/6)"
+        sleep 5
+    done
+fi
 
 log_status "✓ External Secrets Operator準備完了"
 
@@ -216,13 +210,19 @@ if ! kubectl_exec get secret grafana-cloud-monitoring -n monitoring >/dev/null 2
     exit 1
 fi
 
-# 認証情報取得（API Tokenのみ）
-API_TOKEN=$(kubectl_exec get secret grafana-cloud-monitoring -n monitoring -o jsonpath='{.data.api-token}' | base64 -d)
+# 認証情報取得（API Tokenのみ - SSHと正しいコマンド構文を使用）
+if [ "$USE_SSH" = true ]; then
+    API_TOKEN=$(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} 'kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath="{.data.api-token}" | base64 -d')
+else
+    API_TOKEN=$(kubectl get secret grafana-cloud-monitoring -n monitoring -o jsonpath="{.data.api-token}" | base64 -d)
+fi
 
 if [[ -z "$API_TOKEN" ]]; then
     log_error "エラー: API Tokenを取得できませんでした"
     exit 1
 fi
+
+log_status "✓ API Token取得成功（長さ: ${#API_TOKEN}文字）"
 
 # ユーザー名は固定値
 METRICS_USERNAME="2666273"
@@ -364,18 +364,16 @@ else
     exit 1
 fi
 
-# 既存のリリースを確認
+# 既存のリリースを削除（クリーンインストールのため）
 log_status "既存のGrafana k8s-monitoring リリース確認中..."
 if helm_exec list -n monitoring | grep -q grafana-k8s-monitoring; then
     log_warning "⚠️ 既存のgrafana-k8s-monitoringリリースが見つかりました"
-    log_status "既存リリースの状態:"
-    helm_exec list -n monitoring | grep grafana-k8s-monitoring || true
-    log_status "アップグレードを実行します..."
-    HELM_ACTION="upgrade"
-else
-    log_status "✓ 新規インストールを実行します"
-    HELM_ACTION="install"
+    log_status "既存リリースを削除してクリーンインストールします..."
+    helm_exec uninstall grafana-k8s-monitoring -n monitoring 2>/dev/null || true
+    sleep 10
 fi
+log_status "✓ 新規インストールを実行します"
+HELM_ACTION="install"
 
 # Grafana k8s-monitoring をインストール/アップグレード
 log_status "Grafana k8s-monitoring Helm chart を${HELM_ACTION}中..."

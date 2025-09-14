@@ -97,6 +97,14 @@ else
     log_debug "✓ github-multi-repo-secret 確認済み"
 fi
 
+# ServiceAccount確認と作成
+log_status "ServiceAccount確認中..."
+if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get serviceaccount github-actions-runner -n arc-systems' >/dev/null 2>&1; then
+    log_warning "ServiceAccount github-actions-runner が存在しません。作成中..."
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create serviceaccount github-actions-runner -n arc-systems --dry-run=client -o yaml | kubectl apply -f -'
+    log_status "✓ ServiceAccount作成完了"
+fi
+
 # Runner Scale Set作成
 log_status "🏃 RunnerScaleSet作成中..."
 

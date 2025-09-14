@@ -68,8 +68,8 @@ https_port = 443
 project = "sandbox"
 # 管理者ユーザー名
 admin_username = "admin"
-# 管理者パスワード（External Secrets経由で取得）
-admin_password = "Harbor12345"
+# 管理者パスワード（External Secrets経由で取得、必須）
+# admin_password = ""  # 環境変数 HARBOR_ADMIN_PASSWORD または ESO経由で設定
 # レジストリサイズ
 registry_size = "100Gi"
 # データベースサイズ

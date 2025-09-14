@@ -357,9 +357,48 @@ kubectl delete validatingwebhookconfiguration secretstore-validate --ignore-not-
 
 echo "✓ ESO ValidatingWebhook無効化完了"
 
-# ESO Operatorが正常に動作するまで待機
+# ESO Operatorが正常に動作するまで待機（長めの待機時間を設定）
 echo "ESO Operator起動待機中..."
-kubectl wait --namespace external-secrets-system --for=condition=ready pod --selector=app.kubernetes.io/instance=external-secrets-operator --timeout=120s 2>/dev/null || true
+# まずnamespaceが作成されるまで待機
+for i in {1..30}; do
+    if kubectl get namespace external-secrets-system 2>/dev/null; then
+        echo "✓ ESO namespace確認"
+        break
+    fi
+    echo "  ESO namespace待機中... ($i/30)"
+    sleep 5
+done
+
+# ESO Podが起動するまで待機
+echo "ESO Pod起動待機中..."
+for i in {1..60}; do
+    ESO_PODS=$(kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | grep -c Running || echo "0")
+    TOTAL_PODS=$(kubectl get pods -n external-secrets-system --no-headers 2>/dev/null | wc -l || echo "0")
+    
+    if [ "$ESO_PODS" -gt 0 ]; then
+        echo "✓ ESO Pod起動確認 ($ESO_PODS/$TOTAL_PODS)"
+        break
+    fi
+    echo "  ESO Pod待機中... ($i/60)"
+    sleep 5
+done
+
+# ESO CRDが登録されるまで待機
+echo "ESO CRD登録待機中..."
+for i in {1..30}; do
+    if kubectl get crd externalsecrets.external-secrets.io 2>/dev/null; then
+        echo "✓ ESO CRD登録確認"
+        break
+    fi
+    echo "  ESO CRD待機中... ($i/30)"
+    sleep 5
+done
+
+# 追加の安定化待機時間
+echo "ESO安定化のため30秒待機..."
+sleep 30
+
+echo "✓ ESO Operator準備完了"
 
 # Webhookを無効化したため、Webhook準備確認は不要
 echo "✓ ESO Webhook検証を無効化済み（開発環境設定）"
@@ -776,8 +815,18 @@ log_debug "GitHub Actions Runner Controller を直接セットアップします
 if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
     log_debug "ARC セットアップスクリプトを実行中..."
     export NON_INTERACTIVE=true
-    bash "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"
-    log_status "✓ ARC セットアップ完了"
+    if bash "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh"; then
+        log_status "✓ ARC セットアップ完了"
+        # ServiceAccount作成確認
+        if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'kubectl get serviceaccount github-actions-runner -n arc-systems' >/dev/null 2>&1; then
+            log_status "✓ ServiceAccount github-actions-runner 確認完了"
+        else
+            log_warning "⚠️ ServiceAccount github-actions-runner が見つかりません。再作成中..."
+            ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'kubectl create serviceaccount github-actions-runner -n arc-systems --dry-run=client -o yaml | kubectl apply -f -'
+        fi
+    else
+        log_warning "⚠️ ARC セットアップでエラーが発生しましたが続行します"
+    fi
 else
     log_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
     ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'

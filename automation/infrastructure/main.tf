@@ -374,9 +374,30 @@ resource "null_resource" "worker_join" {
   }
 }
 
+# Helm 3 インストール
+resource "null_resource" "helm_install" {
+  depends_on = [null_resource.worker_join]
+  
+  connection {
+    type        = "ssh"
+    host        = var.control_plane_ip
+    user        = var.vm_user
+    private_key = file(var.ssh_private_key_path)
+  }
+  
+  provisioner "remote-exec" {
+    inline = [
+      "# Helm 3 インストール",
+      "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash",
+      "helm version",
+      "echo 'Helm installation completed successfully'"
+    ]
+  }
+}
+
 # FlannelCNI インストール
 resource "null_resource" "flannel_install" {
-  depends_on = [null_resource.worker_join]
+  depends_on = [null_resource.helm_install]
   
   connection {
     type        = "ssh"
