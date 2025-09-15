@@ -11,15 +11,26 @@ include makefiles/deployment.mk
 include makefiles/operations.mk
 include makefiles/maintenance.mk
 
-# 全PHONYターゲット宣言
-.PHONY: help all deploy host-setup infrastructure platform post-deployment setup-github-actions _setup-github-actions-conditional fix-github-oauth
-.PHONY: add-runner add-runners-all setup-arc harbor-cert-fix setup-slack-secret load-settings
-.PHONY: check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets
+# PHONYターゲット宣言
+# メインターゲット
+.PHONY: help all deploy version config quickstart
+
+# デプロイメントステップ
+.PHONY: host-setup infrastructure platform post-deployment
+
+# 操作ターゲット
+.PHONY: add-runner add-runners-all setup-arc
+.PHONY: harbor-fix setup-slack-secret
+.PHONY: load-settings check-automation-readiness wait-for-k8s-cluster
+
+# メンテナンス・開発
 .PHONY: status verify logs clean
 .PHONY: dev-info dev-ssh dev-argocd dev-harbor
-.PHONY: vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure
-.PHONY: phase1 phase2 phase3 phase4 phase2-3
-.PHONY: _sudo-keepalive _sudo-cleanup _all-internal _deploy-grafana-monitoring _deploy-app-of-apps _check-cloudflared-app _add-runners-all-conditional
+
+# 内部ターゲット（_で始まる）
+.PHONY: _all-internal _host-setup-storage
+.PHONY: _deploy-grafana-monitoring _deploy-app-of-apps _check-cloudflared-app
+.PHONY: _add-runners-all-conditional
 
 # デフォルトターゲット - ヘルプ表示
 help:
@@ -38,8 +49,7 @@ help:
 	@echo "  make add-runner REPO=<name>  - GitHub Actions Runner追加"
 	@echo "  make add-runners-all         - settings.tomlから一括Runner追加"
 	@echo "  make setup-arc               - Actions Runner Controller設定"
-	@echo "  make harbor-fix              - Harbor設定修正（EXT_ENDPOINT修正）"
-	@echo "  make harbor-cert-fix         - Harbor証明書修正"
+	@echo "  make harbor-fix              - Harbor設定修正"
 	@echo "  make setup-slack-secret      - Slack Secret手動設定"
 	@echo ""
 	@echo "$(DEBUG) 状態確認・管理"
@@ -62,9 +72,10 @@ help:
 # バージョン情報
 version:
 	@echo "k8s_myHome Automation Makefile"
-	@echo "Version: 2.0 (Refactored)"
+	@echo "Version: 3.0 (Cleaned & Optimized)"
 	@echo "Project: $(PROJECT_NAME)"
 	@echo "Root: $(PROJECT_ROOT)"
+	@echo "Date: $$(date '+%Y-%m-%d')"
 
 # 設定確認
 config:
@@ -88,19 +99,25 @@ quickstart:
 	$(call print_section,$(ROCKET),k8s_myHome クイックスタートガイド)
 	@echo "1. 初回セットアップ（全自動）:"
 	@echo "   make all"
+	@echo "   ※ settings.tomlのarc_repositoriesからRunnerも自動作成"
 	@echo ""
 	@echo "2. ステップ別実行:"
-	@echo "   make host-setup"
-	@echo "   make infrastructure"
-	@echo "   make platform"
+	@echo "   make host-setup         # ホストマシン準備"
+	@echo "   make infrastructure     # VM + Kubernetesクラスタ"
+	@echo "   make platform          # プラットフォームサービス"
 	@echo ""
-	@echo "3. GitHub Actions Runner追加:"
-	@echo "   make add-runner REPO=your-repo-name"
+	@echo "3. GitHub Actions Runner:"
+	@echo "   make add-runner REPO=name     # 個別追加"
+	@echo "   make add-runners-all          # 一括追加"
 	@echo ""
-	@echo "4. システム状態確認:"
-	@echo "   make status"
+	@echo "4. 運用・管理:"
+	@echo "   make status            # システム状態確認"
+	@echo "   make logs              # ログ表示"
+	@echo "   make clean             # 完全クリーンアップ"
 	@echo ""
-	@echo "5. 完全クリーンアップ:"
-	@echo "   make clean"
+	@echo "5. 開発・デバッグ:"
+	@echo "   make dev-ssh           # Control PlaneへSSH"
+	@echo "   make dev-argocd        # ArgoCD Port Forward"
+	@echo "   make dev-harbor        # Harbor Port Forward"
 	@echo ""
-	$(call print_status,$(INFO),詳細は 'make help' または 'make dev-info' を参照)
+	$(call print_status,$(INFO),詳細は 'make help' を参照)

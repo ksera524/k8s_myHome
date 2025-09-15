@@ -253,7 +253,7 @@ WORKFLOW_EOF
 log_status "=== セットアップ完了 ==="
 log_status ""
 log_status "✅ RunnerScaleSet作成:"
-log_status "   - $RUNNER_NAME (minRunners=1, maxRunners=3)"
+log_status "   - $RUNNER_NAME (minRunners=$MIN_RUNNERS, maxRunners=$MAX_RUNNERS)"
 log_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
 log_status ""
 log_status "✅ GitHub Actions workflow作成:"

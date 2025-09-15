@@ -22,6 +22,27 @@ status:
 		echo "  External Secretsはまだ作成されていません"; \
 	fi
 	@echo ""
+	$(call print_section,$(INFO),GitHub Actions Runner ScaleSets)
+	@runner_count=$$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm list -n arc-systems 2>/dev/null | grep -c runners' || echo "0"); \
+	if [ "$$runner_count" -gt 0 ]; then \
+		echo "  合計 $$runner_count Runner ScaleSet(s) が稼働中:"; \
+		echo ""; \
+		ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'helm list -n arc-systems 2>/dev/null | grep runners | while read name ns rev updated status chart app; do \
+			repo=$$(echo $$name | sed "s/-runners$$//"); \
+			min=$$(helm get values $$name -n arc-systems 2>/dev/null | grep "^minRunners:" | awk "{print \$$2}"); \
+			max=$$(helm get values $$name -n arc-systems 2>/dev/null | grep "^maxRunners:" | awk "{print \$$2}"); \
+			running=$$(kubectl get pods -n arc-systems -l app.kubernetes.io/instance=$$name 2>/dev/null | grep -c "runner-" || echo "0"); \
+			echo "  • $$repo:"; \
+			echo "    - ScaleSet: $$name"; \
+			echo "    - 設定: minRunners=$$min, maxRunners=$$max"; \
+			echo "    - 稼働中のRunner: $$running"; \
+			echo ""; \
+		done' || echo "  Runner ScaleSet情報の取得に失敗しました"; \
+	else \
+		echo "  Runner ScaleSetsはまだ作成されていません"; \
+		echo "  'make add-runners-all' でsettings.tomlから一括作成できます"; \
+	fi
+	@echo ""
 
 # 全フェーズ検証
 verify:

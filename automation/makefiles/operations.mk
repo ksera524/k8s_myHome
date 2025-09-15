@@ -39,10 +39,6 @@ harbor-fix:
 		echo "✓ Harbor設定修正完了"'
 	$(call print_status,$(CHECK),Harbor設定修正完了)
 
-# Harbor証明書修正（skopeo対応により不要）
-harbor-cert-fix:
-	$(call print_status,$(INFO),skopeo対応によりHarbor証明書修正は不要です)
-	@echo "skopeoアプローチ（--dest-tls-verify=false）により証明書問題は自動解決されます"
 
 # Slack Secret手動設定
 setup-slack-secret:

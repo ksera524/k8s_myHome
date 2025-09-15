@@ -117,14 +117,6 @@ setup-arc:
 	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(SCRIPTS_DIR)/github-actions && ./setup-arc.sh' || echo "$(WARNING) ARC設定で一部警告が発生しましたが続行します"
 	$(call print_status,$(CHECK),GitHub Actions Runner Controller セットアップ完了)
 
-# GitHub Actionsセットアップ（非推奨、setup-arcを使用）
-setup-github-actions:
-	$(call print_section,$(WARNING),setup-github-actionsは非推奨です。setup-arcを使用してください)
-	@$(MAKE) setup-arc
-
-# GitHub Actions条件付きセットアップ（内部ターゲット）
-_setup-github-actions-conditional:
-	@$(SCRIPTS_DIR)/setup-github-actions.sh
 
 # Cloudflaredアプリケーション確認（内部ターゲット）
 _check-cloudflared-app:
@@ -133,39 +125,6 @@ _check-cloudflared-app:
 	else \
 		echo "$(WARNING) Cloudflaredアプリケーションの同期待機中（ArgoCD App-of-Apps経由）"; \
 	fi
-
-# ArgoCD GitHub OAuth修復
-fix-github-oauth:
-	$(call print_status,$(GEAR),ArgoCD GitHub OAuth設定修復中)
-	@bash -c 'if [ -f "$(SETTINGS_FILE)" ]; then source "$(SETTINGS_LOADER)" load; fi && cd $(PLATFORM_DIR) && ../scripts/argocd/fix-argocd-github-oauth.sh' || echo "$(WARNING) GitHub OAuth修復で警告が発生しましたが続行します"
-	$(call print_status,$(CHECK),ArgoCD GitHub OAuth設定修復完了)
-
-# 後方互換性用（非推奨）
-vm-deploy: infrastructure
-	@echo "$(WARNING) vm-deployは非推奨です。infrastructureを使用してください"
-
-vm-k8s-deploy: infrastructure
-	@echo "$(WARNING) vm-k8s-deployは非推奨です。infrastructureを使用してください"
-
-k8s-cluster: infrastructure
-	@echo "$(WARNING) k8s-clusterは非推奨です。infrastructureを使用してください"
-
-k8s-infrastructure: platform
-	@echo "$(WARNING) k8s-infrastructureは非推奨です。platformを使用してください"
-
-
-# 後方互換性のためのフェーズエイリアス
-.PHONY: phase1 phase2 phase3 phase4 phase2-3
-phase1: host-setup
-phase2-3: infrastructure
-phase4: platform
-
-# 非推奨エイリアス
-phase2: infrastructure
-	@echo "$(WARNING) phase2は統合されました。infrastructureが実行されます"
-
-phase3: infrastructure
-	@echo "$(WARNING) phase3は統合されました。infrastructureが実行されます"
 
 # GitHub Actions Runner一括作成（条件付き、内部ターゲット）
 _add-runners-all-conditional:
