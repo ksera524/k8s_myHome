@@ -7,7 +7,7 @@
 ### 改善点の優先度別分類
 - 🔴 **Critical（即座対応）**: ~~2件~~ → **1件** (1件対応済み✅) - セキュリティリスク
 - 🟡 **High（1週間以内）**: 4件 - 運用安定性に影響
-- 🔵 **Medium（1ヶ月以内）**: 4件 - 品質向上
+- 🔵 **Medium（1ヶ月以内）**: ~~4件~~ → **3件** (1件対応済み✅) - 品質向上
 - ⚪ **Low（計画的実施）**: 2件 - 最適化
 
 ### 対応済み項目
@@ -15,6 +15,10 @@
 - settings.toml.exampleのHarbor12345パスワード削除
 - setup-arc.shのハードコーディングパスワード削除
 - ESO経由での動的取得に変更
+
+✅ **ドキュメントの整合性修正** (2025-09-14対応)
+- CLAUDE.mdのディレクトリ構造を実際の構造に合わせて更新
+- Important Filesセクションも現状に合わせて更新
 
 ---
 
@@ -293,32 +297,21 @@ spec:
 
 ## 3. Medium Priority - 1ヶ月以内に対応すべき問題
 
-### 3.1 ドキュメントの整合性修正
+### 3.1 ドキュメントの整合性修正 ✅ **対応済み**
 
-**問題点**
-- CLAUDE.mdの記載と実際のディレクトリ構造の不一致
+**問題点** (解決済み)
+- ~~CLAUDE.mdの記載と実際のディレクトリ構造の不一致~~
 
-**改善案**
-```bash
-# docs/update-documentation.sh
-#!/bin/bash
+**実施した対応** (2025-09-14)
+1. `CLAUDE.md`の`Key Directories`セクションを更新:
+   - 実際のディレクトリ構造（`manifests/apps/`, `manifests/platform/`等）に合わせて修正
+   - 存在しないディレクトリ（`00-bootstrap/`, `resources/applications/`等）を削除
+   - 新しく追加されたディレクトリ（`automation/scripts/`, `automation/makefiles/`等）を追加
 
-# 実際のディレクトリ構造をスキャンしてドキュメントを更新
-generate_structure() {
-    echo "## 実際のディレクトリ構造"
-    tree -d -L 3 manifests/ automation/
-}
-
-# CLAUDE.md を更新
-update_claude_md() {
-    # バックアップ作成
-    cp CLAUDE.md CLAUDE.md.bak
-    
-    # 構造セクションを更新
-    generate_structure > /tmp/structure.txt
-    # sedやawkを使用して該当セクションを置換
-}
-```
+2. `Important Files`セクションを更新:
+   - 主要な設定ファイル（`settings.toml.example`）を追加
+   - デプロイメントスクリプトのセクションを新規追加
+   - 実際のファイルパスに合わせて修正
 
 ### 3.2 重複Application定義の削除
 

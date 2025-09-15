@@ -12,6 +12,12 @@ add-runner:
 	@cd $(SCRIPTS_DIR)/github-actions && ./add-runner.sh $(REPO)
 	$(call print_status,$(CHECK),Runner追加完了)
 
+# GitHub Actions Runner一括追加（settings.tomlのarc_repositoriesから）
+add-runners-all:
+	$(call print_status,$(ROCKET),GitHub Actions Runner一括追加開始)
+	@cd $(SCRIPTS_DIR)/github-actions && ./add-runners-bulk.sh
+	$(call print_status,$(CHECK),Runner一括追加完了)
+
 # Actions Runner Controller設定 - deployment.mkに移動済み
 
 # Harbor設定修正

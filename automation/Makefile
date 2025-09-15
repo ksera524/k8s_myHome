@@ -13,13 +13,13 @@ include makefiles/maintenance.mk
 
 # 全PHONYターゲット宣言
 .PHONY: help all deploy host-setup infrastructure platform post-deployment setup-github-actions _setup-github-actions-conditional fix-github-oauth
-.PHONY: add-runner setup-arc harbor-cert-fix setup-slack-secret load-settings
+.PHONY: add-runner add-runners-all setup-arc harbor-cert-fix setup-slack-secret load-settings
 .PHONY: check-automation-readiness wait-for-k8s-cluster wait-for-external-secrets
 .PHONY: status verify logs clean
 .PHONY: dev-info dev-ssh dev-argocd dev-harbor
 .PHONY: vm-deploy vm-k8s-deploy k8s-cluster k8s-infrastructure
 .PHONY: phase1 phase2 phase3 phase4 phase2-3
-.PHONY: _sudo-keepalive _sudo-cleanup _all-internal _deploy-grafana-monitoring _deploy-app-of-apps _check-cloudflared-app
+.PHONY: _sudo-keepalive _sudo-cleanup _all-internal _deploy-grafana-monitoring _deploy-app-of-apps _check-cloudflared-app _add-runners-all-conditional
 
 # デフォルトターゲット - ヘルプ表示
 help:
@@ -36,6 +36,7 @@ help:
 	@echo ""
 	@echo "$(ROCKET) 個別操作"
 	@echo "  make add-runner REPO=<name>  - GitHub Actions Runner追加"
+	@echo "  make add-runners-all         - settings.tomlから一括Runner追加"
 	@echo "  make setup-arc               - Actions Runner Controller設定"
 	@echo "  make harbor-fix              - Harbor設定修正（EXT_ENDPOINT修正）"
 	@echo "  make harbor-cert-fix         - Harbor証明書修正"

@@ -90,30 +90,58 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
   - **`host-setup/`**: Host preparation scripts
   - **`infrastructure/`**: VM infrastructure + Kubernetes cluster (Terraform統合実装)
   - **`platform/`**: Core platform services (MetalLB, NGINX, cert-manager, ArgoCD, Harbor)
+  - **`scripts/`**: Utility scripts
+    - **`argocd/`**: ArgoCD management scripts
+    - **`github-actions/`**: GitHub Actions runner scripts
+  - **`makefiles/`**: Modular Makefile components
+  - **`templates/`**: Configuration templates
 - **`manifests/`**: GitOps-specialized Kubernetes manifests
-  - **`00-bootstrap/`**: Bootstrap components (App-of-Apps)
-  - **`resources/infrastructure/`**: Core infrastructure (ArgoCD, MetalLB, cert-manager, Harbor)
-  - **`resources/platform/`**: Platform services (GitHub Actions, monitoring)
-  - **`resources/applications/`**: User application manifests (RSS, Hitomi, Pepup, Cloudflared, Slack)
-  - **`apps/user-apps/`**: ArgoCD Application definitions
+  - **`apps/`**: User application manifests
+    - **`cloudflared/`**: Cloudflare tunnel
+    - **`hitomi/`**: Hitomi downloader
+    - **`pepup/`**: Pepup application
+    - **`rss/`**: RSS reader
+    - **`slack/`**: Slack bot
+    - **`monitoring/`**: Grafana monitoring
+  - **`bootstrap/applications/`**: Bootstrap ArgoCD applications
   - **`config/secrets/`**: External Secrets Operator configurations
-  - **`clusters/home-k8s/`**: Cluster-specific configurations
-  - **`projects/`**: ArgoCD Project definitions
-- **`diagrams/`**: Architecture diagrams (SVG format)
+  - **`core/`**: Core cluster resources
+    - **`namespaces/`**: Namespace definitions
+    - **`storage-classes/`**: Storage class configurations
+  - **`infrastructure/`**: Infrastructure components
+    - **`gitops/harbor/`**: Harbor GitOps patches
+    - **`networking/metallb/`**: MetalLB load balancer
+    - **`security/cert-manager/`**: Certificate management
+  - **`platform/`**: Platform services
+    - **`argocd-config/`**: ArgoCD configurations
+    - **`ci-cd/github-actions/`**: GitHub Actions runner configs
+    - **`secrets/external-secrets/`**: External Secrets Operator
+  - **`monitoring/`**: Monitoring stack configurations
+  - **`resources/`**: Legacy resource directory (migration in progress)
+- **`docs/`**: Project documentation
 
 ## Important Files
 
 ### Configuration
+- `automation/settings.toml.example`: Main configuration template
 - `automation/infrastructure/terraform.tfvars`: VM resource allocation
-- `manifests/00-bootstrap/app-of-apps.yaml`: ArgoCD root application
+- `automation/infrastructure/main.tf`: Infrastructure as Code definition
+- `manifests/bootstrap/applications/app-of-apps.yaml`: ArgoCD root application
+
+### Deployment Scripts
+- `automation/Makefile`: Main automation entry point
+- `automation/platform/platform-deploy.sh`: Platform deployment script
+- `automation/scripts/github-actions/setup-arc.sh`: GitHub Actions Runner setup
+- `automation/scripts/github-actions/add-runner.sh`: Add new GitHub runner
 
 ### Certificates & Security
-- `manifests/resources/infrastructure/cert-manager/harbor-certificate.yaml`: Harbor TLS with IP SAN
-- `manifests/resources/infrastructure/harbor-ca-trust.yaml`: DaemonSet for CA trust distribution
+- `manifests/infrastructure/security/cert-manager/`: Certificate management configs
+- `manifests/config/secrets/`: External Secrets configurations
 - `automation/platform/harbor-cert-fix.sh`: Fix Harbor certificate validation
 
 ### GitHub Actions
-- `automation/platform/github-actions-example.yml`: Self-hosted runner workflow
+- `automation/scripts/github-actions/`: Runner management scripts
+- `manifests/platform/ci-cd/github-actions/`: ARC configurations
 - Harbor registry integration with proper certificate handling
 
 ## Technologies

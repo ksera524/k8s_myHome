@@ -15,6 +15,8 @@ _all-internal: load-settings check-automation-readiness host-setup infrastructur
 	@echo "$(CHECK) 全ステップのデプロイが完了しました"
 	@echo "$(ROCKET) Grafana k8s-monitoring デプロイ確認中..."
 	@$(MAKE) _deploy-grafana-monitoring || true
+	@echo "$(ROCKET) GitHub Actions Runner一括作成中..."
+	@$(MAKE) _add-runners-all-conditional || true
 	@$(MAKE) status || true
 
 # deployはallのエイリアス
@@ -164,6 +166,22 @@ phase2: infrastructure
 
 phase3: infrastructure
 	@echo "$(WARNING) phase3は統合されました。infrastructureが実行されます"
+
+# GitHub Actions Runner一括作成（条件付き、内部ターゲット）
+_add-runners-all-conditional:
+	@echo "$(INFO) settings.tomlのarc_repositoriesを確認中..."
+	@if [ -f "$(SETTINGS_FILE)" ]; then \
+		repo_count=$$(grep -A 20 "arc_repositories" "$(SETTINGS_FILE)" | grep -c '^\s*\["' 2>/dev/null || echo "0"); \
+		if [ "$$repo_count" -gt 0 ]; then \
+			echo "$(INFO) $$repo_count 個のリポジトリが設定されています。Runner作成を開始します..."; \
+			cd $(SCRIPTS_DIR)/github-actions && ./add-runners-bulk.sh || \
+				echo "$(WARNING) 一部のRunner作成でエラーが発生しましたが続行します"; \
+		else \
+			echo "$(INFO) arc_repositoriesが設定されていません。Runner作成をスキップします"; \
+		fi; \
+	else \
+		echo "$(WARNING) settings.tomlが見つかりません。Runner作成をスキップします"; \
+	fi
 
 # Grafana k8s-monitoringデプロイ（内部ターゲット）
 _deploy-grafana-monitoring:
