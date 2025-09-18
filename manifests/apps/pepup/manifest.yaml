@@ -5,8 +5,9 @@ metadata:
   namespace: sandbox
 spec:
   schedule: "15 9 * * *"
-  successfulJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 0
   failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       template:

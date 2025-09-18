@@ -6,9 +6,10 @@ metadata:
   name: harbor-config-fix
   namespace: harbor
 spec:
-  schedule: "*/2 * * * *"  # 2分ごとに実行（より頻繁に）
-  successfulJobsHistoryLimit: 1
+  schedule: "0 */6 * * *"  # 6時間ごとに実行（必要最小限）
+  successfulJobsHistoryLimit: 0  # 成功したJobは即座に削除
   failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid  # 同時実行を禁止
   jobTemplate:
     spec:
       template:
