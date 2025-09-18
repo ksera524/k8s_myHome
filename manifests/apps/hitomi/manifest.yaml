@@ -20,7 +20,7 @@ spec:
         spec:
           containers:
             - name: hitomi-monitor
-              image: harbor.local/sandbox/hitomi:f66942359d51d014f3fec263930d57257aa7cf8d
+              image: harbor.local/sandbox/hitomi:latest
               imagePullPolicy: Always
               env:
                 - name: TOKEN
