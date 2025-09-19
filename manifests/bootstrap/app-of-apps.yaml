@@ -425,8 +425,9 @@ spec:
               size: 10Gi
               storageClass: "local-path"
             jobservice:
-              size: 1Gi
-              storageClass: "local-path"
+              jobLog:
+                size: 1Gi
+                storageClass: "local-path"
             database:
               size: 1Gi
               storageClass: "local-path"
