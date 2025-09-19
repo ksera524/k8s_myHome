@@ -424,9 +424,6 @@ spec:
             registry:
               size: 10Gi
               storageClass: "local-path"
-            jobservice:
-              size: 1Gi
-              storageClass: "local-path"
             database:
               size: 1Gi
               storageClass: "local-path"
@@ -436,6 +433,11 @@ spec:
             trivy:
               size: 5Gi
               storageClass: "local-path"
+        
+        jobservice:
+          jobLog:
+            size: 1Gi
+            storageClass: "local-path"
         
         database:
           type: internal
