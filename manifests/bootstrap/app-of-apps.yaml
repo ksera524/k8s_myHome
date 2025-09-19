@@ -393,7 +393,7 @@ spec:
   project: default
   source:
     repoURL: 'https://helm.goharbor.io'
-    targetRevision: 1.13.1
+    targetRevision: 1.18.0
     chart: harbor
     helm:
       values: |
@@ -424,6 +424,9 @@ spec:
             registry:
               size: 10Gi
               storageClass: "local-path"
+            jobservice:
+              size: 1Gi
+              storageClass: "local-path"
             database:
               size: 1Gi
               storageClass: "local-path"
@@ -433,11 +436,6 @@ spec:
             trivy:
               size: 5Gi
               storageClass: "local-path"
-        
-        jobservice:
-          jobLog:
-            size: 1Gi
-            storageClass: "local-path"
         
         database:
           type: internal
