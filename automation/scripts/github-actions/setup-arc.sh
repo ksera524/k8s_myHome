@@ -89,12 +89,11 @@ helm repo add actions-runner-controller https://actions-runner-controller.github
 helm repo update
 
 # ARC Controller インストール
-helm upgrade --install arc \
+helm upgrade --install arc-controller \
+  oci://ghcr.io/actions/gha-runner-scale-set-controller \
   --namespace arc-systems \
   --create-namespace \
-  --set syncPeriod=1m \
-  actions-runner-controller/actions-runner-controller \
-  --wait || true
+  --wait
 EOF
 
 log_success "GitHub Actions Runner Controller (ARC) セットアップ完了"

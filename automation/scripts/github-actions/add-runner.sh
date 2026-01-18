@@ -118,8 +118,7 @@ fi
 # RunnerScaleSetを作成（minRunners=1推奨）
 log_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
-
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --version 0.12.1 --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
     log_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
