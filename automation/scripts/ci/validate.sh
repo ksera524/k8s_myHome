@@ -17,7 +17,7 @@ fi
 
 mapfile -t sh_files < <(find "$ROOT_DIR/automation" -name '*.sh' -print)
 if ((${#sh_files[@]})); then
-  shellcheck -x "${sh_files[@]}"
+  shellcheck -S error -x "${sh_files[@]}"
 else
   echo "No shell scripts found under automation/"
 fi

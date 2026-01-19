@@ -19,7 +19,7 @@ log_warning() { echo -e "${YELLOW}$1${NC}"; }
 USE_SSH=false
 kubectl_exec() {
     if [ "$USE_SSH" = true ]; then
-        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} "kubectl $@"
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@"${CONTROL_PLANE_IP}" kubectl "$@"
     else
         kubectl "$@"
     fi
@@ -28,7 +28,7 @@ kubectl_exec() {
 # helm実行関数（SSH経由またはローカル）
 helm_exec() {
     if [ "$USE_SSH" = true ]; then
-        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} "helm $@"
+        ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@"${CONTROL_PLANE_IP}" helm "$@"
     else
         helm "$@"
     fi
