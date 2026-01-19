@@ -8,11 +8,10 @@ spec:
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 0
   failedJobsHistoryLimit: 1
-  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       activeDeadlineSeconds: 3600
-      backoffLimit: 0 
+      backoffLimit: 0
       template:
         metadata:
           labels:

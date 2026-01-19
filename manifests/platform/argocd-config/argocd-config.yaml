@@ -9,7 +9,7 @@ metadata:
 data:
   # ArgoCD URL設定
   url: https://argocd.qroksera.com
-  
+
   # GitHub OAuth設定（Dex）
   dex.config: |
     connectors:

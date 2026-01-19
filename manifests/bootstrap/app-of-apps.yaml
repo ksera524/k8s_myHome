@@ -410,13 +410,13 @@ spec:
               nginx.ingress.kubernetes.io/proxy-body-size: "0"
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        
+
         externalURL: http://harbor.local
-        
+
         # External secret reference for admin password
         existingSecretAdminPassword: harbor-admin-secret
         existingSecretAdminPasswordKey: password
-        
+
         persistence:
           enabled: true
           resourcePolicy: "keep"
@@ -437,13 +437,13 @@ spec:
             trivy:
               size: 5Gi
               storageClass: "local-path"
-        
+
         database:
           type: internal
-        
+
         redis:
           type: internal
-        
+
         trivy:
           enabled: true
           resources:
@@ -453,7 +453,7 @@ spec:
             limits:
               cpu: 300m
               memory: 512Mi
-        
+
         core:
           resources:
             requests:
@@ -462,7 +462,7 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
-        
+
         portal:
           resources:
             requests:
@@ -471,7 +471,7 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
-        
+
         registry:
           resources:
             requests:
@@ -480,7 +480,7 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
-        
+
         chartmuseum:
           resources:
             requests:
@@ -489,7 +489,7 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
-        
+
         jobservice:
           resources:
             requests:

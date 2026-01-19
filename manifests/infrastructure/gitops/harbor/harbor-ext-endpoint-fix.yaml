@@ -21,31 +21,31 @@ spec:
         - -c
         - |
           echo "Fixing Harbor EXT_ENDPOINT..."
-          
+
           # Wait for Harbor to be ready
           sleep 30
-          
+
           # Check current EXT_ENDPOINT
           CURRENT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}')
           echo "Current EXT_ENDPOINT: $CURRENT"
-          
+
           if [ "$CURRENT" != "http://harbor.local" ]; then
             echo "Patching ConfigMap..."
             kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
-            
+
             echo "Restarting Harbor core..."
             kubectl rollout restart deployment/harbor-core -n harbor
             kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
-            
+
             echo "✓ Harbor EXT_ENDPOINT fixed"
           else
             echo "✓ EXT_ENDPOINT is already correct"
           fi
-          
+
           # Also update harbor-auth secret in arc-systems
           echo "Updating harbor-auth secret..."
           HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
-          
+
           kubectl create secret generic harbor-auth \
             --namespace=arc-systems \
             --from-literal=HARBOR_URL="harbor.local" \
@@ -53,7 +53,7 @@ spec:
             --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
             --from-literal=HARBOR_PROJECT="sandbox" \
             --dry-run=client -o yaml | kubectl apply -f -
-          
+
           echo "✓ harbor-auth secret updated"
 ---
 # ServiceAccount for the Job

@@ -18,7 +18,7 @@ spec:
         # CRDは別途手動インストール（サイズ制限回避のため）
         crds:
           install: false
-        
+
         # リソース制限
         resources:
           limits:
@@ -27,11 +27,11 @@ spec:
           requests:
             cpu: 50m
             memory: 64Mi
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: arc-systems
-  
+
   # RunnerリソースをArgoCDの管理外にする
   ignoreDifferences:
     - group: actions.github.com
@@ -49,7 +49,7 @@ spec:
       name: github-multi-repo-secret
       jsonPointers:
         - /data
-  
+
   syncPolicy:
     automated:
       prune: false  # Runnerを削除しないようにpruneを無効化

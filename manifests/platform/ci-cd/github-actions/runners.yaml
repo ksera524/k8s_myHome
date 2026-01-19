@@ -1,6 +1,6 @@
 # GitHub Actions Runners
 # settings.tomlで定義されたリポジトリのRunnerをArgoCD管理下に配置
-# 
+#
 # 重要: このファイルはadd-runner.shによって自動生成/更新されます
 # 手動で編集しないでください
 
@@ -32,11 +32,11 @@ spec:
         template:
           spec:
             serviceAccountName: github-actions-runner
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: arc-systems
-  
+
   syncPolicy:
     automated:
       prune: false  # 重要: Runnerは削除しない
@@ -44,7 +44,7 @@ spec:
     syncOptions:
       - CreateNamespace=false  # 既にnamespaceは存在する
 
-# hitomi Runner  
+# hitomi Runner
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -72,11 +72,11 @@ spec:
         template:
           spec:
             serviceAccountName: github-actions-runner
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: arc-systems
-  
+
   syncPolicy:
     automated:
       prune: false  # 重要: Runnerは削除しない

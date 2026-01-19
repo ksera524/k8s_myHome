@@ -11,21 +11,21 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: {{RUNNER_NAME}}
-    
+    runs-on: "{{RUNNER_NAME}}"
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup build environment
       run: |
         echo "=== Setup build environment ==="
-        
+
         # Install required tools
         echo "Installing required tools..."
         sudo apt-get update
         sudo apt-get install -y skopeo jq curl
-        
+
         # Install kubectl if not present
         if ! command -v kubectl &> /dev/null; then
           echo "Installing kubectl..."
@@ -33,13 +33,13 @@ jobs:
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
         fi
-        
+
         echo "✅ Build environment ready"
-        
+
     - name: Get Harbor credentials
       run: |
         echo "=== Get Harbor credentials ==="
-        
+
         # Configure kubectl for in-cluster access
         export KUBECONFIG=/tmp/kubeconfig
         kubectl config set-cluster default \
@@ -53,52 +53,52 @@ jobs:
             --cluster=default --user=default \
             --kubeconfig=$KUBECONFIG
         kubectl config use-context default --kubeconfig=$KUBECONFIG
-        
+
         # Get Harbor credentials
         echo "Retrieving Harbor credentials from Kubernetes..."
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_USERNAME}' | base64 -d > /tmp/harbor_username
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PASSWORD}' | base64 -d > /tmp/harbor_password
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_URL}' | base64 -d > /tmp/harbor_url
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PROJECT}' | base64 -d > /tmp/harbor_project
-        
+
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor credentials retrieved"
-        
+
     - name: Build Docker images
       run: |
         echo "=== Build Docker images ==="
-        
+
         # Build images with repository name
         docker build -t {{REPOSITORY_NAME}}:latest .
         docker build -t {{REPOSITORY_NAME}}:${{ github.sha }} .
-        
+
         echo "✅ Docker images built successfully"
-        
+
     - name: Push to Harbor using skopeo
       run: |
         echo "=== Push to Harbor using skopeo ==="
-        
+
         # Load credentials
         HARBOR_USERNAME=$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=$(cat /tmp/harbor_password)
         HARBOR_URL=$(cat /tmp/harbor_url)
         HARBOR_PROJECT=$(cat /tmp/harbor_project)
-        
+
         # Validate credentials
         if [ -z "$HARBOR_URL" ] || [ -z "$HARBOR_PROJECT" ] || [ -z "$HARBOR_USERNAME" ] || [ -z "$HARBOR_PASSWORD" ]; then
           echo "❌ Harbor credentials are incomplete"
           exit 1
         fi
-        
+
         echo "Harbor URL: $HARBOR_URL"
         echo "Harbor Project: $HARBOR_PROJECT"
         echo "Harbor User: $HARBOR_USERNAME"
-        
+
         # Save images to tar archives
         echo "Saving Docker images to archives..."
         docker save {{REPOSITORY_NAME}}:latest > /tmp/{{REPOSITORY_NAME}}-latest.tar
         docker save {{REPOSITORY_NAME}}:${{ github.sha }} > /tmp/{{REPOSITORY_NAME}}-sha.tar
-        
+
         # Push using skopeo
         echo "Pushing latest tag..."
         skopeo copy \
@@ -107,7 +107,7 @@ jobs:
           --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
           docker-archive:/tmp/{{REPOSITORY_NAME}}-latest.tar \
           docker://$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:latest
-        
+
         echo "Pushing SHA tag..."
         skopeo copy \
           --insecure-policy \
@@ -115,18 +115,18 @@ jobs:
           --dest-creds="$HARBOR_USERNAME:$HARBOR_PASSWORD" \
           docker-archive:/tmp/{{REPOSITORY_NAME}}-sha.tar \
           docker://$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:${{ github.sha }}
-        
+
         echo "✅ Images pushed successfully to Harbor"
-        
+
     - name: Verify push
       run: |
         echo "=== Verify push ==="
-        
+
         HARBOR_USERNAME=$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=$(cat /tmp/harbor_password)
         HARBOR_URL=$(cat /tmp/harbor_url)
         HARBOR_PROJECT=$(cat /tmp/harbor_project)
-        
+
         # Check repository via API
         echo "Checking repository in Harbor..."
         if curl -k -f -u "$HARBOR_USERNAME:$HARBOR_PASSWORD" \
@@ -135,7 +135,7 @@ jobs:
         else
           echo "⚠️  Could not verify repository (may still be available)"
         fi
-        
+
     - name: Cleanup
       if: always()
       run: |

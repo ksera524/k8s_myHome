@@ -32,19 +32,19 @@ spec:
   minRunners: 1
   maxRunners: 3
   runnerScaleSetName: k8s-myhome-runners
-  
+
   containerMode:
     type: "dind"
-  
+
   template:
     spec:
       serviceAccountName: github-actions-runner
-      
+
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
         - "harbor.local"
-      
+
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
@@ -68,7 +68,7 @@ spec:
           mountPath: /home/runner/_work
         - name: dind-sock
           mountPath: /var/run
-      
+
       - name: dind
         image: docker:dind
         securityContext:
@@ -81,7 +81,7 @@ spec:
         env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      
+
       volumes:
       - name: work
         emptyDir: {}
@@ -107,19 +107,19 @@ spec:
   minRunners: 0
   maxRunners: 2
   runnerScaleSetName: slack-rs-runners
-  
+
   containerMode:
     type: "dind"
-  
+
   template:
     spec:
       serviceAccountName: github-actions-runner
-      
+
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
         - "harbor.local"
-      
+
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
@@ -143,7 +143,7 @@ spec:
           mountPath: /home/runner/_work
         - name: dind-sock
           mountPath: /var/run
-      
+
       - name: dind
         image: docker:dind
         securityContext:
@@ -156,7 +156,7 @@ spec:
         env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      
+
       volumes:
       - name: work
         emptyDir: {}
@@ -183,19 +183,19 @@ spec:
   minRunners: 0
   maxRunners: 2
   runnerScaleSetName: shared-runners
-  
+
   containerMode:
     type: "dind"
-  
+
   template:
     spec:
       serviceAccountName: github-actions-runner
-      
+
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
         - "harbor.local"
-      
+
       containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
@@ -219,7 +219,7 @@ spec:
           mountPath: /home/runner/_work
         - name: dind-sock
           mountPath: /var/run
-      
+
       - name: dind
         image: docker:dind
         securityContext:
@@ -232,7 +232,7 @@ spec:
         env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      
+
       volumes:
       - name: work
         emptyDir: {}

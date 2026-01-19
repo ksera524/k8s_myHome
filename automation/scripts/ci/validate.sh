@@ -28,7 +28,7 @@ if ! command -v yamllint >/dev/null 2>&1; then
   exit 1
 fi
 
-yamllint -c "$ROOT_DIR/.yamllint.yml" \
+yamllint -f parsable -c "$ROOT_DIR/.yamllint.yml" \
   "$ROOT_DIR/manifests" \
   "$ROOT_DIR/automation/templates" \
   "$ROOT_DIR/automation/infrastructure"

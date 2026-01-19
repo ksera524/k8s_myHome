@@ -7,7 +7,7 @@
 ### 1. ArgoCD ConfigMaps
 - `argocd-cm`: ArgoCD基本設定とGitHub OAuth設定
 - `argocd-rbac-cm`: RBAC権限設定
-- ソース: `../../infrastructure/gitops/argocd/argocd-config.yaml`
+- ソース: `argocd-config.yaml`
 
 ### 2. ArgoCD GitHub OAuth Secret
 - `argocd-github-oauth-secret.yaml`: GitHub OAuth client secretをExternal Secrets経由で取得

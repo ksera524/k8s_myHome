@@ -26,7 +26,7 @@ spec:
               set -e
               echo "=== Harbor Configuration Fix Starting at $(date) ==="
               NEED_RESTART=false
-              
+
               # 1. Harbor ConfigMapのEXT_ENDPOINTを確認と修正
               CURRENT_CM=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
               if [ "$CURRENT_CM" != "http://harbor.local" ]; then
@@ -34,13 +34,13 @@ spec:
                 kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
                 NEED_RESTART=true
               fi
-              
+
               # 2. Deploymentに環境変数を直接追加（ConfigMapより優先される）
               echo "Checking Deployment environment variables..."
-              
+
               # 既存のenv配列を確認
               HAS_ENV=$(kubectl get deployment harbor-core -n harbor -o jsonpath='{.spec.template.spec.containers[0].env}' 2>/dev/null)
-              
+
               if [ -z "$HAS_ENV" ] || [ "$HAS_ENV" = "[]" ]; then
                 # env配列が存在しない、または空の場合
                 echo "Adding environment variables to deployment..."
@@ -52,12 +52,14 @@ spec:
                 NEED_RESTART=true
               else
                 # EXT_ENDPOINTが存在するか確認
-                CURRENT_ENV=$(kubectl get deployment harbor-core -n harbor -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="EXT_ENDPOINT")].value}' 2>/dev/null)
+                CURRENT_ENV=$(kubectl get deployment harbor-core -n harbor \
+                  -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="EXT_ENDPOINT")].value}' \
+                  2>/dev/null)
                 if [ -z "$CURRENT_ENV" ]; then
                   # EXT_ENDPOINTが存在しない場合、追加
                   echo "Adding EXT_ENDPOINT to existing environment variables..."
                   kubectl patch deployment harbor-core -n harbor --type json -p '[
-                    {"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": 
+                    {"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value":
                       {"name": "EXT_ENDPOINT", "value": "http://harbor.local"}
                     }
                   ]'
@@ -72,14 +74,14 @@ spec:
                   NEED_RESTART=true
                 fi
               fi
-              
+
               # 3. 必要に応じて再起動
               if [ "$NEED_RESTART" = "true" ]; then
                 echo "Restarting Harbor core deployment..."
                 kubectl rollout restart deployment/harbor-core -n harbor
                 kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
               fi
-              
+
               # 4. harbor-auth secretも確認
               HARBOR_URL=$(kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_URL}' 2>/dev/null | base64 -d)
               if [ "$HARBOR_URL" != "harbor.local" ]; then
@@ -95,7 +97,7 @@ spec:
                     --dry-run=client -o yaml | kubectl apply -f -
                 fi
               fi
-              
+
               echo "=== Harbor Configuration Fix Complete at $(date) ==="
 ---
 apiVersion: v1

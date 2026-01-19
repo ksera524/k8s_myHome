@@ -19,37 +19,37 @@ spec:
       imagePullSecrets:
         - name: harbor-registry
       containers:
-      - name: slack
-        image: harbor.local/sandbox/slack.rs:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 3000
-        workingDir: /app
-        env:
-        - name: SLACK_BOT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: slack
-              key: SLACK_BOT_TOKEN
-        - name: RUST_LOG
-          value: "INFO"
-        command: ["./slack"]
-        # GitHub Actionsでビルドしたイメージの即時終了対策
-        livenessProbe:
-          exec:
-            command:
-            - sh
-            - -c
-            - "test -f /app/slack"
-          initialDelaySeconds: 10
-          periodSeconds: 30
-        readinessProbe:
-          tcpSocket:
-            port: 3000
-          initialDelaySeconds: 15
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+        - name: slack
+          image: harbor.local/sandbox/slack.rs:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          workingDir: /app
+          env:
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: slack
+                  key: SLACK_BOT_TOKEN
+            - name: RUST_LOG
+              value: "INFO"
+          command: ["./slack"]
+          # GitHub Actionsでビルドしたイメージの即時終了対策
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "test -f /app/slack"
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
 
 ---
