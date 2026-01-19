@@ -9,6 +9,6 @@ resources:
   - networking/metallb/metallb-ipaddress-pool.yaml
 
   # Security
-  - security/cert-manager/ca-secret.yaml
+  # ca-secret.yaml は秘密情報のためGit管理対象外
   - security/cert-manager/cert-manager-selfsigned-issuer.yaml
   - security/cert-manager/harbor-certificate.yaml
