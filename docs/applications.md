@@ -15,7 +15,7 @@ k8s_myHomeで管理されているアプリケーションの詳細と、新し�
 | **Namespace** | sandbox |
 | **イメージ** | harbor.local/sandbox/slack.rs:latest |
 | **サービス** | NodePort (32001) |
-| **Secret** | SLACK_BOT_TOKEN (External Secrets経由) |
+| **Secret** | slack（SLACK_BOT_TOKEN） |
 | **ソースコード** | manifests/apps/slack/ |
 
 **主な設定**:
@@ -37,7 +37,7 @@ resources:
 | **Namespace** | cloudflared |
 | **イメージ** | cloudflare/cloudflared:latest |
 | **タイプ** | Deployment |
-| **Secret** | cloudflared-secret |
+| **Secret** | cloudflared |
 | **ソースコード** | manifests/apps/cloudflared/ |
 
 **用途**:
@@ -53,7 +53,7 @@ resources:
 | **Namespace** | sandbox |
 | **タイプ** | CronJob |
 | **スケジュール** | 毎日実行 |
-| **ストレージ** | PVC使用 |
+| **ストレージ** | なし |
 | **ソースコード** | manifests/apps/rss/ |
 
 ### 4. Hitomi Downloader
@@ -65,7 +65,7 @@ resources:
 | **Namespace** | sandbox |
 | **タイプ** | CronJob |
 | **スケジュール** | 定期実行 |
-| **ストレージ** | 大容量PVC |
+| **ストレージ** | なし |
 | **ソースコード** | manifests/apps/hitomi/ |
 
 ### 5. Pepup
@@ -76,20 +76,14 @@ resources:
 |------|------|
 | **Namespace** | sandbox |
 | **タイプ** | CronJob |
-| **設定** | ConfigMap使用 |
+| **設定** | Secret使用 |
 | **ソースコード** | manifests/apps/pepup/ |
 
-### 6. Grafana Monitoring
+## 参考: 監視スタック（未デプロイ）
 
-**概要**: Kubernetes監視スタック
-
-| 項目 | 内容 |
-|------|------|
-| **Namespace** | monitoring |
-| **コンポーネント** | Grafana, Prometheus |
-| **データソース** | Kubernetes メトリクス |
-| **ダッシュボード** | K8s全体監視 |
-| **ソースコード** | manifests/apps/monitoring/ |
+Grafana Cloud 連携用の設定値は `manifests/monitoring/` と
+`manifests/config/secrets/` に用意していますが、App-of-Appsには未接続です。
+必要になったタイミングで導入してください。
 
 ## 新規アプリケーションの追加
 
@@ -214,7 +208,7 @@ spec:
 ### 4. ArgoCD Application定義
 
 ```yaml
-# manifests/resources/applications/myapp-app.yaml
+# manifests/bootstrap/applications/user-apps/myapp-app.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -226,7 +220,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: main
+    targetRevision: HEAD
     path: manifests/apps/myapp
   destination:
     server: https://kubernetes.default.svc

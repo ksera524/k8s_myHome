@@ -11,26 +11,21 @@
 #### 全体状態の確認
 
 ```bash
-# システム全体の状態を一覧表示
-make status
+# 確認フェーズ（簡易確認）
+make phase5
 ```
 
-このコマンドで確認できる項目：
-- VM状態
-- Kubernetesノード状態
-- ArgoCD Applications状態
-- LoadBalancer IP
-- External Secrets状態
-- GitHub Actions Runner ScaleSets
+この確認でチェックする項目：
+- ArgoCDアプリ一覧
+- Cloudflaredの存在確認
 
 #### 詳細な検証
 
 ```bash
-# 全コンポーネントの詳細検証
-make verify
-
-# 問題診断
-make diagnose
+# 主要コンポーネント確認
+kubectl get nodes -o wide
+kubectl get applications -n argocd
+kubectl get pods -A | grep -v Running | head -20
 ```
 
 ### クラスター管理
@@ -38,9 +33,6 @@ make diagnose
 #### ノードへのアクセス
 
 ```bash
-# Control PlaneへSSH
-make dev-ssh
-
 # 特定ノードへのSSH
 ssh k8suser@192.168.122.10  # Control Plane
 ssh k8suser@192.168.122.11  # Worker1
@@ -67,7 +59,7 @@ kubectl uncordon <node-name>
 
 ```bash
 # ArgoCD UIへのアクセス
-make dev-argocd
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 # URL: https://localhost:8080
 
 # Application一覧
@@ -85,7 +77,7 @@ kubectl get application <app-name> -n argocd -o jsonpath='{.status.sync.status}'
 
 ```bash
 # Harbor UIへのアクセス
-make dev-harbor
+kubectl port-forward svc/harbor-core -n harbor 8081:80
 # URL: http://localhost:8081
 
 # イメージのプッシュ
@@ -214,8 +206,8 @@ kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
 #### ログ確認
 
 ```bash
-# make allのログ
-make logs
+# 実行ログ
+cat automation/run.log
 
 # Pod ログ
 kubectl logs -n <namespace> <pod-name>
@@ -278,11 +270,13 @@ kubectl uncordon k8s-worker1
 ssh k8suser@192.168.122.10
 sudo apt update
 sudo apt-mark unhold kubeadm
-sudo apt-get update && sudo apt-get install -y kubeadm=1.29.1-00
+sudo apt-get update && sudo apt-get install -y kubeadm=<version>
 sudo apt-mark hold kubeadm
 sudo kubeadm upgrade plan
-sudo kubeadm upgrade apply v1.29.1
+sudo kubeadm upgrade apply v<k8s-version>
 ```
+
+バージョン指定は `docs/kubernetes-upgrade-guide.md` の手順に合わせて更新してください。
 
 #### 証明書更新
 
@@ -390,13 +384,13 @@ kubectl auth can-i <verb> <resource> --as=<user>
 
 #### 日次
 
-- [ ] `make status` でシステム状態確認
+- [ ] `make phase5` で確認
 - [ ] Pod異常の有無確認
 - [ ] ログエラーチェック
 
 #### 週次
 
-- [ ] `make verify` で詳細検証
+- [ ] ノード/アプリ状態の詳細確認
 - [ ] ストレージ使用量確認
 - [ ] バックアップ実行
 
@@ -412,12 +406,12 @@ kubectl auth can-i <verb> <resource> --as=<user>
 
 ```bash
 # 完全再構築
-make clean
 make all
 
 # 部分再構築
-make infrastructure  # インフラのみ
-make platform       # プラットフォームのみ
+make phase2  # インフラのみ
+make phase3  # GitOps準備のみ
+make phase4  # GitOpsアプリ展開のみ
 ```
 
 ### データリカバリ
@@ -434,6 +428,6 @@ gpg --decrypt backup-secrets.yaml.gpg | kubectl apply -f -
 
 問題が解決しない場合：
 
-1. ログの収集: `make logs`
-2. 診断情報: `make diagnose`
+1. ログの収集: `cat automation/run.log`
+2. 診断情報: `kubectl get pods -A | grep -v Running | head -20`
 3. [GitHub Issues](https://github.com/ksera524/k8s_myHome/issues)で報告

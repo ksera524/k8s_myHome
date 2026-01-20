@@ -167,7 +167,8 @@ else
 fi
 PRE_EOF
 
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << EOF
+PULUMI_ACCESS_TOKEN_ESCAPED=$(printf '%q' "${PULUMI_ACCESS_TOKEN}")
+ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} "PULUMI_ACCESS_TOKEN=${PULUMI_ACCESS_TOKEN_ESCAPED} bash -s" << 'EOF'
 # 環境変数を明示的にエクスポート
 export PULUMI_ACCESS_TOKEN="${PULUMI_ACCESS_TOKEN}"
 # App-of-Appsパターン適用（すべてのApplicationを管理）
@@ -956,16 +957,16 @@ else
 fi
 
 # Applications同期確認
-if kubectl get application applications -n argocd 2>/dev/null; then
-    echo "Applications同期待機中..."
+if kubectl get application user-applications -n argocd 2>/dev/null; then
+    echo "user-applications同期待機中..."
     # Health状態の確認
     for i in {1..30}; do
-        HEALTH=$(kubectl get application applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        HEALTH=$(kubectl get application user-applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
         if [ "${HEALTH}" = "Healthy" ] || [ "${HEALTH}" = "Progressing" ]; then
-            echo "✓ Applications: ${HEALTH}"
+            echo "✓ user-applications: ${HEALTH}"
             break
         fi
-        echo "Applications Health: ${HEALTH} (待機中 $i/30)"
+        echo "user-applications Health: ${HEALTH} (待機中 $i/30)"
         sleep 10
     done
 fi
