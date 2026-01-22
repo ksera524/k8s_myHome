@@ -51,6 +51,11 @@ Phases:
   phase3|gitops-prep  - ESOなどGitOps準備（platform）
   phase4|gitops-apps  - GitOpsによるアプリ展開（app-deploy）
   phase5|verify       - 確認（verify）
+  upgrade             - k8sアップグレード（完全自動）
+  upgrade-precheck    - アップグレード事前チェック
+  upgrade-control-plane - コントロールプレーン更新
+  upgrade-workers     - ワーカーノード更新
+  upgrade-postcheck   - アップグレード後チェック
 
 Log:
   automation/run.log
@@ -87,6 +92,24 @@ main() {
       ;;
     phase5|verify)
       run_step "Phase 5: Verify" with_settings "$SCRIPT_DIR/verify.sh"
+      ;;
+    upgrade)
+      run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"
+      run_step "Upgrade: Control Plane" with_settings "$SCRIPT_DIR/upgrade/upgrade-control-plane.sh"
+      run_step "Upgrade: Workers" with_settings "$SCRIPT_DIR/upgrade/upgrade-workers.sh"
+      run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
+      ;;
+    upgrade-precheck)
+      run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"
+      ;;
+    upgrade-control-plane)
+      run_step "Upgrade: Control Plane" with_settings "$SCRIPT_DIR/upgrade/upgrade-control-plane.sh"
+      ;;
+    upgrade-workers)
+      run_step "Upgrade: Workers" with_settings "$SCRIPT_DIR/upgrade/upgrade-workers.sh"
+      ;;
+    upgrade-postcheck)
+      run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
       ;;
     -h|--help|help)
       usage
