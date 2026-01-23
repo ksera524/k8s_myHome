@@ -25,6 +25,8 @@ spec:
             console_address: ":9001"
             console_enable: "true"
             volumes: "/data"
+        secret:
+          existingSecret: rustfs-auth
         service:
           type: NodePort
           endpoint:
