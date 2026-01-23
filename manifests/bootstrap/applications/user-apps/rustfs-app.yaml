@@ -8,54 +8,35 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: oci://registry-1.docker.io/cloudpirates
-    targetRevision: 0.4.0
+    repoURL: https://charts.rustfs.com
+    targetRevision: 0.0.81
     chart: rustfs
     helm:
       values: |
         replicaCount: 1
-        deploymentType: deployment
+        mode:
+          standalone:
+            enabled: true
+          distributed:
+            enabled: false
         config:
-          address: "0.0.0.0:9000"
-          consoleAddress: "0.0.0.0:9001"
-          consoleEnabled: true
-          volumes: "/data"
-          logLevel: "info"
-        auth:
-          accessKey: rustfsadmin
-          secretKey: rustfsadmin
+          rustfs:
+            address: "0.0.0.0:9000"
+            console_address: "0.0.0.0:9001"
+            console_enable: "true"
+            volumes: "/data"
         service:
-          type: ClusterIP
-          port: 9000
-          consolePort: 9001
+          type: NodePort
+          endpoint:
+            nodePort: 30081
+          console:
+            nodePort: 30080
         ingress:
           enabled: false
-        consoleIngress:
-          enabled: false
-        dataPersistence:
-          enabled: true
-          storageClass: local-path
-          size: 3.5Ti
-        logsPersistence:
-          enabled: true
-          storageClass: local-path
-          size: 10Gi
-        extraObjects:
-          - apiVersion: v1
-            kind: Service
-            metadata:
-              name: rustfs-console-nodeport
-              namespace: rustfs
-            spec:
-              type: NodePort
-              ports:
-                - name: console
-                  port: 9001
-                  targetPort: console
-                  nodePort: 30080
-              selector:
-                app.kubernetes.io/name: rustfs
-                app.kubernetes.io/instance: rustfs
+        storageclass:
+          name: local-path
+          dataStorageSize: 3.5Ti
+          logStorageSize: 10Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: rustfs
