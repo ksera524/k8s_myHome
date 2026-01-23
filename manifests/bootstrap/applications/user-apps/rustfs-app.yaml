@@ -21,8 +21,8 @@ spec:
             enabled: false
         config:
           rustfs:
-            address: "0.0.0.0:9000"
-            console_address: "0.0.0.0:9001"
+            address: ":9000"
+            console_address: ":9001"
             console_enable: "true"
             volumes: "/data"
         service:
