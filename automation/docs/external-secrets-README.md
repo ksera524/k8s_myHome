@@ -77,9 +77,6 @@ kubectl get secretstores --all-namespaces
 # 
 # pulumi esc env set ksera524/k8s-myhome/production \
 #   harbor.admin_password "$HARBOR_ADMIN_PASSWORD" --secret
-# 
-# pulumi esc env set ksera524/k8s-myhome/production \
-#   harbor.ci_password "$HARBOR_CI_PASSWORD" --secret
 
 # Harbor Secrets自動デプロイ
 ./deploy-harbor-secrets.sh
