@@ -10,6 +10,9 @@ data:
   # ArgoCD URL設定
   url: https://argocd.qroksera.com
 
+  # OCI Helmレジストリの利用を有効化
+  helm.oci.enabled: "true"
+
   # GitHub OAuth設定（Dex）
   dex.config: |
     connectors:
