@@ -7,16 +7,16 @@ k8s_myHomeで発生する可能性のある問題と、その解決方法につ�
 ## 一般的な診断コマンド
 
 ```bash
-# システム全体の診断
-make diagnose
+# 確認フェーズ
+make phase5
 
 # 詳細な状態確認
-make status
-make verify
+kubectl get nodes -o wide
+kubectl get applications -n argocd
+kubectl get pods -A | grep -v Running | head -20
 
 # ログ確認
-make logs
-cat make-all.log
+cat automation/run.log
 ```
 
 ## セットアップ時の問題
@@ -62,6 +62,11 @@ nslookup google.com
 # プロキシ設定（必要な場合）
 export HTTP_PROXY=http://proxy.example.com:8080
 export HTTPS_PROXY=http://proxy.example.com:8080
+```
+
+#### ログ確認
+```bash
+cat automation/run.log
 ```
 
 ### 2. VM が起動しない
@@ -218,7 +223,7 @@ argocd app sync <app-name> --force --prune
 ```bash
 # Port Forward再起動
 pkill -f "port-forward.*argocd"
-make dev-argocd
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 # Service確認
 kubectl get svc -n argocd
@@ -434,23 +439,20 @@ kubectl set resources deployment <name> -n <namespace> \
 すべての問題解決策が失敗した場合：
 
 ```bash
-# 1. 完全クリーンアップ
-make clean
-
-# 2. VM削除確認
+# 1. VM削除確認
 sudo virsh list --all
 sudo virsh destroy <vm-name>
 sudo virsh undefine <vm-name>
 
-# 3. ネットワーククリーンアップ
+# 2. ネットワーククリーンアップ
 sudo virsh net-destroy default
 sudo virsh net-start default
 
-# 4. Terraformステートクリーン
+# 3. Terraformステートクリーン
 cd automation/infrastructure
 rm -rf .terraform terraform.tfstate*
 
-# 5. 再構築
+# 4. 再構築
 cd ~/k8s_myHome
 make all
 ```
@@ -467,8 +469,7 @@ LOG_DIR="k8s-debug-$(date +%Y%m%d-%H%M%S)"
 mkdir -p $LOG_DIR
 
 # システム情報
-make status > $LOG_DIR/status.txt 2>&1
-make verify > $LOG_DIR/verify.txt 2>&1
+make phase5 > $LOG_DIR/verify.txt 2>&1
 
 # ノード情報
 kubectl get nodes -o wide > $LOG_DIR/nodes.txt
@@ -485,7 +486,7 @@ kubectl get events -A > $LOG_DIR/events.txt
 kubectl get applications -n argocd > $LOG_DIR/argocd-apps.txt
 
 # ログ
-cp make-all.log $LOG_DIR/ 2>/dev/null
+cp automation/run.log $LOG_DIR/ 2>/dev/null
 
 # アーカイブ作成
 tar czf $LOG_DIR.tar.gz $LOG_DIR/

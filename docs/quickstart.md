@@ -49,8 +49,8 @@ make all
 ## ステップ4: 動作確認
 
 ```bash
-# システム状態確認
-make status
+# 確認フェーズ
+make phase5
 
 # ノード確認
 ssh k8suser@192.168.122.10 'kubectl get nodes'
@@ -62,7 +62,7 @@ ssh k8suser@192.168.122.10 'kubectl get nodes'
 
 ```bash
 # 別ターミナルで実行
-make dev-argocd
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 # ブラウザでアクセス
 # URL: https://localhost:8080
@@ -74,7 +74,7 @@ make dev-argocd
 
 ```bash
 # 別ターミナルで実行
-make dev-harbor
+kubectl port-forward svc/harbor-core -n harbor 8081:80
 
 # ブラウザでアクセス
 # URL: http://localhost:8081
@@ -86,11 +86,10 @@ make dev-harbor
 
 | コマンド | 説明 |
 |---------|------|
-| `make status` | システム状態確認 |
-| `make dev-ssh` | Control PlaneへSSH |
-| `make logs` | ログ表示 |
+| `make phase5` | 確認 |
+| `ssh k8suser@192.168.122.10` | Control PlaneへSSH |
+| `cat automation/run.log` | ログ表示 |
 | `make add-runner REPO=name` | GitHub Runner追加 |
-| `make clean` | 完全クリーンアップ |
 
 ## 🔧 カスタマイズ
 
@@ -118,11 +117,12 @@ make add-runners-all
 
 ```bash
 # ログ確認
-cat make-all.log
+cat automation/run.log
 
-# クリーンアップして再実行
-make clean
-make all
+# フェーズを個別に再実行
+make phase3
+make phase4
+make phase5
 ```
 
 ### ノードが NotReady
@@ -155,8 +155,8 @@ kubectl get events --all-namespaces
 
 1. **初回は`make all`推奨** - 依存関係を自動解決
 2. **settings.toml重要** - 必須項目は必ず設定
-3. **ログ確認** - `make-all.log`に全ログ記録
-4. **段階実行も可能** - `make host-setup`、`make infrastructure`、`make platform`
+3. **ログ確認** - `automation/run.log`に全ログ記録
+4. **段階実行も可能** - `make phase1`〜`make phase5`
 
 ## 🎉 完了！
 

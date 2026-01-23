@@ -93,7 +93,6 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
   - **`scripts/`**: Utility scripts
     - **`argocd/`**: ArgoCD management scripts
     - **`github-actions/`**: GitHub Actions runner scripts
-  - **`makefiles/`**: Modular Makefile components
   - **`templates/`**: Configuration templates
 - **`manifests/`**: GitOps-specialized Kubernetes manifests
   - **`apps/`**: User application manifests
@@ -129,7 +128,7 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
 - `manifests/bootstrap/applications/app-of-apps.yaml`: ArgoCD root application
 
 ### Deployment Scripts
-- `automation/Makefile`: Main automation entry point
+- `automation/scripts/run.sh`: Main automation entry point
 - `automation/platform/platform-deploy.sh`: Platform deployment script
 - `automation/scripts/github-actions/setup-arc.sh`: GitHub Actions Runner setup
 - `automation/scripts/github-actions/add-runner.sh`: Add new GitHub runner

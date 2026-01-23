@@ -82,9 +82,9 @@ make all
 このコマンドは以下の処理を自動実行します：
 1. ホストマシンのセットアップ
 2. VM作成とKubernetesクラスター構築
-3. プラットフォームサービスのデプロイ
-4. GitOps設定とアプリケーションデプロイ
-5. GitHub Actions Runnerの作成
+3. GitOps準備（ArgoCD/ESOなど）
+4. GitOpsによるアプリケーション展開
+5. 確認
 
 ### 4. ステップバイステップセットアップ（手動）
 
@@ -94,7 +94,7 @@ make all
 
 ```bash
 # ホストマシンの準備
-make host-setup
+make phase1
 ```
 
 このステップでは以下を実行：
@@ -109,7 +109,7 @@ make host-setup
 
 ```bash
 # VM作成とKubernetesクラスター構築
-make infrastructure
+make phase2
 ```
 
 このステップでは以下を実行：
@@ -130,8 +130,8 @@ ssh k8suser@192.168.122.10 'kubectl get nodes'
 #### 4.3 プラットフォームサービス
 
 ```bash
-# コアサービスのデプロイ
-make platform
+# GitOps準備（ArgoCD/ESOなど）
+make phase3
 ```
 
 このステップでは以下を実行：
@@ -148,13 +148,25 @@ make platform
 kubectl get pods --all-namespaces
 ```
 
+#### 4.4 GitOpsアプリケーション展開
+
+```bash
+make phase4
+```
+
+#### 4.5 確認
+
+```bash
+make phase5
+```
+
 ### 5. 初期アクセス情報
 
 #### ArgoCD
 
 ```bash
 # Port Forwardの設定
-make dev-argocd
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 # 別ターミナルでアクセス
 # URL: https://localhost:8080
@@ -168,7 +180,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 
 ```bash
 # Port Forwardの設定
-make dev-harbor
+kubectl port-forward svc/harbor-core -n harbor 8081:80
 
 # 別ターミナルでアクセス
 # URL: http://localhost:8081
@@ -180,7 +192,7 @@ make dev-harbor
 
 ```bash
 # Control PlaneへSSH
-make dev-ssh
+ssh k8suser@192.168.122.10
 
 # kubeconfigの確認
 kubectl config view
@@ -194,11 +206,11 @@ GitOpsによる自動デプロイが設定されています。アプリケー�
 
 ```bash
 # ArgoCD CLIを使用
-argocd app sync applications --grpc-web --insecure \
+argocd app sync user-applications --grpc-web --insecure \
   --server localhost:8080
 
 # または kubectl を使用
-kubectl patch application applications -n argocd \
+kubectl patch application user-applications -n argocd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
@@ -206,7 +218,7 @@ kubectl patch application applications -n argocd \
 
 #### 自動設定（推奨）
 
-settings.tomlに`arc_repositories`を設定済みの場合、`make all`で自動作成されます。
+settings.tomlに`arc_repositories`を設定済みの場合、`make add-runners-all`で一括作成できます。
 
 #### 手動追加
 
@@ -221,14 +233,11 @@ make add-runners-all
 ### 8. セットアップ検証
 
 ```bash
-# システム全体の状態確認
-make status
-
-# 詳細な検証
-make verify
+# 確認フェーズ
+make phase5
 
 # ログ確認
-make logs
+cat automation/run.log
 ```
 
 ## トラブルシューティング
@@ -280,12 +289,9 @@ kubectl describe clustersecretstore pulumi-esc-store
 
 ### クリーンアップ
 
-問題が解決しない場合、クリーンアップして再実行：
+問題が解決しない場合、再構築します：
 
 ```bash
-# 完全クリーンアップ
-make clean
-
 # 再実行
 make all
 ```
@@ -304,4 +310,4 @@ make all
 
 - [GitHub Issues](https://github.com/ksera524/k8s_myHome/issues)
 - [プロジェクトWiki](https://github.com/ksera524/k8s_myHome/wiki)
-- ログファイル: `/home/ksera/k8s_myHome/make-all.log`
+- ログファイル: `/home/ksera/k8s_myHome/automation/run.log`

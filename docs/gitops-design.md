@@ -51,29 +51,32 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 manifests/
 ├── bootstrap/
 │   └── app-of-apps.yaml         # ルートApplication
+├── config/
+│   └── secrets/                 # 外部連携用シークレット
 ├── core/
 │   ├── namespaces/              # Namespace定義
 │   └── storage-classes/         # StorageClass定義
 ├── infrastructure/
 │   ├── networking/
-│   │   └── metallb/            # MetalLB設定
+│   │   └── metallb/             # MetalLB設定
 │   ├── security/
-│   │   └── cert-manager/       # 証明書管理
+│   │   └── cert-manager/        # 証明書管理
 │   └── gitops/
-│       └── harbor/             # Harborパッチ
+│       └── harbor/              # Harborパッチ
+├── monitoring/
+│   └── grafana-k8s-monitoring-values.yaml  # 監視用values（未接続）
 ├── platform/
-│   ├── argocd-config/          # ArgoCD設定
+│   ├── argocd-config/           # ArgoCD設定
 │   ├── ci-cd/
-│   │   └── github-actions/     # ARC設定
+│   │   └── github-actions/      # ARC設定
 │   └── secrets/
-│       └── external-secrets/   # ESO設定
+│       └── external-secrets/    # ESO設定
 └── apps/
-    ├── cloudflared/            # アプリケーション
+    ├── cloudflared/             # アプリケーション
     ├── hitomi/
     ├── pepup/
     ├── rss/
-    ├── slack/
-    └── monitoring/
+    └── slack/
 ```
 
 ## ArgoCD設定

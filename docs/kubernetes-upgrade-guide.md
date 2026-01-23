@@ -4,7 +4,7 @@
 
 ## 現在のバージョン
 
-- **Kubernetes**: v1.29.0
+- **Kubernetes**: `automation/settings.toml` の `kubernetes.version` を参照
 - **OS**: Ubuntu 24.04 LTS
 - **コンテナランタイム**: containerd
 - **CNI**: Flannel
@@ -32,9 +32,42 @@ kubectl get secrets --all-namespaces -o yaml > backup-secrets.yaml
 
 ## アップグレード手順
 
-### 方法1: 完全再構築（推奨）
+### 方法1: 完全自動アップグレード（推奨）
 
-最もシンプルで確実な方法です。
+このプロジェクトに追加された自動化スクリプトで、安全な順序でアップグレードします。
+
+#### 1. settings.toml の設定
+
+```toml
+[upgrade]
+target_version = "v1.33.7"
+apt_channel = "v1.33"
+```
+
+#### 2. 実行
+
+```bash
+make upgrade
+```
+
+#### 3. 事前/事後の分割実行（必要時）
+
+```bash
+make upgrade-precheck
+make upgrade-control-plane
+make upgrade-workers
+make upgrade-postcheck
+```
+
+#### 4. ログ確認
+
+```bash
+tail -n 200 automation/run.log
+```
+
+### 方法2: 完全再構築（安全優先）
+
+最もシンプルで確実な方法です（時間はかかる）。
 
 #### 1. 設定ファイルの更新
 
@@ -79,7 +112,7 @@ kubectl get nodes
 kubectl get pods --all-namespaces
 ```
 
-### 方法2: インプレースアップグレード（上級者向け）
+### 方法3: 手動インプレースアップグレード（上級者向け）
 
 既存のクラスターを維持したままアップグレードする方法です。
 

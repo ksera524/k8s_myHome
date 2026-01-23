@@ -31,6 +31,22 @@ EOF
 # Harbor認証情報Secret作成（ESO経由で取得）
 log_status "Harbor認証情報Secret確認中..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
+# Harbor namespace/secretの起動待機
+timeout=300
+while [ $timeout -gt 0 ]; do
+    if kubectl get namespace harbor >/dev/null 2>&1 && kubectl get secret harbor-admin-secret -n harbor >/dev/null 2>&1; then
+        break
+    fi
+    echo "Harborリソース待機中... (残り ${timeout}s)"
+    sleep 10
+    timeout=$((timeout - 10))
+done
+
+if ! kubectl get secret harbor-admin-secret -n harbor >/dev/null 2>&1; then
+    echo "エラー: Harbor secretの準備が完了していません"
+    exit 1
+fi
+
 # ESOからHarborパスワードを取得
 HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
 if [[ -z "$HARBOR_PASSWORD" ]]; then
