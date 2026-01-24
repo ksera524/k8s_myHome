@@ -118,7 +118,7 @@ fi
 # RunnerScaleSetを作成（minRunners=1推奨）
 log_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
-  ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems  --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --set 'template.spec.volumes[2].name=harbor-ca' --set 'template.spec.volumes[2].configMap.name=harbor-ca-cert' --set 'template.spec.containers[1].volumeMounts[2].name=harbor-ca' --set 'template.spec.containers[1].volumeMounts[2].mountPath=/etc/docker/certs.d/harbor.local' --set 'template.spec.containers[1].volumeMounts[2].readOnly=true' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
+  ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems  --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set controllerServiceAccount.namespace=arc-systems --set controllerServiceAccount.name=arc-controller-gha-rs-controller --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.local' --set 'template.spec.hostAliases[0].hostnames[1]=harbor.qroksera.com' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
     log_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
@@ -215,8 +215,8 @@ jobs:
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest .
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
 
-        # /etc/hostsにharbor.localを追加
-        echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
+        # /etc/hostsにharbor.localとharbor.qroksera.comを追加
+        echo "192.168.122.100 harbor.local harbor.qroksera.com" | sudo tee -a /etc/hosts
 
         # Harborにログイン
         echo "Logging in to Harbor..."
