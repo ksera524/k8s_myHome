@@ -58,7 +58,7 @@ kubectl create secret generic harbor-auth \
   --namespace arc-systems \
   --from-literal=HARBOR_USERNAME="admin" \
   --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
-  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_URL="harbor.qroksera.com" \
   --from-literal=HARBOR_PROJECT="sandbox" \
   --dry-run=client -o yaml | kubectl apply -f -
 EOF

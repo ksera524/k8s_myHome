@@ -1,4 +1,4 @@
-# DaemonSetでKubernetesノードの/etc/hostsにharbor.localを追加
+# DaemonSetでKubernetesノードの/etc/hostsにharbor.qroksera.comを追加
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -22,18 +22,18 @@ spec:
         - sh
         - -c
         - |
-          # /etc/hostsにharbor.localエントリを追加
-          if ! grep -q "harbor.local" /host-etc/hosts; then
-            echo "192.168.122.100 harbor.local" >> /host-etc/hosts
-            echo "Added harbor.local to /etc/hosts"
+          # /etc/hostsにharbor.qroksera.comエントリを追加
+          if ! grep -q "harbor.qroksera.com" /host-etc/hosts; then
+            echo "192.168.122.100 harbor.qroksera.com" >> /host-etc/hosts
+            echo "Added harbor.qroksera.com to /etc/hosts"
           else
-            echo "harbor.local already exists in /etc/hosts"
+            echo "harbor.qroksera.com already exists in /etc/hosts"
           fi
           # 定期的にチェック
           while true; do
-            if ! grep -q "harbor.local" /host-etc/hosts; then
-              echo "192.168.122.100 harbor.local" >> /host-etc/hosts
-              echo "Re-added harbor.local to /etc/hosts"
+            if ! grep -q "harbor.qroksera.com" /host-etc/hosts; then
+              echo "192.168.122.100 harbor.qroksera.com" >> /host-etc/hosts
+              echo "Re-added harbor.qroksera.com to /etc/hosts"
             fi
             sleep 300
           done

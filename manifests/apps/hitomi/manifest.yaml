@@ -19,7 +19,7 @@ spec:
         spec:
           containers:
             - name: hitomi-monitor
-              image: harbor.local/sandbox/hitomi:latest
+              image: harbor.qroksera.com/sandbox/hitomi:latest
               imagePullPolicy: Always
               env:
                 - name: TOKEN

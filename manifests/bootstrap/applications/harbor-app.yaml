@@ -21,18 +21,19 @@ spec:
             enabled: true
             certSource: secret
             secret:
-              secretName: harbor-internal-tls
+              secretName: harbor-external-tls
           ingress:
             hosts:
-              core: harbor.local
+              core: harbor.qroksera.com
             className: nginx
             annotations:
+              cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
               nginx.ingress.kubernetes.io/ssl-redirect: "true"
               nginx.ingress.kubernetes.io/proxy-body-size: "0"
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 
-        externalURL: https://harbor.local
+        externalURL: https://harbor.qroksera.com
 
         # External secret reference for admin password
         existingSecretAdminPassword: harbor-admin-secret

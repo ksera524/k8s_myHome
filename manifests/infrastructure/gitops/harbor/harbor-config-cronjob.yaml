@@ -29,9 +29,9 @@ spec:
 
               # 1. Harbor ConfigMapのEXT_ENDPOINTを確認と修正
               CURRENT_CM=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-              if [ "$CURRENT_CM" != "https://harbor.local" ]; then
-                echo "Fixing ConfigMap EXT_ENDPOINT from '$CURRENT_CM' to 'https://harbor.local'"
-                kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
+              if [ "$CURRENT_CM" != "https://harbor.qroksera.com" ]; then
+                echo "Fixing ConfigMap EXT_ENDPOINT from '$CURRENT_CM' to 'https://harbor.qroksera.com'"
+                kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}]'
                 NEED_RESTART=true
               fi
 
@@ -46,7 +46,7 @@ spec:
                 echo "Adding environment variables to deployment..."
                 kubectl patch deployment harbor-core -n harbor --type json -p '[
                   {"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [
-                    {"name": "EXT_ENDPOINT", "value": "https://harbor.local"}
+                    {"name": "EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}
                   ]}
                 ]'
                 NEED_RESTART=true
@@ -60,16 +60,16 @@ spec:
                   echo "Adding EXT_ENDPOINT to existing environment variables..."
                   kubectl patch deployment harbor-core -n harbor --type json -p '[
                     {"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value":
-                      {"name": "EXT_ENDPOINT", "value": "https://harbor.local"}
+                      {"name": "EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}
                     }
                   ]'
                   NEED_RESTART=true
-                elif [ "$CURRENT_ENV" != "https://harbor.local" ]; then
+                elif [ "$CURRENT_ENV" != "https://harbor.qroksera.com" ]; then
                   # 値が異なる場合、パッチで修正
-                  echo "Fixing EXT_ENDPOINT environment variable from '$CURRENT_ENV' to 'https://harbor.local'"
+                  echo "Fixing EXT_ENDPOINT environment variable from '$CURRENT_ENV' to 'https://harbor.qroksera.com'"
                   # 直接YAMLを編集して適用
                   kubectl get deployment harbor-core -n harbor -o yaml | \
-                    sed 's|name: EXT_ENDPOINT$|name: EXT_ENDPOINT|; /name: EXT_ENDPOINT/!b; n; s|value:.*|value: "https://harbor.local"|' | \
+                    sed 's|name: EXT_ENDPOINT$|name: EXT_ENDPOINT|; /name: EXT_ENDPOINT/!b; n; s|value:.*|value: "https://harbor.qroksera.com"|' | \
                     kubectl apply -f -
                   NEED_RESTART=true
                 fi
@@ -84,13 +84,13 @@ spec:
 
               # 4. harbor-auth secretも確認
               HARBOR_URL=$(kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_URL}' 2>/dev/null | base64 -d)
-              if [ "$HARBOR_URL" != "harbor.local" ]; then
+              if [ "$HARBOR_URL" != "harbor.qroksera.com" ]; then
                 echo "Fixing harbor-auth secret"
                 HARBOR_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
                 if [ -n "$HARBOR_PASSWORD" ]; then
                   kubectl create secret generic harbor-auth \
                     --namespace=arc-systems \
-                    --from-literal=HARBOR_URL="harbor.local" \
+                    --from-literal=HARBOR_URL="harbor.qroksera.com" \
                     --from-literal=HARBOR_USERNAME="admin" \
                     --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
                     --from-literal=HARBOR_PROJECT="sandbox" \
