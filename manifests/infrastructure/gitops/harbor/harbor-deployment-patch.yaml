@@ -13,10 +13,10 @@ spec:
         env:
         # 最重要: EXT_ENDPOINTを強制的にオーバーライド
         - name: EXT_ENDPOINT
-          value: "http://harbor.local"
+          value: "https://harbor.local"
         # CORE_URLも念のため設定
         - name: CORE_URL
-          value: "http://harbor.local"
+          value: "https://harbor.local"
         # Registry URLも設定
         - name: REGISTRY_URL
           value: "http://harbor-registry:5000"

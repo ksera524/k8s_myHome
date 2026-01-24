@@ -29,9 +29,9 @@ spec:
           CURRENT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}')
           echo "Current EXT_ENDPOINT: $CURRENT"
 
-          if [ "$CURRENT" != "http://harbor.local" ]; then
+          if [ "$CURRENT" != "https://harbor.local" ]; then
             echo "Patching ConfigMap..."
-            kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+            kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
 
             echo "Restarting Harbor core..."
             kubectl rollout restart deployment/harbor-core -n harbor

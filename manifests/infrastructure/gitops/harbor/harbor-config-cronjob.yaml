@@ -29,9 +29,9 @@ spec:
 
               # 1. Harbor ConfigMapのEXT_ENDPOINTを確認と修正
               CURRENT_CM=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-              if [ "$CURRENT_CM" != "http://harbor.local" ]; then
-                echo "Fixing ConfigMap EXT_ENDPOINT from '$CURRENT_CM' to 'http://harbor.local'"
-                kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+              if [ "$CURRENT_CM" != "https://harbor.local" ]; then
+                echo "Fixing ConfigMap EXT_ENDPOINT from '$CURRENT_CM' to 'https://harbor.local'"
+                kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
                 NEED_RESTART=true
               fi
 
@@ -46,7 +46,7 @@ spec:
                 echo "Adding environment variables to deployment..."
                 kubectl patch deployment harbor-core -n harbor --type json -p '[
                   {"op": "add", "path": "/spec/template/spec/containers/0/env", "value": [
-                    {"name": "EXT_ENDPOINT", "value": "http://harbor.local"}
+                    {"name": "EXT_ENDPOINT", "value": "https://harbor.local"}
                   ]}
                 ]'
                 NEED_RESTART=true
@@ -60,16 +60,16 @@ spec:
                   echo "Adding EXT_ENDPOINT to existing environment variables..."
                   kubectl patch deployment harbor-core -n harbor --type json -p '[
                     {"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value":
-                      {"name": "EXT_ENDPOINT", "value": "http://harbor.local"}
+                      {"name": "EXT_ENDPOINT", "value": "https://harbor.local"}
                     }
                   ]'
                   NEED_RESTART=true
-                elif [ "$CURRENT_ENV" != "http://harbor.local" ]; then
+                elif [ "$CURRENT_ENV" != "https://harbor.local" ]; then
                   # 値が異なる場合、パッチで修正
-                  echo "Fixing EXT_ENDPOINT environment variable from '$CURRENT_ENV' to 'http://harbor.local'"
+                  echo "Fixing EXT_ENDPOINT environment variable from '$CURRENT_ENV' to 'https://harbor.local'"
                   # 直接YAMLを編集して適用
                   kubectl get deployment harbor-core -n harbor -o yaml | \
-                    sed 's|name: EXT_ENDPOINT$|name: EXT_ENDPOINT|; /name: EXT_ENDPOINT/!b; n; s|value:.*|value: "http://harbor.local"|' | \
+                    sed 's|name: EXT_ENDPOINT$|name: EXT_ENDPOINT|; /name: EXT_ENDPOINT/!b; n; s|value:.*|value: "https://harbor.local"|' | \
                     kubectl apply -f -
                   NEED_RESTART=true
                 fi

@@ -1,4 +1,4 @@
-# containerdの設定を更新してharbor.localをinsecure registryとして設定
+# containerdの設定を更新してharbor.localをTLS registryとして設定
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,16 +10,16 @@ data:
     # containerdの設定ファイルをバックアップ
     cp /etc/containerd/config.toml /etc/containerd/config.toml.bak
 
-    # insecure registryの設定を追加
+    # TLS registryの設定を追加
     cat >> /etc/containerd/config.toml <<EOF
 
     [plugins."io.containerd.grpc.v1.cri".registry]
       [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
         [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-          endpoint = ["http://harbor.local"]
+          endpoint = ["https://harbor.local"]
       [plugins."io.containerd.grpc.v1.cri".registry.configs]
         [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-          insecure_skip_verify = true
+          ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
     EOF
 
     # containerdを再起動
@@ -70,19 +70,19 @@ spec:
               [plugins."io.containerd.grpc.v1.cri".registry]
                 [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
                   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-                    endpoint = ["http://harbor.local"]
+                    endpoint = ["https://harbor.local"]
                 [plugins."io.containerd.grpc.v1.cri".registry.configs]
                   [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-                    insecure_skip_verify = true
+                    ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
           EOF
             else
               # Append to existing config
               cat >> /host-etc/containerd/config.toml <<'EOF'
 
           [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-            endpoint = ["http://harbor.local"]
+            endpoint = ["https://harbor.local"]
           [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-            insecure_skip_verify = true
+            ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
           EOF
             fi
 

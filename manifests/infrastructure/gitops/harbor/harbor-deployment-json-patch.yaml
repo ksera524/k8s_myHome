@@ -4,6 +4,6 @@
   path: /spec/template/spec/containers/0/env
   value:
     - name: EXT_ENDPOINT
-      value: "http://harbor.local"
+      value: "https://harbor.local"
     - name: CORE_URL
-      value: "http://harbor.local"
+      value: "https://harbor.local"

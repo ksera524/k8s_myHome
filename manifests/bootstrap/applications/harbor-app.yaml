@@ -18,18 +18,18 @@ spec:
         expose:
           type: ingress
           tls:
-            enabled: false
+            enabled: true
           ingress:
             hosts:
               core: harbor.local
             className: nginx
             annotations:
-              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
               nginx.ingress.kubernetes.io/proxy-body-size: "0"
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 
-        externalURL: http://harbor.local
+        externalURL: https://harbor.local
 
         # External secret reference for admin password
         existingSecretAdminPassword: harbor-admin-secret

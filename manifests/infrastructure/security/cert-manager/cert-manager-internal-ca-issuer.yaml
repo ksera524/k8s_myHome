@@ -1,0 +1,8 @@
+# 内部CA用ClusterIssuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca-issuer
+spec:
+  ca:
+    secretName: ca-key-pair

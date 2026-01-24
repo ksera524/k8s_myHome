@@ -317,7 +317,7 @@ spec:
     targetRevision: HEAD
     path: manifests/infrastructure/security/cert-manager
     directory:
-      include: 'cert-manager-*issuer.yaml'
+      include: 'cert-manager-*.yaml'
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
@@ -444,7 +444,7 @@ spec:
               nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
               nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 
-        externalURL: http://harbor.local
+        externalURL: https://harbor.local
 
         # External secret reference for admin password
         existingSecretAdminPassword: harbor-admin-secret
