@@ -9,6 +9,3 @@ resources:
   # - harbor-config-cronjob.yaml    # 不要になったため無効化
   - harbor-node-hostaliases.yaml
   - containerd-config.yaml
-
-patchesStrategicMerge:
-  - harbor-ingress-tls-patch.yaml

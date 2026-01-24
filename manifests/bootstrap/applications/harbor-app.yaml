@@ -19,6 +19,8 @@ spec:
           type: ingress
           tls:
             enabled: true
+            certSource: secret
+            secretName: harbor-internal-tls
           ingress:
             hosts:
               core: harbor.local
