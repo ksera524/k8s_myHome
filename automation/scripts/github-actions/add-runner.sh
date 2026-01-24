@@ -212,20 +212,20 @@ jobs:
         
         # Build Docker images
         echo "Building Docker images..."
-        docker build -t $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:latest .
-        docker build -t $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
+        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest .
+        docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
 
         # /etc/hostsにharbor.localを追加
         echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
 
         # Harborにログイン
         echo "Logging in to Harbor..."
-        docker login $HARBOR_URL -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
+        docker login \$HARBOR_URL -u "\$HARBOR_USERNAME" -p "\$HARBOR_PASSWORD"
 
         # Harborへpush
         echo "Pushing to Harbor..."
-        docker push $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:latest
-        docker push $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+        docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+        docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
         
         echo "✅ Images pushed successfully to Harbor"
         

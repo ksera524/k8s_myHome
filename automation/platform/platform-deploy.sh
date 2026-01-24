@@ -515,7 +515,7 @@ if kubectl get application harbor -n argocd 2>/dev/null; then
     
     # ConfigMapのEXT_ENDPOINTを修正
     echo "ConfigMap harbor-core のEXT_ENDPOINTを修正中..."
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]' || true
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]' || true
     
     # Harbor core再起動して設定を反映
     echo "Harbor core再起動中..."
@@ -614,10 +614,10 @@ echo "✓ Harbor認証設定完了 - skopeo対応"
 # 最終確認: Harbor EXT_ENDPOINTが正しく設定されているか確認
 echo "Harbor EXT_ENDPOINT最終確認..."
 CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-if [[ "$CURRENT_EXT_ENDPOINT" != "http://harbor.local" ]]; then
+if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.local" ]]; then
     echo "警告: EXT_ENDPOINTが正しくありません: $CURRENT_EXT_ENDPOINT"
     echo "修正を再実行中..."
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
     kubectl rollout restart deployment/harbor-core -n harbor
     kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
     echo "✓ Harbor EXT_ENDPOINT修正完了"
@@ -1147,7 +1147,7 @@ log_status "✓ Harbor IP Ingress 設定完了"
 
 # Harbor の動作確認
 log_status "Harbor の動作確認中..."
-if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f http://${HARBOR_IP}/api/v2.0/systeminfo" >/dev/null 2>&1; then
+if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f https://${HARBOR_IP}/api/v2.0/systeminfo" >/dev/null 2>&1; then
     log_status "✓ Harbor API が正常に応答しています"
 else
     log_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"
@@ -1165,9 +1165,9 @@ sleep 10
 
 # Harbor ConfigMapのEXT_ENDPOINTを修正
 CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-if [[ "$CURRENT_EXT_ENDPOINT" != "http://harbor.local" ]]; then
-    echo "EXT_ENDPOINTを修正中: $CURRENT_EXT_ENDPOINT → http://harbor.local"
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "http://harbor.local"}]'
+if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.local" ]]; then
+    echo "EXT_ENDPOINTを修正中: $CURRENT_EXT_ENDPOINT → https://harbor.local"
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
     
     # Harbor core再起動
     kubectl rollout restart deployment/harbor-core -n harbor

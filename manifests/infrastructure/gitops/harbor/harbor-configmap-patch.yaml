@@ -6,7 +6,7 @@ metadata:
   name: harbor-core
   namespace: harbor
 data:
-  EXT_ENDPOINT: "http://harbor.local"
+  EXT_ENDPOINT: "https://harbor.local"
   # その他の必要な設定も明示的に指定
   _REDIS_URL_CORE: "redis://harbor-redis:6379/0?idle_timeout_seconds=30"
   _REDIS_URL_REG: "redis://harbor-redis:6379/2?idle_timeout_seconds=30"
