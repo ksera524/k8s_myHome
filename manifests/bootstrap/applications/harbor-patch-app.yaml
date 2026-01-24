@@ -1,5 +1,5 @@
-# Harbor設定修正用ArgoCD Application
-# Harbor本体とは別に管理して設定を上書き
+# Harbor補助設定用ArgoCD Application
+# ノード側の設定補助のみを管理
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -32,15 +32,3 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    # ConfigMapとDeploymentの差分を無視
-    - group: ""
-      kind: ConfigMap
-      name: harbor-core
-      jsonPointers:
-        - /data/EXT_ENDPOINT
-    - group: apps
-      kind: Deployment
-      name: harbor-core
-      jsonPointers:
-        - /spec/template/spec/containers/0/env
