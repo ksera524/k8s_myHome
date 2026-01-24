@@ -171,9 +171,13 @@ PULUMI_ACCESS_TOKEN_ESCAPED=$(printf '%q' "${PULUMI_ACCESS_TOKEN}")
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} "PULUMI_ACCESS_TOKEN=${PULUMI_ACCESS_TOKEN_ESCAPED} bash -s" << 'EOF'
 # 環境変数を明示的にエクスポート
 export PULUMI_ACCESS_TOKEN="${PULUMI_ACCESS_TOKEN}"
-# App-of-Appsパターン適用（すべてのApplicationを管理）
+# App-of-Appsパターン適用（初回のみ）
 echo "App-of-Apps適用中..."
-kubectl apply -f /tmp/app-of-apps.yaml
+if kubectl get application core -n argocd >/dev/null 2>&1; then
+    echo "App-of-Appsは既に適用済みのためスキップします"
+else
+    kubectl apply -f /tmp/app-of-apps.yaml
+fi
 
 # 基盤インフラApplication同期待機
 echo "基盤インフラApplication同期待機中..."
@@ -328,7 +332,7 @@ if kubectl get application platform -n argocd 2>/dev/null; then
 else
     echo "Platform Application未作成、App-of-Apps適用確認中..."
     # App-of-Appsが適用されているか確認
-    if ! kubectl get application app-of-apps -n argocd 2>/dev/null; then
+    if ! kubectl get application core -n argocd 2>/dev/null; then
         echo "App-of-Apps再適用中..."
         kubectl apply -f /tmp/app-of-apps.yaml
         sleep 20

@@ -1,9 +1,0 @@
-# Harbor Core Deployment JSON Patch
-# 環境変数を強制的に追加してConfigMapの値をオーバーライド
-- op: add
-  path: /spec/template/spec/containers/0/env
-  value:
-    - name: EXT_ENDPOINT
-      value: "https://harbor.qroksera.com"
-    - name: CORE_URL
-      value: "https://harbor.qroksera.com"
