@@ -588,6 +588,20 @@ fi
 # arc-systems namespace作成（存在しない場合）
 kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f -
 
+# ARC Runner用のHarbor内部CAをConfigMapに反映
+echo "Harbor内部CA ConfigMap作成中..."
+if kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; then
+    kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
+    kubectl create configmap harbor-ca-cert \
+      --namespace=arc-systems \
+      --from-file=ca.crt=/tmp/harbor-ca.crt \
+      --dry-run=client -o yaml | kubectl apply -f -
+    rm -f /tmp/harbor-ca.crt
+    echo "✓ harbor-ca-cert ConfigMap作成完了"
+else
+    echo "警告: 内部CA secret (ca-key-pair) が存在しません"
+fi
+
 # GitHub Actions用のharbor-auth secret作成
 echo "GitHub Actions用harbor-auth secret作成中..."
 kubectl create secret generic harbor-auth \
