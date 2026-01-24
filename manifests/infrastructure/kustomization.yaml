@@ -7,7 +7,6 @@ resources:
 
   # Networking
   - networking/metallb/metallb-ipaddress-pool.yaml
-  - networking/coredns/
 
   # Security
   # ca-secret.yaml は秘密情報のためGit管理対象外
