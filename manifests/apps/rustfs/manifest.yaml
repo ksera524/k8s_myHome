@@ -1,0 +1,44 @@
+# RustFS外部公開用TLS証明書（Consoleのみ）
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rustfs-external-cert
+  namespace: rustfs
+spec:
+  secretName: rustfs-external-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - rustfs.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+
+---
+# RustFS外部公開用Ingress（Consoleのみ）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rustfs-console-ingress
+  namespace: rustfs
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - rustfs.qroksera.com
+      secretName: rustfs-external-tls
+  rules:
+    - host: rustfs.qroksera.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rustfs
+                port:
+                  number: 9001
