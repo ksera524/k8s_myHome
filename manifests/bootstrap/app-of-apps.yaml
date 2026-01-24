@@ -317,7 +317,7 @@ spec:
     targetRevision: HEAD
     path: manifests/infrastructure/security/cert-manager
     directory:
-      include: 'cert-manager-selfsigned-issuer.yaml'
+      include: 'cert-manager-*issuer.yaml'
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
