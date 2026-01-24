@@ -7,6 +7,8 @@ resources:
   # RBAC
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
+  # Harbor内部CA証明書
+  - harbor-ca-cert.yaml
   # External Secrets (GitHub PATはESO経由で取得)
   # Note: github-auth-secretはplatform/secrets/external-secrets/externalsecrets.yamlで管理
   # Runner ScaleSetはsetup-arc.shでsettings.tomlに基づいて作成
