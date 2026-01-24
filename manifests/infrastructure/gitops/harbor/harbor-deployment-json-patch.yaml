@@ -4,6 +4,6 @@
   path: /spec/template/spec/containers/0/env
   value:
     - name: EXT_ENDPOINT
-      value: "https://harbor.local"
+      value: "https://harbor.qroksera.com"
     - name: CORE_URL
-      value: "https://harbor.local"
+      value: "https://harbor.qroksera.com"

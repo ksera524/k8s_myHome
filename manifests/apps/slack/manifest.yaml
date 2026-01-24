@@ -20,7 +20,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: slack
-          image: harbor.local/sandbox/slack.rs:latest
+          image: harbor.qroksera.com/sandbox/slack.rs:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

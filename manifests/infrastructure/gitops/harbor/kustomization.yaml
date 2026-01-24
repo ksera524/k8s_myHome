@@ -3,8 +3,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - harbor-external-ingress.yaml
-  - harbor-internal-certificate.yaml
   # - harbor-ext-endpoint-fix.yaml  # 不要になったため無効化
   # - harbor-config-cronjob.yaml    # 不要になったため無効化
   - harbor-node-hostaliases.yaml

@@ -29,9 +29,9 @@ spec:
           CURRENT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}')
           echo "Current EXT_ENDPOINT: $CURRENT"
 
-          if [ "$CURRENT" != "https://harbor.local" ]; then
+          if [ "$CURRENT" != "https://harbor.qroksera.com" ]; then
             echo "Patching ConfigMap..."
-            kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
+            kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}]'
 
             echo "Restarting Harbor core..."
             kubectl rollout restart deployment/harbor-core -n harbor
@@ -48,7 +48,7 @@ spec:
 
           kubectl create secret generic harbor-auth \
             --namespace=arc-systems \
-            --from-literal=HARBOR_URL="harbor.local" \
+            --from-literal=HARBOR_URL="harbor.qroksera.com" \
             --from-literal=HARBOR_USERNAME="admin" \
             --from-literal=HARBOR_PASSWORD="${HARBOR_PASSWORD}" \
             --from-literal=HARBOR_PROJECT="sandbox" \

@@ -505,7 +505,7 @@ if kubectl get application harbor -n argocd 2>/dev/null; then
     sleep 30
     kubectl wait --namespace harbor --for=condition=ready pod --selector=app=harbor --timeout=300s || echo "Harbor Pod起動待機中"
     
-    # Harbor External URL修正（harbor.local使用）
+    # Harbor External URL修正（harbor.qroksera.com使用）
     # 注: Helm ChartはexternalURLをEXT_ENDPOINTに反映しないため、手動修正が必要
     echo "Harbor External URL設定を修正中..."
     
@@ -515,13 +515,13 @@ if kubectl get application harbor -n argocd 2>/dev/null; then
     
     # ConfigMapのEXT_ENDPOINTを修正
     echo "ConfigMap harbor-core のEXT_ENDPOINTを修正中..."
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]' || true
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}]' || true
     
     # Harbor core再起動して設定を反映
     echo "Harbor core再起動中..."
     kubectl rollout restart deployment/harbor-core -n harbor || true
     kubectl rollout status deployment/harbor-core -n harbor --timeout=120s || true
-    echo "✓ Harbor External URLをharbor.localに修正"
+    echo "✓ Harbor External URLをharbor.qroksera.comに修正"
 else
     echo "Harbor Application未作成、App-of-Apps確認中..."
     kubectl get application -n argocd
@@ -606,7 +606,7 @@ fi
 echo "GitHub Actions用harbor-auth secret作成中..."
 kubectl create secret generic harbor-auth \
   --namespace=arc-systems \
-  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_URL="harbor.qroksera.com" \
   --from-literal=HARBOR_USERNAME="admin" \
   --from-literal=HARBOR_PASSWORD="${HARBOR_ADMIN_PASSWORD}" \
   --from-literal=HARBOR_PROJECT="sandbox" \
@@ -628,10 +628,10 @@ echo "✓ Harbor認証設定完了 - skopeo対応"
 # 最終確認: Harbor EXT_ENDPOINTが正しく設定されているか確認
 echo "Harbor EXT_ENDPOINT最終確認..."
 CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.local" ]]; then
+if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.qroksera.com" ]]; then
     echo "警告: EXT_ENDPOINTが正しくありません: $CURRENT_EXT_ENDPOINT"
     echo "修正を再実行中..."
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}]'
     kubectl rollout restart deployment/harbor-core -n harbor
     kubectl rollout status deployment/harbor-core -n harbor --timeout=120s
     echo "✓ Harbor EXT_ENDPOINT修正完了"
@@ -725,20 +725,20 @@ fi
 
 log_debug "Worker1 (192.168.122.11) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.11 << EOF
-# /etc/hostsにharbor.localを追加（重複チェック付き）
-if ! grep -q "harbor.local" /etc/hosts; then
-    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+# /etc/hostsにharbor.qroksera.comを追加（重複チェック付き）
+if ! grep -q "harbor.qroksera.com" /etc/hosts; then
+    echo "192.168.122.100 harbor.qroksera.com" | sudo -n tee -a /etc/hosts
 fi
 
 # containerd certs.d設定ディレクトリ作成
-sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.qroksera.com
 sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
 
-# harbor.local用hosts.toml作成
-sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
-server = "https://harbor.local"
+# harbor.qroksera.com用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.qroksera.com/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.qroksera.com"
 
-[host."https://harbor.local"]
+[host."https://harbor.qroksera.com"]
   skip_verify = true
 CONTAINERD_EOF
 
@@ -757,20 +757,20 @@ EOF
 
 log_debug "Worker2 (192.168.122.12) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.12 << EOF
-# /etc/hostsにharbor.localを追加（重複チェック付き）
-if ! grep -q "harbor.local" /etc/hosts; then
-    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+# /etc/hostsにharbor.qroksera.comを追加（重複チェック付き）
+if ! grep -q "harbor.qroksera.com" /etc/hosts; then
+    echo "192.168.122.100 harbor.qroksera.com" | sudo -n tee -a /etc/hosts
 fi
 
 # containerd certs.d設定ディレクトリ作成
-sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.qroksera.com
 sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
 
-# harbor.local用hosts.toml作成
-sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
-server = "https://harbor.local"
+# harbor.qroksera.com用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.qroksera.com/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.qroksera.com"
 
-[host."https://harbor.local"]
+[host."https://harbor.qroksera.com"]
   skip_verify = true
 CONTAINERD_EOF
 
@@ -790,20 +790,20 @@ EOF
 # Control Planeノードの設定
 log_debug "Control Plane (192.168.122.10) Containerd設定..."
 ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@192.168.122.10 << EOF
-# /etc/hostsにharbor.localを追加（重複チェック付き）
-if ! grep -q "harbor.local" /etc/hosts; then
-    echo "192.168.122.100 harbor.local" | sudo -n tee -a /etc/hosts
+# /etc/hostsにharbor.qroksera.comを追加（重複チェック付き）
+if ! grep -q "harbor.qroksera.com" /etc/hosts; then
+    echo "192.168.122.100 harbor.qroksera.com" | sudo -n tee -a /etc/hosts
 fi
 
 # containerd certs.d設定ディレクトリ作成
-sudo -n mkdir -p /etc/containerd/certs.d/harbor.local
+sudo -n mkdir -p /etc/containerd/certs.d/harbor.qroksera.com
 sudo -n mkdir -p /etc/containerd/certs.d/192.168.122.100
 
-# harbor.local用hosts.toml作成
-sudo -n tee /etc/containerd/certs.d/harbor.local/hosts.toml > /dev/null << 'CONTAINERD_EOF'
-server = "https://harbor.local"
+# harbor.qroksera.com用hosts.toml作成
+sudo -n tee /etc/containerd/certs.d/harbor.qroksera.com/hosts.toml > /dev/null << 'CONTAINERD_EOF'
+server = "https://harbor.qroksera.com"
 
-[host."https://harbor.local"]
+[host."https://harbor.qroksera.com"]
   skip_verify = true
 CONTAINERD_EOF
 
@@ -1179,9 +1179,9 @@ sleep 10
 
 # Harbor ConfigMapのEXT_ENDPOINTを修正
 CURRENT_EXT_ENDPOINT=$(kubectl get cm harbor-core -n harbor -o jsonpath='{.data.EXT_ENDPOINT}' 2>/dev/null)
-if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.local" ]]; then
-    echo "EXT_ENDPOINTを修正中: $CURRENT_EXT_ENDPOINT → https://harbor.local"
-    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.local"}]'
+if [[ "$CURRENT_EXT_ENDPOINT" != "https://harbor.qroksera.com" ]]; then
+    echo "EXT_ENDPOINTを修正中: $CURRENT_EXT_ENDPOINT → https://harbor.qroksera.com"
+    kubectl patch cm harbor-core -n harbor --type json -p '[{"op": "replace", "path": "/data/EXT_ENDPOINT", "value": "https://harbor.qroksera.com"}]'
     
     # Harbor core再起動
     kubectl rollout restart deployment/harbor-core -n harbor
@@ -1196,7 +1196,7 @@ echo "harbor-auth secret確認中..."
 HARBOR_ADMIN_PASSWORD=$(kubectl get secret harbor-admin-secret -n harbor -o jsonpath='{.data.password}' | base64 -d)
 kubectl create secret generic harbor-auth \
   --namespace=arc-systems \
-  --from-literal=HARBOR_URL="harbor.local" \
+  --from-literal=HARBOR_URL="harbor.qroksera.com" \
   --from-literal=HARBOR_USERNAME="admin" \
   --from-literal=HARBOR_PASSWORD="${HARBOR_ADMIN_PASSWORD}" \
   --from-literal=HARBOR_PROJECT="sandbox" \

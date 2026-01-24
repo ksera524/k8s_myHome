@@ -43,7 +43,7 @@ spec:
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
-        - "harbor.local"
+        - "harbor.qroksera.com"
 
       containers:
       - name: runner
@@ -51,7 +51,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "harbor.local"
+          value: "harbor.qroksera.com"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -118,7 +118,7 @@ spec:
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
-        - "harbor.local"
+        - "harbor.qroksera.com"
 
       containers:
       - name: runner
@@ -126,7 +126,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "harbor.local"
+          value: "harbor.qroksera.com"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: REPO_NAME
@@ -194,7 +194,7 @@ spec:
       hostAliases:
       - ip: "192.168.122.100"
         hostnames:
-        - "harbor.local"
+        - "harbor.qroksera.com"
 
       containers:
       - name: runner
@@ -202,7 +202,7 @@ spec:
         command: ["/home/runner/run.sh"]
         env:
         - name: HARBOR_URL
-          value: "harbor.local"
+          value: "harbor.qroksera.com"
         - name: HARBOR_PROJECT
           value: "sandbox"
         - name: RUNNER_PURPOSE

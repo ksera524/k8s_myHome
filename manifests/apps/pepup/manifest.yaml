@@ -14,7 +14,7 @@ spec:
         spec:
           containers:
             - name: pepup
-              image: harbor.local/sandbox/pepup:latest
+              image: harbor.qroksera.com/sandbox/pepup:latest
               imagePullPolicy: Always
               env:
                 - name: USERNAME

@@ -1,4 +1,4 @@
-# containerdの設定を更新してharbor.localをTLS registryとして設定
+# containerdの設定を更新してharbor.qroksera.comをTLS registryとして設定
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,16 +15,13 @@ data:
 
     [plugins."io.containerd.grpc.v1.cri".registry]
       [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-        [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-          endpoint = ["https://harbor.local"]
-      [plugins."io.containerd.grpc.v1.cri".registry.configs]
-        [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-          ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
+        [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.qroksera.com"]
+          endpoint = ["https://harbor.qroksera.com"]
     EOF
 
     # containerdを再起動
     systemctl restart containerd
-    echo "containerd configuration updated for harbor.local"
+    echo "containerd configuration updated for harbor.qroksera.com"
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -50,8 +47,8 @@ spec:
         - -c
         - |
           # Check if configuration already exists
-          if ! grep -q "harbor.local" /host-etc/containerd/config.toml 2>/dev/null; then
-            echo "Adding harbor.local to containerd config..."
+          if ! grep -q "harbor.qroksera.com" /host-etc/containerd/config.toml 2>/dev/null; then
+            echo "Adding harbor.qroksera.com to containerd config..."
 
             # Create containerd config directory if it doesn't exist
             mkdir -p /host-etc/containerd
@@ -69,20 +66,15 @@ spec:
                     runtime_type = "io.containerd.runc.v2"
               [plugins."io.containerd.grpc.v1.cri".registry]
                 [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-                  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-                    endpoint = ["https://harbor.local"]
-                [plugins."io.containerd.grpc.v1.cri".registry.configs]
-                  [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-                    ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
+                  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.qroksera.com"]
+                    endpoint = ["https://harbor.qroksera.com"]
           EOF
             else
               # Append to existing config
               cat >> /host-etc/containerd/config.toml <<'EOF'
 
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.local"]
-            endpoint = ["https://harbor.local"]
-          [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.local".tls]
-            ca_file = "/etc/containerd/certs.d/harbor.local/ca.crt"
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.qroksera.com"]
+            endpoint = ["https://harbor.qroksera.com"]
           EOF
             fi
 
@@ -93,7 +85,7 @@ spec:
 
             echo "Configuration updated"
           else
-            echo "harbor.local already configured"
+            echo "harbor.qroksera.com already configured"
           fi
         volumeMounts:
         - name: host-etc
