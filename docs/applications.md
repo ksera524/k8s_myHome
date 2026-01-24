@@ -13,7 +13,7 @@ k8s_myHomeで管理されているアプリケーションの詳細と、新し�
 | 項目 | 内容 |
 |------|------|
 | **Namespace** | sandbox |
-| **イメージ** | harbor.local/sandbox/slack.rs:latest |
+| **イメージ** | harbor.qroksera.com/sandbox/slack.rs:latest |
 | **サービス** | NodePort (32001) |
 | **Secret** | slack（SLACK_BOT_TOKEN） |
 | **ソースコード** | manifests/apps/slack/ |
@@ -119,7 +119,7 @@ spec:
       - name: harbor-registry-secret
       containers:
       - name: myapp
-        image: harbor.local/sandbox/myapp:latest
+        image: harbor.qroksera.com/sandbox/myapp:latest
         ports:
         - containerPort: 8080
         env:
@@ -247,10 +247,10 @@ EOF
 docker build -t myapp:latest .
 
 # タグ付け
-docker tag myapp:latest harbor.local/sandbox/myapp:latest
+docker tag myapp:latest harbor.qroksera.com/sandbox/myapp:latest
 
 # Harbor へプッシュ
-docker push harbor.local/sandbox/myapp:latest
+docker push harbor.qroksera.com/sandbox/myapp:latest
 ```
 
 ### 6. デプロイとテスト
@@ -290,7 +290,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: task
-            image: harbor.local/sandbox/task:latest
+            image: harbor.qroksera.com/sandbox/task:latest
             command: ["/bin/sh", "-c"]
             args: ["echo 'Task executed'"]
 ```
@@ -339,7 +339,7 @@ kubectl autoscale deployment <deployment-name> -n <namespace> \
 ```bash
 # イメージ更新
 kubectl set image deployment/<deployment-name> \
-  <container-name>=harbor.local/sandbox/<image>:new-tag \
+  <container-name>=harbor.qroksera.com/sandbox/<image>:new-tag \
   -n <namespace>
 
 # ローリングアップデート状態
@@ -364,15 +364,15 @@ kubectl rollout undo deployment/<deployment-name> -n <namespace>
 
 ```bash
 # イメージ一覧
-curl -X GET "http://192.168.122.100/api/v2.0/projects/sandbox/repositories" \
+curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories" \
   -u admin:Harbor12345
 
 # イメージタグ一覧
-curl -X GET "http://192.168.122.100/api/v2.0/projects/sandbox/repositories/myapp/artifacts" \
+curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp/artifacts" \
   -u admin:Harbor12345
 
 # イメージ削除
-curl -X DELETE "http://192.168.122.100/api/v2.0/projects/sandbox/repositories/myapp" \
+curl -X DELETE "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp" \
   -u admin:Harbor12345
 ```
 
@@ -381,7 +381,7 @@ curl -X DELETE "http://192.168.122.100/api/v2.0/projects/sandbox/repositories/my
 ```bash
 # Secret作成
 kubectl create secret docker-registry harbor-registry-secret \
-  --docker-server=harbor.local \
+  --docker-server=harbor.qroksera.com \
   --docker-username=admin \
   --docker-password=Harbor12345 \
   --docker-email=admin@example.com \
