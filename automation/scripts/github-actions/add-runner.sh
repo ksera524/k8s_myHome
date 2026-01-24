@@ -201,42 +201,31 @@ jobs:
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor credentials retrieved successfully"
         
-    - name: Build and push images using skopeo
+    - name: Build and push images using Docker
       run: |
-        echo "=== Build and push images using skopeo ==="
+        echo "=== Build and push images using Docker ==="
         
         HARBOR_USERNAME=\$(cat /tmp/harbor_username)
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         HARBOR_URL=\$(cat /tmp/harbor_url)
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
         
-        # Install skopeo
-        echo "Installing skopeo..."
-        sudo apt-get update && sudo apt-get install -y skopeo
-        
         # Build Docker images
         echo "Building Docker images..."
-        docker build -t $REPOSITORY_NAME:latest .
-        docker build -t $REPOSITORY_NAME:\${{ github.sha }} .
-        
-        # Push using skopeo - エラー修正: ポート番号を明示的に指定
-        echo "Pushing to Harbor using skopeo..."
-        docker save $REPOSITORY_NAME:latest > /tmp/$REPOSITORY_NAME-latest.tar
-        docker save $REPOSITORY_NAME:\${{ github.sha }} > /tmp/$REPOSITORY_NAME-sha.tar
-        
+        docker build -t $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:latest .
+        docker build -t $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
+
         # /etc/hostsにharbor.localを追加
         echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
-        
-        # Harborのポートを明示的に指定
-        skopeo copy --insecure-policy --dest-tls-verify=false \\
-          --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
-          docker-archive:/tmp/$REPOSITORY_NAME-latest.tar \\
-          docker://harbor.local:80/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
-        
-        skopeo copy --insecure-policy --dest-tls-verify=false \\
-          --dest-creds="\$HARBOR_USERNAME:\$HARBOR_PASSWORD" \\
-          docker-archive:/tmp/$REPOSITORY_NAME-sha.tar \\
-          docker://harbor.local:80/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
+
+        # Harborにログイン
+        echo "Logging in to Harbor..."
+        docker login $HARBOR_URL -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
+
+        # Harborへpush
+        echo "Pushing to Harbor..."
+        docker push $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+        docker push $HARBOR_URL/$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
         
         echo "✅ Images pushed successfully to Harbor"
         
@@ -264,6 +253,6 @@ log_status "   git add $WORKFLOW_FILE"
 log_status "   git commit -m \"Add GitHub Actions workflow for $REPOSITORY_NAME\""
 log_status "   git push"
 log_status "2. GitHub ActionsでCI/CDテスト実行"
-log_status "3. Harborでイメージ確認: http://192.168.122.100"
+log_status "3. Harborでイメージ確認: https://harbor.local"
 log_status ""
 log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"
