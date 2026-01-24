@@ -99,6 +99,38 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
+# CoreDNS Configuration - harbor.qroksera.com内部解決
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns-config
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/networking/coredns
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
 # MetalLB - LoadBalancer機能提供（最初にデプロイ）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
