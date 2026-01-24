@@ -81,8 +81,8 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 # URL: http://localhost:8081
 
 # イメージのプッシュ
-docker tag myapp:latest harbor.local/sandbox/myapp:latest
-docker push harbor.local/sandbox/myapp:latest
+docker tag myapp:latest harbor.qroksera.com/sandbox/myapp:latest
+docker push harbor.qroksera.com/sandbox/myapp:latest
 
 # イメージの確認
 curl -X GET "http://192.168.122.100/api/v2.0/projects/sandbox/repositories" \

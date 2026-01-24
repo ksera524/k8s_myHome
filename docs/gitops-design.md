@@ -260,12 +260,12 @@ jobs:
       
       - name: Build and Push to Harbor
         run: |
-          docker build -t harbor.local/sandbox/${{ github.repository }}:${{ github.sha }} .
-          docker push harbor.local/sandbox/${{ github.repository }}:${{ github.sha }}
+          docker build -t harbor.qroksera.com/sandbox/${{ github.repository }}:${{ github.sha }} .
+          docker push harbor.qroksera.com/sandbox/${{ github.repository }}:${{ github.sha }}
       
       - name: Update Manifest
         run: |
-          sed -i "s|image:.*|image: harbor.local/sandbox/${{ github.repository }}:${{ github.sha }}|" manifests/apps/myapp/deployment.yaml
+          sed -i "s|image:.*|image: harbor.qroksera.com/sandbox/${{ github.repository }}:${{ github.sha }}|" manifests/apps/myapp/deployment.yaml
           
       - name: Commit and Push
         run: |
@@ -283,7 +283,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   annotations:
-    argocd-image-updater.argoproj.io/image-list: myapp=harbor.local/sandbox/myapp
+    argocd-image-updater.argoproj.io/image-list: myapp=harbor.qroksera.com/sandbox/myapp
     argocd-image-updater.argoproj.io/myapp.update-strategy: latest
     argocd-image-updater.argoproj.io/myapp.pull-secret: pullsecret:arc-systems/harbor-registry-secret
 ```

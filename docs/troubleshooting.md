@@ -243,19 +243,19 @@ unauthorized: unauthorized to access repository
 
 ```bash
 # ログイン
-docker login harbor.local
+docker login harbor.qroksera.com
 # Username: admin
 # Password: Harbor12345
 
 # hosts ファイル確認
-grep harbor.local /etc/hosts
+grep harbor.qroksera.com /etc/hosts
 # なければ追加
-echo "192.168.122.100 harbor.local" | sudo tee -a /etc/hosts
+echo "192.168.122.100 harbor.qroksera.com" | sudo tee -a /etc/hosts
 
 # レジストリSecret再作成
 kubectl delete secret harbor-registry-secret -n <namespace>
 kubectl create secret docker-registry harbor-registry-secret \
-  --docker-server=harbor.local \
+  --docker-server=harbor.qroksera.com \
   --docker-username=admin \
   --docker-password=Harbor12345 \
   -n <namespace>
