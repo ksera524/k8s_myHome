@@ -85,7 +85,7 @@ docker tag myapp:latest harbor.qroksera.com/sandbox/myapp:latest
 docker push harbor.qroksera.com/sandbox/myapp:latest
 
 # イメージの確認
-curl -X GET "http://192.168.122.100/api/v2.0/projects/sandbox/repositories" \
+curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories" \
   -H "accept: application/json" \
   -u admin:Harbor12345
 ```
@@ -104,6 +104,9 @@ kubectl get pods -n arc-systems | grep runner
 # 特定RunnerScaleSetの詳細
 helm get values <runner-name> -n arc-systems
 ```
+
+RunnerはGitOps管理ではなく、`add-runner.sh` による作成運用とします。
+`manifests/platform/ci-cd/github-actions/` には controller と RBAC のみを保持します。
 
 #### Runner追加・削除
 
@@ -145,6 +148,8 @@ kubectl get externalsecrets -A
 # Secret同期状態
 kubectl get externalsecret <name> -n <namespace> -o jsonpath='{.status.conditions}'
 ```
+
+bootstrap用ExternalSecretは初回導入のみ使用し、通常運用では適用しません。
 
 #### Secret更新
 
