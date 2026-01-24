@@ -28,11 +28,7 @@ spec:
         secret:
           existingSecret: rustfs-auth
         service:
-          type: NodePort
-          endpoint:
-            nodePort: 30081
-          console:
-            nodePort: 30080
+          type: ClusterIP
         ingress:
           enabled: false
         storageclass:
