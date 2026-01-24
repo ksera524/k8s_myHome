@@ -435,7 +435,8 @@ spec:
           tls:
             enabled: true
             certSource: secret
-            secretName: harbor-internal-tls
+            secret:
+              secretName: harbor-internal-tls
           ingress:
             hosts:
               core: harbor.local
