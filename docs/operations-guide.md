@@ -76,16 +76,18 @@ kubectl get application <app-name> -n argocd -o jsonpath='{.status.sync.status}'
 #### Harbor レジストリ管理
 
 ```bash
-# Harbor UIへのアクセス
+# Harbor UIへのアクセス（内部）
+# 事前に内部CAを端末に信頼させる
 kubectl port-forward svc/harbor-core -n harbor 8081:80
-# URL: http://localhost:8081
+# URL: https://harbor.internal.qroksera.com
+# 直接アクセスできない場合は http://localhost:8081 を使用
 
-# イメージのプッシュ
-docker tag myapp:latest harbor.qroksera.com/sandbox/myapp:latest
-docker push harbor.qroksera.com/sandbox/myapp:latest
+# イメージのプッシュ（内部）
+docker tag myapp:latest harbor.internal.qroksera.com/sandbox/myapp:latest
+docker push harbor.internal.qroksera.com/sandbox/myapp:latest
 
-# イメージの確認
-curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories" \
+# イメージの確認（内部）
+curl -X GET "https://harbor.internal.qroksera.com/api/v2.0/projects/sandbox/repositories" \
   -H "accept: application/json" \
   -u admin:Harbor12345
 ```
@@ -106,6 +108,7 @@ helm get values <runner-name> -n arc-systems
 ```
 
 RunnerはGitOps管理ではなく、`add-runner.sh` による作成運用とします。
+内部CAは `add-runner.sh` で Runner(dind) に自動配布されます。
 `manifests/platform/ci-cd/github-actions/` には controller と RBAC のみを保持します。
 
 #### Runner追加・削除
