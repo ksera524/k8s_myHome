@@ -79,6 +79,18 @@ manifests/
     └── slack/
 ```
 
+## GitOps運用の境界と配置規約
+
+- GitOps 管理対象は `manifests/` 配下のみ（ArgoCD が同期）
+- `automation/` はローカル実行用で GitOps 対象外（VM/クラスタ構築や運用補助）
+- `manifests/resources/` は移行中のため、新規追加は行わない
+- 新規アプリは `manifests/apps/<app-name>/` に配置し、App-of-Apps から参照する
+- 共通基盤は `manifests/core/`、`manifests/infrastructure/`、`manifests/platform/` に分類
+- 手動での kubectl 適用は一時対応に留め、最終的には Git に反映する
+
+例外:
+- GitHub Actions Runner は `add-runner.sh` による作成運用（GitOps 管理外）
+
 ## ArgoCD設定
 
 ### Application定義

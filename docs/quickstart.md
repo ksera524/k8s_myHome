@@ -11,6 +11,22 @@
 - 200GB+ ストレージ
 - インターネット接続
 
+## 事前ツール確認
+
+CI と同等の検証をローカルで実行するため、以下のツールが必要です。
+
+```bash
+command -v shellcheck
+command -v yamllint
+command -v kustomize
+```
+
+導入済みかの確認と検証は次で実行できます。
+
+```bash
+automation/scripts/ci/validate.sh
+```
+
 ## ステップ1: リポジトリ取得
 
 ```bash
