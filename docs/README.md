@@ -20,6 +20,17 @@
 ### 📋 リファレンス
 - [Kubernetesアップグレード](kubernetes-upgrade-guide.md) - 自動/手動のバージョン更新手順
 
+## 🧭 ドキュメントの役割
+
+このリポジトリでは、用途ごとにドキュメントを分けて運用します。探す場所の迷いを減らすための目安です。
+
+- セットアップ: [クイックスタート](quickstart.md) / [詳細セットアップガイド](setup-guide.md)
+- 運用（日常作業・保守）: [運用ガイド](operations-guide.md)
+- 障害対応（原因切り分け）: [トラブルシューティング](troubleshooting.md)
+- 復旧（バックアップ/リストア）: [運用ガイド](operations-guide.md)
+- バージョンアップ/ロールバック方針: [Kubernetesアップグレード](kubernetes-upgrade-guide.md)
+- 設計/構成: [Kubernetesアーキテクチャ](kubernetes-architecture.md) / [GitOps設計](gitops-design.md)
+
 ## 🎯 プロジェクト概要
 
 **k8s_myHome**は、本格的なホームKubernetesインフラストラクチャプロジェクトです。k3sから仮想化インフラストラクチャ上の完全な3ノードクラスターへの移行を実現し、GitOpsベースの完全自動化されたデプロイメントを提供します。

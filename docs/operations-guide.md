@@ -4,6 +4,11 @@
 
 本ガイドでは、k8s_myHome Kubernetesクラスターの日常的な運用・保守作業について説明します。
 
+## このガイドの範囲
+
+- 対象: 日常運用、監視、バックアップ/リストア、定期メンテナンス
+- 非対象: 初期構築は `docs/setup-guide.md`、障害切り分けは `docs/troubleshooting.md`、バージョンアップは `docs/kubernetes-upgrade-guide.md`
+
 ## 日常運用タスク
 
 ### システム状態確認
