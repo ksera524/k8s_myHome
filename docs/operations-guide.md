@@ -379,6 +379,7 @@ kubectl exec -it <pod-name> -- nslookup kubernetes.default
 - 権限は最小化し、ClusterRole の追加は運用レビューを通す
 - Secret は Git に置かず、External Secrets 経由で管理
 - 例外で手動作成した Secret は必ず GitOps へ回収する
+- PSA ラベルは `manifests/core/namespaces.yaml` で管理する
 
 #### Pod セキュリティ
 
