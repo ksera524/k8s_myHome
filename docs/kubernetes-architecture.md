@@ -16,7 +16,7 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
 
 ### Kubernetesバージョン
 
-- **Kubernetes**: v1.29.0
+- **Kubernetes**: `automation/settings.toml` の `kubernetes.version`
 - **Container Runtime**: containerd
 - **CNI**: Flannel (最新版)
 - **クラスター初期化**: kubeadm
@@ -103,7 +103,7 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
 - **ストレージ**:
   - Registry: 100Gi
   - Database: 10Gi
-- **認証**: admin/Harbor12345（デフォルト）
+- **認証**: admin/<harbor-admin-password>（初期値は変更）
 
 ### 5. CI/CD
 

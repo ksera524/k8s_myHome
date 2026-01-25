@@ -60,7 +60,7 @@
 │  │.122.10   │  │ .122.11  │  │ .122.12  │    │
 │  └──────────┘  └──────────┘  └──────────┘    │
 ├─────────────────────────────────────────────────┤
-│           Kubernetes v1.29.0 + Flannel          │
+│     Kubernetes (automation/settings.toml) + Flannel │
 ├─────────────────────────────────────────────────┤
 │  MetalLB | NGINX | cert-manager | ArgoCD       │
 │  Harbor | External Secrets | GitHub Actions     │

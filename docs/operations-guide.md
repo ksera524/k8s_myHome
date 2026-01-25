@@ -94,7 +94,7 @@ docker push harbor.internal.qroksera.com/sandbox/myapp:latest
 # イメージの確認（内部）
 curl -X GET "https://harbor.internal.qroksera.com/api/v2.0/projects/sandbox/repositories" \
   -H "accept: application/json" \
-  -u admin:Harbor12345
+-u admin:<harbor-admin-password>
 ```
 
 ### GitHub Actions Runner管理

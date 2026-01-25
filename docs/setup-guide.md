@@ -185,7 +185,7 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 # 別ターミナルでアクセス
 # URL: http://localhost:8081
 # Username: admin
-# Password: Harbor12345（デフォルト）
+# Password: <harbor-admin-password>（初期値は変更）
 ```
 
 #### Kubernetes Dashboard（オプション）

@@ -24,9 +24,9 @@ ssh k8suser@192.168.122.10 'kubectl get nodes'
 
 # 3台のNodeがReady状態であることを確認
 NAME                STATUS   ROLES           AGE   VERSION
-k8s-control-plane   Ready    control-plane   1h    v1.29.0
-k8s-worker1         Ready    <none>          1h    v1.29.0
-k8s-worker2         Ready    <none>          1h    v1.29.0
+k8s-control-plane   Ready    control-plane   1h    v1.xx.x
+k8s-worker1         Ready    <none>          1h    v1.xx.x
+k8s-worker2         Ready    <none>          1h    v1.xx.x
 ```
 
 ## 🚀 実行方法

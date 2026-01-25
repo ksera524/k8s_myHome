@@ -75,10 +75,10 @@ tail -n 200 automation/run.log
 # automation/infrastructure/main.tf を編集
 # 以下の箇所を新しいバージョンに変更
 
-# 例: v1.29.0 → v1.30.0 へのアップグレード
+# 例: v1.xx.x → v1.(xx+1).x へのアップグレード
 # 変更前:
 # "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
-# "sudo apt install -y kubelet=1.29.0-1.1 kubeadm=1.29.0-1.1 kubectl=1.29.0-1.1",
+# "sudo apt install -y kubelet=<version> kubeadm=<version> kubectl=<version>",
 
 # 変更後:
 # "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",

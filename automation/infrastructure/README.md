@@ -65,7 +65,7 @@ automation/terraform/
 
 ### 自動設定内容
 各VMに以下が自動で設定されます：
-- **OS**: Ubuntu 22.04 LTS Server
+- **OS**: Ubuntu 24.04 LTS Server
 - **ユーザー**: k8suser (password: `password`)
 - **SSH**: 鍵認証 + パスワード認証
 - **パッケージ**: curl, wget, git, vim, net-tools, nfs-common

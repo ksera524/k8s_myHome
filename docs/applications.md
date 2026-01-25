@@ -365,15 +365,15 @@ kubectl rollout undo deployment/<deployment-name> -n <namespace>
 ```bash
 # イメージ一覧
 curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories" \
-  -u admin:Harbor12345
+-u admin:<harbor-admin-password>
 
 # イメージタグ一覧
 curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp/artifacts" \
-  -u admin:Harbor12345
+-u admin:<harbor-admin-password>
 
 # イメージ削除
 curl -X DELETE "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp" \
-  -u admin:Harbor12345
+-u admin:<harbor-admin-password>
 ```
 
 ### レジストリSecret管理
@@ -383,7 +383,7 @@ curl -X DELETE "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositori
 kubectl create secret docker-registry harbor-registry-secret \
   --docker-server=harbor.qroksera.com \
   --docker-username=admin \
-  --docker-password=Harbor12345 \
+  --docker-password=<harbor-admin-password> \
   --docker-email=admin@example.com \
   -n <namespace>
 

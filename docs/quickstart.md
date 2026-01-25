@@ -96,7 +96,7 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 # URL: https://harbor.internal.qroksera.com
 # 直接アクセスできない場合は http://localhost:8081 を使用
 # User: admin
-# Pass: Harbor12345
+# Pass: <harbor-admin-password>（初期値は変更）
 ```
 
 ## 📝 よく使うコマンド

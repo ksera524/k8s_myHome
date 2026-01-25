@@ -29,7 +29,7 @@ provider "libvirt" {
   uri = "qemu:///system"
 }
 
-# Ubuntu 22.04 LTS Server イメージ
+# Ubuntu 24.04 LTS Server イメージ
 resource "libvirt_volume" "ubuntu_base" {
   name   = "ubuntu-base-${random_id.cluster.hex}.img"
   source = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
@@ -42,7 +42,7 @@ resource "libvirt_volume" "control_plane_disk" {
   name           = "k8s-control-plane-${random_id.cluster.hex}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_base.id
   pool           = "default"
-  size           = 53687091200  # 50GB
+  size           = 53687091200 # 50GB
 }
 
 # Worker Node ディスク
@@ -51,22 +51,22 @@ resource "libvirt_volume" "worker_disk" {
   name           = "k8s-worker${count.index + 1}-${random_id.cluster.hex}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_base.id
   pool           = "default"
-  size           = 32212254720  # 30GB
+  size           = 32212254720 # 30GB
 }
 
 # 簡素化されたcloud-init設定
 data "template_file" "user_data" {
-  count = 3
+  count    = 3
   template = file("${path.module}/cloud-init/user-data.yaml")
   vars = {
     vm_hostname = count.index == 0 ? "k8s-control-plane" : "k8s-worker${count.index}"
-    username = var.vm_user
-    ssh_key  = var.ssh_public_key
+    username    = var.vm_user
+    ssh_key     = var.ssh_public_key
   }
 }
 
 data "template_file" "network_config" {
-  count = 3
+  count    = 3
   template = file("${path.module}/cloud-init/network-config.yaml")
   vars = {
     ip_address = count.index == 0 ? var.control_plane_ip : var.worker_ips[count.index - 1]
@@ -162,28 +162,28 @@ resource "null_resource" "wait_for_vms" {
   ]
 
   provisioner "local-exec" {
-    command = "sleep 60"  # VMの起動とcloud-init完了を待つ
+    command = "sleep 60" # VMの起動とcloud-init完了を待つ
   }
 }
 
 # Kubernetes環境セットアップ（Control Plane）
 resource "null_resource" "k8s_control_plane_setup" {
   depends_on = [null_resource.wait_for_vms]
-  
+
   connection {
     type        = "ssh"
     host        = var.control_plane_ip
     user        = var.vm_user
     private_key = file(var.ssh_private_key_path)
   }
-  
+
   # cloud-init完了を待機
   provisioner "remote-exec" {
     inline = [
       "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
     ]
   }
-  
+
   # Kubernetesパッケージインストール
   provisioner "remote-exec" {
     inline = [
@@ -196,7 +196,7 @@ resource "null_resource" "k8s_control_plane_setup" {
       "sudo apt-mark hold kubelet kubeadm kubectl"
     ]
   }
-  
+
   # カーネルモジュールとネットワーク設定
   provisioner "remote-exec" {
     inline = [
@@ -210,7 +210,7 @@ resource "null_resource" "k8s_control_plane_setup" {
       "sudo sysctl --system"
     ]
   }
-  
+
   # containerd設定
   provisioner "remote-exec" {
     inline = [
@@ -221,7 +221,7 @@ resource "null_resource" "k8s_control_plane_setup" {
       "sudo systemctl enable containerd"
     ]
   }
-  
+
   # kubeadm設定ファイル作成
   provisioner "remote-exec" {
     inline = [
@@ -248,7 +248,7 @@ EOL
       EOF
     ]
   }
-  
+
   # kubeadmクラスター初期化
   provisioner "remote-exec" {
     inline = [
@@ -259,7 +259,7 @@ EOL
       "kubeadm token create --print-join-command > /tmp/worker-join-command.txt"
     ]
   }
-  
+
   # Harbor用ストレージディレクトリ作成
   provisioner "remote-exec" {
     inline = [
@@ -271,23 +271,23 @@ EOL
 
 # Worker Nodeセットアップ
 resource "null_resource" "k8s_worker_setup" {
-  count = length(var.worker_ips)
+  count      = length(var.worker_ips)
   depends_on = [null_resource.k8s_control_plane_setup]
-  
+
   connection {
     type        = "ssh"
     host        = var.worker_ips[count.index]
     user        = var.vm_user
     private_key = file(var.ssh_private_key_path)
   }
-  
+
   # cloud-init完了を待機
   provisioner "remote-exec" {
     inline = [
       "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
     ]
   }
-  
+
   # Kubernetesパッケージインストール
   provisioner "remote-exec" {
     inline = [
@@ -300,7 +300,7 @@ resource "null_resource" "k8s_worker_setup" {
       "sudo apt-mark hold kubelet kubeadm kubectl"
     ]
   }
-  
+
   # カーネルモジュールとネットワーク設定
   provisioner "remote-exec" {
     inline = [
@@ -314,7 +314,7 @@ resource "null_resource" "k8s_worker_setup" {
       "sudo sysctl --system"
     ]
   }
-  
+
   # containerd設定
   provisioner "remote-exec" {
     inline = [
@@ -325,7 +325,7 @@ resource "null_resource" "k8s_worker_setup" {
       "sudo systemctl enable containerd"
     ]
   }
-  
+
   # Harbor用ストレージディレクトリ作成
   provisioner "remote-exec" {
     inline = [
@@ -337,14 +337,14 @@ resource "null_resource" "k8s_worker_setup" {
 
 # joinコマンドを取得してWorker Nodeに配布
 resource "null_resource" "worker_join" {
-  count = length(var.worker_ips)
+  count      = length(var.worker_ips)
   depends_on = [null_resource.k8s_worker_setup]
-  
+
   # joinコマンドをControl Planeから取得してローカルに保存
   provisioner "local-exec" {
     command = "ssh -o StrictHostKeyChecking=no -i ${var.ssh_private_key_path} ${var.vm_user}@${var.control_plane_ip} 'cat /tmp/worker-join-command.txt' > /tmp/worker-join-command.sh && chmod +x /tmp/worker-join-command.sh"
   }
-  
+
   # joinコマンドをWorker Nodeにコピー
   provisioner "file" {
     connection {
@@ -353,11 +353,11 @@ resource "null_resource" "worker_join" {
       user        = var.vm_user
       private_key = file(var.ssh_private_key_path)
     }
-    
+
     source      = "/tmp/worker-join-command.sh"
     destination = "/tmp/worker-join-command.sh"
   }
-  
+
   # Worker Nodeでjoin実行
   provisioner "remote-exec" {
     connection {
@@ -366,7 +366,7 @@ resource "null_resource" "worker_join" {
       user        = var.vm_user
       private_key = file(var.ssh_private_key_path)
     }
-    
+
     inline = [
       "chmod +x /tmp/worker-join-command.sh",
       "sudo bash /tmp/worker-join-command.sh"
@@ -377,14 +377,14 @@ resource "null_resource" "worker_join" {
 # Helm 3 インストール
 resource "null_resource" "helm_install" {
   depends_on = [null_resource.worker_join]
-  
+
   connection {
     type        = "ssh"
     host        = var.control_plane_ip
     user        = var.vm_user
     private_key = file(var.ssh_private_key_path)
   }
-  
+
   provisioner "remote-exec" {
     inline = [
       "# Helm 3 インストール",
@@ -398,14 +398,14 @@ resource "null_resource" "helm_install" {
 # FlannelCNI インストール
 resource "null_resource" "flannel_install" {
   depends_on = [null_resource.helm_install]
-  
+
   connection {
     type        = "ssh"
     host        = var.control_plane_ip
     user        = var.vm_user
     private_key = file(var.ssh_private_key_path)
   }
-  
+
   provisioner "remote-exec" {
     inline = [
       "timeout 300 bash -c 'until kubectl get nodes; do sleep 10; done'",

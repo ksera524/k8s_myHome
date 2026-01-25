@@ -250,7 +250,7 @@ unauthorized: unauthorized to access repository
 # ログイン（内部）
 docker login harbor.internal.qroksera.com
 # Username: admin
-# Password: Harbor12345
+# Password: <harbor-admin-password>（初期値は変更）
 
 # hosts ファイル確認
 grep harbor.internal.qroksera.com /etc/hosts
@@ -269,7 +269,7 @@ kubectl delete secret harbor-registry-secret -n <namespace>
 kubectl create secret docker-registry harbor-registry-secret \
   --docker-server=harbor.internal.qroksera.com \
   --docker-username=admin \
-  --docker-password=Harbor12345 \
+  --docker-password=<harbor-admin-password> \
   -n <namespace>
 ```
 

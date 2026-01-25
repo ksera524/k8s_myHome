@@ -103,7 +103,7 @@ cd automation/platform/external-secrets
 
 ## 📝 その他の注意事項
 
-- External Secrets は既に `manifests/app-of-apps.yaml` に登録済みです
+- External Secrets は既に `manifests/bootstrap/app-of-apps.yaml` に登録済みです
 - ArgoCD による自動デプロイが前提の設計になっています
 - フォールバック機能により、External Secrets なしでも基本機能は動作します
 - セキュリティのため、本番環境では必ずExternal Secretsの使用を推奨します
