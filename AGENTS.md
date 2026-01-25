@@ -91,7 +91,6 @@
 ## GitOps / マニフェスト運用
 - App-of-Apps で ArgoCD 管理
 - 変更は Git にコミットして ArgoCD 同期に反映
-- `manifests/resources/` は移行中のため新規は避ける
 
 ## 既知の検証フロー
 - `automation/scripts/ci/validate.sh`

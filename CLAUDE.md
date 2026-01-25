@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **Host Setup** (`automation/host-setup/`): Host preparation - Ubuntu 24.04 LTS setup
 2. **Infrastructure** (`automation/infrastructure/`): VM infrastructure + Kubernetes cluster - QEMU/KVM with libvirt + kubeadm-based 3-node cluster (統合実装)
 3. **Platform** (`automation/platform/`): Core platform services - MetalLB, NGINX, cert-manager, ArgoCD, Harbor
-4. **Applications** (`manifests/apps/`, `manifests/resources/applications/`): Application deployment via GitOps
+4. **Applications** (`manifests/apps/`): Application deployment via GitOps
 
 ### Key Infrastructure Components
 - **Cluster**: 1 Control Plane (192.168.122.10) + 2 Workers (192.168.122.11-12)
@@ -116,7 +116,6 @@ kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argoc
     - **`ci-cd/github-actions/`**: GitHub Actions runner configs
     - **`secrets/external-secrets/`**: External Secrets Operator
   - **`monitoring/`**: Monitoring stack configurations
-  - **`resources/`**: Legacy resource directory (migration in progress)
 - **`docs/`**: Project documentation
 
 ## Important Files
