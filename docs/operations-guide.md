@@ -216,6 +216,12 @@ kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
 
 ### 監視・ログ
 
+#### 運用ポリシー
+
+- 監視対象は「コントロールプレーン」「主要アプリ」「ストレージ」「Ingress」に分ける
+- 重要アラートの一次切り分けは 15 分以内に実施する
+- 重要イベントは `automation/run.log` と合わせて記録する
+
 #### ログ確認
 
 ```bash
@@ -368,6 +374,19 @@ kubectl exec -it <pod-name> -- nslookup kubernetes.default
 
 ### セキュリティ運用
 
+#### 運用ポリシー
+
+- 権限は最小化し、ClusterRole の追加は運用レビューを通す
+- Secret は Git に置かず、External Secrets 経由で管理
+- 例外で手動作成した Secret は必ず GitOps へ回収する
+
+#### Pod セキュリティ
+
+```bash
+# Namespace の Pod Security 設定確認
+kubectl get ns -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.pod-security\\.kubernetes\\.io/enforce}{"\n"}{end}'
+```
+
 #### セキュリティスキャン
 
 ```bash
@@ -391,6 +410,13 @@ kubectl get clusterroles
 
 # 権限確認
 kubectl auth can-i <verb> <resource> --as=<user>
+```
+
+#### ネットワーク制御
+
+```bash
+# NetworkPolicyの有無確認
+kubectl get networkpolicy -A
 ```
 
 ### 定期メンテナンスチェックリスト
