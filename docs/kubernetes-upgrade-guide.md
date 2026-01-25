@@ -243,9 +243,14 @@ kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Doc
 3. **etcdのバックアップを必ず取得**
 4. **アップグレード中のサービス停止を考慮**
 
-## 更新履歴
+## ロールバック方針
 
-- 2025-01-19: 初版作成（v1.29.0対応）
+アップグレード後に問題が解消しない場合は、以下の順に切り戻しを検討します。
+
+1. GitOps マニフェストの変更を revert して ArgoCD を再同期
+2. 影響範囲が広い場合は `make all` による再構築を検討
+
+実施前に `docs/operations-guide.md` のバックアップ手順で必要なデータを取得してください。
 
 ## 関連ドキュメント
 

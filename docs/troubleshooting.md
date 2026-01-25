@@ -4,6 +4,11 @@
 
 k8s_myHomeで発生する可能性のある問題と、その解決方法について説明します。
 
+## このガイドの範囲
+
+- 対象: 障害時の一次切り分け、ログ/イベント確認、代表的な復旧手順
+- 非対象: 日常運用は `docs/operations-guide.md`、初期構築は `docs/setup-guide.md`、バージョンアップは `docs/kubernetes-upgrade-guide.md`
+
 ## 一般的な診断コマンド
 
 ```bash
