@@ -1,6 +1,6 @@
 # 外部公開（Cloudflared + Ingress + DNS-01）の運用手順
 
-このドキュメントは、今回の移行作業のまとめと、今後新しい接続先を追加する際の手順書です。
+このドキュメントは、外部公開の標準構成と、新しい接続先を追加する際の手順をまとめたものです。
 外部公開は Cloudflared 経由で Ingress に統一し、TLS は Cloudflare DNS-01（Let’s Encrypt）で発行します。
 
 ## 方針の要点
@@ -11,7 +11,7 @@
 - NodePort は使用しない（Service は ClusterIP）
 - RustFS は console のみ外部公開（API は外部公開しない）
 
-## 今回の作業まとめ
+## 現在の構成ポイント
 
 - Cloudflare DNS-01 用の ExternalSecret を追加
 - ClusterIssuer `letsencrypt-cloudflare` を追加

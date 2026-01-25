@@ -119,7 +119,7 @@ verbose = false
 ./scripts/test-logging.sh
 ```
 
-## 📝 移行ガイド
+## 📝 利用ガイド
 
 ### 新規スクリプト
 
@@ -138,7 +138,7 @@ log_info "新しいログ機能を使用"
    print_status "既存の関数を使用"
    ```
 
-2. **方法2**: 新機能に移行
+2. **方法2**: 新機能へ切り替え
    ```bash
    source common-logging.sh
    log_status "新しい関数を使用"

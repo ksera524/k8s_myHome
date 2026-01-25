@@ -4,7 +4,7 @@ libvirtを使用してControl Plane 1台とWorker Node 2台のVMを自動構築�
 
 ## 概要
 
-このディレクトリには、k8s移行用のVM環境を自動構築するためのTerraformコードとスクリプトが含まれています。
+このディレクトリには、k8sクラスタ用のVM環境を自動構築するためのTerraformコードとスクリプトが含まれています。
 
 ### 重要な改善点
 
@@ -210,18 +210,6 @@ sudo virsh list --all --name | grep k8s | xargs -I {} sudo virsh undefine {} --r
 # 完全クリーンアップ
 ./clean-and-deploy-fixed.sh
 ```
-
-## 開発履歴
-
-### v1.0 → v2.0 主な改善
-- ❌ **旧版問題**: 権限エラー、ネットワーク設定不整合、複雑なexpectスクリプト  
-- ✅ **新版解決**: AppArmor無効化、ens3対応、シンプルな自動化
-
-### 非推奨ファイル
-- `setup-terraform.sh`: 手動確認あり（非推奨）
-- `clean-and-deploy.sh`: 権限問題未解決（非推奨）
-
-**推奨: `clean-and-deploy-fixed.sh` のみ使用**
 
 ## サポート
 

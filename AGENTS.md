@@ -6,12 +6,29 @@
 - 変更は GitOps を前提に行い、manifests は `manifests/` 配下を使用する
 - コメントや説明は日本語を基本とする
 
+## プロジェクト概要
+
+- ホームラボ向けの 3 ノード Kubernetes クラスタを仮想化基盤上で運用
+- App-of-Apps パターンで GitOps 管理
+- フェーズ実行（`make all`）で構築と検証を自動化
+
+## アーキテクチャ概要
+
+- Control Plane: `192.168.122.10`
+- Worker: `192.168.122.11`, `192.168.122.12`
+- LoadBalancer プール: `192.168.122.100-150`
+- 主要コンポーネント: MetalLB, NGINX Ingress, cert-manager, ArgoCD, Harbor, ARC
+
 ## リポジトリ構成の要点
 - `automation/`: 自動化スクリプト群
 - `automation/infrastructure/`: VM + kubeadm によるクラスタ構築
 - `automation/platform/`: 基本プラットフォーム構築
 - `manifests/`: GitOps 用 Kubernetes マニフェスト
 - `docs/`: 運用・設計ドキュメント
+
+## GitOps の入口
+
+- Root Application: `manifests/bootstrap/app-of-apps.yaml`
 
 ## 重要なルール
 - 応答/コメントは日本語で記載
@@ -120,3 +137,4 @@
 - `automation/run.log` に全ログが記録される
 - `make phase5` が検証フェーズの入口
 - 長時間実行前に `settings.toml` が設定済みか確認
+- Runner 設定: minRunners=1（推奨）, maxRunners=3

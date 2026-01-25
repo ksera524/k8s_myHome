@@ -293,9 +293,9 @@ jobs:
 
 ## 次のステップ
 
-Phase 4完了後は、Phase 5（アプリケーション移行）に進みます：
+Phase 4完了後は、Phase 5（アプリケーション追加/展開）に進みます：
 
-1. **既存アプリケーション移行**: factorio, slack, cloudflared等
+1. **アプリケーション追加**: factorio, slack, cloudflared等
 2. **Ingress設定**: HTTP/HTTPSアクセス設定
 3. **TLS証明書**: 本番用証明書設定
 4. **監視・ログ**: Prometheus, Grafana等

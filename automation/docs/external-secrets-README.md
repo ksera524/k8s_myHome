@@ -6,7 +6,7 @@
 automation/platform/external-secrets/
 ├── README.md                           # このファイル
 ├── helm-deploy-eso.sh                  # Helm直接デプロイスクリプト（推奨）
-├── migrate-to-argocd.sh                # Helm→ArgoCD管理移行スクリプト
+├── migrate-to-argocd.sh                # Helm→ArgoCD管理切替スクリプト
 ├── setup-external-secrets.sh           # ArgoCD経由セットアップスクリプト
 ├── setup-pulumi-pat.sh                 # Pulumi Personal Access Token設定スクリプト
 ├── deploy-harbor-secrets.sh            # Harborシークレット自動デプロイスクリプト
@@ -68,7 +68,7 @@ kubectl apply -f secretstores/pulumi-esc-secretstore.yaml
 kubectl get secretstores --all-namespaces
 ```
 
-### 4. Harbor Secret移行
+### 4. Harbor Secret設定
 
 ```bash
 # Pulumi ESCにHarborパスワード設定（事前設定が必要）
@@ -87,7 +87,7 @@ kubectl get secrets -n arc-systems | grep harbor-registry
 kubectl get secrets -n default | grep harbor-http
 ```
 
-### 5. Slack Secret移行
+### 5. Slack Secret設定
 
 ```bash
 # Pulumi ESCにSlack認証情報設定（事前設定が必要）
@@ -196,7 +196,6 @@ kubectl logs -n external-secrets-system deployment/external-secrets --tail=50
 ## 📚 関連ドキュメント
 
 - [External Secrets Operatorインストールガイド](../../../docs/external-secrets-operator-installation-guide.md)
-- [Pulumi ESC移行計画](../../../docs/pulumi-esc-migration-plan.md)
 - [External Secrets Operator公式ドキュメント](https://external-secrets.io/)
 
 ## 🔗 automation統合
@@ -220,11 +219,11 @@ cd ../
 # 自動処理フロー:
 # 1. External Secrets Operator存在チェック
 # 2. 未インストールの場合 -> Helmで直接デプロイ
-# 3. デプロイ完了後 -> ArgoCD管理に移行（App-of-Apps設定済みの場合）
+# 3. デプロイ完了後 -> ArgoCD管理に切替（App-of-Apps設定済みの場合）
 # 4. Harbor認証情報をPulumi ESCから自動取得
 ```
 
-### 従来スクリプトからの移行
+### スクリプトの置き換え
 
 - `create-harbor-secrets.sh` → `deploy-harbor-secrets.sh` に置き換え
 - 手動Secret作成から自動Pulumi ESC連携に変更
@@ -233,6 +232,6 @@ cd ../
 ## 🎯 次のステップ
 
 1. **GitHub Actions統合**: `externalsecrets/github-actions-externalsecret.yaml` の作成
-2. **アプリケーション移行**: `externalsecrets/applications/` 配下のSecret作成
+2. **アプリケーション追加**: `externalsecrets/applications/` 配下のSecret作成
 3. **監視設定**: `monitoring/` 配下の監視・アラート設定
 4. **自動化拡張**: 追加のセットアップスクリプト作成

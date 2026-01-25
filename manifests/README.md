@@ -1,61 +1,42 @@
 # Kubernetes Manifests
 
-このディレクトリには、k8s_myHomeプロジェクトのすべてのKubernetesマニフェストファイルが整理されています。
+このディレクトリには、k8s_myHomeプロジェクトのKubernetesマニフェストを整理しています。
 
 ## ディレクトリ構造
 
 ```
 manifests/
-├── app-of-apps.yaml              # ArgoCD App-of-Apps パターンのメインアプリケーション
-├── infrastructure/               # インフラストラクチャコンポーネント
-│   ├── argocd/                   # ArgoCD設定とGitHub OAuth
-│   ├── cert-manager/             # 証明書管理
-│   ├── harbor/                   # プライベートコンテナレジストリ
-│   ├── ingress-nginx/            # Ingressコントローラー
-│   ├── metallb/                  # LoadBalancerサービス
-│   └── storage/                  # ストレージクラス設定
-├── external-secrets/             # External Secrets Operator設定
-├── platform/                    # プラットフォームサービス
-│   ├── github-actions/           # GitHub Actions Runner Controller
-│   └── monitoring/               # 監視関連 (将来の拡張用)
-└── applications/                 # ユーザーアプリケーション
-    ├── cloudflared/              # Cloudflare Tunnel
-    ├── hitomi/                   # 画像ビューア
-    ├── pepup/                    # ポップアップサービス
-    ├── rss/                      # RSSリーダー
-    └── slack/                    # Slack統合
+├── bootstrap/                    # ArgoCD App-of-Apps
+├── config/                       # 外部連携用設定
+├── core/                         # 基本リソース（namespace, storage-class など）
+├── infrastructure/               # インフラ構成（networking, security など）
+├── platform/                     # プラットフォームサービス（ArgoCD, ESO, ARC）
+├── monitoring/                   # 監視関連
+└── apps/                         # ユーザーアプリケーション
 ```
 
 ## 使用方法
 
 ### ArgoCD経由での管理
-メインのapp-of-apps.yamlがすべてのコンポーネントを管理します：
+App-of-Apps がすべてのコンポーネントを管理します。
 
 ```bash
-kubectl apply -f manifests/app-of-apps.yaml
+kubectl apply -f manifests/bootstrap/app-of-apps.yaml
 ```
 
 ### 個別コンポーネントのデプロイ
-特定のコンポーネントのみをデプロイする場合：
+緊急時の暫定対応のみ。最終的には Git に反映します。
 
 ```bash
-# ArgoCD設定のみ
-kubectl apply -f manifests/infrastructure/argocd/
+# MetalLB
+kubectl apply -f manifests/infrastructure/networking/metallb/
 
-# Harbor関連のみ
-kubectl apply -f manifests/infrastructure/harbor/
+# ArgoCD設定
+kubectl apply -f manifests/platform/argocd-config/
 ```
-
-## 移行履歴
-
-以前は以下の場所に分散していたmanifestファイルを整理しました：
-- `/manifests/infrastructure/` - メインのインフラマニフェスト
-- `/app/` - アプリケーションマニフェスト  
-- `/automation/platform/manifests/` - プラットフォームデプロイ用
-- `/automation/platform/external-secrets/` - External Secrets関連
 
 ## 注意事項
 
-- GitOpsワークフローでは、このディレクトリのmanifestファイルがArgoCD経由で自動同期されます
-- 手動変更する場合は、対応するgitリポジトリへのコミットも忘れずに行ってください
-- External Secretsは秘密情報をPulumi ESCから動的に取得します
+- GitOpsワークフローでは、このディレクトリのマニフェストがArgoCD経由で自動同期されます
+- 手動変更は一時対応に留め、対応する Git へのコミットを必ず行ってください
+- External Secrets は Pulumi ESC から動的に取得します
