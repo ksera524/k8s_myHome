@@ -136,7 +136,7 @@ make phase3
 
 このステップでは以下を実行：
 - MetalLB（LoadBalancer）
-- NGINX Ingress Controller
+- NGINX Gateway Fabric（Gateway API）
 - cert-manager（証明書管理）
 - ArgoCD（GitOps）
 - Harbor（コンテナレジストリ）

@@ -22,7 +22,7 @@ k8s_myHomeプロジェクトは、ArgoCDを使用したGitOpsパターンを採�
 └────────┘         └───────────┘ └─────┘  └─────────┘
     │                   │           │          │
     ├─ namespaces      ├─ ArgoCD   ├─ MetalLB ├─ Slack
-    ├─ storage-class   ├─ Harbor   ├─ NGINX   ├─ RSS
+    ├─ storage-class   ├─ Harbor   ├─ NGINX Gateway   ├─ RSS
     └─ rbac            └─ ESO      └─ Cert    └─ Hitomi
 ```
 
@@ -36,10 +36,12 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 | 2 | Core (Namespaces) | 基本リソース |
 | 3 | MetalLB | LoadBalancer |
 | 4 | MetalLB Config | IPプール設定 |
-| 5 | NGINX Ingress | Ingressコントローラー |
-| 6 | cert-manager | 証明書管理 |
+| 5 | Gateway API CRD | Gateway APIリソース |
+| 6 | NGINX Gateway Fabric | Gatewayコントローラー |
+| 7 | cert-manager | 証明書管理 |
 | 7 | cert-manager Config | Issuer設定 |
 | 7 | External Secrets | シークレット管理 |
+| 8 | Gateway Resources | Gateway/共通設定 |
 | 10 | Platform Services | ArgoCD, Harbor |
 | 11 | User App Definitions | アプリケーション定義 |
 | 12 | User Applications | 実際のアプリケーション |

@@ -203,22 +203,24 @@ kubectl get ipaddresspool -n metallb-system
 kubectl get l2advertisement -n metallb-system
 ```
 
-#### Ingress管理
+#### Gateway管理
 
 ```bash
-# Ingress一覧
-kubectl get ingress -A
+# Gateway/HTTPRoute一覧
+kubectl get gateway -A
+kubectl get httproute -A
 
-# NGINX Ingress Controller状態
-kubectl get pods -n ingress-nginx
-kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
+# NGINX Gateway Fabric状態
+kubectl get pods -n nginx-gateway
+kubectl logs -n nginx-gateway deployment/ngf-nginx-gateway-fabric
+kubectl logs -n nginx-gateway deployment/nginx-gateway-nginx
 ```
 
 ### 監視・ログ
 
 #### 運用ポリシー
 
-- 監視対象は「コントロールプレーン」「主要アプリ」「ストレージ」「Ingress」に分ける
+- 監視対象は「コントロールプレーン」「主要アプリ」「ストレージ」「Gateway」に分ける
 - 重要アラートの一次切り分けは 15 分以内に実施する
 - 重要イベントは `automation/run.log` と合わせて記録する
 

@@ -7,7 +7,7 @@ Phase 3で構築されたk8sクラスタに対して、基本的なインフラ�
 以下のコンポーネントを自動構築します：
 
 - **MetalLB**: LoadBalancer機能（ベアメタル環境用）
-- **NGINX Ingress Controller**: HTTP/HTTPSルーティング
+- **NGINX Gateway Fabric**: HTTP/HTTPSルーティング
 - **cert-manager**: TLS証明書自動管理
 - **StorageClass**: 永続ストレージ設定
 - **ArgoCD**: GitOps継続的デプロイメント
@@ -50,8 +50,10 @@ k8s-worker2         Ready    <none>          1h    v1.xx.x
 # 1. MetalLB インストール
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
 
-# 2. NGINX Ingress Controller インストール  
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+# 2. Gateway API CRD + NGINX Gateway Fabric インストール
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v2.3.0" | kubectl apply -f -
+helm install ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric --create-namespace -n nginx-gateway
+kubectl apply -f manifests/infrastructure/networking/nginx-gateway-fabric/gateway/gateway.yaml
 
 # 3. cert-manager インストール
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
@@ -75,10 +77,10 @@ helm install harbor harbor/harbor --namespace harbor --create-namespace
 - L2Advertisement設定
 - LoadBalancer Serviceの自動IP割り当て
 
-### Phase 4.2: NGINX Ingress Controller
-- HTTP/HTTPSトラフィックルーティング
-- LoadBalancer Service経由でのアクセス
-- SSL終端機能
+### Phase 4.2: NGINX Gateway Fabric
+- Gateway API によるHTTP/HTTPSルーティング
+- Gateway Service経由でのアクセス
+- TLS終端機能
 
 ### Phase 4.3: cert-manager
 - TLS証明書の自動取得・更新
@@ -111,14 +113,14 @@ helm install harbor harbor/harbor --namespace harbor --create-namespace
 
 ```bash
 # 全コンポーネント状態
-kubectl get pods --all-namespaces | grep -E "(metallb|ingress|cert-manager|argocd|harbor|actions-runner)"
+kubectl get pods --all-namespaces | grep -E "(metallb|nginx-gateway|cert-manager|argocd|harbor|actions-runner)"
 
 # MetalLB状態
 kubectl get pods -n metallb-system
 
-# NGINX Ingress状態
-kubectl get pods -n ingress-nginx
-kubectl -n ingress-nginx get service ingress-nginx-controller
+# NGINX Gateway Fabric状態
+kubectl get pods -n nginx-gateway
+kubectl -n nginx-gateway get service nginx-gateway-nginx
 
 # cert-manager状態
 kubectl get pods -n cert-manager
@@ -141,10 +143,10 @@ kubectl get autoscalingrunnersets -n arc-systems
 
 ```bash
 # LoadBalancer Service IP確認
-kubectl -n ingress-nginx get service ingress-nginx-controller
+kubectl -n nginx-gateway get service nginx-gateway-nginx
 
-NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)
-ingress-nginx-controller   LoadBalancer   10.96.X.X       192.168.122.100   80:XXXXX/TCP,443:XXXXX/TCP
+NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)
+nginx-gateway-nginx  LoadBalancer   10.96.X.X       192.168.122.100   80:XXXXX/TCP,443:XXXXX/TCP
 ```
 
 ## 期待される結果
@@ -154,7 +156,7 @@ ingress-nginx-controller   LoadBalancer   10.96.X.X       192.168.122.100   80:X
 ```bash
 === インフラコンポーネント状態 ===
 MetalLB: 3 Pod(s) Running
-NGINX Ingress: 1 Pod(s) Running  
+NGINX Gateway Fabric: 2 Pod(s) Running
 cert-manager: 3 Pod(s) Running
 ArgoCD: 7 Pod(s) Running
 Harbor: 8 Pod(s) Running
@@ -164,28 +166,24 @@ LoadBalancer IP: 192.168.122.100
 
 ## 使用例
 
-### Ingress設定例
+### HTTPRoute設定例
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
-  name: example-ingress
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  name: example-route
 spec:
-  ingressClassName: nginx
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - example.local
   rules:
-  - host: example.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: example-service
-            port:
-              number: 80
+    - backendRefs:
+        - name: example-service
+          port: 80
 ```
 
 ### TLS証明書設定例
@@ -204,67 +202,63 @@ spec:
   - example.local
 ```
 
-### ArgoCD Ingress設定例
+### ArgoCD HTTPRoute設定例
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
-  name: argocd-server-ingress
+  name: argocd-server
   namespace: argocd
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
     - argocd.local
-    secretName: argocd-tls-secret
   rules:
-  - host: argocd.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: argocd-server
-            port:
-              number: 80
+    - backendRefs:
+        - name: argocd-server
+          port: 80
 ```
 
-### Harbor Ingress設定例
+### Harbor HTTPRoute設定例
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
-  name: harbor-ingress
+  name: harbor
   namespace: harbor
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
     - harbor.local
-    secretName: harbor-tls-secret
   rules:
-  - host: harbor.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: harbor-core
+          port: 80
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: harbor-client-settings
+  namespace: harbor
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: harbor
+  body:
+    maxSize: "0"
 ```
 
 ### GitHub Actions Workflow例
@@ -296,7 +290,7 @@ jobs:
 Phase 4完了後は、Phase 5（アプリケーション追加/展開）に進みます：
 
 1. **アプリケーション追加**: factorio, slack, cloudflared等
-2. **Ingress設定**: HTTP/HTTPSアクセス設定
+2. **HTTPRoute設定**: HTTP/HTTPSアクセス設定
 3. **TLS証明書**: 本番用証明書設定
 4. **監視・ログ**: Prometheus, Grafana等
 
@@ -313,17 +307,18 @@ kubectl get ipaddresspool -n metallb-system
 kubectl get l2advertisement -n metallb-system
 ```
 
-### NGINX Ingress問題
+### NGINX Gateway Fabric問題
 
 ```bash
-# Ingress Controller状態確認
-kubectl get pods -n ingress-nginx
+# Gateway Fabric状態確認
+kubectl get pods -n nginx-gateway
 
 # LoadBalancer Service確認
-kubectl -n ingress-nginx get service ingress-nginx-controller
+kubectl -n nginx-gateway get service nginx-gateway-nginx
 
-# Ingress Controller ログ確認
-kubectl -n ingress-nginx logs -l app.kubernetes.io/component=controller
+# Gateway Fabric ログ確認
+kubectl -n nginx-gateway logs deployment/ngf-nginx-gateway-fabric
+kubectl -n nginx-gateway logs deployment/nginx-gateway-nginx
 ```
 
 ### cert-manager問題

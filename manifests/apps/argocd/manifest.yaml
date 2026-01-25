@@ -17,32 +17,24 @@ spec:
     - server auth
 
 ---
-# ArgoCD外部公開用Ingress
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# Gateway参照用のSecret許可
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
 metadata:
-  name: argocd-external-ingress
+  name: allow-nginx-gateway-secrets
   namespace: argocd
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - argocd.qroksera.com
-      secretName: argocd-external-tls
-  rules:
-    - host: argocd.qroksera.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: argocd-server
-                port:
-                  number: 80
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: nginx-gateway
+  to:
+    - group: ""
+      kind: Secret
+      name: argocd-external-tls
+    - group: ""
+      kind: Secret
+      name: argocd-internal-tls
 
 ---
 # ArgoCD内部アクセス用TLS証明書
@@ -64,29 +56,78 @@ spec:
     - server auth
 
 ---
-# ArgoCD内部公開用Ingress
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# ArgoCD外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
-  name: argocd-internal-ingress
+  name: argocd-external-redirect
   namespace: argocd
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - argocd.internal.qroksera.com
-      secretName: argocd-internal-tls
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - argocd.qroksera.com
   rules:
-    - host: argocd.internal.qroksera.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: argocd-server
-                port:
-                  number: 80
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# ArgoCD外部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-external
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - argocd.qroksera.com
+  rules:
+    - backendRefs:
+        - name: argocd-server
+          port: 80
+---
+# ArgoCD内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-internal-redirect
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - argocd.internal.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# ArgoCD内部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-internal
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - argocd.internal.qroksera.com
+  rules:
+    - backendRefs:
+        - name: argocd-server
+          port: 80

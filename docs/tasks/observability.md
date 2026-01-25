@@ -9,7 +9,7 @@
 
 ## 対応内容
 - 監視スタックの GitOps 追加
-- 主要アラート（NodeNotReady, PodCrashLoop, PVCPending, IngressError）定義
+- 主要アラート（NodeNotReady, PodCrashLoop, PVCPending, GatewayError）定義
 - 監視ダッシュボードの基準セット作成
 
 ## 変更対象（候補）

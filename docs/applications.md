@@ -154,33 +154,25 @@ spec:
   type: ClusterIP
 ```
 
-#### ingress.yaml
+#### httproute.yaml
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: myapp
   namespace: sandbox
-  annotations:
-    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
     - myapp.local
-    secretName: myapp-tls
   rules:
-  - host: myapp.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: myapp
-            port:
-              number: 80
+    - backendRefs:
+        - name: myapp
+          port: 80
 ```
 
 ### 3. External Secret設定
