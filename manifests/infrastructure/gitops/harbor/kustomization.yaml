@@ -5,5 +5,6 @@ kind: Kustomization
 resources:
   # - harbor-ext-endpoint-fix.yaml  # 不要になったため無効化
   # - harbor-config-cronjob.yaml    # 不要になったため無効化
+  - harbor-internal-ingress.yaml
   - harbor-node-hostaliases.yaml
   - containerd-config.yaml
