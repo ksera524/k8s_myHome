@@ -115,10 +115,97 @@ if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm status '$RUNNER_
     sleep 5
 fi
 
+# Harbor内部CA ConfigMap作成/更新
+log_status "Harbor内部CA ConfigMap作成中..."
+if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n arc-systems get configmap harbor-internal-ca' >/dev/null 2>&1; then
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl -n cert-manager get secret ca-key-pair -o jsonpath='{.data.ca\.crt}' | base64 -d | kubectl -n arc-systems create configmap harbor-internal-ca --from-file=ca.crt=/dev/stdin --dry-run=client -o yaml | kubectl apply -f -" >/dev/null
+else
+    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl -n cert-manager get secret ca-key-pair -o jsonpath='{.data.ca\.crt}' | base64 -d | kubectl -n arc-systems create configmap harbor-internal-ca --from-file=ca.crt=/dev/stdin" >/dev/null
+fi
+log_status "✓ Harbor内部CA ConfigMap作成完了"
+
+# Runner用Helm valuesファイル作成（内部CAをDockerに配布）
+log_status "Runner用Helm valuesファイル作成中..."
+ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cat > /tmp/arc-runner-values.yaml << 'EOF'
+template:
+  spec:
+    serviceAccountName: github-actions-runner
+    hostAliases:
+      - ip: 192.168.122.100
+        hostnames:
+          - harbor.internal.qroksera.com
+    initContainers:
+      - name: init-dind-externals
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["cp"]
+        args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /home/runner/tmpDir
+      - name: dind
+        image: docker:dind
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            cp /etc/docker/certs.d/harbor.internal.qroksera.com/ca.crt /usr/local/share/ca-certificates/harbor-internal-ca.crt
+            update-ca-certificates
+            dockerd --host=unix:///var/run/docker.sock --group=\$(DOCKER_GROUP_GID) --insecure-registry=harbor.internal.qroksera.com
+        env:
+          - name: DOCKER_GROUP_GID
+            value: '123'
+        securityContext:
+          privileged: true
+        restartPolicy: Always
+        startupProbe:
+          exec:
+            command: ["docker", "info"]
+          failureThreshold: 24
+          periodSeconds: 5
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+          - name: dind-externals
+            mountPath: /home/runner/externals
+          - name: harbor-internal-ca
+            mountPath: /etc/docker/certs.d/harbor.internal.qroksera.com
+            readOnly: true
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: DOCKER_HOST
+            value: 'unix:///var/run/docker.sock'
+          - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+            value: '120'
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+    volumes:
+      - name: dind-sock
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
+      - name: work
+        emptyDir: {}
+      - name: harbor-internal-ca
+        configMap:
+          name: harbor-internal-ca
+          items:
+            - key: ca.crt
+              path: ca.crt
+EOF" >/dev/null
+log_status "✓ Runner用Helm valuesファイル作成完了"
+
 # RunnerScaleSetを作成（minRunners=1推奨）
 log_status "🏃 Helm install実行中..."
 HELM_INSTALL_RESULT=0
-  ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems  --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set containerMode.type=dind --set controllerServiceAccount.namespace=arc-systems --set controllerServiceAccount.name=arc-controller-gha-rs-controller --set template.spec.serviceAccountName=github-actions-runner --set 'template.spec.hostAliases[0].ip=192.168.122.100' --set 'template.spec.hostAliases[0].hostnames[0]=harbor.qroksera.com' --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
+  ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --values /tmp/arc-runner-values.yaml --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set controllerServiceAccount.namespace=arc-systems --set controllerServiceAccount.name=arc-controller-gha-rs-controller --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
 # Helm installの結果をチェック
 if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
     log_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
@@ -197,6 +284,7 @@ jobs:
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PASSWORD}' | base64 -d > /tmp/harbor_password
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_URL}' | base64 -d > /tmp/harbor_url
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PROJECT}' | base64 -d > /tmp/harbor_project
+        kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/harbor_ca.crt
         
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor credentials retrieved successfully"
@@ -209,14 +297,25 @@ jobs:
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         HARBOR_URL=\$(cat /tmp/harbor_url)
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
+        HARBOR_URL="harbor.internal.qroksera.com"
+
+        # 内部CAを信頼ストアに追加
+        echo "Installing internal CA..."
+        sudo cp /tmp/harbor_ca.crt /usr/local/share/ca-certificates/harbor-internal-ca.crt
+        sudo update-ca-certificates
+
+        # Docker用のCA設定
+        echo "Configuring Docker CA..."
+        sudo mkdir -p /etc/docker/certs.d/harbor.internal.qroksera.com
+        sudo cp /tmp/harbor_ca.crt /etc/docker/certs.d/harbor.internal.qroksera.com/ca.crt
         
         # Build Docker images
         echo "Building Docker images..."
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest .
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
 
-        # /etc/hostsにharbor.qroksera.comを追加
-        echo "192.168.122.100 harbor.qroksera.com" | sudo tee -a /etc/hosts
+        # /etc/hostsにharbor.internal.qroksera.comを追加
+        echo "192.168.122.100 harbor.internal.qroksera.com" | sudo tee -a /etc/hosts
 
         # Harborにログイン
         echo "Logging in to Harbor..."
@@ -253,6 +352,6 @@ log_status "   git add $WORKFLOW_FILE"
 log_status "   git commit -m \"Add GitHub Actions workflow for $REPOSITORY_NAME\""
 log_status "   git push"
 log_status "2. GitHub ActionsでCI/CDテスト実行"
-log_status "3. Harborでイメージ確認: https://harbor.qroksera.com"
+log_status "3. Harborでイメージ確認: https://harbor.internal.qroksera.com"
 log_status ""
 log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"

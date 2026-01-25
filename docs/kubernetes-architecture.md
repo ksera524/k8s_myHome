@@ -97,8 +97,10 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
 
 #### Harbor
 - **バージョン**: 1.13.1
-- **URL**: harbor.qroksera.com (192.168.122.100)
-- **ストレージ**: 
+- **URL**:
+  - 内部: harbor.internal.qroksera.com (192.168.122.100)
+  - 外部: harbor.qroksera.com (Cloudflare経由)
+- **ストレージ**:
   - Registry: 100Gi
   - Database: 10Gi
 - **認証**: admin/Harbor12345（デフォルト）

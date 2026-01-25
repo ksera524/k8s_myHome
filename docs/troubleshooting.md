@@ -242,20 +242,27 @@ unauthorized: unauthorized to access repository
 #### 解決方法
 
 ```bash
-# ログイン
-docker login harbor.qroksera.com
+# ログイン（内部）
+docker login harbor.internal.qroksera.com
 # Username: admin
 # Password: Harbor12345
 
 # hosts ファイル確認
-grep harbor.qroksera.com /etc/hosts
+grep harbor.internal.qroksera.com /etc/hosts
 # なければ追加
-echo "192.168.122.100 harbor.qroksera.com" | sudo tee -a /etc/hosts
+echo "192.168.122.100 harbor.internal.qroksera.com" | sudo tee -a /etc/hosts
+
+# 内部CAを端末に信頼させる
+# (k8s-myhome-internal-ca を OS の信頼ストアへ追加)
+
+# GitHub Actions Runner で TLS エラーが出る場合
+# add-runner.sh で Runner(dind) に内部CAを配布するため、再作成する
+# make add-runner REPO=your-repo
 
 # レジストリSecret再作成
 kubectl delete secret harbor-registry-secret -n <namespace>
 kubectl create secret docker-registry harbor-registry-secret \
-  --docker-server=harbor.qroksera.com \
+  --docker-server=harbor.internal.qroksera.com \
   --docker-username=admin \
   --docker-password=Harbor12345 \
   -n <namespace>

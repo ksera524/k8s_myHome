@@ -76,8 +76,9 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 # 別ターミナルで実行
 kubectl port-forward svc/harbor-core -n harbor 8081:80
 
-# ブラウザでアクセス
-# URL: http://localhost:8081
+# ブラウザでアクセス（内部）
+# URL: https://harbor.internal.qroksera.com
+# 直接アクセスできない場合は http://localhost:8081 を使用
 # User: admin
 # Pass: Harbor12345
 ```
