@@ -363,16 +363,19 @@ kubectl delete svc <service-name> -n <namespace>
 kubectl apply -f service.yaml
 ```
 
-### 2. Ingress が機能しない
+### 2. Gateway が機能しない
 
 ```bash
-# NGINX Ingress Controller確認
-kubectl get pods -n ingress-nginx
-kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
+# NGINX Gateway Fabric確認
+kubectl get pods -n nginx-gateway
+kubectl logs -n nginx-gateway deployment/ngf-nginx-gateway-fabric
+kubectl logs -n nginx-gateway deployment/nginx-gateway-nginx
 
-# Ingress確認
-kubectl get ingress -A
-kubectl describe ingress <name> -n <namespace>
+# Gateway/HTTPRoute確認
+kubectl get gateway -A
+kubectl describe gateway <name> -n <namespace>
+kubectl get httproute -A
+kubectl describe httproute <name> -n <namespace>
 
 # 証明書確認
 kubectl get certificate -A

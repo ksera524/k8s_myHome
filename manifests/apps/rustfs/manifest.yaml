@@ -17,28 +17,56 @@ spec:
     - server auth
 
 ---
-# RustFS外部公開用Ingress（Consoleのみ）
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# Gateway参照用のSecret許可
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
 metadata:
-  name: rustfs-console-ingress
+  name: allow-nginx-gateway-secrets
   namespace: rustfs
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - rustfs.qroksera.com
-      secretName: rustfs-external-tls
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: nginx-gateway
+  to:
+    - group: ""
+      kind: Secret
+      name: rustfs-external-tls
+---
+# RustFS外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rustfs-console-redirect
+  namespace: rustfs
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - rustfs.qroksera.com
   rules:
-    - host: rustfs.qroksera.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: rustfs-svc
-                port:
-                  number: 9001
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# RustFS外部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rustfs-console
+  namespace: rustfs
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - rustfs.qroksera.com
+  rules:
+    - backendRefs:
+        - name: rustfs-svc
+          port: 9001

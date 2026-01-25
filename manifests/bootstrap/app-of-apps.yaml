@@ -1,5 +1,5 @@
 # ArgoCD App-of-Apps パターン - 改善されたディレクトリ構造版
-# デプロイ順序: Core → 基盤インフラ(MetalLB,Ingress,cert-manager) → ESO → その他Infrastructure → Platform → Applications
+# デプロイ順序: Core → 基盤インフラ(MetalLB,Gateway API,cert-manager) → ESO → その他Infrastructure → Platform → Applications
 
 # Local Path Provisioner - Harborより先にデプロイが必要
 ---
@@ -215,11 +215,11 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# NGINX Ingress Controller - HTTP/HTTPSルーティング（MetalLB後にデプロイ）
+# Gateway API - NGF前提のCRD（MetalLB後にデプロイ）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ingress-nginx
+  name: gateway-api
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -228,38 +228,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://kubernetes.github.io/ingress-nginx'
-    targetRevision: 4.8.2
-    chart: ingress-nginx
-    helm:
-      values: |
-        controller:
-          service:
-            type: LoadBalancer
-            loadBalancerIP: 192.168.122.100
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 1000m
-              memory: 512Mi
-          config:
-            use-forwarded-headers: "true"
-            compute-full-forwarded-for: "true"
-            use-proxy-protocol: "false"
-        defaultBackend:
-          enabled: true
-          resources:
-            requests:
-              cpu: 10m
-              memory: 20Mi
-            limits:
-              cpu: 20m
-              memory: 40Mi
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/networking/nginx-gateway-fabric/gateway-api
   destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: ingress-nginx
+    server: https://kubernetes.default.svc
+    namespace: nginx-gateway
   syncPolicy:
     automated:
       prune: true
@@ -274,7 +248,62 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# cert-manager - TLS証明書管理（Ingress後にデプロイ）
+# NGINX Gateway Fabric - Gateway API基盤（CRD後にデプロイ）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-gateway-fabric
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+  source:
+    repoURL: oci://ghcr.io/nginx/charts
+    targetRevision: 2.3.0
+    chart: nginx-gateway-fabric
+    helm:
+      values: |
+        nginxGateway:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        nginx:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          service:
+            type: LoadBalancer
+            loadBalancerIP: 192.168.122.100
+            externalTrafficPolicy: Local
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-gateway
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# cert-manager - TLS証明書管理（Gateway基盤後にデプロイ）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -283,7 +312,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-wave: "7"
 spec:
   project: default
   source:
@@ -357,6 +386,39 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Gateway Resources - Gateway/共通設定（cert-manager後にデプロイ）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-gateway-resources
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/networking/nginx-gateway-fabric/gateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-gateway
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
@@ -464,22 +526,9 @@ spec:
     helm:
       values: |
         expose:
-          type: ingress
+          type: clusterIP
           tls:
-            enabled: true
-            certSource: secret
-            secret:
-              secretName: harbor-external-tls
-          ingress:
-            hosts:
-              core: harbor.qroksera.com
-            className: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-              nginx.ingress.kubernetes.io/proxy-body-size: "0"
-              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+            enabled: false
 
         externalURL: https://harbor.qroksera.com
 

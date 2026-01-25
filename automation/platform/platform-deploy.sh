@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Kubernetes基盤構築スクリプト - GitOps管理版
-# ArgoCD → App-of-Apps (MetalLB, Ingress, cert-manager, ESO等を統合管理) → Harbor
+# ArgoCD → App-of-Apps (MetalLB, Gateway API, cert-manager, ESO等を統合管理) → Harbor
 
 set -euo pipefail
 
@@ -67,9 +67,9 @@ else
     log_status "✓ k8sクラスタ（$READY_NODES Node）接続OK"
 fi
 
-# Phase 4.1-4.3: 基盤インフラ（MetalLB, NGINX Ingress, cert-manager）はGitOps管理へ移行
+# Phase 4.1-4.3: 基盤インフラ（MetalLB, NGINX Gateway Fabric, cert-manager）はGitOps管理へ移行
 log_status "=== Phase 4.1-4.3: 基盤インフラはGitOps管理 ==="
-log_debug "MetalLB, NGINX Ingress, cert-managerはArgoCD経由でデプロイされます"
+log_debug "MetalLB, NGINX Gateway Fabric, cert-managerはArgoCD経由でデプロイされます"
 
 
 
@@ -102,7 +102,7 @@ echo "ArgoCD管理者パスワード:"
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 echo ""
 
-# ArgoCD Ingress設定（HTTP対応）
+# ArgoCD HTTPRoute設定（HTTP対応）
 kubectl apply -f /tmp/argocd-ingress.yaml
 
 echo "✓ ArgoCD基本設定完了"
@@ -196,17 +196,17 @@ if kubectl get application metallb -n argocd 2>/dev/null; then
     kubectl wait --namespace metallb-system --for=condition=ready pod --selector=app.kubernetes.io/name=metallb --timeout=300s 2>/dev/null || true
 fi
 
-# NGINX Ingress同期確認
-if kubectl get application ingress-nginx -n argocd 2>/dev/null; then
+# NGINX Gateway Fabric同期確認
+if kubectl get application nginx-gateway-fabric -n argocd 2>/dev/null; then
     for i in {1..30}; do
-        HEALTH=$(kubectl get application ingress-nginx -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        HEALTH=$(kubectl get application nginx-gateway-fabric -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
         if [ "${HEALTH}" = "Healthy" ]; then
-            echo "✓ NGINX Ingress: Healthy"
+            echo "✓ NGINX Gateway Fabric: Healthy"
             break
         fi
         sleep 10
     done
-    kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s 2>/dev/null || true
+    kubectl wait --namespace nginx-gateway --for=condition=ready pod --selector=app.kubernetes.io/name=nginx-gateway-fabric --timeout=300s 2>/dev/null || true
 fi
 
 # cert-manager同期確認
@@ -1056,7 +1056,7 @@ kubectl get pods -n cloudflared 2>/dev/null || echo "Cloudflared デプロイ中
 
 # LoadBalancer IP確認
 echo "LoadBalancer IP:"
-kubectl -n ingress-nginx get service ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl -n nginx-gateway get service nginx-gateway-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 echo ""
 
 # ArgoCD Applications状態
@@ -1086,86 +1086,11 @@ log_status "  - GitHub ActionsでskopeoによるTLS検証無効push対応"
 log_status "  - Harbor認証secret (arc-systems/harbor-auth) 設定済み"
 log_status "  - イメージプルsecret (各namespace/harbor-http) 設定済み"
 
-# Harbor IP Ingress を作成
-log_status "Harbor IP Ingress を作成中..."
-ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} << 'EOF'
-# Harbor IP Ingress が存在しない場合のみ作成
-if ! kubectl get ingress -n harbor harbor-ip-ingress >/dev/null 2>&1; then
-    echo "Harbor IP Ingress を作成中..."
-    kubectl apply -f - << 'INGRESS_EOF'
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: harbor-ip-ingress
-  namespace: harbor
-  labels:
-    app: harbor
-    chart: harbor
-    heritage: Helm
-    release: harbor
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:
-      paths:
-      - path: /api/
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-      - path: /service/
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-      - path: /v2/
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-      - path: /chartrepo/
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-      - path: /c/
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-core
-            port:
-              number: 80
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: harbor-portal
-            port:
-              number: 80
-INGRESS_EOF
-    echo "✓ Harbor IP Ingress 作成完了"
-else
-    echo "✓ Harbor IP Ingress は既に存在します"
-fi
-EOF
-log_status "✓ Harbor IP Ingress 設定完了"
+# Gateway経由のため Harbor IP ルートは作成しない
 
 # Harbor の動作確認
 log_status "Harbor の動作確認中..."
-if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f https://${HARBOR_IP}/api/v2.0/systeminfo" >/dev/null 2>&1; then
+if ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} "curl -s -f --resolve harbor.qroksera.com:443:${HARBOR_IP} https://harbor.qroksera.com/api/v2.0/systeminfo" >/dev/null 2>&1; then
     log_status "✓ Harbor API が正常に応答しています"
 else
     log_warning "Harbor API の応答確認に失敗しました（Harbor は起動中の可能性があります）"

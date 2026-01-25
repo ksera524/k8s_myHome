@@ -17,7 +17,7 @@
 - Control Plane: `192.168.122.10`
 - Worker: `192.168.122.11`, `192.168.122.12`
 - LoadBalancer プール: `192.168.122.100-150`
-- 主要コンポーネント: MetalLB, NGINX Ingress, cert-manager, ArgoCD, Harbor, ARC
+- 主要コンポーネント: MetalLB, NGINX Gateway Fabric, cert-manager, ArgoCD, Harbor, ARC
 
 ## リポジトリ構成の要点
 - `automation/`: 自動化スクリプト群

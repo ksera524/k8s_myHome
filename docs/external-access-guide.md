@@ -1,12 +1,12 @@
-# 外部公開（Cloudflared + Ingress + DNS-01）の運用手順
+# 外部公開（Cloudflared + Gateway API + DNS-01）の運用手順
 
 このドキュメントは、外部公開の標準構成と、新しい接続先を追加する際の手順をまとめたものです。
-外部公開は Cloudflared 経由で Ingress に統一し、TLS は Cloudflare DNS-01（Let’s Encrypt）で発行します。
+外部公開は Cloudflared 経由で Gateway に統一し、TLS は Cloudflare DNS-01（Let’s Encrypt）で発行します。
 
 ## 方針の要点
 
 - 外部公開は `*.qroksera.com` を使用
-- Cloudflared の origin は `ingress-nginx` に統一
+- Cloudflared の origin は `nginx-gateway` に統一
 - TLS 証明書は `letsencrypt-cloudflare` の ClusterIssuer を利用
 - NodePort は使用しない（Service は ClusterIP）
 - RustFS は console のみ外部公開（API は外部公開しない）
@@ -15,10 +15,10 @@
 
 - Cloudflare DNS-01 用の ExternalSecret を追加
 - ClusterIssuer `letsencrypt-cloudflare` を追加
-- ArgoCD / RustFS の外部用 Certificate + Ingress を追加
-- Harbor 外部 Ingress の issuer を外部用に切り替え
+- ArgoCD / RustFS の外部用 Certificate + HTTPRoute を追加
+- Harbor 外部 HTTPRoute を追加
 - RustFS Service を NodePort から ClusterIP に変更
-- Cloudflared の origin を Ingress 経由に統一
+- Cloudflared の origin を Gateway 経由に統一
 
 ## 新しい接続先を追加する手順
 
@@ -60,35 +60,67 @@ spec:
     - server auth
 ```
 
-### 4. Ingress を追加
+### 3.5 ReferenceGrant を追加
 
-同じく `manifests/apps/<app>/` 配下へ Ingress を追加し、TLS secret を指定します。
+Gateway が別 namespace の TLS Secret を参照できるように、ReferenceGrant を追加します。
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
 metadata:
-  name: <app>-external-ingress
+  name: allow-nginx-gateway-secrets
   namespace: <namespace>
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - <app>.qroksera.com
-      secretName: <app>-external-tls
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: nginx-gateway
+  to:
+    - group: ""
+      kind: Secret
+      name: <app>-external-tls
+```
+
+### 4. HTTPRoute を追加
+
+同じく `manifests/apps/<app>/` 配下へ HTTPRoute を追加し、Gateway 経由で公開します。
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: <app>-external-redirect
+  namespace: <namespace>
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - <app>.qroksera.com
   rules:
-    - host: <app>.qroksera.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: <service>
-                port:
-                  number: <port>
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: <app>-external
+  namespace: <namespace>
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - <app>.qroksera.com
+  rules:
+    - backendRefs:
+        - name: <service>
+          port: <port>
 ```
 
 ### 5. Application 定義を追加
@@ -123,12 +155,12 @@ spec:
 
 ### 6. Cloudflared を設定
 
-origin は Ingress に統一し、TLS 検証は **ON** のままにします。
+origin は Gateway に統一し、TLS 検証は **ON** のままにします。
 
 ```yaml
 ingress:
   - hostname: <app>.qroksera.com
-    service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
+    service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
     originRequest:
       originServerName: <app>.qroksera.com
       httpHostHeader: <app>.qroksera.com
@@ -147,7 +179,8 @@ kubectl -n argocd annotate application user-application-definitions \
   argocd.argoproj.io/refresh=hard --overwrite
 
 kubectl get certificate -A
-kubectl get ingress -A
+kubectl get gateway -A
+kubectl get httproute -A
 ```
 
 ## トラブルシュート

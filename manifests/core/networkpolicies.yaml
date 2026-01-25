@@ -11,7 +11,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-from-ingress-nginx
+  name: allow-ingress-from-nginx-gateway
   namespace: rustfs
 spec:
   podSelector: {}
@@ -21,5 +21,5 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: nginx-gateway
         - podSelector: {}

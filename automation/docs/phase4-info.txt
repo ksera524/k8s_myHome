@@ -2,7 +2,7 @@
 
 構築完了コンポーネント:
 - MetalLB (LoadBalancer)
-- NGINX Ingress Controller  
+- NGINX Gateway Fabric  
 - cert-manager
 - ArgoCD: 7 Pod(s) Running
 - LoadBalancer IP: 192.168.122.100
@@ -23,7 +23,7 @@ true
 - k8sクラスタ: ssh k8suser@192.168.122.10
 - ArgoCD UI: kubectl port-forward svc/argocd-server -n argocd 8080:443
 - Harbor UI: kubectl port-forward svc/harbor-core -n harbor 8081:80
-- LoadBalancer経由: http://192.168.122.100 (Ingressルーティング)
+- LoadBalancer経由: http://192.168.122.100 (Gatewayルーティング)
 
 手動セットアップ必要項目:
 1. Cloudflared Secret作成

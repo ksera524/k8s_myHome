@@ -43,7 +43,7 @@
 - ✅ **CI/CD統合**: GitHub Actions Runner Controller
 - ✅ **Secret管理**: External Secrets Operator + Pulumi ESC
 - ✅ **ロードバランサー**: MetalLB
-- ✅ **Ingress/TLS**: NGINX + cert-manager
+- ✅ **Gateway API/TLS**: NGINX Gateway Fabric + cert-manager
 
 ### アーキテクチャ概要
 
