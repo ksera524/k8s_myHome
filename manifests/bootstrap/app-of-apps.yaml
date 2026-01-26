@@ -261,7 +261,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: oci://ghcr.io/nginx/charts
+    repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     targetRevision: 2.3.0
     chart: nginx-gateway-fabric
     helm:
