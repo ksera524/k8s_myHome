@@ -7,7 +7,7 @@ metadata:
 spec:
   secretName: harbor-external-tls
   issuerRef:
-    name: letsencrypt-cloudflare-staging
+    name: letsencrypt-cloudflare
     kind: ClusterIssuer
   dnsNames:
     - harbor.qroksera.com
