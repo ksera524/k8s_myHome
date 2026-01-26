@@ -56,6 +56,7 @@
 - Shellcheck 単体: `shellcheck -S error -x automation/scripts/<file>.sh`
 - Yamllint 単体: `yamllint -f parsable -c .yamllint.yml manifests/<dir-or-file>`
 - Kustomize 単体: `kustomize build manifests/<kustomize-dir>`
+- kubectlするときはssh k8suser@192.168.122.10してから実行すること
 
 ### テスト実行
 - 自動テストフレームワークは未導入

@@ -63,7 +63,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-rustfs
   hostnames:
     - rustfs.qroksera.com
   rules:

@@ -86,7 +86,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-argocd-external
   hostnames:
     - argocd.qroksera.com
   rules:
@@ -124,7 +124,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-argocd-internal
   hostnames:
     - argocd.internal.qroksera.com
   rules:

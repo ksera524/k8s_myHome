@@ -84,7 +84,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-harbor-external
   hostnames:
     - harbor.qroksera.com
   rules:
@@ -161,7 +161,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-harbor-internal
   hostnames:
     - harbor.internal.qroksera.com
   rules:
