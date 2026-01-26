@@ -7,7 +7,7 @@ metadata:
 spec:
   secretName: harbor-external-tls
   issuerRef:
-    name: letsencrypt-cloudflare
+    name: letsencrypt-cloudflare-staging
     kind: ClusterIssuer
   dnsNames:
     - harbor.qroksera.com
@@ -54,7 +54,27 @@ spec:
       kind: Secret
       name: harbor-internal-tls
 ---
-# Harbor外部公開用HTTPRoute（HTTP）
+# Harbor外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: harbor-external-redirect
+  namespace: harbor
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - harbor.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# Harbor外部公開用HTTPRoute（HTTPS）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -64,7 +84,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: http
+      sectionName: https-harbor-external
   hostnames:
     - harbor.qroksera.com
   rules:
