@@ -54,27 +54,7 @@ spec:
       kind: Secret
       name: harbor-internal-tls
 ---
-# Harbor外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: harbor-external-redirect
-  namespace: harbor
-spec:
-  parentRefs:
-    - name: nginx-gateway
-      namespace: nginx-gateway
-      sectionName: http
-  hostnames:
-    - harbor.qroksera.com
-  rules:
-    - filters:
-        - type: RequestRedirect
-          requestRedirect:
-            scheme: https
-            statusCode: 301
----
-# Harbor外部公開用HTTPRoute（HTTPS）
+# Harbor外部公開用HTTPRoute（HTTP）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -84,7 +64,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-harbor-external
+      sectionName: http
   hostnames:
     - harbor.qroksera.com
   rules:
