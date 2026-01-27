@@ -25,19 +25,6 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-    - name: https-argocd-internal
-      hostname: argocd.internal.qroksera.com
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - kind: Secret
-            name: argocd-internal-tls
-            namespace: argocd
-      allowedRoutes:
-        namespaces:
-          from: All
     - name: https-rustfs
       hostname: rustfs.qroksera.com
       port: 443
@@ -64,16 +51,16 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-    - name: https-harbor-internal
-      hostname: harbor.internal.qroksera.com
+    - name: https-internal
+      hostname: "*.internal.qroksera.com"
       port: 443
       protocol: HTTPS
       tls:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: harbor-internal-tls
-            namespace: harbor
+            name: internal-wildcard-tls
+            namespace: nginx-gateway
       allowedRoutes:
         namespaces:
           from: All
