@@ -7,7 +7,7 @@ metadata:
 spec:
   secretName: rustfs-external-tls
   issuerRef:
-    name: letsencrypt-cloudflare
+    name: letsencrypt-cloudflare-staging
     kind: ClusterIssuer
   dnsNames:
     - rustfs.qroksera.com
