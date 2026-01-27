@@ -1,22 +1,3 @@
-# RustFS外部公開用TLS証明書（Consoleのみ）
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: rustfs-external-cert
-  namespace: rustfs
-spec:
-  secretName: rustfs-external-tls
-  issuerRef:
-    name: letsencrypt-cloudflare-staging
-    kind: ClusterIssuer
-  dnsNames:
-    - rustfs.qroksera.com
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-
----
 # Gateway参照用のSecret許可
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
