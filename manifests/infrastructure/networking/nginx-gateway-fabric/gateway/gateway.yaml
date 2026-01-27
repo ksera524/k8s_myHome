@@ -20,8 +20,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: argocd-external-tls
-            namespace: argocd
+            name: qroksera-wildcard-tls
+            namespace: nginx-gateway
       allowedRoutes:
         namespaces:
           from: All
@@ -46,8 +46,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: rustfs-external-tls
-            namespace: rustfs
+            name: qroksera-wildcard-tls
+            namespace: nginx-gateway
       allowedRoutes:
         namespaces:
           from: All
@@ -59,8 +59,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: harbor-external-tls
-            namespace: harbor
+            name: qroksera-wildcard-tls
+            namespace: nginx-gateway
       allowedRoutes:
         namespaces:
           from: All

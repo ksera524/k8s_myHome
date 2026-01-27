@@ -1,0 +1,17 @@
+# 外部公開用ワイルドカード証明書（staging）
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: qroksera-wildcard-external
+  namespace: nginx-gateway
+spec:
+  secretName: qroksera-wildcard-tls
+  issuerRef:
+    name: letsencrypt-cloudflare-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.qroksera.com"
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth

@@ -1,22 +1,3 @@
-# ArgoCD外部公開用TLS証明書
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: argocd-external-cert
-  namespace: argocd
-spec:
-  secretName: argocd-external-tls
-  issuerRef:
-    name: letsencrypt-cloudflare-staging
-    kind: ClusterIssuer
-  dnsNames:
-    - argocd.qroksera.com
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-
----
 # Gateway参照用のSecret許可
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
