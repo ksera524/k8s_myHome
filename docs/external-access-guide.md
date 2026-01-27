@@ -15,10 +15,10 @@
 
 - Cloudflare DNS-01 用の ExternalSecret を追加
 - ClusterIssuer `letsencrypt-cloudflare` を追加
-- ArgoCD / RustFS の外部用 Certificate + HTTPRoute を追加
-- Harbor 外部 HTTPRoute を追加
+- 外部公開はワイルドカード証明書を 1 枚だけ `nginx-gateway` に配置
+- 各アプリは HTTPRoute のみ追加（証明書は追加しない）
 - RustFS Service を NodePort から ClusterIP に変更
-- Cloudflared の origin を Gateway 経由に統一
+- Cloudflared の origin は `nginx-gateway` に統一
 
 ## 新しい接続先を追加する手順
 
@@ -37,49 +37,35 @@ Pulumi ESC の `dns-01` を使用して、`cert-manager` namespace に Secret �
 kubectl get clusterissuer letsencrypt-cloudflare
 ```
 
-### 3. Certificate を作成
+### 3. ワイルドカード Certificate を作成
 
-アプリごとに `manifests/apps/<app>/` 配下へ証明書を追加します。
+外部公開は `nginx-gateway` に 1 枚だけ発行します。
+
+- 対象ファイル: `manifests/infrastructure/networking/nginx-gateway-fabric/gateway/wildcard-external-cert.yaml`
 
 ```yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: <app>-external-cert
-  namespace: <namespace>
+  name: qroksera-wildcard-external
+  namespace: nginx-gateway
 spec:
-  secretName: <app>-external-tls
+  secretName: qroksera-wildcard-tls
   issuerRef:
     name: letsencrypt-cloudflare
     kind: ClusterIssuer
   dnsNames:
-    - <app>.qroksera.com
+    - "*.qroksera.com"
   usages:
     - digital signature
     - key encipherment
     - server auth
 ```
 
-### 3.5 ReferenceGrant を追加
+### 3.5 個別証明書の運用（任意）
 
-Gateway が別 namespace の TLS Secret を参照できるように、ReferenceGrant を追加します。
-
-```yaml
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: allow-nginx-gateway-secrets
-  namespace: <namespace>
-spec:
-  from:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      namespace: nginx-gateway
-  to:
-    - group: ""
-      kind: Secret
-      name: <app>-external-tls
-```
+アプリ単位の証明書を使う場合のみ ReferenceGrant が必要です。
+ワイルドカード運用では **ReferenceGrant 不要** です。
 
 ### 4. HTTPRoute を追加
 
@@ -156,6 +142,7 @@ spec:
 ### 6. Cloudflared を設定
 
 origin は Gateway に統一し、TLS 検証は **ON** のままにします。
+`rustfs.qroksera.com` も `nginx-gateway` を向け、古い `ingress-nginx` を参照しないようにします。
 
 ```yaml
 ingress:
@@ -171,6 +158,7 @@ ingress:
 **ポイント**
 - `Origin Server Name` と `HTTP Host Header` を必ず一致させる
 - これが未設定だと TLS 検証が失敗しやすい
+ - `nginx-gateway` の証明書が staging のままだと TLS 検証で 502 になる
 
 ### 7. 反映と確認
 
@@ -198,3 +186,4 @@ kubectl get challenge -A | grep qroksera
 
 - `Origin Server Name` と `HTTP Host Header` が一致しているか確認
 - `noTLSVerify` は OFF（検証有効）で運用する
+ - ワイルドカード証明書が本番Issuerか確認（staging は 502 になる）

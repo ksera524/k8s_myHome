@@ -286,6 +286,55 @@ kubectl rollout restart deployment/harbor-core -n harbor
 kubectl logs -n harbor statefulset/harbor-database
 ```
 
+## 外部公開/TLS 問題
+
+### 1. Let’s Encrypt 429（rate limit）
+
+#### 症状
+```
+Order が errored / rateLimited
+```
+
+#### 原因と解決方法
+
+- 同一FQDNセットで 7 日間に 5 回までの制限に到達している
+- 対策:
+  - ワイルドカード証明書（`*.qroksera.com`）を 1 枚運用に統一
+  - 検証時は staging Issuer を使い、本番は解除後に切り替える
+
+```bash
+kubectl get order -A
+kubectl describe order <name> -n <namespace>
+```
+
+### 2. Cloudflare で 502 Bad Gateway
+
+#### 症状
+```
+curl -I https://<app>.qroksera.com
+HTTP/2 502
+server: cloudflare
+```
+
+#### よくある原因
+
+- cloudflared の origin が `nginx-gateway` ではなく古い `ingress-nginx` を指している
+- origin の TLS 検証に失敗（staging 証明書のまま）
+
+#### 診断と解決
+
+```bash
+# cloudflared のエラー確認
+kubectl logs -n cloudflared deploy/cloudflared --since=10m
+
+# origin の Service 指定を確認（例）
+# https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+
+# ワイルドカード証明書が本番Issuerか確認
+kubectl get secret -n nginx-gateway qroksera-wildcard-tls -o jsonpath='{.data.tls\.crt}' | \
+  base64 -d | openssl x509 -noout -issuer
+```
+
 ## External Secrets 問題
 
 ### 1. Secret が作成されない
