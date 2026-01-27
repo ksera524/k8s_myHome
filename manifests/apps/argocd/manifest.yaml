@@ -1,42 +1,3 @@
-# Gateway参照用のSecret許可
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: allow-nginx-gateway-secrets
-  namespace: argocd
-spec:
-  from:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      namespace: nginx-gateway
-  to:
-    - group: ""
-      kind: Secret
-      name: argocd-external-tls
-    - group: ""
-      kind: Secret
-      name: argocd-internal-tls
-
----
-# ArgoCD内部アクセス用TLS証明書
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: argocd-internal-cert
-  namespace: argocd
-spec:
-  secretName: argocd-internal-tls
-  issuerRef:
-    name: internal-ca-issuer
-    kind: ClusterIssuer
-  dnsNames:
-    - argocd.internal.qroksera.com
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-
----
 # ArgoCD外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -105,7 +66,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-argocd-internal
+      sectionName: https-internal
   hostnames:
     - argocd.internal.qroksera.com
   rules:
