@@ -90,13 +90,6 @@ alloy-metrics:
             fieldPath: metadata.name
       - name: GCLOUD_FM_COLLECTOR_ID
         value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-$(POD_NAME)
-  remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: basic
-      username: "1371019"
-      passwordFrom: env("GRAFANA_CLOUD_API_TOKEN")
 
 alloy-singleton:
   enabled: true
@@ -119,13 +112,6 @@ alloy-singleton:
             fieldPath: metadata.name
       - name: GCLOUD_FM_COLLECTOR_ID
         value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-$(POD_NAME)
-  remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: basic
-      username: "1371019"
-      passwordFrom: env("GRAFANA_CLOUD_API_TOKEN")
 
 alloy-logs:
   enabled: true
@@ -152,13 +138,6 @@ alloy-logs:
             fieldPath: spec.nodeName
       - name: GCLOUD_FM_COLLECTOR_ID
         value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-logs-$(NODE_NAME)
-  remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: basic
-      username: "1371019"
-      passwordFrom: env("GRAFANA_CLOUD_API_TOKEN")
 
 alloy-receiver:
   enabled: true
@@ -198,10 +177,3 @@ alloy-receiver:
             fieldPath: spec.nodeName
       - name: GCLOUD_FM_COLLECTOR_ID
         value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-receiver-$(NODE_NAME)
-  remoteConfig:
-    enabled: true
-    url: https://fleet-management-prod-019.grafana.net
-    auth:
-      type: basic
-      username: "1371019"
-      passwordFrom: env("GRAFANA_CLOUD_API_TOKEN")
