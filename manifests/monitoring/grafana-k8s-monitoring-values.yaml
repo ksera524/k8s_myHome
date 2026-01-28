@@ -71,6 +71,8 @@ collectorCommon:
 
 alloy-metrics:
   enabled: true
+  remoteConfig:
+    enabled: false
   alloy:
     extraEnv:
       - name: GCLOUD_RW_API_KEY
@@ -93,6 +95,8 @@ alloy-metrics:
 
 alloy-singleton:
   enabled: true
+  remoteConfig:
+    enabled: false
   alloy:
     extraEnv:
       - name: GCLOUD_RW_API_KEY
@@ -115,6 +119,8 @@ alloy-singleton:
 
 alloy-logs:
   enabled: true
+  remoteConfig:
+    enabled: false
   alloy:
     extraEnv:
       - name: GCLOUD_RW_API_KEY
@@ -141,6 +147,8 @@ alloy-logs:
 
 alloy-receiver:
   enabled: true
+  remoteConfig:
+    enabled: false
   alloy:
     extraPorts:
       - name: otlp-grpc
