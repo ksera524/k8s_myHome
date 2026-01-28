@@ -76,6 +76,12 @@
 - secret: 役割が分かる名前（例: `harbor-auth`, `github-auth`）
 - リソース説明は日本語コメントを付ける
 
+### 命名規則（ファイル/参照）
+- ワイルドカード証明書: `wildcard-<scope>-cert.yaml`（例: `wildcard-external-cert.yaml` / `wildcard-internal-cert.yaml`）
+- ワイルドカード証明書のリソース名: `wildcard-<scope>`、Secret 名: `wildcard-<scope>-tls`
+- ExternalSecret 定義ファイル: `*-external-secret.yaml` を基本とする
+- 複数 ExternalSecret をまとめるファイルは `external-secret-resources.yaml` とする
+
 ### YAML スタイル
 - `yamllint` 設定: `.yamllint.yml`
 - line-length: 最大 160

@@ -15,10 +15,10 @@ automation/platform/external-secrets/
 ├── secretstores/
 │   └── pulumi-esc-secretstore.yaml     # Pulumi ESC接続設定
 ├── externalsecrets/
-│   ├── harbor-externalsecret.yaml      # Harbor管理者認証情報
-│   ├── harbor-registry-externalsecret.yaml # Harbor Registry Secrets（全namespace対応）
-│   ├── slack-externalsecret.yaml       # Slack認証情報（sandbox namespace）
-│   ├── github-actions-externalsecret.yaml # GitHub Actions（作成予定）
+│   ├── harbor-external-secret.yaml      # Harbor管理者認証情報
+│   ├── harbor-registry-external-secret.yaml # Harbor Registry Secrets（全namespace対応）
+│   ├── slack-external-secret.yaml       # Slack認証情報（sandbox namespace）
+│   ├── github-actions-external-secret.yaml # GitHub Actions（作成予定）
 │   └── applications/                   # アプリケーション別Secret（作成予定）
 └── monitoring/
     ├── servicemonitor.yaml             # Prometheus監視（作成予定）
@@ -136,7 +136,7 @@ kubectl get secrets --all-namespaces | grep -E "(harbor|github|slack)"
 ```bash
 # ExternalSecret詳細状態
 kubectl describe externalsecret harbor-admin-secret -n harbor
-kubectl describe externalsecret slack-externalsecret -n sandbox
+kubectl describe externalsecret slack-external-secret -n sandbox
 
 # ESO Controller ログ
 kubectl logs -n external-secrets-system deployment/external-secrets -f
@@ -231,7 +231,7 @@ cd ../
 
 ## 🎯 次のステップ
 
-1. **GitHub Actions統合**: `externalsecrets/github-actions-externalsecret.yaml` の作成
+1. **GitHub Actions統合**: `externalsecrets/github-actions-external-secret.yaml` の作成
 2. **アプリケーション追加**: `externalsecrets/applications/` 配下のSecret作成
 3. **監視設定**: `monitoring/` 配下の監視・アラート設定
 4. **自動化拡張**: 追加のセットアップスクリプト作成

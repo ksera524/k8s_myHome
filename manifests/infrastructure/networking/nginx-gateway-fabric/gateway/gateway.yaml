@@ -20,7 +20,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: qroksera-wildcard-tls
+            group: ""
+            name: wildcard-external-tls
             namespace: nginx-gateway
       allowedRoutes:
         namespaces:
@@ -33,7 +34,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: qroksera-wildcard-tls
+            group: ""
+            name: wildcard-external-tls
             namespace: nginx-gateway
       allowedRoutes:
         namespaces:
@@ -46,7 +48,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: qroksera-wildcard-tls
+            group: ""
+            name: wildcard-external-tls
             namespace: nginx-gateway
       allowedRoutes:
         namespaces:
@@ -59,7 +62,8 @@ spec:
         mode: Terminate
         certificateRefs:
           - kind: Secret
-            name: internal-wildcard-tls
+            group: ""
+            name: wildcard-internal-tls
             namespace: nginx-gateway
       allowedRoutes:
         namespaces:

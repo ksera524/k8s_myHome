@@ -35,7 +35,7 @@ Harbor パスワード管理コマンド:
 - External Secrets確認: kubectl get externalsecrets -A
 - Pulumi ESC確認: kubectl get secrets -A | grep pulumi-access-token
 - Secret同期確認: kubectl describe externalsecret harbor-admin-secret -n harbor
-- Slack Secret確認: kubectl describe externalsecret slack-externalsecret -n sandbox
+- Slack Secret確認: kubectl describe externalsecret slack-external-secret -n sandbox
 - Secret確認: kubectl get secret harbor-admin-secret -n harbor -o yaml
 
 External Secrets セットアップ (オプション):

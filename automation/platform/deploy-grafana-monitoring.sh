@@ -184,13 +184,13 @@ log_status "✓ External Secrets Operator準備完了"
 
 # External Secret マニフェストをコピー
 log_status "External Secret マニフェストを適用中..."
-copy_to_cluster "../../manifests/config/secrets/grafana-monitoring-externalsecret.yaml" "/tmp/grafana-monitoring-externalsecret.yaml"
+copy_to_cluster "../../manifests/config/secrets/grafana-monitoring-external-secret.yaml" "/tmp/grafana-monitoring-external-secret.yaml"
 
 # monitoring namespace作成
 kubectl_exec create namespace monitoring --dry-run=client -o yaml | kubectl_exec apply -f -
 
 # External Secret適用
-kubectl_exec apply -f /tmp/grafana-monitoring-externalsecret.yaml
+kubectl_exec apply -f /tmp/grafana-monitoring-external-secret.yaml
 
 # Secret作成待機
 log_status "Grafana Cloud認証情報の同期待機中..."

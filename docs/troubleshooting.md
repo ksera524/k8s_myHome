@@ -331,7 +331,7 @@ kubectl logs -n cloudflared deploy/cloudflared --since=10m
 # https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
 
 # ワイルドカード証明書が本番Issuerか確認
-kubectl get secret -n nginx-gateway qroksera-wildcard-tls -o jsonpath='{.data.tls\.crt}' | \
+kubectl get secret -n nginx-gateway wildcard-external-tls -o jsonpath='{.data.tls\.crt}' | \
   base64 -d | openssl x509 -noout -issuer
 ```
 

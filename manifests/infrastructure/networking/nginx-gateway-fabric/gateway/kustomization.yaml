@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - gateway.yaml
   - wildcard-external-cert.yaml
-  - internal-wildcard-cert.yaml
+  - wildcard-internal-cert.yaml

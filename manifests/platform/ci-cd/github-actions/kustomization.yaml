@@ -8,5 +8,5 @@ resources:
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
   # External Secrets (GitHub PATはESO経由で取得)
-  # Note: github-auth-secretはplatform/secrets/external-secrets/externalsecrets.yamlで管理
+  # Note: github-auth-secretはplatform/secrets/external-secrets/external-secret-resources.yamlで管理
   # Runner ScaleSetはsetup-arc.shでsettings.tomlに基づいて作成

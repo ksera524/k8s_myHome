@@ -2,10 +2,10 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: internal-wildcard
+  name: wildcard-internal
   namespace: nginx-gateway
 spec:
-  secretName: internal-wildcard-tls
+  secretName: wildcard-internal-tls
   issuerRef:
     name: internal-ca-issuer
     kind: ClusterIssuer

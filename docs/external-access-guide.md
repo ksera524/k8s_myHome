@@ -26,7 +26,7 @@
 
 Pulumi ESC の `dns-01` を使用して、`cert-manager` namespace に Secret を同期します。
 
-- 対象ファイル: `manifests/platform/secrets/external-secrets/externalsecrets.yaml`
+- 対象ファイル: `manifests/platform/secrets/external-secrets/external-secret-resources.yaml`
 - 既存の `cloudflare-api-token` を再利用する
 
 ### 2. ClusterIssuer を確認
@@ -47,10 +47,10 @@ kubectl get clusterissuer letsencrypt-cloudflare
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: qroksera-wildcard-external
+  name: wildcard-external
   namespace: nginx-gateway
 spec:
-  secretName: qroksera-wildcard-tls
+  secretName: wildcard-external-tls
   issuerRef:
     name: letsencrypt-cloudflare
     kind: ClusterIssuer
