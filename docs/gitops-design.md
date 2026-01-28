@@ -46,7 +46,9 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 | 7 | cert-manager Config | Issuer設定 |
 | 7 | External Secrets | シークレット管理 |
 | 8 | Gateway Resources | Gateway/共通設定 |
+| 9 | Config Secrets | 外部連携用ExternalSecret |
 | 10 | Platform Services | ArgoCD, Harbor |
+| 11 | Monitoring | Grafana k8s-monitoring |
 | 11 | User App Definitions | アプリケーション定義 |
 | 12 | User Applications | 実際のアプリケーション |
 | 13 | Harbor Patches | Harbor後処理 |
@@ -70,7 +72,7 @@ manifests/
 │   └── gitops/
 │       └── harbor/              # Harborパッチ
 ├── monitoring/
-│   └── grafana-k8s-monitoring-values.yaml  # 監視用values（未接続）
+│   └── grafana-k8s-monitoring-values.yaml  # 監視用values（App-of-Apps管理）
 ├── platform/
 │   ├── argocd-config/           # ArgoCD設定
 │   ├── ci-cd/

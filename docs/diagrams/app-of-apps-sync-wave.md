@@ -22,8 +22,10 @@ flowchart TD
   certcfg["cert-manager Config\nwave 7"]:::wave7
   eso["External Secrets Operator\nwave 7"]:::wave7
   gwRes["Gateway Resources\nwave 8"]:::wave8
+  cfgSecrets["Config Secrets\nwave 9"]:::wave9
   platform["Platform\nwave 10"]:::wave10
   harbor["Harbor\nwave 10"]:::wave10
+  monitoring["Monitoring\nwave 11"]:::wave11
   userDefs["User App Definitions\nwave 11"]:::wave11
   userApps["User Applications\nwave 12"]:::wave12
   harborPatch["Harbor Patch\nwave 13"]:::wave13
@@ -40,8 +42,10 @@ flowchart TD
   root --> certcfg
   root --> eso
   root --> gwRes
+  root --> cfgSecrets
   root --> platform
   root --> harbor
+  root --> monitoring
   root --> userDefs
   root --> userApps
   root --> harborPatch
@@ -53,9 +57,12 @@ flowchart TD
   gwApi --> ngf
   ngf --> certmgr
   certmgr --> gwRes
+  eso --> cfgSecrets
+  cfgSecrets --> monitoring
   gwRes --> platform
   gwRes --> harbor
-  platform --> userDefs
+  platform --> monitoring
+  monitoring --> userDefs
   userDefs --> userApps
   userApps --> harborPatch
 
@@ -95,6 +102,7 @@ flowchart TD
   classDef wave6 fill:#e0f2fe,stroke:#0369a1,stroke-width:1px,color:#0c4a6e
   classDef wave7 fill:#ecfeff,stroke:#0e7490,stroke-width:1px,color:#0e3a45
   classDef wave8 fill:#e5e7eb,stroke:#374151,stroke-width:1px,color:#111827
+  classDef wave9 fill:#eef2ff,stroke:#4338ca,stroke-width:1px,color:#312e81
   classDef wave10 fill:#f1f5f9,stroke:#334155,stroke-width:1px,color:#0f172a
   classDef wave11 fill:#f0fdf4,stroke:#166534,stroke-width:1px,color:#14532d
   classDef wave12 fill:#eff6ff,stroke:#1d4ed8,stroke-width:1px,color:#1e3a8a
@@ -113,7 +121,9 @@ flowchart TD
 | 6 | NGINX Gateway Fabric | Gateway コントローラー本体 |
 | 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書/Secret 管理を整備 |
 | 8 | Gateway Resources | Gateway/共通設定を適用 |
+| 9 | Config Secrets | 外部連携用のExternalSecretを適用 |
 | 10 | Platform / Harbor | 基盤サービス群の展開 |
+| 11 | Monitoring | 監視スタック（Grafana k8s-monitoring） |
 | 11 | User App Definitions | ArgoCD Application 定義を作成 |
 | 12 | User Applications | 実アプリのマニフェスト適用 |
 | 13 | Harbor Patch | Harbor 後処理パッチ |

@@ -476,6 +476,39 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
+# Config Secrets - 外部連携用シークレット定義（ESO後にデプロイ）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-secrets
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/config/secrets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
 # Platform Layer - CI/CD、シークレット管理、監視
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -620,6 +653,45 @@ spec:
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Monitoring - Grafana k8s-monitoring（Platform後にデプロイ）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: k8s-monitoring
+      targetRevision: 3.7.4
+      helm:
+        valueFiles:
+          - $values/manifests/monitoring/grafana-k8s-monitoring-values.yaml
+    - repoURL: https://github.com/ksera524/k8s_myHome.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
   syncPolicy:
     automated:
       prune: true

@@ -1,4 +1,4 @@
-# 外部公開用ワイルドカード証明書（staging）
+# 外部公開用ワイルドカード証明書（本番Issuer）
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
