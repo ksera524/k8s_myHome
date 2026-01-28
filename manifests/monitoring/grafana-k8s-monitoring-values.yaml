@@ -76,8 +76,8 @@ alloy-metrics:
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
-            name: alloy-metrics-remote-cfg-monitoring-k8s-monitoring
-            key: password
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: CLUSTER_NAME
         value: home-k8s
       - name: NAMESPACE
@@ -105,8 +105,8 @@ alloy-singleton:
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
-            name: alloy-singleton-remote-cfg-monitoring-k8s-monitoring
-            key: password
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: CLUSTER_NAME
         value: home-k8s
       - name: NAMESPACE
@@ -134,8 +134,8 @@ alloy-logs:
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
-            name: alloy-logs-remote-cfg-monitoring-k8s-monitoring
-            key: password
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: CLUSTER_NAME
         value: home-k8s
       - name: NAMESPACE
@@ -180,8 +180,8 @@ alloy-receiver:
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
-            name: alloy-receiver-remote-cfg-monitoring-k8s-monitoring
-            key: password
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: CLUSTER_NAME
         value: home-k8s
       - name: NAMESPACE
