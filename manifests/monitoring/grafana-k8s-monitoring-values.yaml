@@ -75,6 +75,11 @@ alloy-metrics:
     enabled: false
   alloy:
     extraEnv:
+      - name: GRAFANA_CLOUD_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
@@ -99,6 +104,11 @@ alloy-singleton:
     enabled: false
   alloy:
     extraEnv:
+      - name: GRAFANA_CLOUD_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
@@ -123,6 +133,11 @@ alloy-logs:
     enabled: false
   alloy:
     extraEnv:
+      - name: GRAFANA_CLOUD_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
@@ -164,6 +179,11 @@ alloy-receiver:
         targetPort: 9411
         protocol: TCP
     extraEnv:
+      - name: GRAFANA_CLOUD_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: grafana-cloud-monitoring
+            key: api-token
       - name: GCLOUD_RW_API_KEY
         valueFrom:
           secretKeyRef:
