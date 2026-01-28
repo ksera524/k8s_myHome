@@ -6,7 +6,9 @@ metadata:
   namespace: harbor
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: http
   hostnames:
@@ -26,7 +28,9 @@ metadata:
   namespace: harbor
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: https-harbor-external
   hostnames:
@@ -37,43 +41,61 @@ spec:
             type: PathPrefix
             value: /api/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /service/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /v2/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /chartrepo/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /c/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: harbor-portal
+        - group: ""
+          kind: Service
+          name: harbor-portal
           port: 80
+          weight: 1
 ---
 # Harbor内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
 apiVersion: gateway.networking.k8s.io/v1
@@ -83,7 +105,9 @@ metadata:
   namespace: harbor
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: http
   hostnames:
@@ -103,7 +127,9 @@ metadata:
   namespace: harbor
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: https-internal
   hostnames:
@@ -114,43 +140,61 @@ spec:
             type: PathPrefix
             value: /api/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /service/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /v2/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /chartrepo/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /c/
       backendRefs:
-        - name: harbor-core
+        - group: ""
+          kind: Service
+          name: harbor-core
           port: 80
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: harbor-portal
+        - group: ""
+          kind: Service
+          name: harbor-portal
           port: 80
+          weight: 1
 ---
 # Harborクライアント設定（ボディサイズ制限解除）
 apiVersion: gateway.nginx.org/v1alpha1
