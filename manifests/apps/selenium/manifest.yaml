@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selenium-standalone-chrome
+  namespace: tools
+  labels:
+    app: selenium-standalone-chrome
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: selenium-standalone-chrome
+  template:
+    metadata:
+      labels:
+        app: selenium-standalone-chrome
+    spec:
+      containers:
+        - name: selenium-standalone-chrome
+          image: selenium/standalone-chrome:latest
+          imagePullPolicy: Always
+          ports:
+            - name: webdriver
+              containerPort: 4444
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: selenium-standalone-chrome
+  namespace: tools
+  labels:
+    app: selenium-standalone-chrome
+spec:
+  type: ClusterIP
+  selector:
+    app: selenium-standalone-chrome
+  ports:
+    - name: webdriver
+      port: 4444
+      targetPort: 4444
