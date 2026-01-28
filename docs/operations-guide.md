@@ -58,6 +58,18 @@ kubectl drain <node-name> --ignore-daemonsets
 kubectl uncordon <node-name>
 ```
 
+#### ノード設定の運用（/etc書き換え）
+
+Harbor連携のため、以下のDaemonSetがノードの`/etc`を更新します。
+
+- `manifests/infrastructure/gitops/harbor/containerd-config.yaml`
+- `manifests/infrastructure/gitops/harbor/harbor-node-hostaliases.yaml`
+
+**注意点**:
+- `hostPath`と`privileged`を使用するため、影響範囲はノード全体
+- 変更内容は`/etc/hosts`と`/etc/containerd/config.toml`
+- 反映後の挙動確認は`kubectl get ds -n kube-system | grep harbor`で実施
+
 ### アプリケーション管理
 
 #### ArgoCD操作

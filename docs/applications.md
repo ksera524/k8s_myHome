@@ -79,11 +79,20 @@ resources:
 | **設定** | Secret使用 |
 | **ソースコード** | manifests/apps/pepup/ |
 
-## 参考: 監視スタック（未デプロイ）
+### 6. Grafana k8s-monitoring
 
-Grafana Cloud 連携用の設定値は `manifests/monitoring/` と
-`manifests/config/secrets/` に用意していますが、App-of-Appsには未接続です。
-必要になったタイミングで導入してください。
+**概要**: Grafana Cloud連携の監視スタック
+
+| 項目 | 内容 |
+|------|------|
+| **Namespace** | monitoring |
+| **タイプ** | Helm chart (`k8s-monitoring`) |
+| **設定** | `manifests/monitoring/grafana-k8s-monitoring-values.yaml` |
+| **Secret** | grafana-cloud-monitoring（ExternalSecret） |
+
+**用途**:
+- クラスタメトリクス/ログ/トレースをGrafana Cloudへ送信
+- OTLP/Zipkin受信エンドポイントを提供
 
 ## 新規アプリケーションの追加
 
