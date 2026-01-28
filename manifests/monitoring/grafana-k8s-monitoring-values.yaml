@@ -5,13 +5,7 @@ cluster:
   name: home-k8s
 
 destinations:
-  - name: grafana-cloud-metrics
-    type: prometheus
-    url: https://prometheus-prod-49-prod-ap-northeast-0.grafana.net/api/prom/push
-    auth:
-      type: basic
-      username: "2666273"
-      passwordFrom: env("GRAFANA_CLOUD_API_TOKEN")
+  # Prometheus remote_writeは使わず、OTLPでメトリクス送信する
   - name: grafana-cloud-logs
     type: loki
     url: https://logs-prod-030.grafana.net/loki/api/v1/push
