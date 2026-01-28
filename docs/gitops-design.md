@@ -8,6 +8,10 @@ k8s_myHomeプロジェクトは、ArgoCDを使用したGitOpsパターンを採�
 
 ### App-of-Appsパターン
 
+依存関係と Sync Wave の可視化は次の図にまとめています。
+
+- `docs/diagrams/app-of-apps-sync-wave.md`
+
 ```
 ┌─────────────────────────────────────────────────┐
 │              Root Application                    │
