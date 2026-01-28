@@ -27,6 +27,8 @@ spec:
                     secretKeyRef:
                       name: slack
                       key: SLACK_BOT_TOKEN
+                - name: SELENIUM_COMMAND_EXECUTOR
+                  value: http://selenium-standalone-chrome.tools:4444/wd/hub
           restartPolicy: Never
           imagePullSecrets:
             - name: harbor-registry
