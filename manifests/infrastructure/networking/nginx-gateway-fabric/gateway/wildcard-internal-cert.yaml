@@ -1,16 +1,16 @@
-# 外部公開用ワイルドカード証明書（staging）
+# 内部公開用ワイルドカード証明書
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-external
+  name: wildcard-internal
   namespace: nginx-gateway
 spec:
-  secretName: wildcard-external-tls
+  secretName: wildcard-internal-tls
   issuerRef:
-    name: letsencrypt-cloudflare
+    name: internal-ca-issuer
     kind: ClusterIssuer
   dnsNames:
-    - "*.qroksera.com"
+    - "*.internal.qroksera.com"
   usages:
     - digital signature
     - key encipherment

@@ -117,6 +117,10 @@ values-production.yaml
 
 # External Secrets definitions are safe to commit
 !manifests/platform/secrets/external-secrets/*-secret.yaml
+# External Secrets definitions (config/secrets) are safe to commit
+!manifests/config/secrets/*-secret.yaml
+# External Secrets templates are safe to commit
+!automation/templates/external-secrets/*-secret.yaml
 # ArgoCD config files are safe to commit
 !manifests/platform/argocd-config/*-secret.yaml
 !manifests/platform/argocd-config/*-secrets.yaml
