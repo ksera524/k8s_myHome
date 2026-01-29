@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
       - name: cloudflared
-        image: cloudflare/cloudflared:latest
+        image: cloudflare/cloudflared:2026.1.2
+        imagePullPolicy: IfNotPresent
         command:
         - cloudflared
         - tunnel
@@ -26,6 +27,7 @@ spec:
         - run
         - --token
         - $(CLOUDFLARED_TOKEN)
+        - --no-autoupdate
         env:
         - name: CLOUDFLARED_TOKEN
           valueFrom:
