@@ -606,6 +606,8 @@ spec:
                   images:
                     - alias: slack
                       imageName: harbor.qroksera.com/sandbox/slack.rs:latest
+                      commonUpdateSettings:
+                        updateStrategy: "newest-build"
                 - namePattern: cloudflared
                   images:
                     - alias: cloudflared
