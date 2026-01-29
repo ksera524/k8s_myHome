@@ -540,7 +540,7 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
-# ArgoCD Image Updater - イメージ更新自動化（Git書き戻し）
+# ArgoCD Image Updater - イメージ更新自動化（ArgoCD書き戻し）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -561,9 +561,6 @@ spec:
         config:
           argocd.namespace: argocd
           argocd.server: argocd-server.argocd.svc
-          git.user: "argocd-image-updater"
-          git.email: "argocd-image-updater@qroksera.com"
-          git.commit-message-template: "chore(image-updater): update {{ .AppName }} {{ .Image }} to {{ .NewTag }}"
           log.level: "info"
           registries:
             - name: Harbor
@@ -582,10 +579,7 @@ spec:
               commonUpdateSettings:
                 updateStrategy: "newest-build"
               writeBackConfig:
-                method: git
-                gitConfig:
-                  repository: git@github.com:ksera524/k8s_myHome.git
-                  branch: main
+                method: argocd
               applicationRefs:
                 - namePattern: hitomi
                   commonUpdateSettings:
