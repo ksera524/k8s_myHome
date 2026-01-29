@@ -578,7 +578,7 @@ spec:
             spec:
               namespace: argocd
               commonUpdateSettings:
-                updateStrategy: "latest"
+                updateStrategy: "newest-build"
               writeBackConfig:
                 method: argocd
               applicationRefs:
