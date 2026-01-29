@@ -7,7 +7,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd-image-updater.argoproj.io/image-list: pepup=harbor.qroksera.com/sandbox/pepup:latest
-    argocd-image-updater.argoproj.io/pepup.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/pepup.update-strategy: latest
     argocd-image-updater.argoproj.io/pepup.pull-secret: pullsecret:argocd/harbor-registry
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:

@@ -7,7 +7,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd-image-updater.argoproj.io/image-list: rss=harbor.qroksera.com/sandbox/rss:latest
-    argocd-image-updater.argoproj.io/rss.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/rss.update-strategy: latest
     argocd-image-updater.argoproj.io/rss.pull-secret: pullsecret:argocd/harbor-registry
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:

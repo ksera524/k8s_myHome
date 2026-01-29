@@ -7,7 +7,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
   annotations:
     argocd-image-updater.argoproj.io/image-list: cloudflared=cloudflare/cloudflared:latest
-    argocd-image-updater.argoproj.io/cloudflared.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/cloudflared.update-strategy: latest
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
