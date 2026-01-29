@@ -540,6 +540,102 @@ spec:
         factor: 2
         maxDuration: 3m
 ---
+# ArgoCD Image Updater - イメージ更新自動化（Git書き戻し）
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    targetRevision: 0.11.2
+    chart: argocd-image-updater
+    helm:
+      values: |
+        config:
+          argocd.namespace: argocd
+          argocd.server: argocd-server.argocd.svc
+          git.user: "argocd-image-updater"
+          git.email: "argocd-image-updater@qroksera.com"
+          git.commit-message-template: "chore(image-updater): update {{ .AppName }} {{ .Image }} to {{ .NewTag }}"
+          log.level: "info"
+          registries:
+            - name: Harbor
+              api_url: https://harbor.qroksera.com
+              prefix: harbor.qroksera.com
+              ping: yes
+              credentials: pullsecret:argocd/harbor-registry
+        extraObjects:
+          - apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+            kind: ImageUpdater
+            metadata:
+              name: argocd-image-updater
+              namespace: argocd
+            spec:
+              namespace: argocd
+              commonUpdateSettings:
+                updateStrategy: "newest-build"
+              writeBackConfig:
+                method: git
+                gitConfig:
+                  repository: git@github.com:ksera524/k8s_myHome.git
+                  branch: main
+              applicationRefs:
+                - namePattern: hitomi
+                  commonUpdateSettings:
+                    pullSecret: pullsecret:argocd/harbor-registry
+                  images:
+                    - alias: hitomi
+                      imageName: harbor.qroksera.com/sandbox/hitomi:latest
+                - namePattern: pepup
+                  commonUpdateSettings:
+                    pullSecret: pullsecret:argocd/harbor-registry
+                  images:
+                    - alias: pepup
+                      imageName: harbor.qroksera.com/sandbox/pepup:latest
+                - namePattern: rss
+                  commonUpdateSettings:
+                    pullSecret: pullsecret:argocd/harbor-registry
+                  images:
+                    - alias: rss
+                      imageName: harbor.qroksera.com/sandbox/rss:latest
+                - namePattern: slack
+                  commonUpdateSettings:
+                    pullSecret: pullsecret:argocd/harbor-registry
+                  images:
+                    - alias: slack
+                      imageName: harbor.qroksera.com/sandbox/slack.rs:latest
+                - namePattern: cloudflared
+                  images:
+                    - alias: cloudflared
+                      imageName: cloudflare/cloudflared:latest
+                - namePattern: selenium
+                  images:
+                    - alias: selenium
+                      imageName: selenium/standalone-chrome:latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
 # Harbor Application - Infrastructure Component（ESO後にデプロイ）
 apiVersion: argoproj.io/v1alpha1
 kind: Application
