@@ -5,6 +5,11 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: hitomi=harbor.qroksera.com/sandbox/hitomi:latest
+    argocd-image-updater.argoproj.io/hitomi.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/hitomi.pull-secret: pullsecret:argocd/harbor-registry
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
   source:

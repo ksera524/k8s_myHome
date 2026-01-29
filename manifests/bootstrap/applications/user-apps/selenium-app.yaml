@@ -5,6 +5,10 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: selenium=selenium/standalone-chrome:latest
+    argocd-image-updater.argoproj.io/selenium.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
   source:
