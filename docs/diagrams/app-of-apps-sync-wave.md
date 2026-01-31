@@ -10,7 +10,6 @@ flowchart TD
   root["Root Application\nbootstrap/app-of-apps.yaml"]:::root
 
   lp["Local Path Provisioner\nwave 1"]:::wave1
-  lpc["Local Path Config\nwave 2"]:::wave2
   core["Core (Namespaces/Storage/RBAC)\nwave 2"]:::wave2
   coredns["CoreDNS Config\nwave 2"]:::wave2
 
@@ -32,7 +31,6 @@ flowchart TD
   harborPatch["Harbor Patch\nwave 13"]:::wave13
 
   root --> lp
-  root --> lpc
   root --> core
   root --> coredns
   root --> metallb
@@ -52,7 +50,6 @@ flowchart TD
   root --> userApps
   root --> harborPatch
 
-  lp --> lpc
   core --> metallb
   metallb --> metallbCfg
   metallbCfg --> gwApi
@@ -117,7 +114,7 @@ flowchart TD
 | Wave | コンポーネント | 意味/依存関係 |
 |------|----------------|--------------|
 | 1 | Local Path Provisioner | 永続ボリューム基盤を先に準備 |
-| 2 | Local Path Config / Core / CoreDNS | 基本リソースとストレージ設定の土台 |
+| 2 | Core / CoreDNS | 基本リソースとストレージ設定の土台 |
 | 3 | MetalLB | LoadBalancer を提供 |
 | 4 | MetalLB Config | IP プール設定を適用 |
 | 5 | Gateway API CRD | Gateway API の CRD を先行適用 |

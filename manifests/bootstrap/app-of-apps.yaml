@@ -15,47 +15,6 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/rancher/local-path-provisioner
-    targetRevision: v0.0.24
-    path: deploy
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: local-path-storage
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - RespectIgnoreDifferences=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-  ignoreDifferences:
-    - group: ""
-      kind: ConfigMap
-      name: local-path-config
-      namespace: local-path-storage
-    - group: ""
-      kind: Namespace
-      name: local-path-storage
----
-# Local Path Provisioner Config - 外部SSDパスを固定
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: local-path-config
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  project: default
-  source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
     path: manifests/infrastructure/storage/local-path
@@ -68,20 +27,14 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
       - RespectIgnoreDifferences=true
-      - SkipDryRunOnMissingResource=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    - group: ""
-      kind: ConfigMap
-      name: local-path-config
-      namespace: local-path-storage
 ---
 # Core Components - 最初に作成（すべてが依存）
 apiVersion: argoproj.io/v1alpha1
@@ -114,10 +67,6 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    - group: ""
-      kind: Namespace
-      name: local-path-storage
 ---
 # CoreDNS Configuration - クラスタ内DNSの固定エントリ
 apiVersion: argoproj.io/v1alpha1
@@ -169,6 +118,7 @@ spec:
     targetRevision: v0.13.12
     chart: metallb
     helm:
+      skipCrds: true
       values: |
         controller:
           resources:
