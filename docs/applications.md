@@ -94,6 +94,64 @@ resources:
 - クラスタメトリクス/ログ/トレースをGrafana Cloudへ送信
 - OTLP/Zipkin受信エンドポイントを提供
 
+## sandbox 共有接続情報
+
+sandbox 内のアプリが PostgreSQL / RustFS に接続するための情報を、ConfigMap と Secret に集約しています。
+
+### ConfigMap（非機密）
+
+| 項目 | 内容 |
+|------|------|
+| **Namespace** | sandbox |
+| **ConfigMap** | sandbox-connection-info |
+
+**含まれるキー**:
+- `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER`
+- `RUSTFS_S3_ENDPOINT` / `RUSTFS_S3_REGION`
+
+### Secret（機密）
+
+| 項目 | 内容 |
+|------|------|
+| **PostgreSQL** | postgresql-auth（postgres-password） |
+| **RustFS** | rustfs-auth（RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY） |
+
+### 利用例
+
+**ConfigMapをまとめて読み込む**:
+
+```yaml
+envFrom:
+  - configMapRef:
+      name: sandbox-connection-info
+```
+
+**必要な項目だけ参照する**:
+
+```yaml
+env:
+  - name: POSTGRES_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: sandbox-connection-info
+        key: POSTGRES_HOST
+  - name: POSTGRES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql-auth
+        key: postgres-password
+  - name: RUSTFS_S3_ENDPOINT
+    valueFrom:
+      configMapKeyRef:
+        name: sandbox-connection-info
+        key: RUSTFS_S3_ENDPOINT
+  - name: RUSTFS_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: rustfs-auth
+        key: RUSTFS_ACCESS_KEY
+```
+
 ## 新規アプリケーションの追加
 
 ### 1. ディレクトリ構造の作成
