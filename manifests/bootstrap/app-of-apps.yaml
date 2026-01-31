@@ -75,6 +75,11 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: local-path-config
+      namespace: local-path-storage
 ---
 # Core Components - 最初に作成（すべてが依存）
 apiVersion: argoproj.io/v1alpha1
@@ -108,14 +113,9 @@ spec:
         factor: 2
         maxDuration: 3m
   ignoreDifferences:
-    - group: external-secrets.io
-      kind: ExternalSecret
-      jqPathExpressions:
-        - ".spec.data[].remoteRef.conversionStrategy"
-        - ".spec.data[].remoteRef.decodingStrategy"
-        - ".spec.data[].remoteRef.metadataPolicy"
-        - ".spec.target.deletionPolicy"
-        - ".spec.target.mergePolicy"
+    - group: ""
+      kind: Namespace
+      name: local-path-storage
 ---
 # CoreDNS Configuration - クラスタ内DNSの固定エントリ
 apiVersion: argoproj.io/v1alpha1
@@ -200,6 +200,10 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: ""
+      kind: Namespace
+      name: local-path-storage
 ---
 # MetalLB Configuration - IPアドレスプール設定
 apiVersion: argoproj.io/v1alpha1
@@ -524,6 +528,15 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - ".spec.data[].remoteRef.conversionStrategy"
+        - ".spec.data[].remoteRef.decodingStrategy"
+        - ".spec.data[].remoteRef.metadataPolicy"
+        - ".spec.target.deletionPolicy"
+        - ".spec.target.mergePolicy"
 ---
 # Platform Layer - CI/CD、シークレット管理、監視
 apiVersion: argoproj.io/v1alpha1
