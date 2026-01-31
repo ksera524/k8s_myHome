@@ -62,8 +62,6 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
-      - RespectIgnoreDifferences=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
@@ -149,6 +147,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
