@@ -1,0 +1,15 @@
+# sandbox内アプリ向け接続情報（非機密）
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-connection-info
+  namespace: sandbox
+data:
+  # PostgreSQL
+  POSTGRES_HOST: postgresql.database.svc
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: app
+  POSTGRES_USER: postgres
+  # RustFS (S3互換)
+  RUSTFS_S3_ENDPOINT: http://rustfs-svc.rustfs.svc:9000
+  RUSTFS_S3_REGION: us-east-1
