@@ -8,9 +8,3 @@ resources:
   # Networking
   - networking/metallb/metallb-ipaddress-pool.yaml
   - networking/coredns/
-
-  # Security
-  # ca-secret.yaml は秘密情報のためGit管理対象外
-  - security/cert-manager/cert-manager-selfsigned-issuer.yaml
-  - security/cert-manager/cert-manager-letsencrypt-cloudflare-issuer.yaml
-  - security/cert-manager/cert-manager-letsencrypt-cloudflare-staging-issuer.yaml

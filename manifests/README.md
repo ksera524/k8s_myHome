@@ -7,11 +7,11 @@
 ```
 manifests/
 ├── bootstrap/                    # ArgoCD App-of-Apps
-├── config/                       # 外部連携用設定
+├── config/                       # 非Secretの外部連携設定
 ├── core/                         # 基本リソース（namespace, storage-class など）
 ├── infrastructure/               # インフラ構成（networking, security など）
 ├── platform/                     # プラットフォームサービス（ArgoCD, ESO, ARC）
-├── monitoring/                   # 監視関連
+├── monitoring/                   # 監視関連（manifests/values）
 └── apps/                         # ユーザーアプリケーション
 ```
 
@@ -39,4 +39,5 @@ kubectl apply -f manifests/platform/argocd-config/
 
 - GitOpsワークフローでは、このディレクトリのマニフェストがArgoCD経由で自動同期されます
 - 手動変更は一時対応に留め、対応する Git へのコミットを必ず行ってください
+- ExternalSecret 定義は manifests/platform/secrets/external-secrets/ に集約しています
 - External Secrets は Pulumi ESC から動的に取得します

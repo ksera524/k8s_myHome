@@ -22,7 +22,7 @@ flowchart TD
   certcfg["cert-manager Config\nwave 7"]:::wave7
   eso["External Secrets Operator\nwave 7"]:::wave7
   gwRes["Gateway Resources\nwave 8"]:::wave8
-  cfgSecrets["Config Secrets\nwave 9"]:::wave9
+  cfgSecrets["External Secrets Definitions\nwave 9"]:::wave9
   platform["Platform\nwave 10"]:::wave10
   imgUpdater["ArgoCD Image Updater\nwave 10"]:::wave10
   harbor["Harbor\nwave 10"]:::wave10
@@ -124,7 +124,7 @@ flowchart TD
 | 6 | NGINX Gateway Fabric | Gateway コントローラー本体 |
 | 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書/Secret 管理を整備 |
 | 8 | Gateway Resources | Gateway/共通設定を適用 |
-| 9 | Config Secrets | 外部連携用のExternalSecretを適用 |
+| 9 | External Secrets Definitions | 外部連携用のExternalSecretを適用 |
 | 10 | Platform / ArgoCD Image Updater / Harbor | 基盤サービス群の展開 |
 | 11 | Monitoring | 監視スタック（Grafana k8s-monitoring） |
 | 11 | User App Definitions | ArgoCD Application 定義を作成 |
