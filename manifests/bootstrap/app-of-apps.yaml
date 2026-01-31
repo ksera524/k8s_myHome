@@ -379,8 +379,6 @@ spec:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
     path: manifests/infrastructure/security/cert-manager
-    directory:
-      include: 'cert-manager-*.yaml'
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
@@ -492,7 +490,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/config/secrets
+    path: manifests/platform/secrets/external-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

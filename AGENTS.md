@@ -35,6 +35,7 @@
 - k8s マニフェストは必ず `manifests/` 配下を利用
 - App-of-Apps で ArgoCD 管理（GitOps を優先）
 - App-of-Apps / Sync Wave の構成変更時は `docs/diagrams/app-of-apps-sync-wave.md` の Mermaid 図も更新する
+- マニフェストの配置ルールは `docs/manifest-layout.md` に従う
 
 ## ビルド/検証/テストコマンド
 このリポジトリにアプリ用ビルドはなく、検証中心
