@@ -13,6 +13,8 @@ spec:
     chart: postgresql
     helm:
       values: |
+        image:
+          tag: latest
         auth:
           existingSecret: postgresql-auth
           existingSecretPasswordKey: postgres-password
