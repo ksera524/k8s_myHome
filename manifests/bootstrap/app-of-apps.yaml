@@ -33,6 +33,14 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: local-path-config
+      namespace: local-path-storage
+    - group: ""
+      kind: Namespace
+      name: local-path-storage
 ---
 # Local Path Provisioner Config - 外部SSDパスを固定
 apiVersion: argoproj.io/v1alpha1
@@ -99,6 +107,15 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - ".spec.data[].remoteRef.conversionStrategy"
+        - ".spec.data[].remoteRef.decodingStrategy"
+        - ".spec.data[].remoteRef.metadataPolicy"
+        - ".spec.target.deletionPolicy"
+        - ".spec.target.mergePolicy"
 ---
 # CoreDNS Configuration - クラスタ内DNSの固定エントリ
 apiVersion: argoproj.io/v1alpha1
@@ -567,53 +584,6 @@ spec:
               prefix: harbor.qroksera.com
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
-        extraObjects:
-          - apiVersion: argocd-image-updater.argoproj.io/v1alpha1
-            kind: ImageUpdater
-            metadata:
-              name: argocd-image-updater
-              namespace: argocd
-            spec:
-              namespace: argocd
-              commonUpdateSettings:
-                updateStrategy: "newest-build"
-              writeBackConfig:
-                method: argocd
-              applicationRefs:
-                - namePattern: hitomi
-                  commonUpdateSettings:
-                    pullSecret: pullsecret:argocd/harbor-registry
-                  images:
-                    - alias: hitomi
-                      imageName: harbor.qroksera.com/sandbox/hitomi:latest
-                - namePattern: pepup
-                  commonUpdateSettings:
-                    pullSecret: pullsecret:argocd/harbor-registry
-                  images:
-                    - alias: pepup
-                      imageName: harbor.qroksera.com/sandbox/pepup:latest
-                - namePattern: rss
-                  commonUpdateSettings:
-                    pullSecret: pullsecret:argocd/harbor-registry
-                  images:
-                    - alias: rss
-                      imageName: harbor.qroksera.com/sandbox/rss:latest
-                - namePattern: slack
-                  commonUpdateSettings:
-                    pullSecret: pullsecret:argocd/harbor-registry
-                  images:
-                    - alias: slack
-                      imageName: harbor.qroksera.com/sandbox/slack.rs:latest
-                      commonUpdateSettings:
-                        updateStrategy: "newest-build"
-                - namePattern: cloudflared
-                  images:
-                    - alias: cloudflared
-                      imageName: cloudflare/cloudflared:latest
-                - namePattern: selenium
-                  images:
-                    - alias: selenium
-                      imageName: selenium/standalone-chrome:latest
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

@@ -10,8 +10,6 @@ metadata:
 spec:
   project: default
   source:
-    kustomize:
-      images: []
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
     path: manifests/apps/cloudflared

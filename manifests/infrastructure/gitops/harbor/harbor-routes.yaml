@@ -19,6 +19,10 @@ spec:
           requestRedirect:
             scheme: https
             statusCode: 301
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
 ---
 # Harbor外部公開用HTTPRoute（HTTPS）
 apiVersion: gateway.networking.k8s.io/v1
@@ -118,6 +122,10 @@ spec:
           requestRedirect:
             scheme: https
             statusCode: 301
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
 ---
 # Harbor内部公開用HTTPRoute（HTTPS）
 apiVersion: gateway.networking.k8s.io/v1
