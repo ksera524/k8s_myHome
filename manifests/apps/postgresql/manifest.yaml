@@ -29,12 +29,6 @@ spec:
       backoffLimit: 2
       template:
         spec:
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 999
-            runAsGroup: 999
-            seccompProfile:
-              type: RuntimeDefault
           restartPolicy: OnFailure
           containers:
             - name: backup
@@ -45,9 +39,6 @@ spec:
                 capabilities:
                   drop:
                     - ALL
-                runAsNonRoot: true
-                runAsUser: 999
-                runAsGroup: 999
               envFrom:
                 - configMapRef:
                     name: postgresql-backup-config
