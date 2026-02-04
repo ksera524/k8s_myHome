@@ -9,6 +9,24 @@
 - 対象: 日常運用、監視、バックアップ/リストア、定期メンテナンス
 - 非対象: 初期構築は `docs/setup-guide.md`、障害切り分けは `docs/troubleshooting.md`、バージョンアップは `docs/kubernetes-upgrade-guide.md`
 
+## 運用方針（長期改善の前提）
+
+- 変更は原則 GitOps で実施し、手動作業は例外として記録する
+- 重要リソース（Gateway/Harbor/ESO/ArgoCD）の状態を日常確認に含める
+- 失敗時は `automation/run.log` と Phase5 出力を併用して切り分ける
+
+## Phase5 検証項目（自動）
+
+`make phase5` では次の項目を確認します。
+
+- Control Plane 接続（kubectl での疎通）
+- 主要Namespaceの存在（argocd/monitoring/harbor/external-secrets-system/nginx-gateway/metallb-system）
+- ノード Ready 状態
+- Pod 異常（Running/Completed 以外）
+- ArgoCD アプリの Sync/Health
+- External Secrets（ClusterSecretStore/ExternalSecret）
+- Gateway/LoadBalancer の基本状態
+
 ## 日常運用タスク
 
 ### システム状態確認
@@ -262,6 +280,9 @@ kubectl get events -A --sort-by='.lastTimestamp'
 ```
 
 ### バックアップとリストア
+
+このホームラボ環境では、消失して困るデータがない前提のためバックアップは任意です。
+必要になった場合のみ、以下の手順を有効化してください。
 
 #### 設定バックアップ
 

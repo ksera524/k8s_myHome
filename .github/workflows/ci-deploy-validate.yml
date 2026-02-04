@@ -9,6 +9,8 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      CI: "true"
 
     steps:
       - name: Checkout
@@ -37,3 +39,6 @@ jobs:
 
       - name: Validate deployment assets
         run: automation/scripts/ci/validate.sh
+
+      - name: Phase5 verify (CI safe)
+        run: automation/scripts/verify.sh
