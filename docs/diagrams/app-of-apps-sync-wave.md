@@ -78,8 +78,6 @@ flowchart TD
     uad_rustfs_ext["rustfs-external"]:::wave11
     uad_cloudflared["cloudflared"]:::wave11
     uad_hitomi["hitomi"]:::wave11
-    uad_pepup["pepup"]:::wave11
-    uad_rss["rss"]:::wave11
     uad_slack["slack"]:::wave11
     uad_selenium["selenium"]:::wave11
   end
@@ -91,8 +89,6 @@ flowchart TD
     ua_rustfs["rustfs"]:::wave12
     ua_cloudflared["cloudflared"]:::wave12
     ua_hitomi["hitomi"]:::wave12
-    ua_pepup["pepup"]:::wave12
-    ua_rss["rss"]:::wave12
     ua_slack["slack"]:::wave12
     ua_selenium["selenium"]:::wave12
   end
