@@ -20,8 +20,21 @@ fi
 
 CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
 K8S_USER="${K8S_USER:-k8suser}"
+K8S_SSH_KEY="${K8S_SSH_KEY:-}"
 
-ssh_cmd=(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR "${K8S_USER}@${CONTROL_PLANE_IP}")
+ssh_opts=(
+  -T
+  -o StrictHostKeyChecking=no
+  -o BatchMode=yes
+  -o LogLevel=ERROR
+  -o ConnectTimeout=10
+)
+
+if [[ -n "$K8S_SSH_KEY" ]]; then
+  ssh_opts+=(-i "$K8S_SSH_KEY")
+fi
+
+ssh_cmd=(ssh "${ssh_opts[@]}" "${K8S_USER}@${CONTROL_PLANE_IP}")
 
 log_status "=== Phase 5: Verify ==="
 

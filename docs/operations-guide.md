@@ -27,6 +27,9 @@
 - External Secrets（ClusterSecretStore/ExternalSecret）
 - Gateway/LoadBalancer の基本状態
 
+CIで実行する場合は `CI=true` を設定して SSH 検証をスキップします。
+手動実行でスキップしたい場合は `VERIFY_SKIP_SSH=true` を設定してください。
+
 ## 日常運用タスク
 
 ### システム状態確認
