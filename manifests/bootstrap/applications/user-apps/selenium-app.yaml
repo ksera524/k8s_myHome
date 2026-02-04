@@ -10,7 +10,7 @@ metadata:
     argocd-image-updater.argoproj.io/selenium.update-strategy: latest
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
-  project: default
+  project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD

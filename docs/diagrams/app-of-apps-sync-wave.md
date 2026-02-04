@@ -9,6 +9,8 @@ ArgoCD の App-of-Apps 構成と Sync Wave の関係を 1 枚で把握するた�
 flowchart TD
   root["Root Application\nbootstrap/app-of-apps.yaml"]:::root
 
+  argocdProjects["ArgoCD Projects\nwave 0"]:::wave0
+
   lp["Local Path Provisioner\nwave 1"]:::wave1
   core["Core (Namespaces/Storage/RBAC)\nwave 2"]:::wave2
   coredns["CoreDNS Config\nwave 2"]:::wave2
@@ -30,6 +32,7 @@ flowchart TD
   userApps["User Applications\nwave 12"]:::wave12
   harborPatch["Harbor Patch\nwave 13"]:::wave13
 
+  root --> argocdProjects
   root --> lp
   root --> core
   root --> coredns
@@ -49,6 +52,9 @@ flowchart TD
   root --> userDefs
   root --> userApps
   root --> harborPatch
+
+  argocdProjects --> lp
+  argocdProjects --> core
 
   core --> metallb
   metallb --> metallbCfg
@@ -94,6 +100,7 @@ flowchart TD
   userApps --> user_applications
 
   classDef root fill:#f2f4f7,stroke:#475467,stroke-width:1px,color:#101828
+  classDef wave0 fill:#f5f3ff,stroke:#6d28d9,stroke-width:1px,color:#3b0764
   classDef wave1 fill:#ecfdf3,stroke:#027a48,stroke-width:1px,color:#054f31
   classDef wave2 fill:#eaf2ff,stroke:#175cd3,stroke-width:1px,color:#102a56
   classDef wave3 fill:#fff6ed,stroke:#c4320a,stroke-width:1px,color:#7a2e0e
@@ -113,6 +120,7 @@ flowchart TD
 
 | Wave | コンポーネント | 意味/依存関係 |
 |------|----------------|--------------|
+| 0 | ArgoCD Projects | AppProjectを先に作成 |
 | 1 | Local Path Provisioner | 永続ボリューム基盤を先に準備 |
 | 2 | Core / CoreDNS | 基本リソースとストレージ設定の土台 |
 | 3 | MetalLB | LoadBalancer を提供 |

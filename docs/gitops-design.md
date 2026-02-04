@@ -98,6 +98,21 @@ manifests/
 例外:
 - GitHub Actions Runner は `add-runner.sh` による作成運用（GitOps 管理外）
 
+## ArgoCD AppProject（権限境界）
+
+運用の安全性と見通しを高めるため、AppProject を 4 分割して運用します。
+AppProject は「どのApplicationが、どのnamespace/リソースにデプロイできるか」を制御します。
+
+| Project | 主な対象 | 備考 |
+|---------|---------|------|
+| core | Namespace/StorageClass/NetworkPolicy | クラスタ基礎
+| infrastructure | MetalLB/NGINX Gateway/cert-manager/Storage | クラスタ基盤
+| platform | ArgoCD/ESO/Harbor/Monitoring/CI | 運用基盤
+| apps | ユーザーアプリ | namespacedのみ
+
+AppProject 定義は `manifests/platform/argocd-config/argocd-projects.yaml` で管理します。
+AppProject は `argocd-projects` Application で先行適用します。
+
 ## ArgoCD設定
 
 ### Application定義
