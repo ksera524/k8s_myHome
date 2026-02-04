@@ -7,8 +7,6 @@ spec:
   description: コア基盤（Namespace/StorageClass/NetworkPolicy）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
-    - https://charts.bitnami.com/bitnami
-    - https://charts.rustfs.com
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -27,6 +25,8 @@ spec:
   description: クラスタ基盤（Networking/Ingress/Cert/Storage）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
+    - https://charts.bitnami.com/bitnami
+    - https://charts.rustfs.com
     - https://metallb.github.io/metallb
     - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     - https://charts.jetstack.io
