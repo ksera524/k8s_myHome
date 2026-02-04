@@ -120,8 +120,6 @@ chmod +x automation/scripts/fix-missing-directories.sh
 │   ├── factorio/
 │   ├── cloudflared/
 │   ├── hitomi/
-│   ├── pepup/
-│   ├── rss/
 │   ├── s3s/
 │   └── slack/
 └── k8s-storage-config.yaml    # ストレージ設定情報

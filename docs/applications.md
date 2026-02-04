@@ -44,19 +44,7 @@ resources:
 - 外部からの安全なアクセス
 - Cloudflare Zero Trust統合
 
-### 3. RSS Reader
-
-**概要**: RSSフィード管理アプリケーション
-
-| 項目 | 内容 |
-|------|------|
-| **Namespace** | sandbox |
-| **タイプ** | CronJob |
-| **スケジュール** | 毎日実行 |
-| **ストレージ** | なし |
-| **ソースコード** | manifests/apps/rss/ |
-
-### 4. Hitomi Downloader
+### 3. Hitomi Downloader
 
 **概要**: コンテンツダウンローダー
 
@@ -68,18 +56,7 @@ resources:
 | **ストレージ** | なし |
 | **ソースコード** | manifests/apps/hitomi/ |
 
-### 5. Pepup
-
-**概要**: カスタムアプリケーション
-
-| 項目 | 内容 |
-|------|------|
-| **Namespace** | sandbox |
-| **タイプ** | CronJob |
-| **設定** | Secret使用 |
-| **ソースコード** | manifests/apps/pepup/ |
-
-### 6. Grafana k8s-monitoring
+### 4. Grafana k8s-monitoring
 
 **概要**: Grafana Cloud連携の監視スタック
 

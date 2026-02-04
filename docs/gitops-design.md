@@ -82,8 +82,6 @@ manifests/
 └── apps/
     ├── cloudflared/             # アプリケーション
     ├── hitomi/
-    ├── pepup/
-    ├── rss/
     └── slack/
 ```
 

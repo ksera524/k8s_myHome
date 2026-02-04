@@ -351,7 +351,6 @@ jobs:
         echo "Building Docker image with version: \$VERSION"
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\$VERSION .
         docker build -t \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }} .
-        docker tag \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\$VERSION \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
 
         # pushするかどうかの判定（PR時はpushしない）
         if [ "\$SHOULD_PUSH" == "false" ]; then
@@ -370,10 +369,9 @@ jobs:
         echo "Pushing to Harbor..."
         docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\$VERSION
         docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:\${{ github.sha }}
-        docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
         
         echo "✅ Images pushed successfully to Harbor"
-        echo "📦 Pushed tags: \$VERSION, \${{ github.sha }}, latest"
+        echo "📦 Pushed tags: \$VERSION, \${{ github.sha }}"
         
     - name: Create and push git tag
       if: steps.version.outputs.should_tag == 'true'
