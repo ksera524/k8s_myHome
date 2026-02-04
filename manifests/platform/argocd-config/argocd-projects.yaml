@@ -25,8 +25,6 @@ spec:
   description: クラスタ基盤（Networking/Ingress/Cert/Storage）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
-    - https://charts.bitnami.com/bitnami
-    - https://charts.rustfs.com
     - https://metallb.github.io/metallb
     - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     - https://charts.jetstack.io
@@ -54,6 +52,8 @@ spec:
   description: 運用基盤（ArgoCD/ESO/Harbor/Monitoring/CI）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
+    - https://charts.bitnami.com/bitnami
+    - https://charts.rustfs.com
     - https://charts.external-secrets.io
     - https://argoproj.github.io/argo-helm
     - https://helm.goharbor.io
