@@ -1,0 +1,112 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: core
+  namespace: argocd
+spec:
+  description: コア基盤（Namespace/StorageClass/NetworkPolicy）
+  sourceRepos:
+    - https://github.com/ksera524/k8s_myHome.git
+    - https://charts.bitnami.com/bitnami
+    - https://charts.rustfs.com
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: storage.k8s.io
+      kind: StorageClass
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infrastructure
+  namespace: argocd
+spec:
+  description: クラスタ基盤（Networking/Ingress/Cert/Storage）
+  sourceRepos:
+    - https://github.com/ksera524/k8s_myHome.git
+    - https://metallb.github.io/metallb
+    - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
+    - https://charts.jetstack.io
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager
+    - server: https://kubernetes.default.svc
+      namespace: nginx-gateway
+    - server: https://kubernetes.default.svc
+      namespace: metallb-system
+    - server: https://kubernetes.default.svc
+      namespace: local-path-storage
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: 運用基盤（ArgoCD/ESO/Harbor/Monitoring/CI）
+  sourceRepos:
+    - https://github.com/ksera524/k8s_myHome.git
+    - https://charts.external-secrets.io
+    - https://argoproj.github.io/argo-helm
+    - https://helm.goharbor.io
+    - https://grafana.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets-system
+    - server: https://kubernetes.default.svc
+      namespace: arc-systems
+    - server: https://kubernetes.default.svc
+      namespace: arc-runners
+    - server: https://kubernetes.default.svc
+      namespace: harbor
+    - server: https://kubernetes.default.svc
+      namespace: cloudflared
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager
+    - server: https://kubernetes.default.svc
+      namespace: rustfs
+    - server: https://kubernetes.default.svc
+      namespace: database
+    - server: https://kubernetes.default.svc
+      namespace: sandbox
+    - server: https://kubernetes.default.svc
+      namespace: default
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  description: ユーザーアプリ
+  sourceRepos:
+    - https://github.com/ksera524/k8s_myHome.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: cloudflared
+    - server: https://kubernetes.default.svc
+      namespace: rustfs
+    - server: https://kubernetes.default.svc
+      namespace: database
+    - server: https://kubernetes.default.svc
+      namespace: sandbox
+    - server: https://kubernetes.default.svc
+      namespace: tools
+  clusterResourceWhitelist: []

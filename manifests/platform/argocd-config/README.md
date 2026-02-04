@@ -9,6 +9,10 @@
 - `argocd-rbac-cm`: RBAC権限設定
 - ソース: `argocd-config.yaml`
 
+### 1.5. ArgoCD AppProject
+- `argocd-projects.yaml`: Project境界（core/infrastructure/platform/apps）
+- 同期順序の都合で `argocd-projects` Application から先に適用される
+
 ### 2. ArgoCD GitHub OAuth Secret
 - `argocd-github-oauth-secret.yaml`: GitHub OAuth client secretをExternal Secrets経由で取得
 - Pulumi ESCの`argocd.client-secret`キーから取得

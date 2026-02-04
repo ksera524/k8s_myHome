@@ -1,6 +1,42 @@
 # ArgoCD App-of-Apps パターン - 改善されたディレクトリ構造版
 # デプロイ順序: Core → 基盤インフラ(MetalLB,Gateway API,cert-manager) → ESO → その他Infrastructure → Platform → Applications
 
+# ArgoCD Projects - Application作成前に適用
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-projects
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/platform/argocd-config
+    directory:
+      include: 'argocd-projects.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
 # Local Path Provisioner - Harborより先にデプロイが必要
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -13,7 +49,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -47,7 +83,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
-  project: default
+  project: core
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -80,7 +116,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -113,7 +149,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: 'https://metallb.github.io/metallb'
     targetRevision: v0.13.12
@@ -179,7 +215,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "4"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -211,7 +247,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "5"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -244,7 +280,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "6"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     targetRevision: 2.3.0
@@ -299,7 +335,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "7"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: 'https://charts.jetstack.io'
     targetRevision: v1.13.3
@@ -358,7 +394,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "7"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -387,7 +423,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "8"
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -420,7 +456,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "7"
 spec:
-  project: default
+  project: platform
   source:
     repoURL: 'https://charts.external-secrets.io'
     targetRevision: '0.18.2'
@@ -470,7 +506,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "9"
 spec:
-  project: default
+  project: platform
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -512,7 +548,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
-  project: default
+  project: platform
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -543,7 +579,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
-  project: default
+  project: platform
   source:
     repoURL: https://argoproj.github.io/argo-helm
     targetRevision: 0.11.2
@@ -588,7 +624,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
-  project: default
+  project: platform
   source:
     repoURL: 'https://helm.goharbor.io'
     targetRevision: 1.18.0
@@ -715,7 +751,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "11"
 spec:
-  project: default
+  project: platform
   sources:
     - repoURL: https://grafana.github.io/helm-charts
       chart: k8s-monitoring
@@ -754,7 +790,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "11"  # Platform後、実際のアプリ前にデプロイ
 spec:
-  project: default
+  project: platform
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -786,7 +822,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "12"  # Application定義後にデプロイ
 spec:
-  project: default
+  project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
@@ -819,7 +855,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "13"  # Applications(wave 12)の後に実行
 spec:
-  project: default
+  project: platform
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
