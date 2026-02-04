@@ -20,15 +20,130 @@ fi
 
 CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
 K8S_USER="${K8S_USER:-k8suser}"
+K8S_SSH_KEY="${K8S_SSH_KEY:-}"
 
-ssh_cmd=(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR "${K8S_USER}@${CONTROL_PLANE_IP}")
+ssh_opts=(
+  -T
+  -o StrictHostKeyChecking=no
+  -o BatchMode=yes
+  -o LogLevel=ERROR
+  -o ConnectTimeout=10
+)
+
+if [[ -n "$K8S_SSH_KEY" ]]; then
+  ssh_opts+=(-i "$K8S_SSH_KEY")
+fi
+
+ssh_cmd=(ssh "${ssh_opts[@]}" "${K8S_USER}@${CONTROL_PLANE_IP}")
 
 log_status "=== Phase 5: Verify ==="
+
+if [[ "${CI:-}" == "true" || "${CI:-}" == "1" || "${VERIFY_SKIP_SSH:-}" == "true" ]]; then
+  log_warning "CIモードのためSSH検証をスキップします（VERIFY_SKIP_SSH=true でもスキップ）"
+  exit 0
+fi
+
+log_status "Control Plane 接続確認中..."
+if ! "${ssh_cmd[@]}" 'kubectl version --short >/dev/null 2>&1'; then
+  log_error "kubectl に接続できません（kubeconfig または接続先を確認してください）"
+  exit 1
+fi
 
 log_status "ArgoCDリフレッシュ中..."
 "${ssh_cmd[@]}" 'kubectl get application platform -n argocd >/dev/null 2>&1 && kubectl annotate application platform -n argocd argocd.argoproj.io/refresh=hard --overwrite' || true
 "${ssh_cmd[@]}" 'kubectl get application user-applications -n argocd >/dev/null 2>&1 && kubectl annotate application user-applications -n argocd argocd.argoproj.io/refresh=hard --overwrite' || true
 sleep 5
+
+log_status "主要Namespace確認中..."
+critical_namespaces=(argocd monitoring harbor external-secrets-system nginx-gateway metallb-system)
+for namespace in "${critical_namespaces[@]}"; do
+  if "${ssh_cmd[@]}" "kubectl get namespace ${namespace} >/dev/null 2>&1"; then
+    log_status "✓ ${namespace} namespace 存在"
+  else
+    log_warning "${namespace} namespace が見つかりません"
+  fi
+done
+
+log_status "ノード状態確認中..."
+node_list=$("${ssh_cmd[@]}" 'kubectl get nodes --no-headers' 2>/dev/null || true)
+if [[ -z "$node_list" ]]; then
+  log_warning "ノード一覧を取得できませんでした"
+else
+  total_nodes=$(echo "$node_list" | awk 'NF{count++} END {print count+0}')
+  not_ready_nodes=$(echo "$node_list" | awk '$2 !~ /^Ready/ {count++} END {print count+0}')
+  if [[ "$not_ready_nodes" -gt 0 ]]; then
+    log_warning "Ready でないノードがあります: ${not_ready_nodes}/${total_nodes}"
+    echo "$node_list" | awk '$2 !~ /^Ready/ {printf "  - %s (%s)\n", $1, $2}'
+  else
+    log_status "✓ 全ノード Ready: ${total_nodes}"
+  fi
+fi
+
+log_status "Pod 状態確認中..."
+pod_list=$("${ssh_cmd[@]}" 'kubectl get pods -A --no-headers' 2>/dev/null || true)
+if [[ -z "$pod_list" ]]; then
+  log_warning "Pod一覧を取得できませんでした"
+else
+  problem_pod_count=$(echo "$pod_list" | awk '$4 != "Running" && $4 != "Completed" {count++} END {print count+0}')
+  if [[ "$problem_pod_count" -gt 0 ]]; then
+    log_warning "Running/Completed 以外の Pod があります: ${problem_pod_count}"
+    echo "$pod_list" | awk '$4 != "Running" && $4 != "Completed" {printf "  - %s/%s (%s)\n", $1, $2, $4; count++} count>=20 {exit}'
+  else
+    log_status "✓ 異常Podなし"
+  fi
+fi
+
+log_status "ArgoCD アプリ状態確認中..."
+app_table=$("${ssh_cmd[@]}" "kubectl get applications -n argocd -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.status.sync.status}{\"\\t\"}{.status.health.status}{\"\\n\"}{end}'" 2>/dev/null || true)
+if [[ -z "$app_table" ]]; then
+  log_warning "ArgoCDアプリ一覧を取得できませんでした"
+else
+  app_total=$(echo "$app_table" | awk 'NF{count++} END {print count+0}')
+  app_out_of_sync=$(echo "$app_table" | awk '$2 != "Synced" {count++} END {print count+0}')
+  app_degraded=$(echo "$app_table" | awk '$3 != "Healthy" {count++} END {print count+0}')
+  if [[ "$app_out_of_sync" -gt 0 || "$app_degraded" -gt 0 ]]; then
+    log_warning "ArgoCDアプリ異常: OutOfSync=${app_out_of_sync}, Degraded=${app_degraded}"
+    echo "$app_table" | awk '$2 != "Synced" || $3 != "Healthy" {printf "  - %s (sync=%s, health=%s)\n", $1, $2, $3; count++} count>=20 {exit}'
+  else
+    log_status "✓ ArgoCDアプリ正常: ${app_total}"
+  fi
+fi
+
+log_status "External Secrets 状態確認中..."
+clusterstore_status=$("${ssh_cmd[@]}" "kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'" 2>/dev/null || true)
+if [[ "$clusterstore_status" == "True" ]]; then
+  log_status "✓ ClusterSecretStore (pulumi-esc-store) Ready"
+else
+  log_warning "ClusterSecretStore (pulumi-esc-store) が Ready ではありません"
+fi
+
+externalsecret_table=$("${ssh_cmd[@]}" "kubectl get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\"\\t\"}{.status.conditions[?(@.type==\"Ready\")].status}{\"\\n\"}{end}'" 2>/dev/null || true)
+if [[ -n "$externalsecret_table" ]]; then
+  externalsecret_not_ready=$(echo "$externalsecret_table" | awk '$2 != "True" {count++} END {print count+0}')
+  if [[ "$externalsecret_not_ready" -gt 0 ]]; then
+    log_warning "ExternalSecret 未Ready: ${externalsecret_not_ready}"
+    echo "$externalsecret_table" | awk '$2 != "True" {printf "  - %s (Ready=%s)\n", $1, $2; count++} count>=20 {exit}'
+  else
+    log_status "✓ ExternalSecret 正常"
+  fi
+else
+  log_warning "ExternalSecret 一覧を取得できませんでした"
+fi
+
+log_status "Gateway/LoadBalancer 確認中..."
+gateway_count=$("${ssh_cmd[@]}" 'kubectl get gateway -A --no-headers 2>/dev/null | wc -l' || echo "0")
+if [[ "$gateway_count" -gt 0 ]]; then
+  log_status "✓ Gateway リソース: ${gateway_count}"
+else
+  log_warning "Gateway リソースが見つかりません"
+fi
+
+gateway_lb_ip=$("${ssh_cmd[@]}" "kubectl get svc -n nginx-gateway nginx-gateway-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" 2>/dev/null || true)
+if [[ -n "$gateway_lb_ip" ]]; then
+  log_status "✓ NGINX Gateway LoadBalancer IP: ${gateway_lb_ip}"
+else
+  log_warning "NGINX Gateway LoadBalancer IP が未割り当てです"
+fi
 
 log_status "Cloudflaredアプリ確認中..."
 if "${ssh_cmd[@]}" 'kubectl get application cloudflared -n argocd >/dev/null 2>&1'; then

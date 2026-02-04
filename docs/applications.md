@@ -152,6 +152,24 @@ env:
         key: RUSTFS_ACCESS_KEY
 ```
 
+### PostgreSQLでCREATE文を実行する方法
+
+**ワンライナー**:
+
+```bash
+ssh k8suser@192.168.122.10
+export PGPASSWORD="$(kubectl get secret postgresql-auth -n database -o jsonpath='{.data.postgres-password}' | base64 -d)"
+kubectl exec -it postgresql-0 -n database -- psql -U postgres -d app -c "CREATE TABLE test (id serial primary key, name text);"
+```
+
+**対話モード**:
+
+```bash
+ssh k8suser@192.168.122.10
+export PGPASSWORD="$(kubectl get secret postgresql-auth -n database -o jsonpath='{.data.postgres-password}' | base64 -d)"
+kubectl exec -it postgresql-0 -n database -- psql -U postgres -d app
+```
+
 ## 新規アプリケーションの追加
 
 ### 1. ディレクトリ構造の作成
