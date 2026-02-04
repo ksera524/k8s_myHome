@@ -6,8 +6,10 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd-image-updater.argoproj.io/image-list: slack=harbor.qroksera.com/sandbox/slack.rs:latest
-    argocd-image-updater.argoproj.io/slack.update-strategy: latest
+    argocd-image-updater.argoproj.io/image-list: slack=harbor.qroksera.com/sandbox/slack.rs
+    argocd-image-updater.argoproj.io/slack.update-strategy: semver
+    argocd-image-updater.argoproj.io/slack.allow-tags: regexp:^\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/slack.semver: ">=0.0.0"
     argocd-image-updater.argoproj.io/slack.pull-secret: pullsecret:argocd/harbor-registry
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
