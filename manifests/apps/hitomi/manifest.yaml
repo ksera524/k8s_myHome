@@ -6,8 +6,8 @@ metadata:
 spec:
   schedule: "55 13 * * *"
   concurrencyPolicy: "Forbid"
-  successfulJobsHistoryLimit: 0
-  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       activeDeadlineSeconds: 3600
@@ -19,7 +19,7 @@ spec:
         spec:
           containers:
             - name: hitomi-monitor
-              image: harbor.qroksera.com/sandbox/hitomi:latest
+              image: harbor.qroksera.com/sandbox/hitomi:0.0.2
               imagePullPolicy: Always
               env:
                 - name: TOKEN

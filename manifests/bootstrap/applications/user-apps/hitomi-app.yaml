@@ -11,7 +11,8 @@ metadata:
     argocd-image-updater.argoproj.io/hitomi.allow-tags: regexp:^\d+\.\d+\.\d+$
     argocd-image-updater.argoproj.io/hitomi.semver: ">=0.0.0"
     argocd-image-updater.argoproj.io/hitomi.pull-secret: pullsecret:argocd/harbor-registry
-    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
 spec:
   project: apps
   source:
