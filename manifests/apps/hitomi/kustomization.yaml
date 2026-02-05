@@ -3,3 +3,7 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
+
+images:
+  - name: harbor.qroksera.com/sandbox/hitomi
+    newTag: 0.0.2
