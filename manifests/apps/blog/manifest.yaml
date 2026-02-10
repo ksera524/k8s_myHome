@@ -23,17 +23,15 @@ spec:
           image: harbor.qroksera.com/sandbox/blog:0.0.1
           imagePullPolicy: Always
           ports:
-            - containerPort: 3000
-          workingDir: /app
-          command: ["./blog"]
+            - containerPort: 80
           livenessProbe:
             tcpSocket:
-              port: 3000
+              port: 80
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             tcpSocket:
-              port: 3000
+              port: 80
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
@@ -53,7 +51,7 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 3000
+      targetPort: 80
       protocol: TCP
 ---
 # blog外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
