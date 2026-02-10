@@ -68,3 +68,17 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    - name: https-blog-external
+      hostname: blog.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: wildcard-external-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
