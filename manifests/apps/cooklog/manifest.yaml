@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-up
+  name: cooklog
   namespace: sandbox
   labels:
-    app: user-up
+    app: cooklog
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: user-up
+      app: cooklog
   template:
     metadata:
       labels:
-        app: user-up
+        app: cooklog
     spec:
       restartPolicy: Always
       imagePullSecrets:
         - name: harbor-registry
       containers:
-        - name: user-up
+        - name: cooklog
           image: harbor.qroksera.com/sandbox/cooklog:0.0.1
           imagePullPolicy: Always
           ports:
@@ -37,28 +37,28 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
 ---
-# user-up用Service（内部公開のみ）
+# cooklog用Service（内部公開のみ）
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-up
+  name: cooklog
   namespace: sandbox
   labels:
-    app: user-up
+    app: cooklog
 spec:
   selector:
-    app: user-up
+    app: cooklog
   ports:
     - name: http
       port: 80
       targetPort: 80
       protocol: TCP
 ---
-# user-up内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+# cooklog内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: user-up-internal-redirect
+  name: cooklog-internal-redirect
   namespace: sandbox
 spec:
   parentRefs:
@@ -66,7 +66,7 @@ spec:
       namespace: nginx-gateway
       sectionName: http
   hostnames:
-    - user-up.internal.qroksera.com
+    - cooklog.internal.qroksera.com
   rules:
     - filters:
         - type: RequestRedirect
@@ -74,11 +74,11 @@ spec:
             scheme: https
             statusCode: 301
 ---
-# user-up内部公開用HTTPRoute（HTTPS）
+# cooklog内部公開用HTTPRoute（HTTPS）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: user-up-internal
+  name: cooklog-internal
   namespace: sandbox
 spec:
   parentRefs:
@@ -86,8 +86,8 @@ spec:
       namespace: nginx-gateway
       sectionName: https-internal
   hostnames:
-    - user-up.internal.qroksera.com
+    - cooklog.internal.qroksera.com
   rules:
     - backendRefs:
-        - name: user-up
+        - name: cooklog
           port: 80

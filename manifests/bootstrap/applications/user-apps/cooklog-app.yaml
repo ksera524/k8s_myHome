@@ -1,16 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: user-up
+  name: cooklog
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd-image-updater.argoproj.io/image-list: user-up=harbor.qroksera.com/sandbox/cooklog
-    argocd-image-updater.argoproj.io/user-up.update-strategy: semver
-    argocd-image-updater.argoproj.io/user-up.allow-tags: regexp:^\d+\.\d+\.\d+$
-    argocd-image-updater.argoproj.io/user-up.semver: ">=0.0.0"
-    argocd-image-updater.argoproj.io/user-up.pull-secret: pullsecret:argocd/harbor-registry
+    argocd-image-updater.argoproj.io/image-list: cooklog=harbor.qroksera.com/sandbox/cooklog
+    argocd-image-updater.argoproj.io/cooklog.update-strategy: semver
+    argocd-image-updater.argoproj.io/cooklog.allow-tags: regexp:^\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/cooklog.semver: ">=0.0.0"
+    argocd-image-updater.argoproj.io/cooklog.pull-secret: pullsecret:argocd/harbor-registry
     argocd-image-updater.argoproj.io/write-back-method: git
     argocd-image-updater.argoproj.io/write-back-target: kustomization
 spec:
@@ -18,7 +18,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/apps/user-up
+    path: manifests/apps/cooklog
   destination:
     server: https://kubernetes.default.svc
     namespace: sandbox
