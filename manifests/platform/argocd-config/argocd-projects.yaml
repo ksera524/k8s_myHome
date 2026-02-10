@@ -28,6 +28,7 @@ spec:
     - https://metallb.github.io/metallb
     - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     - https://charts.jetstack.io
+    - https://pkgs.tailscale.com/helmcharts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: cert-manager
@@ -39,6 +40,8 @@ spec:
       namespace: local-path-storage
     - server: https://kubernetes.default.svc
       namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: tailscale
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
@@ -81,6 +84,8 @@ spec:
       namespace: sandbox
     - server: https://kubernetes.default.svc
       namespace: default
+    - server: https://kubernetes.default.svc
+      namespace: tailscale
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"

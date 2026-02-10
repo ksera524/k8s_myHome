@@ -537,6 +537,78 @@ spec:
         - ".spec.target.deletionPolicy"
         - ".spec.target.mergePolicy"
 ---
+# Tailscale Operator - サブネットルータ/アクセス基盤
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://pkgs.tailscale.com/helmcharts
+    targetRevision: 1.94.1
+    chart: tailscale-operator
+    helm:
+      values: |
+        installCRDs: true
+        operatorConfig:
+          defaultTags:
+            - "tag:k8s-operator"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Tailscale Connector - サブネットルータ定義
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-connector
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/infrastructure/networking/tailscale-operator
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
 # Platform Layer - CI/CD、シークレット管理、監視
 apiVersion: argoproj.io/v1alpha1
 kind: Application
