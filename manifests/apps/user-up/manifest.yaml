@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-up
+  namespace: sandbox
+  labels:
+    app: user-up
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-up
+  template:
+    metadata:
+      labels:
+        app: user-up
+    spec:
+      restartPolicy: Always
+      imagePullSecrets:
+        - name: harbor-registry
+      containers:
+        - name: user-up
+          image: harbor.qroksera.com/sandbox/cooklog:0.0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+# user-up用Service（内部公開のみ）
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-up
+  namespace: sandbox
+  labels:
+    app: user-up
+spec:
+  selector:
+    app: user-up
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+---
+# user-up内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: user-up-internal-redirect
+  namespace: sandbox
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - user-up.internal.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# user-up内部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: user-up-internal
+  namespace: sandbox
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-internal
+  hostnames:
+    - user-up.internal.qroksera.com
+  rules:
+    - backendRefs:
+        - name: user-up
+          port: 80
