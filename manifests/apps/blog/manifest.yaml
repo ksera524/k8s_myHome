@@ -26,6 +26,9 @@ spec:
             - containerPort: 3000
           workingDir: /app
           command: ["./blog"]
+          livenessProbe:
+            tcpSocket:
+              port: 3000
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
@@ -35,6 +38,24 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+---
+# blog用Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: blog
+  namespace: sandbox
+  labels:
+    app: blog
+spec:
+  selector:
+    app: blog
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+---
 # blog外部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

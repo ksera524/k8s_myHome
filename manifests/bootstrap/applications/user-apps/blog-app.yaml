@@ -6,12 +6,13 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd-image-updater.argoproj.io/image-list: blog=harbor.qroksera.com/sandbox/blog.rs
+    argocd-image-updater.argoproj.io/image-list: blog=harbor.qroksera.com/sandbox/blog
     argocd-image-updater.argoproj.io/blog.update-strategy: semver
     argocd-image-updater.argoproj.io/blog.allow-tags: regexp:^\d+\.\d+\.\d+$
     argocd-image-updater.argoproj.io/blog.semver: ">=0.0.0"
     argocd-image-updater.argoproj.io/blog.pull-secret: pullsecret:argocd/harbor-registry
-    argocd-image-updater.argoproj.io/write-back-method: argocd
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
 spec:
   project: apps
   source:
