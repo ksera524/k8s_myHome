@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: blog
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: blog=harbor.qroksera.com/sandbox/blog.rs
+    argocd-image-updater.argoproj.io/blog.update-strategy: semver
+    argocd-image-updater.argoproj.io/blog.allow-tags: regexp:^\d+\.\d+\.\d+$
+    argocd-image-updater.argoproj.io/blog.semver: ">=0.0.0"
+    argocd-image-updater.argoproj.io/blog.pull-secret: pullsecret:argocd/harbor-registry
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/apps/blog
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sandbox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
