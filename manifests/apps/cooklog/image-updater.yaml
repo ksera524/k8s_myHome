@@ -1,0 +1,21 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: cooklog-image-updater
+  namespace: argocd
+spec:
+  namespace: argocd
+  writeBackConfig:
+    method: argocd
+  applicationRefs:
+    - namePattern: "cooklog"
+      images:
+        - alias: cooklog
+          imageName: harbor.qroksera.com/sandbox/cooklog
+          commonUpdateSettings:
+            updateStrategy: semver
+            allowTags: "regexp:^\\d+\\.\\d+\\.\\d+$"
+            pullSecret: pullsecret:argocd/harbor-registry
+          manifestTargets:
+            kustomize:
+              name: harbor.qroksera.com/sandbox/cooklog

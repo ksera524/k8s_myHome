@@ -5,3 +5,4 @@ resources:
   - ci-cd/github-actions/
   - argocd-config/
   - secrets/external-secrets/
+  - argocd-image-updater/
