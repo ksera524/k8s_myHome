@@ -676,6 +676,8 @@ spec:
               prefix: harbor.qroksera.com
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
+        image:
+          tag: v1.1.0
         extraArgs:
           - --dry-run=false
           - --loglevel=debug
