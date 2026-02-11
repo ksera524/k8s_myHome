@@ -9,3 +9,5 @@ resources:
   # ArgoCD GitHub OAuth Secret は secrets/external-secrets/ で管理されるため削除
   # Harbor Docker Registry Secrets (各namespace用)
   - harbor-unified-registry-secrets.yaml
+  # ArgoCD Image Updater用のSecret参照権限
+  - argocd-image-updater-rbac.yaml

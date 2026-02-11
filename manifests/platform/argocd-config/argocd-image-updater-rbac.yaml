@@ -1,0 +1,29 @@
+# ArgoCD Image Updaterがリポジトリ認証Secretを参照するための権限
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-image-updater-secret-reader
+  namespace: argocd
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-image-updater-secret-reader
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-image-updater-secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: argocd-image-updater
+    namespace: argocd
