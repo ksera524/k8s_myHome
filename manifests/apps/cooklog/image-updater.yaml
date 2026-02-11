@@ -6,7 +6,7 @@ metadata:
 spec:
   namespace: argocd
   writeBackConfig:
-    method: git
+    method: git:secret:argocd/github-repo-secret
     gitConfig:
       branch: main
       writeBackTarget: kustomization:.
