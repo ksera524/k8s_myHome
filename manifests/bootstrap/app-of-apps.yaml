@@ -660,8 +660,6 @@ spec:
       values: |
         config:
           argocd.namespace: argocd
-          argocd.server_addr: argocd-server.argocd.svc
-          applications_api: argocd
           log.level: "info"
           git.user: "argocd-image-updater"
           git.email: "argocd-image-updater@qroksera.com"
@@ -672,6 +670,8 @@ spec:
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
         extraArgs:
+          - --argocd-server-addr=argocd-server.argocd.svc
+          - --applications-api=argocd
           - --dry-run=false
   destination:
     server: https://kubernetes.default.svc
