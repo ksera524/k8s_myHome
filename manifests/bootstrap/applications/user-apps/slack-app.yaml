@@ -12,7 +12,7 @@ metadata:
     argocd-image-updater.argoproj.io/slack.semver: ">=0.0.0"
     argocd-image-updater.argoproj.io/slack.pull-secret: pullsecret:argocd/harbor-registry
     argocd-image-updater.argoproj.io/write-back-method: git
-    argocd-image-updater.argoproj.io/write-back-target: kustomization:./manifests/apps/slack
+    argocd-image-updater.argoproj.io/write-back-target: kustomization:.
     argocd-image-updater.argoproj.io/git-branch: main
 spec:
   project: apps

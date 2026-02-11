@@ -9,7 +9,7 @@ spec:
     method: git
     gitConfig:
       branch: main
-      writeBackTarget: kustomization:./manifests/apps/cooklog
+      writeBackTarget: kustomization:.
   applicationRefs:
     - namePattern: "cooklog"
       images:
