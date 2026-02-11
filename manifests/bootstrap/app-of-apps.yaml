@@ -662,6 +662,8 @@ spec:
           argocd.namespace: argocd
           argocd.server: argocd-server.argocd.svc
           log.level: "info"
+          git.user: "argocd-image-updater"
+          git.email: "argocd-image-updater@qroksera.com"
           registries:
             - name: Harbor
               api_url: https://harbor.qroksera.com
