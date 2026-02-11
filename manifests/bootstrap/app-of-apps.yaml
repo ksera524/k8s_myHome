@@ -670,10 +670,6 @@ spec:
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
         extraArgs:
-          - --argocd-server-addr=argocd-server.argocd.svc:80
-          - --applications-api=argocd
-          - --argocd-grpc-web
-          - --argocd-plaintext
           - --loglevel=debug
   destination:
     server: https://kubernetes.default.svc
