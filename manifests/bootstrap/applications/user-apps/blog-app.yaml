@@ -11,7 +11,6 @@ metadata:
     argocd-image-updater.argoproj.io/blog.allow-tags: regexp:^\d+\.\d+\.\d+$
     argocd-image-updater.argoproj.io/blog.semver: ">=0.0.0"
     argocd-image-updater.argoproj.io/blog.pull-secret: pullsecret:argocd/harbor-registry
-    argocd-image-updater.argoproj.io/git-branch: main
     argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: apps
