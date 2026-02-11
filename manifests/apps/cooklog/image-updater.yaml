@@ -6,7 +6,10 @@ metadata:
 spec:
   namespace: argocd
   writeBackConfig:
-    method: argocd
+    method: git
+    gitConfig:
+      branch: main
+      writeBackTarget: kustomization:./manifests/apps/cooklog
   applicationRefs:
     - namePattern: "cooklog"
       images:
