@@ -671,13 +671,6 @@ spec:
               prefix: harbor.qroksera.com
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
-        extraEnv:
-          - name: GIT_COMMIT_USER
-            value: argocd-image-updater
-          - name: GIT_COMMIT_EMAIL
-            value: argocd-image-updater@qroksera.com
-          - name: IMAGE_UPDATER_DRY_RUN
-            value: "false"
         extraArgs:
           - --dry-run=false
   destination:
