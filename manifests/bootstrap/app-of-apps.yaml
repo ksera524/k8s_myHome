@@ -660,7 +660,8 @@ spec:
       values: |
         config:
           argocd.namespace: argocd
-          argocd.server: argocd-server.argocd.svc
+          argocd.server_addr: argocd-server.argocd.svc
+          applications_api: argocd
           log.level: "info"
           git.user: "argocd-image-updater"
           git.email: "argocd-image-updater@qroksera.com"
