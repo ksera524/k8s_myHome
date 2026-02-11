@@ -677,6 +677,8 @@ spec:
             value: argocd-image-updater@qroksera.com
           - name: IMAGE_UPDATER_DRY_RUN
             value: "false"
+        extraArgs:
+          - --dry-run=false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
