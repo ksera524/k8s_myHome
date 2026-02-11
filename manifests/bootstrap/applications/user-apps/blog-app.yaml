@@ -17,7 +17,7 @@ spec:
   project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: HEAD
+    targetRevision: main
     path: manifests/apps/blog
   destination:
     server: https://kubernetes.default.svc
