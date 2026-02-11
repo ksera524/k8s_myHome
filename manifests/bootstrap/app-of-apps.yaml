@@ -675,7 +675,6 @@ spec:
           - --argocd-grpc-web
           - --argocd-plaintext
           - --loglevel=debug
-          - --dry-run=false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
