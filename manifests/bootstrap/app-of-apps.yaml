@@ -672,6 +672,7 @@ spec:
         extraArgs:
           - --argocd-server-addr=argocd-server.argocd.svc
           - --applications-api=argocd
+          - --argocd-grpc-web
           - --dry-run=false
   destination:
     server: https://kubernetes.default.svc
