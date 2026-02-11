@@ -10,6 +10,9 @@ data:
   # ArgoCD URL設定
   url: https://argocd.qroksera.com
 
+  # admin アカウントで API トークン発行を許可
+  accounts.admin: apiKey, login
+
   # OCI Helmレジストリの利用を有効化
   helm.oci.enabled: "true"
 
