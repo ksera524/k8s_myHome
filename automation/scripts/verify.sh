@@ -21,6 +21,9 @@ fi
 CONTROL_PLANE_IP="${K8S_CONTROL_PLANE_IP:-192.168.122.10}"
 K8S_USER="${K8S_USER:-k8suser}"
 K8S_SSH_KEY="${K8S_SSH_KEY:-}"
+REMOTE_KUBECONFIG="/etc/kubernetes/admin.conf"
+KUBECONFIG_TARGET="${KUBECONFIG:-$HOME/.kube/config}"
+KUBECONFIG_TARGET="${KUBECONFIG_TARGET%%:*}"
 
 ssh_opts=(
   -T
@@ -43,21 +46,39 @@ if [[ "${CI:-}" == "true" || "${CI:-}" == "1" || "${VERIFY_SKIP_SSH:-}" == "true
   exit 0
 fi
 
+log_status "kubeconfig 同期中..."
+mkdir -p "$(dirname "$KUBECONFIG_TARGET")"
+if [[ -f "$KUBECONFIG_TARGET" ]]; then
+  backup_path="${KUBECONFIG_TARGET}.bak-$(date +%Y%m%d_%H%M%S)"
+  cp "$KUBECONFIG_TARGET" "$backup_path" || true
+  log_status "kubeconfig をバックアップしました: ${backup_path}"
+fi
+if "${ssh_cmd[@]}" "test -f ${REMOTE_KUBECONFIG}"; then
+  if "${ssh_cmd[@]}" "sudo cat ${REMOTE_KUBECONFIG}" > "$KUBECONFIG_TARGET"; then
+    chmod 600 "$KUBECONFIG_TARGET" || true
+    log_status "kubeconfig を更新しました: ${KUBECONFIG_TARGET}"
+  else
+    log_warning "kubeconfig の取得に失敗しました（sudo 権限を確認してください）"
+  fi
+else
+  log_warning "${REMOTE_KUBECONFIG} が見つかりません"
+fi
+
 log_status "Control Plane 接続確認中..."
-if ! "${ssh_cmd[@]}" 'kubectl version --short >/dev/null 2>&1'; then
+if ! "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl version >/dev/null 2>&1"; then
   log_error "kubectl に接続できません（kubeconfig または接続先を確認してください）"
   exit 1
 fi
 
 log_status "ArgoCDリフレッシュ中..."
-"${ssh_cmd[@]}" 'kubectl get application platform -n argocd >/dev/null 2>&1 && kubectl annotate application platform -n argocd argocd.argoproj.io/refresh=hard --overwrite' || true
-"${ssh_cmd[@]}" 'kubectl get application user-applications -n argocd >/dev/null 2>&1 && kubectl annotate application user-applications -n argocd argocd.argoproj.io/refresh=hard --overwrite' || true
+"${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application platform -n argocd >/dev/null 2>&1 && sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl annotate application platform -n argocd argocd.argoproj.io/refresh=hard --overwrite" || true
+"${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application user-applications -n argocd >/dev/null 2>&1 && sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl annotate application user-applications -n argocd argocd.argoproj.io/refresh=hard --overwrite" || true
 sleep 5
 
 log_status "主要Namespace確認中..."
 critical_namespaces=(argocd monitoring harbor external-secrets-system nginx-gateway metallb-system)
 for namespace in "${critical_namespaces[@]}"; do
-  if "${ssh_cmd[@]}" "kubectl get namespace ${namespace} >/dev/null 2>&1"; then
+  if "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get namespace ${namespace} >/dev/null 2>&1"; then
     log_status "✓ ${namespace} namespace 存在"
   else
     log_warning "${namespace} namespace が見つかりません"
@@ -65,7 +86,7 @@ for namespace in "${critical_namespaces[@]}"; do
 done
 
 log_status "ノード状態確認中..."
-node_list=$("${ssh_cmd[@]}" 'kubectl get nodes --no-headers' 2>/dev/null || true)
+node_list=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get nodes --no-headers" 2>/dev/null || true)
 if [[ -z "$node_list" ]]; then
   log_warning "ノード一覧を取得できませんでした"
 else
@@ -80,7 +101,7 @@ else
 fi
 
 log_status "Pod 状態確認中..."
-pod_list=$("${ssh_cmd[@]}" 'kubectl get pods -A --no-headers' 2>/dev/null || true)
+pod_list=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get pods -A --no-headers" 2>/dev/null || true)
 if [[ -z "$pod_list" ]]; then
   log_warning "Pod一覧を取得できませんでした"
 else
@@ -94,7 +115,7 @@ else
 fi
 
 log_status "ArgoCD アプリ状態確認中..."
-app_table=$("${ssh_cmd[@]}" "kubectl get applications -n argocd -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.status.sync.status}{\"\\t\"}{.status.health.status}{\"\\n\"}{end}'" 2>/dev/null || true)
+app_table=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get applications -n argocd -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.status.sync.status}{\"\\t\"}{.status.health.status}{\"\\n\"}{end}'" 2>/dev/null || true)
 if [[ -z "$app_table" ]]; then
   log_warning "ArgoCDアプリ一覧を取得できませんでした"
 else
@@ -109,15 +130,23 @@ else
   fi
 fi
 
+log_status "ArgoCD OIDC 設定確認中..."
+oidc_config=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get configmap -n argocd argocd-cm -o jsonpath='{.data.oidc\\.config}'" 2>/dev/null || true)
+if [[ -n "$oidc_config" ]]; then
+  log_warning "argocd-cm に oidc.config が設定されています（Dexのみ運用なら削除推奨）"
+else
+  log_status "✓ OIDC設定なし（Dexのみ）"
+fi
+
 log_status "External Secrets 状態確認中..."
-clusterstore_status=$("${ssh_cmd[@]}" "kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'" 2>/dev/null || true)
+clusterstore_status=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get clustersecretstore pulumi-esc-store -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'" 2>/dev/null || true)
 if [[ "$clusterstore_status" == "True" ]]; then
   log_status "✓ ClusterSecretStore (pulumi-esc-store) Ready"
 else
   log_warning "ClusterSecretStore (pulumi-esc-store) が Ready ではありません"
 fi
 
-externalsecret_table=$("${ssh_cmd[@]}" "kubectl get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\"\\t\"}{.status.conditions[?(@.type==\"Ready\")].status}{\"\\n\"}{end}'" 2>/dev/null || true)
+externalsecret_table=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\"\\t\"}{.status.conditions[?(@.type==\"Ready\")].status}{\"\\n\"}{end}'" 2>/dev/null || true)
 if [[ -n "$externalsecret_table" ]]; then
   externalsecret_not_ready=$(echo "$externalsecret_table" | awk '$2 != "True" {count++} END {print count+0}')
   if [[ "$externalsecret_not_ready" -gt 0 ]]; then
@@ -131,14 +160,14 @@ else
 fi
 
 log_status "Gateway/LoadBalancer 確認中..."
-gateway_count=$("${ssh_cmd[@]}" 'kubectl get gateway -A --no-headers 2>/dev/null | wc -l' || echo "0")
+gateway_count=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get gateway -A --no-headers 2>/dev/null | wc -l" || echo "0")
 if [[ "$gateway_count" -gt 0 ]]; then
   log_status "✓ Gateway リソース: ${gateway_count}"
 else
   log_warning "Gateway リソースが見つかりません"
 fi
 
-gateway_lb_ip=$("${ssh_cmd[@]}" "kubectl get svc -n nginx-gateway nginx-gateway-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" 2>/dev/null || true)
+gateway_lb_ip=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get svc -n nginx-gateway nginx-gateway-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" 2>/dev/null || true)
 if [[ -n "$gateway_lb_ip" ]]; then
   log_status "✓ NGINX Gateway LoadBalancer IP: ${gateway_lb_ip}"
 else
@@ -146,11 +175,11 @@ else
 fi
 
 log_status "Cloudflaredアプリ確認中..."
-if "${ssh_cmd[@]}" 'kubectl get application cloudflared -n argocd >/dev/null 2>&1'; then
+if "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application cloudflared -n argocd >/dev/null 2>&1"; then
   log_status "✓ CloudflaredはArgoCD管理です"
 else
   log_warning "Cloudflaredは未検出です（同期待機中の可能性）"
 fi
 
 log_status "ArgoCDアプリ一覧:"
-"${ssh_cmd[@]}" 'kubectl get applications -n argocd --no-headers' | awk '{print "  - " $1 " (" $2 "/" $3 ")"}' || true
+"${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get applications -n argocd --no-headers" | awk '{print "  - " $1 " (" $2 "/" $3 ")"}' || true
