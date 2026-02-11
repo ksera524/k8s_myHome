@@ -401,6 +401,7 @@ spec:
     path: manifests/infrastructure/security/cert-manager
   destination:
     server: https://kubernetes.default.svc
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true
@@ -627,6 +628,7 @@ spec:
     path: manifests/platform
   destination:
     server: https://kubernetes.default.svc
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
