@@ -28,17 +28,12 @@ spec:
         - 0.0.0.0:2000
         - --no-autoupdate
         - run
-        - --token
-        - $(CLOUDFLARED_TOKEN)
-        env:
-        - name: CLOUDFLARED_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: cloudflared
-              key: token
         volumeMounts:
         - name: cloudflared-config
           mountPath: /etc/cloudflared
+        - name: cloudflared-credentials
+          mountPath: /etc/cloudflared/creds
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /ready
@@ -51,3 +46,9 @@ spec:
       - name: cloudflared-config
         configMap:
           name: cloudflared-config
+      - name: cloudflared-credentials
+        secret:
+          secretName: cloudflared
+          items:
+          - key: token
+            path: credentials.json

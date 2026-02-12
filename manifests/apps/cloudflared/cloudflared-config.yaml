@@ -5,6 +5,8 @@ metadata:
   namespace: cloudflared
 data:
   config.yml: |
+    tunnel: 9fded92e-4b5b-4b7e-b86d-2a10b8bc0e16
+    credentials-file: /etc/cloudflared/creds/credentials.json
     ingress:
       - hostname: harbor.qroksera.com
         service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
