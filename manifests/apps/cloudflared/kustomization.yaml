@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
+  - cloudflared-config.yaml

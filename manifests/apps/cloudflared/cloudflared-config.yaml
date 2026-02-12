@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: cloudflared
+data:
+  config.yml: |
+    tunnel: d871d700-73a3-4c5e-ac33-edde76d91dc7
+    ingress:
+      - hostname: harbor.qroksera.com
+        service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+        originRequest:
+          originServerName: harbor.qroksera.com
+      - hostname: argocd.qroksera.com
+        service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+        originRequest:
+          originServerName: argocd.qroksera.com
+      - hostname: rustfs.qroksera.com
+        service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+        originRequest:
+          originServerName: rustfs.qroksera.com
+      - hostname: blog.qroksera.com
+        service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+        originRequest:
+          originServerName: blog.qroksera.com
+      - service: http_status:404
