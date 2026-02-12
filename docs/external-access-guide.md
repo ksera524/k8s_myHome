@@ -160,6 +160,63 @@ ingress:
 - これが未設定だと TLS 検証が失敗しやすい
  - `nginx-gateway` の証明書が staging のままだと TLS 検証で 502 になる
 
+### 6.1 Cloudflared（credentials.json 方式）で接続先を追加する手順
+
+この手順は **credentials.json 方式**（Managed Tunnel の token ではなくローカル設定優先）を前提とします。
+
+#### 1. Pulumi ESO に credentials.json を登録
+
+- Pulumi ESC の `cloudflared` キーに `credentials.json` の文字列を登録
+- ExternalSecret により Secret `cloudflared` の `token` キーに同期される前提
+
+#### 2. config.yml を更新
+
+`manifests/apps/cloudflared/cloudflared-config.yaml` の `config.yml` に追記します。
+
+```yaml
+tunnel: <tunnel-id>
+credentials-file: /etc/cloudflared/creds/credentials.json
+ingress:
+  - hostname: <app>.qroksera.com
+    service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
+    originRequest:
+      originServerName: <app>.qroksera.com
+  - service: http_status:404
+```
+
+#### 3. Deployment を更新
+
+`manifests/apps/cloudflared/manifest.yaml` を更新します。
+
+- `--token` を削除
+- Secret を volume でマウントし、`token -> credentials.json` に変換
+- `credentials-file` を `/etc/cloudflared/creds/credentials.json` に合わせる
+
+#### 4. DNS レコードを CLI で追加
+
+```bash
+cloudflared tunnel route dns <tunnel-id> <hostname>
+```
+
+例:
+
+```bash
+cloudflared tunnel route dns <tunnel-id> rustfs.qroksera.com
+```
+
+#### 5. 反映確認
+
+```bash
+nslookup <hostname>
+kubectl -n cloudflared logs deploy/cloudflared | grep "Updated to new configuration"
+curl -k https://<hostname>/
+```
+
+#### 6. 注意点
+
+- Managed Tunnel（token 運用）だと Cloudflare 側の設定が優先され、Git管理の ingress が反映されない
+- DNS レコードが未登録だと `nslookup` は `No answer` になる
+
 ### 7. 反映と確認
 
 ```bash
