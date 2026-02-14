@@ -656,7 +656,7 @@ spec:
   project: platform
   source:
     repoURL: https://argoproj.github.io/argo-helm
-    targetRevision: 0.11.2
+    targetRevision: 1.1.0
     chart: argocd-image-updater
     helm:
       values: |
@@ -676,8 +676,6 @@ spec:
               prefix: harbor.qroksera.com
               ping: yes
               credentials: pullsecret:argocd/harbor-registry
-        image:
-          tag: v1.1.0
         extraArgs:
           - --dry-run=false
           - --loglevel=debug
