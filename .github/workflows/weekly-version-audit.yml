@@ -1,0 +1,358 @@
+name: Weekly Version Audit
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  version-audit:
+    runs-on: ubuntu-latest
+    outputs:
+      updates_found: ${{ steps.audit.outputs.updates_found }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml packaging
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Set up Crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Audit pinned versions
+        id: audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          import yaml
+          from packaging.version import Version, InvalidVersion
+
+          ROOT = Path('.')
+
+          def run(cmd):
+            p = subprocess.run(cmd, capture_output=True, text=True)
+            if p.returncode != 0:
+              raise RuntimeError(f"command failed: {' '.join(cmd)}\n{p.stderr}")
+            return p.stdout.strip()
+
+          def maybe_run(cmd):
+            p = subprocess.run(cmd, capture_output=True, text=True)
+            return p.returncode == 0, (p.stdout.strip() if p.stdout else ''), (p.stderr.strip() if p.stderr else '')
+
+          def norm(v: str) -> str:
+            return v.strip().strip('"').strip("'")
+
+          def semver_key(v: str):
+            x = norm(v)
+            if x.startswith('v'):
+              x = x[1:]
+            return Version(x)
+
+          def is_semver(v: str) -> bool:
+            x = norm(v)
+            return bool(re.match(r'^v?\d+\.\d+\.\d+$', x))
+
+          def compare(current: str, latest: str) -> str:
+            if not latest:
+              return 'unknown'
+            try:
+              c = semver_key(current)
+              l = semver_key(latest)
+            except InvalidVersion:
+              return 'unknown'
+            if c < l:
+              return 'update-available'
+            if c == l:
+              return 'up-to-date'
+            return 'ahead'
+
+          def helm_latest(repo_chart: str) -> str:
+            out = run(['helm', 'search', 'repo', repo_chart, '--versions', '-o', 'json'])
+            data = json.loads(out)
+            versions = [item['version'] for item in data if 'version' in item]
+            stable = [v for v in versions if is_semver(v) and '-' not in norm(v)]
+            if stable:
+              return str(max(stable, key=semver_key))
+            if versions:
+              return versions[0]
+            return ''
+
+          def crane_latest(repo: str) -> str:
+            out = run(['crane', 'ls', repo])
+            tags = [t for t in out.splitlines() if t]
+            stable = [t for t in tags if is_semver(t)]
+            if stable:
+              return str(max(stable, key=semver_key))
+            return ''
+
+          def load_app_docs(path: Path):
+            with path.open('r', encoding='utf-8') as f:
+              return [d for d in yaml.safe_load_all(f) if isinstance(d, dict)]
+
+          def find_app(docs, name: str):
+            for d in docs:
+              if d.get('kind') == 'Application' and d.get('metadata', {}).get('name') == name:
+                return d
+            raise RuntimeError(f'Application not found: {name}')
+
+          app_docs = load_app_docs(ROOT / 'manifests/bootstrap/app-of-apps.yaml')
+
+          # helm repos for search
+          repos = {
+            'argo': 'https://argoproj.github.io/argo-helm',
+            'metallb': 'https://metallb.github.io/metallb',
+            'jetstack': 'https://charts.jetstack.io',
+            'external-secrets': 'https://charts.external-secrets.io',
+            'tailscale': 'https://pkgs.tailscale.com/helmcharts',
+            'harbor': 'https://helm.goharbor.io',
+            'grafana': 'https://grafana.github.io/helm-charts',
+            'rustfs': 'https://charts.rustfs.com',
+          }
+          for alias, url in repos.items():
+            ok, _, _ = maybe_run(['helm', 'repo', 'add', alias, url])
+            if not ok:
+              pass
+          run(['helm', 'repo', 'update'])
+
+          checks = []
+
+          # Chart-based components
+          chart_targets = [
+            ('argocd-core', 'ArgoCD Core', 'argo/argo-cd'),
+            ('metallb', 'MetalLB', 'metallb/metallb'),
+            ('cert-manager', 'cert-manager', 'jetstack/cert-manager'),
+            ('external-secrets-operator', 'external-secrets', 'external-secrets/external-secrets'),
+            ('tailscale-operator', 'tailscale-operator', 'tailscale/tailscale-operator'),
+            ('argocd-image-updater', 'ArgoCD Image Updater', 'argo/argocd-image-updater'),
+            ('harbor', 'Harbor', 'harbor/harbor'),
+          ]
+          for app_name, label, repo_chart in chart_targets:
+            app = find_app(app_docs, app_name)
+            current = str(app['spec']['source']['targetRevision'])
+            latest = helm_latest(repo_chart)
+            checks.append({
+              'component': label,
+              'kind': 'helm-chart',
+              'current': current,
+              'latest': latest,
+              'status': compare(current, latest),
+              'ref': repo_chart,
+              'path': 'manifests/bootstrap/app-of-apps.yaml',
+            })
+
+          # Monitoring uses spec.sources[]
+          monitoring = find_app(app_docs, 'monitoring')
+          mon_source = None
+          for src in monitoring['spec'].get('sources', []):
+            if src.get('chart') == 'k8s-monitoring':
+              mon_source = src
+              break
+          if mon_source:
+            current = str(mon_source['targetRevision'])
+            latest = helm_latest('grafana/k8s-monitoring')
+            checks.append({
+              'component': 'k8s-monitoring',
+              'kind': 'helm-chart',
+              'current': current,
+              'latest': latest,
+              'status': compare(current, latest),
+              'ref': 'grafana/k8s-monitoring',
+              'path': 'manifests/bootstrap/app-of-apps.yaml',
+            })
+
+          # ARC controller (OCI chart)
+          arc_doc = yaml.safe_load((ROOT / 'manifests/platform/ci-cd/github-actions/arc-controller.yaml').read_text(encoding='utf-8'))
+          arc_current = str(arc_doc['spec']['source']['targetRevision'])
+          arc_latest = crane_latest('ghcr.io/actions/gha-runner-scale-set-controller')
+          checks.append({
+            'component': 'ARC Controller',
+            'kind': 'oci-chart',
+            'current': arc_current,
+            'latest': arc_latest,
+            'status': compare(arc_current, arc_latest),
+            'ref': 'ghcr.io/actions/gha-runner-scale-set-controller',
+            'path': 'manifests/platform/ci-cd/github-actions/arc-controller.yaml',
+          })
+
+          # rustfs chart (manual)
+          rustfs_doc = yaml.safe_load((ROOT / 'manifests/bootstrap/applications/user-apps/rustfs-app.yaml').read_text(encoding='utf-8'))
+          rustfs_current = str(rustfs_doc['spec']['source']['targetRevision'])
+          rustfs_latest = helm_latest('rustfs/rustfs')
+          checks.append({
+            'component': 'RustFS',
+            'kind': 'helm-chart',
+            'current': rustfs_current,
+            'latest': rustfs_latest,
+            'status': compare(rustfs_current, rustfs_latest),
+            'ref': 'rustfs/rustfs',
+            'path': 'manifests/bootstrap/applications/user-apps/rustfs-app.yaml',
+          })
+
+          # local-path-provisioner image (manual pin)
+          lpp_text = (ROOT / 'manifests/infrastructure/storage/local-path/local-path-provisioner.yaml').read_text(encoding='utf-8')
+          m = re.search(r'image:\s*rancher/local-path-provisioner:([^\s]+)', lpp_text)
+          lpp_current = m.group(1) if m else ''
+          lpp_latest = crane_latest('rancher/local-path-provisioner') if lpp_current else ''
+          checks.append({
+            'component': 'local-path-provisioner image',
+            'kind': 'container-image',
+            'current': lpp_current,
+            'latest': lpp_latest,
+            'status': compare(lpp_current, lpp_latest) if lpp_current else 'unknown',
+            'ref': 'rancher/local-path-provisioner',
+            'path': 'manifests/infrastructure/storage/local-path/local-path-provisioner.yaml',
+          })
+
+          # cloudflared latest digest tracking only
+          cloudflared_text = (ROOT / 'manifests/apps/cloudflared/manifest.yaml').read_text(encoding='utf-8')
+          m2 = re.search(r'image:\s*cloudflare/cloudflared:([^\s]+)', cloudflared_text)
+          cloud_tag = m2.group(1) if m2 else ''
+          cloud_digest = ''
+          if cloud_tag:
+            ok, out, _ = maybe_run(['crane', 'digest', f'cloudflare/cloudflared:{cloud_tag}'])
+            cloud_digest = out if ok else ''
+          checks.append({
+            'component': 'cloudflared image',
+            'kind': 'container-image',
+            'current': cloud_tag,
+            'latest': cloud_tag,
+            'status': 'tracked-by-digest',
+            'ref': 'cloudflare/cloudflared',
+            'path': 'manifests/apps/cloudflared/manifest.yaml',
+            'note': f'digest={cloud_digest}' if cloud_digest else 'digest unavailable',
+          })
+
+          updates = [c for c in checks if c['status'] == 'update-available']
+          updates_found = 'true' if updates else 'false'
+
+          summary_lines = []
+          summary_lines.append('## Weekly Version Audit')
+          summary_lines.append('')
+          summary_lines.append('| Component | Type | Current | Latest | Status | Reference |')
+          summary_lines.append('|---|---|---|---|---|---|')
+          for c in checks:
+            ref = c['ref'].replace('|', '\\|')
+            summary_lines.append(f"| {c['component']} | {c['kind']} | `{c['current']}` | `{c['latest']}` | `{c['status']}` | `{ref}` |")
+          summary_lines.append('')
+          if updates:
+            summary_lines.append(f"- updates found: **{len(updates)}**")
+          else:
+            summary_lines.append('- updates found: **0**')
+          for c in checks:
+            if c.get('note'):
+              summary_lines.append(f"- note `{c['component']}`: {c['note']}")
+
+          issue_lines = []
+          issue_lines.append('## Weekly Version Audit: updates available')
+          issue_lines.append('')
+          if updates:
+            issue_lines.append('| Component | Current | Latest | Type | Path |')
+            issue_lines.append('|---|---|---|---|---|')
+            for c in updates:
+              issue_lines.append(f"| {c['component']} | `{c['current']}` | `{c['latest']}` | {c['kind']} | `{c['path']}` |")
+            issue_lines.append('')
+            issue_lines.append('### Next actions')
+            issue_lines.append('- 1) バージョン更新PRを作成')
+            issue_lines.append('- 2) `make phase4` と `make phase5` で検証')
+            issue_lines.append('- 3) ArgoCDが `Synced/Healthy` であることを確認')
+          else:
+            issue_lines.append('No updates found in this run.')
+
+          Path('weekly-version-audit-summary.md').write_text('\n'.join(summary_lines) + '\n', encoding='utf-8')
+          Path('weekly-version-audit-issue.md').write_text('\n'.join(issue_lines) + '\n', encoding='utf-8')
+
+          github_summary = os.environ.get('GITHUB_STEP_SUMMARY')
+          if github_summary:
+            with open(github_summary, 'a', encoding='utf-8') as f:
+              f.write('\n'.join(summary_lines) + '\n')
+
+          github_output = os.environ.get('GITHUB_OUTPUT')
+          if github_output:
+            with open(github_output, 'a', encoding='utf-8') as f:
+              f.write(f'updates_found={updates_found}\n')
+          PY
+
+      - name: Upload audit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-version-audit
+          path: |
+            weekly-version-audit-summary.md
+            weekly-version-audit-issue.md
+
+  create-or-update-issue:
+    runs-on: ubuntu-latest
+    needs: version-audit
+    if: needs.version-audit.outputs.updates_found == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download issue body artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: weekly-version-audit
+
+      - name: Create or update tracking issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const title = 'Weekly Version Audit: updates available'
+            const body = fs.readFileSync('weekly-version-audit-issue.md', 'utf8')
+            const { owner, repo } = context.repo
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              labels: 'weekly-audit',
+              per_page: 100,
+            })
+
+            const existing = issues.find(i => i.title === title)
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              })
+              core.info(`Updated issue #${existing.number}`)
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: ['weekly-audit', 'maintenance', 'dependencies'],
+              })
+              core.info(`Created issue #${created.data.number}`)
+            }
