@@ -760,7 +760,7 @@ spec:
   project: platform
   source:
     repoURL: 'https://helm.goharbor.io'
-    targetRevision: 1.18.0
+    targetRevision: 1.18.2
     chart: harbor
     helm:
       values: |
