@@ -71,12 +71,16 @@ kubectl create serviceaccount github-actions-runner \
   --namespace arc-systems \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 権限設定（Secretアクセス用）
-kubectl create rolebinding github-actions-runner-binding \
+# 旧運用で作成された過剰権限RoleBindingを削除
+kubectl delete rolebinding github-actions-runner-binding \
   --namespace arc-systems \
-  --clusterrole=admin \
-  --serviceaccount=arc-systems:github-actions-runner \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --ignore-not-found
+
+# GitOpsで最小権限RBACが適用済みの場合のみ、旧ClusterRole/ClusterRoleBindingを削除
+if kubectl get rolebinding github-actions-secret-reader -n arc-systems >/dev/null 2>&1; then
+    kubectl delete clusterrolebinding github-actions-secret-reader --ignore-not-found
+    kubectl delete clusterrole github-actions-secret-reader --ignore-not-found
+fi
 
 # ServiceAccount確認
 if kubectl get serviceaccount github-actions-runner -n arc-systems >/dev/null 2>&1; then
