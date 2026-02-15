@@ -87,7 +87,4 @@ else
 fi
 EOF
 
-# ARC ControllerはGitOps管理（ArgoCD Application）
-log_status "ARC ControllerはGitOps管理です（直接Helm installは実行しません）"
-
 log_success "GitHub Actions Runner Controller (ARC) セットアップ完了"
