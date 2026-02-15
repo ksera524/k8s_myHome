@@ -592,7 +592,7 @@ spec:
   project: infrastructure
   source:
     repoURL: https://pkgs.tailscale.com/helmcharts
-    targetRevision: 1.94.1
+    targetRevision: 1.94.2
     chart: tailscale-operator
     helm:
       values: |
