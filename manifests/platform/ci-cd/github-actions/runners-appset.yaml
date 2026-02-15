@@ -14,6 +14,24 @@ spec:
             runnerName: blog-runners
             minRunners: "1"
             maxRunners: "3"
+          - name: cooklog
+            githubOwner: ksera524
+            githubRepo: cookLog
+            runnerName: cooklog-runners
+            minRunners: "1"
+            maxRunners: "3"
+          - name: hitomi
+            githubOwner: ksera524
+            githubRepo: hitomi
+            runnerName: hitomi-runners
+            minRunners: "1"
+            maxRunners: "3"
+          - name: slack-rs
+            githubOwner: ksera524
+            githubRepo: slack.rs
+            runnerName: slack-rs-runners
+            minRunners: "1"
+            maxRunners: "3"
   template:
     metadata:
       name: '{{ .name }}-runner'
