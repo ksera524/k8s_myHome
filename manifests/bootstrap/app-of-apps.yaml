@@ -888,7 +888,7 @@ spec:
   sources:
     - repoURL: https://grafana.github.io/helm-charts
       chart: k8s-monitoring
-      targetRevision: 3.7.4
+      targetRevision: 3.8.0
       helm:
         valueFiles:
           - $values/manifests/monitoring/grafana-k8s-monitoring-values.yaml
