@@ -200,6 +200,20 @@ jobs:
             'path': 'manifests/platform/ci-cd/github-actions/arc-controller.yaml',
           })
 
+          # ARC runner appset version consistency (controller vs runner chart)
+          appset_doc = yaml.safe_load((ROOT / 'manifests/platform/ci-cd/github-actions/runners-appset.yaml').read_text(encoding='utf-8'))
+          runner_current = str(appset_doc['spec']['template']['spec']['source']['targetRevision'])
+          consistency_status = 'up-to-date' if norm(runner_current) == norm(arc_current) else 'mismatch'
+          checks.append({
+            'component': 'ARC Controller/Runner consistency',
+            'kind': 'consistency',
+            'current': f'controller={arc_current}, runner={runner_current}',
+            'latest': '-',
+            'status': consistency_status,
+            'ref': 'arc-controller.yaml / runners-appset.yaml',
+            'path': 'manifests/platform/ci-cd/github-actions/',
+          })
+
           # rustfs chart (manual)
           rustfs_doc = yaml.safe_load((ROOT / 'manifests/bootstrap/applications/user-apps/rustfs-app.yaml').read_text(encoding='utf-8'))
           rustfs_current = str(rustfs_doc['spec']['source']['targetRevision'])
@@ -249,7 +263,8 @@ jobs:
           })
 
           updates = [c for c in checks if c['status'] == 'update-available']
-          updates_found = 'true' if updates else 'false'
+          guard_issues = [c for c in checks if c['status'] == 'mismatch']
+          updates_found = 'true' if (updates or guard_issues) else 'false'
 
           summary_lines = []
           summary_lines.append('## Weekly Version Audit')
@@ -264,6 +279,10 @@ jobs:
             summary_lines.append(f"- updates found: **{len(updates)}**")
           else:
             summary_lines.append('- updates found: **0**')
+          if guard_issues:
+            summary_lines.append(f"- consistency issues found: **{len(guard_issues)}**")
+          else:
+            summary_lines.append('- consistency issues found: **0**')
           for c in checks:
             if c.get('note'):
               summary_lines.append(f"- note `{c['component']}`: {c['note']}")
@@ -271,10 +290,10 @@ jobs:
           issue_lines = []
           issue_lines.append('## Weekly Version Audit: updates available')
           issue_lines.append('')
-          if updates:
+          if updates or guard_issues:
             issue_lines.append('| Component | Current | Latest | Type | Path |')
             issue_lines.append('|---|---|---|---|---|')
-            for c in updates:
+            for c in (updates + guard_issues):
               issue_lines.append(f"| {c['component']} | `{c['current']}` | `{c['latest']}` | {c['kind']} | `{c['path']}` |")
             issue_lines.append('')
             issue_lines.append('### Next actions')
