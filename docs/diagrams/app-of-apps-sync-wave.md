@@ -11,6 +11,7 @@ flowchart TD
 
   argocdProjects["ArgoCD Projects\nwave 0"]:::wave0
 
+  argocdCore["ArgoCD Core (Helm)\nwave 1"]:::wave1
   lp["Local Path Provisioner\nwave 1"]:::wave1
   core["Core (Namespaces/Storage/RBAC)\nwave 2"]:::wave2
   coredns["CoreDNS Config\nwave 2"]:::wave2
@@ -35,6 +36,7 @@ flowchart TD
   harborPatch["Harbor Patch\nwave 13"]:::wave13
 
   root --> argocdProjects
+  root --> argocdCore
   root --> lp
   root --> core
   root --> coredns
@@ -58,6 +60,7 @@ flowchart TD
   root --> harborPatch
 
   argocdProjects --> lp
+  argocdProjects --> argocdCore
   argocdProjects --> core
 
   core --> metallb
@@ -127,6 +130,7 @@ flowchart TD
 | Wave | コンポーネント | 意味/依存関係 |
 |------|----------------|--------------|
 | 0 | ArgoCD Projects | AppProjectを先に作成 |
+| 1 | ArgoCD Core (Helm) | ArgoCD本体のHelm移行を段階的に適用（手動同期） |
 | 1 | Local Path Provisioner | 永続ボリューム基盤を先に準備 |
 | 2 | Core / CoreDNS | 基本リソースとストレージ設定の土台 |
 | 3 | MetalLB | LoadBalancer を提供 |

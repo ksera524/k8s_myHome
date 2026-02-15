@@ -34,14 +34,13 @@ if ! "${ssh_cmd[@]}" 'kubectl get namespace argocd' >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! "${ssh_cmd[@]}" "test -f ${APP_OF_APPS_DST}" >/dev/null 2>&1; then
-  if [ ! -f "$APP_OF_APPS_SRC" ]; then
-    log_error "app-of-apps.yamlが見つかりません: $APP_OF_APPS_SRC"
-    exit 1
-  fi
-  log_status "App-of-Appsマニフェストを転送中..."
-  scp -o StrictHostKeyChecking=no "$APP_OF_APPS_SRC" "${K8S_USER}@${CONTROL_PLANE_IP}:${APP_OF_APPS_DST}"
+if [ ! -f "$APP_OF_APPS_SRC" ]; then
+  log_error "app-of-apps.yamlが見つかりません: $APP_OF_APPS_SRC"
+  exit 1
 fi
+
+log_status "App-of-Appsマニフェストを転送中..."
+scp -o StrictHostKeyChecking=no "$APP_OF_APPS_SRC" "${K8S_USER}@${CONTROL_PLANE_IP}:${APP_OF_APPS_DST}"
 
 log_status "App-of-Appsを適用中..."
 if "${ssh_cmd[@]}" "kubectl apply -f ${APP_OF_APPS_DST}"; then
