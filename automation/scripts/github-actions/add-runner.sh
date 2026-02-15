@@ -57,169 +57,76 @@ if [[ -z "$GITHUB_USERNAME" ]]; then
 fi
 log_debug "GitHub Username: $GITHUB_USERNAME"
 
-# k8sクラスタ接続確認
-log_debug "k8sクラスタ接続確認中..."
-if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 k8suser@192.168.122.10 'kubectl get nodes' >/dev/null 2>&1; then
-    log_error "k8sクラスタに接続できません"
+PROJECT_ROOT="$(cd "$SCRIPTS_ROOT/../.." && pwd)"
+APPSET_FILE="$PROJECT_ROOT/manifests/platform/ci-cd/github-actions/runners-appset.yaml"
+
+if [[ ! -f "$APPSET_FILE" ]]; then
+    log_error "ApplicationSet定義が見つかりません: $APPSET_FILE"
     exit 1
 fi
-log_status "✓ k8sクラスタ接続OK"
 
-# GitHub認証情報確認
-log_debug "GitHub認証情報確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems' >/dev/null 2>&1; then
-    log_error "GitHub認証情報が見つかりません。make all を実行してください"
-    exit 1
-fi
-log_status "✓ GitHub認証情報確認完了"
+log_status "=== Runner定義をGitOps管理へ登録 ==="
+UPSERT_RESULT=$(python3 - <<PY
+import re
+import sys
+from pathlib import Path
+import yaml
 
-# Helm確認・インストール
-log_debug "Helm確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'which helm' >/dev/null 2>&1; then
-    log_status "Helmをインストール中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
-    log_status "✓ Helmインストール完了"
-else
-    log_debug "✓ Helm確認済み"
-fi
+appset_path = Path(r"$APPSET_FILE")
+repo_name = r"$REPOSITORY_NAME"
+min_runners = str(r"$MIN_RUNNERS")
+max_runners = str(r"$MAX_RUNNERS")
+github_owner = r"$GITHUB_USERNAME"
 
-# GitHub multi-repo secret確認/作成
-log_debug "GitHub multi-repo secret確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-multi-repo-secret -n arc-systems' >/dev/null 2>&1; then
-    log_debug "github-multi-repo-secret を作成中..."
-    GITHUB_TOKEN=$(ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get secret github-auth -n arc-systems -o jsonpath="{.data.GITHUB_TOKEN}" | base64 -d')
-    if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl create secret generic github-multi-repo-secret --from-literal=github_token='$GITHUB_TOKEN' -n arc-systems"; then
-        log_debug "✓ github-multi-repo-secret 作成完了"
-    else
-        log_warning "⚠️ github-multi-repo-secret は既に存在するか、作成に失敗しました"
-    fi
-else
-    log_debug "✓ github-multi-repo-secret 確認済み"
-fi
+doc = yaml.safe_load(appset_path.read_text(encoding="utf-8"))
+elements = doc["spec"]["generators"][0]["list"]["elements"]
 
-# ServiceAccount確認と作成
-log_status "ServiceAccount確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl get serviceaccount github-actions-runner -n arc-systems' >/dev/null 2>&1; then
-    log_warning "ServiceAccount github-actions-runner が存在しません。作成中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl create serviceaccount github-actions-runner -n arc-systems --dry-run=client -o yaml | kubectl apply -f -'
-    log_status "✓ ServiceAccount作成完了"
-fi
+slug = re.sub(r"[._]", "-", repo_name.lower())
+entry = {
+    "name": slug,
+    "githubOwner": github_owner,
+    "githubRepo": repo_name,
+    "runnerName": f"{slug}-runners",
+    "minRunners": min_runners,
+    "maxRunners": max_runners,
+}
 
-# Runner Scale Set作成
-log_status "🏃 RunnerScaleSet作成中..."
+updated = False
+for i, e in enumerate(elements):
+    if e.get("runnerName") == entry["runnerName"] or e.get("githubRepo") == repo_name:
+        if e != entry:
+            elements[i] = entry
+            updated = True
+        print("updated" if updated else "unchanged")
+        break
+else:
+    elements.append(entry)
+    updated = True
+    print("added")
 
-# 既存のRunnerを削除（存在する場合）
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm status '$RUNNER_NAME' -n arc-systems" >/dev/null 2>&1; then
-    log_warning "既存の $RUNNER_NAME を削除中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm uninstall '$RUNNER_NAME' -n arc-systems" || true
-    sleep 5
-fi
+if updated:
+    appset_path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=False), encoding="utf-8")
+PY
+)
 
-# Harbor内部CA ConfigMap作成/更新
-log_status "Harbor内部CA ConfigMap作成中..."
-if ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 'kubectl -n arc-systems get configmap harbor-internal-ca' >/dev/null 2>&1; then
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl -n cert-manager get secret ca-key-pair -o jsonpath='{.data.ca\.crt}' | base64 -d | kubectl -n arc-systems create configmap harbor-internal-ca --from-file=ca.crt=/dev/stdin --dry-run=client -o yaml | kubectl apply -f -" >/dev/null
-else
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl -n cert-manager get secret ca-key-pair -o jsonpath='{.data.ca\.crt}' | base64 -d | kubectl -n arc-systems create configmap harbor-internal-ca --from-file=ca.crt=/dev/stdin" >/dev/null
-fi
-log_status "✓ Harbor内部CA ConfigMap作成完了"
+case "$UPSERT_RESULT" in
+    added)
+        log_status "✓ Runner定義を追加しました: $REPOSITORY_NAME"
+        ;;
+    updated)
+        log_status "✓ Runner定義を更新しました: $REPOSITORY_NAME"
+        ;;
+    unchanged)
+        log_status "✓ Runner定義は最新です: $REPOSITORY_NAME"
+        ;;
+    *)
+        log_error "Runner定義の更新に失敗しました"
+        exit 1
+        ;;
+esac
 
-# Runner用Helm valuesファイル作成（内部CAをDockerに配布）
-log_status "Runner用Helm valuesファイル作成中..."
-ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "cat > /tmp/arc-runner-values.yaml << 'EOF'
-template:
-  spec:
-    serviceAccountName: github-actions-runner
-    hostAliases:
-      - ip: 192.168.122.100
-        hostnames:
-          - harbor.internal.qroksera.com
-    initContainers:
-      - name: init-dind-externals
-        image: ghcr.io/actions/actions-runner:latest
-        command: ["cp"]
-        args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
-        volumeMounts:
-          - name: dind-externals
-            mountPath: /home/runner/tmpDir
-      - name: dind
-        image: docker:dind
-        command: ["sh", "-c"]
-        args:
-          - |
-            set -e
-            cp /etc/docker/certs.d/harbor.internal.qroksera.com/ca.crt /usr/local/share/ca-certificates/harbor-internal-ca.crt
-            update-ca-certificates
-            dockerd --host=unix:///var/run/docker.sock --group=\$(DOCKER_GROUP_GID) --insecure-registry=harbor.internal.qroksera.com
-        env:
-          - name: DOCKER_GROUP_GID
-            value: '123'
-        securityContext:
-          privileged: true
-        restartPolicy: Always
-        startupProbe:
-          exec:
-            command: ["docker", "info"]
-          failureThreshold: 24
-          periodSeconds: 5
-        volumeMounts:
-          - name: work
-            mountPath: /home/runner/_work
-          - name: dind-sock
-            mountPath: /var/run
-          - name: dind-externals
-            mountPath: /home/runner/externals
-          - name: harbor-internal-ca
-            mountPath: /etc/docker/certs.d/harbor.internal.qroksera.com
-            readOnly: true
-    containers:
-      - name: runner
-        image: ghcr.io/actions/actions-runner:latest
-        command: ["/home/runner/run.sh"]
-        env:
-          - name: DOCKER_HOST
-            value: 'unix:///var/run/docker.sock'
-          - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
-            value: '120'
-        volumeMounts:
-          - name: work
-            mountPath: /home/runner/_work
-          - name: dind-sock
-            mountPath: /var/run
-    volumes:
-      - name: dind-sock
-        emptyDir: {}
-      - name: dind-externals
-        emptyDir: {}
-      - name: work
-        emptyDir: {}
-      - name: harbor-internal-ca
-        configMap:
-          name: harbor-internal-ca
-          items:
-            - key: ca.crt
-              path: ca.crt
-EOF" >/dev/null
-log_status "✓ Runner用Helm valuesファイル作成完了"
-
-# RunnerScaleSetを作成（minRunners=1推奨）
-log_status "🏃 Helm install実行中..."
-HELM_INSTALL_RESULT=0
-  ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm install $RUNNER_NAME oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set --namespace arc-systems --values /tmp/arc-runner-values.yaml --set githubConfigUrl='https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME' --set githubConfigSecret='github-multi-repo-secret' --set maxRunners=$MAX_RUNNERS --set minRunners=$MIN_RUNNERS --set controllerServiceAccount.namespace=arc-systems --set controllerServiceAccount.name=arc-controller-gha-rs-controller --wait --timeout=60s" 2>/dev/null || HELM_INSTALL_RESULT=$?
-# Helm installの結果をチェック
-if [[ $HELM_INSTALL_RESULT -ne 0 ]]; then
-    log_error "❌ RunnerScaleSet '$RUNNER_NAME' の作成に失敗しました"
-    log_debug "Helm install failed with exit code: $HELM_INSTALL_RESULT"
-    
-    # デバッグ情報を出力
-    log_debug "既存のHelm releasesを確認中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "helm list -n arc-systems" || true
-    
-    log_debug "ARC Controller Podの状態を確認中..."
-    ssh -o StrictHostKeyChecking=no k8suser@192.168.122.10 "kubectl get pods -n arc-systems | grep controller" || true
-    
-    exit 1
-fi
+log_status "ℹ️ Runner本体はArgoCD(ApplicationSet)経由でデプロイされます"
+log_status "ℹ️ 反映にはこのリポジトリのcommit/pushが必要です"
 
 # GitHub Actions workflow作成
 log_status "=== GitHub Actions workflow作成 ==="
@@ -401,7 +308,7 @@ WORKFLOW_EOF
 # 完了メッセージ
 log_status "=== セットアップ完了 ==="
 log_status ""
-log_status "✅ RunnerScaleSet作成:"
+log_status "✅ Runner定義登録:"
 log_status "   - $RUNNER_NAME (minRunners=$MIN_RUNNERS, maxRunners=$MAX_RUNNERS)"
 log_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
 log_status ""
@@ -413,7 +320,7 @@ log_status "1. GitHub リポジトリに Commit & Push"
 log_status "   git add $WORKFLOW_FILE"
 log_status "   git commit -m \"Add GitHub Actions workflow for $REPOSITORY_NAME\""
 log_status "   git push"
-log_status "2. GitHub ActionsでCI/CDテスト実行"
-log_status "3. Harborでイメージ確認: https://harbor.internal.qroksera.com"
+log_status "2. ArgoCD同期を確認（blog-runner等がSynced/Healthy）"
+log_status "3. GitHub ActionsでCI/CDテスト実行"
 log_status ""
 log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"
