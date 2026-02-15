@@ -115,6 +115,27 @@ kubectl rollout restart deployment argocd-applicationset-controller -n argocd
 kubectl rollout status deployment argocd-applicationset-controller -n argocd --timeout=180s
 ```
 
+`argocd-core` の手動同期で `spec.selector is immutable` が出る場合:
+
+```bash
+kubectl patch application argocd-core -n argocd --type=merge -p '{
+  "operation": {
+    "sync": {
+      "prune": false,
+      "syncOptions": [
+        "ServerSideApply=true",
+        "Replace=true",
+        "Force=true",
+        "DisableClientSideApplyMigration=true"
+      ]
+    }
+  }
+}'
+```
+
+補足:
+- `argocd-core` は `redisSecretInit.enabled=false` で運用し、hookリソース競合を回避する
+
 ### 5. ExternalSecret が同期されない
 
 ```bash
