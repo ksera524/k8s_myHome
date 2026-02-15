@@ -149,6 +149,21 @@ RunnerはGitOps管理ではなく、`add-runner.sh` による作成運用とし�
 内部CAは `add-runner.sh` で Runner(dind) に自動配布されます。
 ARC ControllerはGitOps管理（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）を正とし、手動Helm適用は行いません。
 `manifests/platform/ci-cd/github-actions/` には controller と RBAC を保持します。
+Runner ServiceAccount（`arc-systems/github-actions-runner`）の権限は最小化し、実行時に必要なSecretのみ許可します。
+- `arc-systems/harbor-auth`（Harbor push用資格情報）
+- `cert-manager/ca-key-pair`（内部CA証明書）
+
+```bash
+# 権限確認（許可されること）
+kubectl auth can-i get secret/harbor-auth -n arc-systems \
+  --as=system:serviceaccount:arc-systems:github-actions-runner
+kubectl auth can-i get secret/ca-key-pair -n cert-manager \
+  --as=system:serviceaccount:arc-systems:github-actions-runner
+
+# 権限確認（拒否されること）
+kubectl auth can-i list secrets --all-namespaces \
+  --as=system:serviceaccount:arc-systems:github-actions-runner
+```
 
 #### Runner追加・削除
 

@@ -84,6 +84,7 @@ manifests/
 例外:
 - GitHub Actions Runner は `add-runner.sh` による作成運用（GitOps 管理外）
 - ARC Controller は GitOps 管理対象（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）
+- ARC Runner ServiceAccount のRBACは GitOps 管理し、Secretアクセスは `harbor-auth` と `ca-key-pair` のみに限定
 
 ## ArgoCD AppProject（権限境界）
 
