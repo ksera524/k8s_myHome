@@ -10,12 +10,12 @@
 - `platform/`: GitOps運用基盤・CI/CD・Secrets運用（ArgoCD設定、ESO、ARC等）
 - `monitoring/`: 監視関連の manifests/values
 - `apps/`: ユーザーアプリの実マニフェスト
-- `config/`: 非Secretの外部連携設定のみ
 
 ## ArgoCD Application 定義
 
-- App-of-Apps は `bootstrap/` にのみ配置
-- それ以外の Application 定義は `bootstrap/applications/` に集約
+- Root App-of-Apps は `bootstrap/app-of-apps.yaml` に配置
+- ユーザーアプリ向け Application 定義は `bootstrap/applications/user-apps/` に配置
+- 基盤コンポーネント向け Application は `bootstrap/app-of-apps.yaml` から参照
 - `core/` 以下に Application 定義を置かない
 
 ## cert-manager 関連
@@ -26,7 +26,6 @@
 ## ExternalSecrets
 
 - ESO 本体と ExternalSecret 定義は `platform/secrets/external-secrets/` に集約
-- `config/` には ExternalSecret を置かない（非Secretの外部連携設定のみ）
 
 ## monitoring
 

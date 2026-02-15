@@ -2,548 +2,151 @@
 
 ## 概要
 
-k8s_myHomeで管理されているアプリケーションの詳細と、新しいアプリケーションの追加方法について説明します。
+このドキュメントは、`manifests/apps/` と `manifests/bootstrap/applications/user-apps/` の定義を基準に、現在運用中のアプリ構成をまとめたものです。
 
-## デプロイ済みアプリケーション
+## 現在のアプリ一覧（GitOps管理対象）
 
-### 1. Slack Bot
+| アプリ | Namespace | 主な種類 | 参照先 |
+|------|------|------|------|
+| argocd-external | argocd | HTTPRoute | `manifests/apps/argocd/` |
+| blog | sandbox | Deployment / Service / HTTPRoute | `manifests/apps/blog/` |
+| cloudflared | cloudflared | Deployment / ConfigMap | `manifests/apps/cloudflared/` |
+| cooklog | sandbox | Deployment / Service / HTTPRoute | `manifests/apps/cooklog/` |
+| hitomi | sandbox | CronJob | `manifests/apps/hitomi/` |
+| rustfs-external | rustfs | HTTPRoute | `manifests/apps/rustfs/` |
+| selenium | tools | Deployment / Service | `manifests/apps/selenium/` |
+| slack | sandbox | Deployment / Service(NodePort) | `manifests/apps/slack/` |
 
-**概要**: Slackとの統合ボットアプリケーション
+補足:
 
-| 項目 | 内容 |
-|------|------|
-| **Namespace** | sandbox |
-| **イメージ** | harbor.qroksera.com/sandbox/slack.rs:latest |
-| **サービス** | NodePort (32001) |
-| **Secret** | slack（SLACK_BOT_TOKEN） |
-| **ソースコード** | manifests/apps/slack/ |
+- `rustfs` 本体は `manifests/apps/rustfs/` ではなく Helm Application（`rustfs-app.yaml`）でデプロイ
+- 監視スタック（Grafana k8s-monitoring）は `manifests/apps/` ではなく Platform レイヤーで管理
 
-**主な設定**:
-```yaml
-# Deployment
-replicas: 1
-resources:
-  limits:
-    memory: "128Mi"
-    cpu: "500m"
-```
+## アプリごとの要点
 
-### 2. Cloudflared
-
-**概要**: Cloudflare Tunnelクライアント
+### Slack
 
 | 項目 | 内容 |
 |------|------|
-| **Namespace** | cloudflared |
-| **イメージ** | cloudflare/cloudflared:latest |
-| **タイプ** | Deployment |
-| **Secret** | cloudflared |
-| **ソースコード** | manifests/apps/cloudflared/ |
+| Namespace | `sandbox` |
+| Image | `harbor.qroksera.com/sandbox/slack.rs:<tag>` |
+| Service | `NodePort` (`32001`) |
+| Secret | `slack` (`SLACK_BOT_TOKEN`) |
+| 参照 | `manifests/apps/slack/manifest.yaml` |
 
-**用途**:
-- 外部からの安全なアクセス
-- Cloudflare Zero Trust統合
-
-### 3. Hitomi Downloader
-
-**概要**: コンテンツダウンローダー
+### Cloudflared
 
 | 項目 | 内容 |
 |------|------|
-| **Namespace** | sandbox |
-| **タイプ** | CronJob |
-| **スケジュール** | 定期実行 |
-| **ストレージ** | なし |
-| **ソースコード** | manifests/apps/hitomi/ |
+| Namespace | `cloudflared` |
+| Image | `cloudflare/cloudflared:latest` |
+| 種別 | Deployment（2 replicas） |
+| Secret | `cloudflared`（credentials.json用途） |
+| 参照 | `manifests/apps/cloudflared/manifest.yaml`, `manifests/apps/cloudflared/cloudflared-config.yaml` |
 
-### 4. Grafana k8s-monitoring
-
-**概要**: Grafana Cloud連携の監視スタック
+### Blog
 
 | 項目 | 内容 |
 |------|------|
-| **Namespace** | monitoring |
-| **タイプ** | Helm chart (`k8s-monitoring`) |
-| **設定** | `manifests/monitoring/grafana-k8s-monitoring-values.yaml` |
-| **Secret** | grafana-cloud-monitoring（ExternalSecret） |
+| Namespace | `sandbox` |
+| Image | `harbor.qroksera.com/sandbox/blog:<tag>` |
+| 公開 | `blog.qroksera.com`（Gateway API） |
+| 参照 | `manifests/apps/blog/manifest.yaml` |
 
-**用途**:
-- クラスタメトリクス/ログ/トレースをGrafana Cloudへ送信
-- OTLP/Zipkin受信エンドポイントを提供
+### Cooklog
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `sandbox` |
+| Image | `harbor.qroksera.com/sandbox/cooklog:<tag>` |
+| 公開 | `cooklog.internal.qroksera.com`（内部公開） |
+| 参照 | `manifests/apps/cooklog/manifest.yaml` |
+
+### Hitomi
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `sandbox` |
+| 種別 | CronJob |
+| Image | `harbor.qroksera.com/sandbox/hitomi:<tag>` |
+| 参照 | `manifests/apps/hitomi/manifest.yaml` |
+
+### Selenium
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `tools` |
+| 種別 | Deployment / Service(ClusterIP) |
+| Image | `selenium/standalone-chrome:latest` |
+| 参照 | `manifests/apps/selenium/manifest.yaml` |
+
+### ArgoCD / RustFS 外部公開
+
+| ルート | Namespace | 公開ホスト | 参照 |
+|------|------|------|------|
+| ArgoCD | `argocd` | `argocd.qroksera.com` / `argocd.internal.qroksera.com` | `manifests/apps/argocd/manifest.yaml` |
+| RustFS Console | `rustfs` | `rustfs.qroksera.com` | `manifests/apps/rustfs/manifest.yaml` |
 
 ## sandbox 共有接続情報
 
-sandbox 内のアプリが PostgreSQL / RustFS に接続するための情報を、ConfigMap と Secret に集約しています。
-
-### ConfigMap（非機密）
+`sandbox` 向けの非機密接続情報は `ConfigMap` にまとめています。
 
 | 項目 | 内容 |
 |------|------|
-| **Namespace** | sandbox |
-| **ConfigMap** | sandbox-connection-info |
+| Namespace | `sandbox` |
+| ConfigMap | `sandbox-connection-info` |
+| 参照 | `manifests/apps/sandbox-config/manifest.yaml` |
 
-**含まれるキー**:
-- `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER`
-- `RUSTFS_S3_ENDPOINT` / `RUSTFS_S3_REGION`
+現在のキー:
 
-### Secret（機密）
+- `RUSTFS_S3_ENDPOINT`
+- `RUSTFS_S3_REGION`
 
-| 項目 | 内容 |
-|------|------|
-| **PostgreSQL** | postgresql-auth（postgres-password） |
-| **RustFS** | rustfs-auth（RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY） |
+`rustfs-auth` Secret（`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`）は ExternalSecret で同期されます。
 
-### 利用例
+## 新規アプリ追加（実運用フロー）
 
-**ConfigMapをまとめて読み込む**:
+1. `manifests/apps/<app-name>/` を作成し、`kustomization.yaml` とマニフェストを配置
+2. 必要なら `manifests/platform/secrets/external-secrets/external-secret-resources.yaml` に ExternalSecret を追加
+3. `manifests/bootstrap/applications/user-apps/<app-name>-app.yaml` に ArgoCD Application を追加
+4. `kubectl get applications -n argocd` で `Synced/Healthy` を確認
 
-```yaml
-envFrom:
-  - configMapRef:
-      name: sandbox-connection-info
-```
-
-**必要な項目だけ参照する**:
+Application 定義例:
 
 ```yaml
-env:
-  - name: POSTGRES_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: sandbox-connection-info
-        key: POSTGRES_HOST
-  - name: POSTGRES_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: postgresql-auth
-        key: postgres-password
-  - name: RUSTFS_S3_ENDPOINT
-    valueFrom:
-      configMapKeyRef:
-        name: sandbox-connection-info
-        key: RUSTFS_S3_ENDPOINT
-  - name: RUSTFS_ACCESS_KEY
-    valueFrom:
-      secretKeyRef:
-        name: rustfs-auth
-        key: RUSTFS_ACCESS_KEY
-```
-
-### PostgreSQLでCREATE文を実行する方法
-
-**ワンライナー**:
-
-```bash
-ssh k8suser@192.168.122.10
-export PGPASSWORD="$(kubectl get secret postgresql-auth -n database -o jsonpath='{.data.postgres-password}' | base64 -d)"
-kubectl exec -it postgresql-0 -n database -- psql -U postgres -d app -c "CREATE TABLE test (id serial primary key, name text);"
-```
-
-**対話モード**:
-
-```bash
-ssh k8suser@192.168.122.10
-export PGPASSWORD="$(kubectl get secret postgresql-auth -n database -o jsonpath='{.data.postgres-password}' | base64 -d)"
-kubectl exec -it postgresql-0 -n database -- psql -U postgres -d app
-```
-
-## 新規アプリケーションの追加
-
-### 1. ディレクトリ構造の作成
-
-```bash
-# アプリケーション用ディレクトリ作成
-mkdir -p manifests/apps/myapp
-cd manifests/apps/myapp
-```
-
-### 2. Kubernetesマニフェスト作成
-
-#### deployment.yaml
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: myapp
-  namespace: sandbox
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: myapp
-  template:
-    metadata:
-      labels:
-        app: myapp
-    spec:
-      imagePullSecrets:
-      - name: harbor-registry-secret
-      containers:
-      - name: myapp
-        image: harbor.qroksera.com/sandbox/myapp:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: myapp-secret
-              key: api-key
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "250m"
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-```
-
-#### service.yaml
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: myapp
-  namespace: sandbox
-spec:
-  selector:
-    app: myapp
-  ports:
-  - port: 80
-    targetPort: 8080
-  type: ClusterIP
-```
-
-#### httproute.yaml
-
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: myapp
-  namespace: sandbox
-spec:
-  parentRefs:
-    - name: nginx-gateway
-      namespace: nginx-gateway
-      sectionName: https
-  hostnames:
-    - myapp.local
-  rules:
-    - backendRefs:
-        - name: myapp
-          port: 80
-```
-
-### 3. External Secret設定
-
-```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: myapp-secret
-  namespace: sandbox
-spec:
-  refreshInterval: 20s
-  secretStoreRef:
-    name: pulumi-esc-store
-    kind: ClusterSecretStore
-  target:
-    name: myapp-secret
-    creationPolicy: Owner
-  data:
-  - secretKey: api-key
-    remoteRef:
-      key: myapp-api-key
-```
-
-### 4. ArgoCD Application定義
-
-```yaml
-# manifests/bootstrap/applications/user-apps/myapp-app.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: myapp
+  name: <app-name>
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "12"
 spec:
-  project: default
+  project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/apps/myapp
+    path: manifests/apps/<app-name>
   destination:
     server: https://kubernetes.default.svc
-    namespace: sandbox
+    namespace: <namespace>
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true
+      - CreateNamespace=true
 ```
 
-### 5. イメージのビルドとプッシュ
+## 運用確認コマンド
 
 ```bash
-# Dockerfile作成
-cat > Dockerfile <<EOF
-FROM alpine:latest
-COPY app /app
-ENTRYPOINT ["/app"]
-EOF
-
-# ビルド
-docker build -t myapp:latest .
-
-# タグ付け
-docker tag myapp:latest harbor.qroksera.com/sandbox/myapp:latest
-
-# Harbor へプッシュ
-docker push harbor.qroksera.com/sandbox/myapp:latest
-```
-
-### 6. デプロイとテスト
-
-```bash
-# Git にコミット
-git add manifests/apps/myapp/
-git commit -m "Add myapp application"
-git push
-
-# ArgoCD同期待ち（自動）
-# または手動同期
-kubectl patch application myapp -n argocd \
-  --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-
-# デプロイ確認
-kubectl get pods -n sandbox | grep myapp
-kubectl logs -n sandbox deployment/myapp
-```
-
-## CronJobアプリケーション
-
-### CronJob定義例
-
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: scheduled-task
-  namespace: sandbox
-spec:
-  schedule: "0 2 * * *"  # 毎日午前2時
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          restartPolicy: OnFailure
-          containers:
-          - name: task
-            image: harbor.qroksera.com/sandbox/task:latest
-            command: ["/bin/sh", "-c"]
-            args: ["echo 'Task executed'"]
-```
-
-### スケジュール設定
-
-| 設定 | 説明 | 例 |
-|------|------|-----|
-| `*/5 * * * *` | 5分ごと | 頻繁なタスク |
-| `0 * * * *` | 毎時0分 | 時間単位のタスク |
-| `0 2 * * *` | 毎日午前2時 | 日次バッチ |
-| `0 0 * * 0` | 毎週日曜日 | 週次タスク |
-| `0 0 1 * *` | 毎月1日 | 月次タスク |
-
-## アプリケーション管理コマンド
-
-### デプロイ状態確認
-
-```bash
-# Application一覧
+# Application 一覧
 kubectl get applications -n argocd
 
-# 特定アプリケーションの詳細
+# アプリの詳細
 kubectl describe application <app-name> -n argocd
 
-# Pod状態
+# Pod/Service/Route
 kubectl get pods -n <namespace>
-
-# ログ確認
-kubectl logs -n <namespace> <pod-name>
-```
-
-### スケーリング
-
-```bash
-# レプリカ数変更
-kubectl scale deployment <deployment-name> -n <namespace> --replicas=3
-
-# HPA設定
-kubectl autoscale deployment <deployment-name> -n <namespace> \
-  --cpu-percent=50 --min=1 --max=10
-```
-
-### アップデート
-
-```bash
-# イメージ更新
-kubectl set image deployment/<deployment-name> \
-  <container-name>=harbor.qroksera.com/sandbox/<image>:new-tag \
-  -n <namespace>
-
-# ローリングアップデート状態
-kubectl rollout status deployment/<deployment-name> -n <namespace>
-
-# ロールバック
-kubectl rollout undo deployment/<deployment-name> -n <namespace>
-```
-
-## Harbor レジストリ管理
-
-### プロジェクト作成
-
-```bash
-# Harbor UI経由
-# Projects > New Project
-# Name: myproject
-# Access Level: Private
-```
-
-### イメージ管理
-
-```bash
-# イメージ一覧
-curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories" \
--u admin:<harbor-admin-password>
-
-# イメージタグ一覧
-curl -X GET "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp/artifacts" \
--u admin:<harbor-admin-password>
-
-# イメージ削除
-curl -X DELETE "https://harbor.qroksera.com/api/v2.0/projects/sandbox/repositories/myapp" \
--u admin:<harbor-admin-password>
-```
-
-### レジストリSecret管理
-
-```bash
-# Secret作成
-kubectl create secret docker-registry harbor-registry-secret \
-  --docker-server=harbor.qroksera.com \
-  --docker-username=admin \
-  --docker-password=<harbor-admin-password> \
-  --docker-email=admin@example.com \
-  -n <namespace>
-
-# または External Secrets経由（推奨）
-```
-
-## ベストプラクティス
-
-### 1. リソース管理
-
-```yaml
-resources:
-  requests:  # 最小保証リソース
-    memory: "64Mi"
-    cpu: "250m"
-  limits:    # 最大使用可能リソース
-    memory: "128Mi"
-    cpu: "500m"
-```
-
-### 2. ヘルスチェック
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
-```
-
-### 3. ConfigMapとSecret分離
-
-```yaml
-# 設定はConfigMap
-configMapRef:
-  name: app-config
-
-# 機密情報はSecret
-secretRef:
-  name: app-secret
-```
-
-### 4. ラベル管理
-
-```yaml
-labels:
-  app: myapp
-  version: v1.0.0
-  environment: production
-  team: platform
-```
-
-### 5. ネームスペース分離
-
-- `sandbox`: 開発・テスト用
-- `production`: 本番用
-- `monitoring`: 監視ツール
-- `infrastructure`: インフラコンポーネント
-
-## トラブルシューティング
-
-### Pod が起動しない
-
-```bash
-# イベント確認
-kubectl get events -n <namespace>
-
-# Pod詳細
-kubectl describe pod <pod-name> -n <namespace>
-
-# イメージプル確認
-kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].state}'
-```
-
-### Secret が見つからない
-
-```bash
-# Secret一覧
-kubectl get secrets -n <namespace>
-
-# ExternalSecret状態
-kubectl get externalsecret -n <namespace>
-kubectl describe externalsecret <name> -n <namespace>
-```
-
-### Service に接続できない
-
-```bash
-# Service確認
 kubectl get svc -n <namespace>
-
-# Endpoint確認
-kubectl get endpoints -n <namespace>
-
-# DNS解決テスト
-kubectl run -it --rm debug --image=alpine --restart=Never -- nslookup <service-name>.<namespace>
+kubectl get httproute -n <namespace>
 ```
-
-## まとめ
-
-k8s_myHomeのアプリケーション管理は、GitOpsパターンに基づいて完全に自動化されています。新しいアプリケーションの追加も、標準的なKubernetesマニフェストを作成してGitにプッシュするだけで、ArgoCDが自動的にデプロイを実行します。

@@ -13,6 +13,7 @@
 ### 🔧 運用ガイド
 - [運用ガイド](operations-guide.md) - 日常運用とメンテナンス
 - [トラブルシューティング](troubleshooting.md) - 問題解決ガイド
+- [外部公開ガイド](external-access-guide.md) - Cloudflared/Gateway/TLS 運用手順
 
 ### 🚀 アプリケーション
 - [アプリケーション管理](applications.md) - デプロイされているアプリケーション
