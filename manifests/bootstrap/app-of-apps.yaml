@@ -37,6 +37,31 @@ spec:
         factor: 2
         maxDuration: 3m
 
+# ArgoCD Core - ArgoCD本体をHelm chartで段階移行（手動同期）
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-core
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/platform/argocd-core
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 # Local Path Provisioner - Harborより先にデプロイが必要
 ---
 apiVersion: argoproj.io/v1alpha1
