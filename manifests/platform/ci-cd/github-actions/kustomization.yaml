@@ -6,6 +6,8 @@ resources:
   - arc-version-configmap.yaml
   # ARC Controller (ArgoCD Application経由でHelm chartをデプロイ)
   - arc-controller.yaml
+  # ARC RunnerScaleSet (ApplicationSetでGitOps管理)
+  - runners-appset.yaml
   # RBAC
   - github-actions-rbac.yaml
   - github-actions-harbor-rbac.yaml
@@ -24,3 +26,8 @@ replacements:
           name: arc-controller
         fieldPaths:
           - spec.source.targetRevision
+      - select:
+          kind: ApplicationSet
+          name: arc-runners
+        fieldPaths:
+          - spec.template.spec.source.targetRevision
