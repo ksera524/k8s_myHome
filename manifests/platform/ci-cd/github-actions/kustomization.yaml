@@ -2,6 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  # ARC version single source of truth
+  - arc-version-configmap.yaml
   # ARC Controller (ArgoCD Application経由でHelm chartをデプロイ)
   - arc-controller.yaml
   # RBAC
@@ -10,3 +12,15 @@ resources:
   # External Secrets (GitHub PATはESO経由で取得)
   # Note: github-auth-secretはplatform/secrets/external-secrets/external-secret-resources.yamlで管理
   # Runner ScaleSetはadd-runner.shでsettings.tomlに基づいて作成
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: arc-version
+      fieldPath: data.controllerChartVersion
+    targets:
+      - select:
+          kind: Application
+          name: arc-controller
+        fieldPaths:
+          - spec.source.targetRevision
