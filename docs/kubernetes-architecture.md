@@ -86,7 +86,7 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
 ### 3. GitOps
 
 #### ArgoCD
-- **バージョン**: 5.51.6
+- **デプロイ方式**: upstream `install.yaml`（stable追従）
 - **パターン**: App-of-Apps
 - **認証**: GitHub OAuth統合
 - **同期間隔**: 3分（デフォルト）
@@ -99,8 +99,11 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
   - 内部: harbor.internal.qroksera.com (192.168.122.100)
   - 外部: harbor.qroksera.com (Cloudflare経由)
 - **ストレージ**:
-  - Registry: 100Gi
-  - Database: 10Gi
+  - Registry: 10Gi
+  - JobService Log: 1Gi
+  - Database: 1Gi
+  - Redis: 1Gi
+  - Trivy: 5Gi
 - **認証**: admin/<harbor-admin-password>（初期値は変更）
 
 ### 5. CI/CD
@@ -108,7 +111,7 @@ k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノー�
 #### GitHub Actions Runner Controller (ARC)
 - **タイプ**: Runner ScaleSet
 - **設定**: 
-  - minRunners: 0-1（設定可能）
+  - minRunners: 1（推奨、設定可能）
   - maxRunners: 3（デフォルト）
 - **モード**: Docker-in-Docker (dind)
 

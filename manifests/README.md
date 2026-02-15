@@ -7,7 +7,6 @@
 ```
 manifests/
 ├── bootstrap/                    # ArgoCD App-of-Apps
-├── config/                       # 非Secretの外部連携設定
 ├── core/                         # 基本リソース（namespace, storage-class など）
 ├── infrastructure/               # インフラ構成（networking, security など）
 ├── platform/                     # プラットフォームサービス（ArgoCD, ESO, ARC）

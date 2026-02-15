@@ -432,9 +432,8 @@ kubectl get ns -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata
 # イメージスキャン（Harborで自動実行）
 # Harbor UIでスキャン結果確認
 
-# Pod Security Policy確認
-kubectl get psp
-kubectl describe psp <policy-name>
+# Namespace の PSA ラベル確認
+kubectl get ns -A -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.pod-security\.kubernetes\.io/enforce}{"\n"}{end}'
 ```
 
 #### RBAC管理

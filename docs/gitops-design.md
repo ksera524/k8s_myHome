@@ -12,44 +12,24 @@ k8s_myHomeプロジェクトは、ArgoCDを使用したGitOpsパターンを採�
 
 - `docs/diagrams/app-of-apps-sync-wave.md`
 
-```
-┌─────────────────────────────────────────────────┐
-│              Root Application                    │
-│   (bootstrap/app-of-apps.yaml)                  │
-└──────────────┬──────────────────────────────────┘
-               │
-    ┌──────────┴───────────┬──────────┬──────────┐
-    │                      │          │          │
-┌───▼────┐         ┌──────▼────┐ ┌──▼──┐  ┌────▼────┐
-│ Core   │         │Platform   │ │Infra│  │  Apps   │
-│ Apps   │         │Services   │ │     │  │         │
-└────────┘         └───────────┘ └─────┘  └─────────┘
-    │                   │           │          │
-    ├─ namespaces      ├─ ArgoCD   ├─ MetalLB ├─ Slack
-    ├─ storage-class   ├─ Harbor   ├─ NGINX Gateway   ├─ RSS
-    └─ rbac            └─ ESO      └─ Cert    └─ Hitomi
-```
-
 ### デプロイメント Wave
 
 ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプロイ：
 
 | Wave | コンポーネント | 説明 |
 |------|-------------|------|
+| 0 | ArgoCD Projects | AppProjectを先行作成 |
 | 1 | Local Path Provisioner | ストレージプロビジョナー |
-| 2 | Core (Namespaces) | 基本リソース |
+| 2 | Core / CoreDNS Config | 基本リソースとDNS固定設定 |
 | 3 | MetalLB | LoadBalancer |
 | 4 | MetalLB Config | IPプール設定 |
 | 5 | Gateway API CRD | Gateway APIリソース |
 | 6 | NGINX Gateway Fabric | Gatewayコントローラー |
-| 7 | cert-manager | 証明書管理 |
-| 7 | cert-manager Config | Issuer設定 |
-| 7 | External Secrets | シークレット管理 |
+| 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書・Secret管理 |
 | 8 | Gateway Resources | Gateway/共通設定 |
 | 9 | Config Secrets | 外部連携用ExternalSecret |
-| 10 | Platform Services | ArgoCD, Harbor |
-| 11 | Monitoring | Grafana k8s-monitoring |
-| 11 | User App Definitions | アプリケーション定義 |
+| 10 | Platform / ArgoCD Image Updater / Harbor / Tailscale Operator | 基盤サービス |
+| 11 | Monitoring / User App Definitions / Tailscale Connector | 監視・アプリ定義・接続基盤 |
 | 12 | User Applications | 実際のアプリケーション |
 | 13 | Harbor Patches | Harbor後処理 |
 
@@ -59,16 +39,19 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 manifests/
 ├── bootstrap/
 │   └── app-of-apps.yaml         # ルートApplication
-├── config/
-│   └── secrets/                 # 外部連携用シークレット
 ├── core/
-│   ├── namespaces/              # Namespace定義
-│   └── storage-classes/         # StorageClass定義
+│   ├── namespaces.yaml          # Namespace定義
+│   └── networkpolicies.yaml     # 基本NetworkPolicy
 ├── infrastructure/
 │   ├── networking/
-│   │   └── metallb/             # MetalLB設定
+│   │   ├── coredns/             # CoreDNS固定エントリ
+│   │   ├── metallb/             # MetalLB設定
+│   │   ├── nginx-gateway-fabric/
+│   │   └── tailscale-operator/
 │   ├── security/
 │   │   └── cert-manager/        # 証明書管理
+│   ├── storage/
+│   │   └── local-path/          # Local Path Provisioner
 │   └── gitops/
 │       └── harbor/              # Harborパッチ
 ├── monitoring/
@@ -80,8 +63,13 @@ manifests/
 │   └── secrets/
 │       └── external-secrets/    # ESO設定
 └── apps/
-    ├── cloudflared/             # アプリケーション
+    ├── argocd/
+    ├── blog/
+    ├── cloudflared/
+    ├── cooklog/
     ├── hitomi/
+    ├── rustfs/
+    ├── selenium/
     └── slack/
 ```
 
@@ -119,19 +107,19 @@ AppProject は `argocd-projects` Application で先行適用します。
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: example-app
+  name: <app-name>
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "10"  # デプロイ順序
+    argocd.argoproj.io/sync-wave: "12"  # user-applications に合わせる
 spec:
-  project: default
+  project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: main
-    path: manifests/apps/example
+    targetRevision: HEAD
+    path: manifests/apps/<app-name>
   destination:
     server: https://kubernetes.default.svc
-    namespace: example
+    namespace: <namespace>
   syncPolicy:
     automated:
       prune: true        # 削除されたリソースを自動削除
@@ -297,13 +285,11 @@ jobs:
       
       - name: Update Manifest
         run: |
-          sed -i "s|image:.*|image: harbor.qroksera.com/sandbox/${{ github.repository }}:${{ github.sha }}|" manifests/apps/myapp/deployment.yaml
+          sed -i "s|image:.*|image: harbor.qroksera.com/sandbox/${{ github.repository }}:${{ github.sha }}|" manifests/apps/<app-name>/manifest.yaml
           
       - name: Commit and Push
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add manifests/apps/myapp/deployment.yaml
+          git add manifests/apps/<app-name>/manifest.yaml
           git commit -m "Update image to ${{ github.sha }}"
           git push
 ```
@@ -315,9 +301,9 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   annotations:
-    argocd-image-updater.argoproj.io/image-list: myapp=harbor.qroksera.com/sandbox/myapp
-    argocd-image-updater.argoproj.io/myapp.update-strategy: latest
-    argocd-image-updater.argoproj.io/myapp.pull-secret: pullsecret:arc-systems/harbor-registry-secret
+    argocd-image-updater.argoproj.io/image-list: app=harbor.qroksera.com/sandbox/<app-name>
+    argocd-image-updater.argoproj.io/app.update-strategy: semver
+    argocd-image-updater.argoproj.io/app.pull-secret: pullsecret:argocd/harbor-registry
 ```
 
 ## モニタリングと可観測性

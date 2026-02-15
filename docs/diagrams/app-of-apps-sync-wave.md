@@ -80,6 +80,8 @@ flowchart TD
 
   subgraph user_definitions["User App Definitions (wave 11)"]
     uad_argocd["argocd-external"]:::wave11
+    uad_blog["blog"]:::wave11
+    uad_cooklog["cooklog"]:::wave11
     uad_rustfs["rustfs"]:::wave11
     uad_rustfs_ext["rustfs-external"]:::wave11
     uad_cloudflared["cloudflared"]:::wave11
@@ -92,6 +94,8 @@ flowchart TD
 
   subgraph user_applications["User Applications (wave 12)"]
     ua_argocd["argocd"]:::wave12
+    ua_blog["blog"]:::wave12
+    ua_cooklog["cooklog"]:::wave12
     ua_rustfs["rustfs"]:::wave12
     ua_cloudflared["cloudflared"]:::wave12
     ua_hitomi["hitomi"]:::wave12
