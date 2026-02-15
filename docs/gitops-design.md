@@ -86,6 +86,9 @@ manifests/
 - ARC Controller は GitOps 管理対象（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）
 - ARC Runner ServiceAccount のRBACは GitOps 管理し、Secretアクセスは `harbor-auth` と `ca-key-pair` のみに限定
 
+補足:
+- ArgoCD ApplicationSet CRD（`applicationsets.argoproj.io`）は `manifests/platform/argocd-config/kustomization.yaml` で管理し、Controller依存CRDの欠落を防止
+
 ## ArgoCD AppProject（権限境界）
 
 運用の安全性と見通しを高めるため、AppProject を 4 分割して運用します。

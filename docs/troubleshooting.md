@@ -100,6 +100,21 @@ kubectl patch application <app-name> -n argocd \
 - マニフェストが複数経路で apply されていないか
 - CRD/Webhook など順序依存リソースの Sync Wave を誤っていないか
 
+`argocd-applicationset-controller` が `CrashLoopBackOff` の場合:
+
+```bash
+kubectl get crd applicationsets.argoproj.io
+kubectl logs -n argocd deployment/argocd-applicationset-controller --tail=120
+```
+
+`no matches for kind "ApplicationSet"` が出る場合は CRD 欠落です。復旧手順:
+
+```bash
+kubectl apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.0/manifests/crds/applicationset-crd.yaml
+kubectl rollout restart deployment argocd-applicationset-controller -n argocd
+kubectl rollout status deployment argocd-applicationset-controller -n argocd --timeout=180s
+```
+
 ### 5. ExternalSecret が同期されない
 
 ```bash

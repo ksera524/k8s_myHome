@@ -91,6 +91,12 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 # ArgoCD インストール
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
+# ApplicationSet CRD を明示適用（install.yaml 側の欠落/不整合対策）
+kubectl apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.0/manifests/crds/applicationset-crd.yaml
+
+# CRD存在確認（欠落時は以降のアプリ同期が不安定になるため失敗扱い）
+kubectl get crd applicationsets.argoproj.io >/dev/null
+
 # ArgoCD起動まで待機
 kubectl wait --namespace argocd --for=condition=ready pod --selector=app.kubernetes.io/component=server --timeout=300s
 
