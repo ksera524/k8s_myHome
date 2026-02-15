@@ -147,7 +147,8 @@ helm get values <runner-name> -n arc-systems
 
 RunnerはGitOps管理ではなく、`add-runner.sh` による作成運用とします。
 内部CAは `add-runner.sh` で Runner(dind) に自動配布されます。
-`manifests/platform/ci-cd/github-actions/` には controller と RBAC のみを保持します。
+ARC ControllerはGitOps管理（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）を正とし、手動Helm適用は行いません。
+`manifests/platform/ci-cd/github-actions/` には controller と RBAC を保持します。
 
 #### Runner追加・削除
 
