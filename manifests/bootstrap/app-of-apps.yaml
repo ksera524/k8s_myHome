@@ -682,6 +682,15 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - ".spec.data[].remoteRef.conversionStrategy"
+        - ".spec.data[].remoteRef.decodingStrategy"
+        - ".spec.data[].remoteRef.metadataPolicy"
+        - ".spec.target.deletionPolicy"
+        - ".spec.target.mergePolicy"
 ---
 # ArgoCD Image Updater - イメージ更新自動化（ArgoCD書き戻し）
 apiVersion: argoproj.io/v1alpha1
