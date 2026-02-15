@@ -828,7 +828,7 @@ log_status "✓ Containerd Harbor HTTP Registry設定完了"
 
 # Phase 4.9: GitHub Actions Runner Controller (ARC) セットアップ
 log_status "=== Phase 4.9: GitHub Actions Runner Controller セットアップ ==="
-log_debug "GitHub Actions Runner Controller を直接セットアップします"
+log_debug "GitHub Actions Runner Controller の事前設定を実行します（Controller本体はGitOps管理）"
 
 # ARCセットアップスクリプト実行
 if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
@@ -847,11 +847,9 @@ if [[ -f "$SCRIPT_DIR/../scripts/github-actions/setup-arc.sh" ]]; then
         log_warning "⚠️ ARC セットアップでエラーが発生しましたが続行します"
     fi
 else
-    log_warning "setup-arc.sh が見つかりません。ArgoCD経由でのデプロイにフォールバック"
+    log_warning "setup-arc.sh が見つかりません。ARC事前設定をスキップします"
     ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
-    # Platform Application同期確認
-    kubectl wait --for=condition=Synced --timeout=300s application/platform -n argocd || echo "ARC同期継続中"
-    echo "✓ ARC デプロイ完了"
+    echo "ℹ️ ARC ControllerはArgoCDのGitOps同期によりデプロイされます"
 EOF
 fi
 

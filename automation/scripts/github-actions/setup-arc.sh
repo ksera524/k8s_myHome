@@ -87,29 +87,4 @@ else
 fi
 EOF
 
-# Helm確認・インストール
-log_status "Helm確認中..."
-if ! ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'which helm' >/dev/null 2>&1; then
-    log_status "Helmをインストール中..."
-    ssh -o StrictHostKeyChecking=no k8suser@${CONTROL_PLANE_IP} 'curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash'
-    log_status "✓ Helmインストール完了"
-else
-    log_debug "✓ Helm確認済み"
-fi
-
-# ARC Controller Helm chart インストール
-log_status "ARC Controller Helm chart インストール中..."
-ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR k8suser@${CONTROL_PLANE_IP} << 'EOF'
-# Helm リポジトリ追加
-helm repo add actions-runner-controller https://actions-runner-controller.github.io/actions-runner-controller
-helm repo update
-
-# ARC Controller インストール
-helm upgrade --install arc-controller \
-  oci://ghcr.io/actions/gha-runner-scale-set-controller \
-  --namespace arc-systems \
-  --create-namespace \
-  --wait
-EOF
-
 log_success "GitHub Actions Runner Controller (ARC) セットアップ完了"

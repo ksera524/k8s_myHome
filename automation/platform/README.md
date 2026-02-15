@@ -67,7 +67,8 @@ helm repo add harbor https://helm.goharbor.io
 helm install harbor harbor/harbor --namespace harbor --create-namespace
 
 # 6. GitHub Actions Runner Controller (ARC) は make all で自動デプロイ
-# setup-arc.sh により自動的に公式 GitHub ARC がデプロイされます
+# Controller本体はArgoCDのGitOps同期でデプロイされます
+# setup-arc.sh はARC運用の事前設定（namespace/ServiceAccount等）を行います
 ```
 
 ## 構築内容
