@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
+  - image-updater.yaml
 
 images:
   - name: harbor.qroksera.com/sandbox/hitomi
