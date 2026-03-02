@@ -77,7 +77,7 @@
 |------|------|
 | Namespace | `tools` |
 | 種別 | Deployment / Service(ClusterIP) |
-| Image | `selenium/standalone-chrome:latest` |
+| Image | `selenium/standalone-chrome:145.0-20260222` |
 | 参照 | `manifests/apps/selenium/manifest.yaml` |
 
 ### ArgoCD / RustFS 外部公開

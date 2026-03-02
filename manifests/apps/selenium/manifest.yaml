@@ -19,6 +19,13 @@ spec:
         - name: selenium-standalone-chrome
           image: selenium/standalone-chrome:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
           ports:
             - name: webdriver
               containerPort: 4444

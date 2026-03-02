@@ -5,15 +5,11 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: selenium=selenium/standalone-chrome:latest
-    argocd-image-updater.argoproj.io/selenium.update-strategy: latest
-    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: apps
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
-    targetRevision: HEAD
+    targetRevision: main
     path: manifests/apps/selenium
   destination:
     server: https://kubernetes.default.svc

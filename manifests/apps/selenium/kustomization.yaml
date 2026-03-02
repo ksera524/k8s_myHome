@@ -3,3 +3,8 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
+
+images:
+  - name: selenium/standalone-chrome
+    newTag: 145.0-20260222
+    newName: selenium/standalone-chrome
