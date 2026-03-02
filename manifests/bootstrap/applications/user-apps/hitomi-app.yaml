@@ -5,15 +5,6 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: hitomi=harbor.qroksera.com/sandbox/hitomi
-    argocd-image-updater.argoproj.io/hitomi.update-strategy: semver
-    argocd-image-updater.argoproj.io/hitomi.allow-tags: regexp:^\d+\.\d+\.\d+$
-    argocd-image-updater.argoproj.io/hitomi.semver: ">=0.0.0"
-    argocd-image-updater.argoproj.io/hitomi.pull-secret: pullsecret:argocd/harbor-registry
-    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
-    argocd-image-updater.argoproj.io/write-back-target: kustomization:.
-    argocd-image-updater.argoproj.io/git-branch: main
 spec:
   project: apps
   source:
