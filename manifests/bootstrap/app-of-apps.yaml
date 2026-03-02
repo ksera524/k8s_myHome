@@ -68,6 +68,42 @@ spec:
             create: false
         redisSecretInit:
           enabled: false
+        server:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
+        repoServer:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            timeoutSeconds: 5
+            failureThreshold: 6
+        controller:
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
