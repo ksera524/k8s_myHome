@@ -5,5 +5,5 @@ resources:
   - image-updater.yaml
 images:
   - name: harbor.qroksera.com/sandbox/hitomi
-    newTag: 0.0.8
+    newTag: 0.0.9
     newName: harbor.qroksera.com/sandbox/hitomi
