@@ -68,7 +68,7 @@
 |------|------|
 | Namespace | `sandbox` |
 | 種別 | CronJob |
-| Image | `harbor.qroksera.com/sandbox/hitomi:<tag>` |
+| Image | `harbor.qroksera.com/sandbox/hitomi:latest` |
 | 参照 | `manifests/apps/hitomi/manifest.yaml` |
 
 ### Selenium
