@@ -42,4 +42,4 @@ spec:
                 - name: CAMERA_ID
                   value: camera
                 - name: RECORD_SECONDS
-                  value: "600"
+                  value: "60"
