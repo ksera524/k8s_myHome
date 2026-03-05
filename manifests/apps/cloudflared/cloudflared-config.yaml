@@ -12,16 +12,24 @@ data:
         service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
         originRequest:
           originServerName: harbor.qroksera.com
+          httpHostHeader: harbor.qroksera.com
+          noTLSVerify: false
       - hostname: argocd.qroksera.com
         service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
         originRequest:
           originServerName: argocd.qroksera.com
+          httpHostHeader: argocd.qroksera.com
+          noTLSVerify: false
       - hostname: rustfs.qroksera.com
         service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
         originRequest:
           originServerName: rustfs.qroksera.com
+          httpHostHeader: rustfs.qroksera.com
+          noTLSVerify: false
       - hostname: blog.qroksera.com
         service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
         originRequest:
           originServerName: blog.qroksera.com
+          httpHostHeader: blog.qroksera.com
+          noTLSVerify: false
       - service: http_status:404
