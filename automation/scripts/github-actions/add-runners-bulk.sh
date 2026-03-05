@@ -61,42 +61,53 @@ try:
         sys.exit(0)
     
     repositories_text = match.group(1)
-    
-    # 各リポジトリエントリを抽出
-    # ["repo", min, max, "description"] 形式
-    repo_pattern = r'\[\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*\]'
-    
-    repos = re.findall(repo_pattern, repositories_text)
-    
-    if not repos:
+
+    # 各リポジトリエントリを厳密に検証
+    # ["repo", min, max, "description", "strategy"] 形式のみ許可
+    entry_pattern = r'\[[^\[\]]+\]'
+    repo_pattern = r'^\[\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*"(latest|semver)"\s*\]$'
+
+    entries = re.findall(entry_pattern, repositories_text)
+    if not entries:
         sys.exit(0)
-    
-    for repo_name, min_runners, max_runners, description in repos:
-        print(f"{repo_name}|{min_runners}|{max_runners}|{description}")
+
+    for raw_entry in entries:
+        normalized = raw_entry.strip()
+        parsed = re.match(repo_pattern, normalized)
+        if not parsed:
+            print(
+                f"Error: arc_repositories の形式が不正です: {normalized}",
+                file=sys.stderr,
+            )
+            print(
+                '期待形式: ["repo", min, max, "description", "latest|semver"]',
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        repo_name, min_runners, max_runners, description, strategy = parsed.groups()
+        print(f"{repo_name}|{min_runners}|{max_runners}|{description}|{strategy}")
             
 except Exception as e:
     print(f"Error parsing settings.toml: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
     else
-        # シンプルなgrep/sed/awkでのパース（制限あり）
-        log_warning "Pythonが利用できません。簡易パースを使用します。"
-        
-        # arc_repositoriesセクションを抽出（簡易版）
-        awk '/^arc_repositories = \[/,/^\]/' "$settings_file" | \
-        grep -E '^\s*\[' | \
-        sed 's/^\s*\[//; s/\],\?$//; s/"//g' | \
-        while IFS=',' read -r repo min max desc; do
-            # 前後の空白を削除
-            repo=$(echo "$repo" | xargs)
-            min=$(echo "$min" | xargs)
-            max=$(echo "$max" | xargs)
-            desc=$(echo "$desc" | xargs)
-            
-            if [[ -n "$repo" && -n "$min" && -n "$max" ]]; then
-                echo "${repo}|${min}|${max}|${desc}"
+        # Pythonが利用できない場合の厳密パース
+        log_warning "Pythonが利用できません。Bashで厳密パースを使用します。"
+
+        local line
+        local repo_regex='^\["([^"]+)"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*"([^"]*)"[[:space:]]*,[[:space:]]*"(latest|semver)"[[:space:]]*\],?$'
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            if [[ $line =~ $repo_regex ]]; then
+                echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}|${BASH_REMATCH[3]}|${BASH_REMATCH[4]}|${BASH_REMATCH[5]}"
+            else
+                log_error "arc_repositories の形式が不正です: $line"
+                log_error '期待形式: ["repo", min, max, "description", "latest|semver"]'
+                return 1
             fi
-        done
+        done < <(awk '/^arc_repositories = \[/,/^\]/' "$settings_file" | grep -E '^\s*\[')
     fi
 }
 
@@ -110,9 +121,16 @@ main() {
     log_status "settings.tomlからarc_repositoriesを読み取り中..."
     
     repositories=()
-    while IFS='|' read -r repo_name min_runners max_runners description; do
-        repositories+=("$repo_name|$min_runners|$max_runners|$description")
-    done < <(parse_arc_repositories)
+    parsed_output=""
+    if ! parsed_output="$(parse_arc_repositories)"; then
+        log_error "arc_repositoriesの読み取りに失敗しました。形式を確認してください。"
+        exit 1
+    fi
+
+    while IFS='|' read -r repo_name min_runners max_runners description strategy; do
+        [[ -z "$repo_name" ]] && continue
+        repositories+=("$repo_name|$min_runners|$max_runners|$description|$strategy")
+    done <<< "$parsed_output"
     
     if [[ ${#repositories[@]} -eq 0 ]]; then
         log_warning "arc_repositoriesが設定されていません。"
@@ -129,18 +147,26 @@ main() {
     failed_repos=()
     
     for repo_entry in "${repositories[@]}"; do
-        IFS='|' read -r repo_name min_runners max_runners description <<< "$repo_entry"
+        IFS='|' read -r repo_name min_runners max_runners description strategy <<< "$repo_entry"
+
+        if [[ "$strategy" != "latest" && "$strategy" != "semver" ]]; then
+            log_error "✗ $repo_name のstrategyが不正です: $strategy"
+            failed_repos+=("$repo_name")
+            failed_count=$((failed_count + 1))
+            echo ""
+            continue
+        fi
         
         log_info "-----------------------------------------"
         log_info "リポジトリ: $repo_name"
         log_info "説明: ${description:-設定なし}"
-        log_info "Runner設定: min=$min_runners, max=$max_runners"
+        log_info "Runner設定: min=$min_runners, max=$max_runners, strategy=$strategy"
         log_status "Runner ScaleSet作成中..."
         
         # add-runner.shを実行（サブシェルで実行して親シェルへの影響を防ぐ）
         set +e
         (
-            "$SCRIPT_DIR/add-runner.sh" "$repo_name" "$min_runners" "$max_runners"
+            "$SCRIPT_DIR/add-runner.sh" "$repo_name" "$min_runners" "$max_runners" "$strategy"
         )
         result=$?
         set -e

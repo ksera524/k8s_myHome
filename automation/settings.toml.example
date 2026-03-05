@@ -191,7 +191,8 @@ username = ""
 # make all実行時に自動作成されるRunnerScaleSet用設定
 # 
 # 📋 設定方法:
-# 各配列要素: [リポジトリ名, 最小Runner数, 最大Runner数, 説明]
+# 各配列要素: [リポジトリ名, 最小Runner数, 最大Runner数, 説明, 戦略]
+# 戦略は必須で "latest" または "semver" を指定
 #
 # 🔧 Runner数の設定指針:
 # minRunners (最小Runner数):
@@ -202,16 +203,20 @@ username = ""
 #   同時実行可能な最大Runner数（並列ジョブ数に応じて設定）
 #   推奨: 通常は 1-3、大規模プロジェクトは 5以下
 #
+# strategy (戦略):
+#   latest = ブランチpushで latest と SHA タグをpush
+#   semver = vX.Y.Z タグpushで X.Y.Z と SHA タグをpush（latestはpushしない）
+#
 # 🏃 作成されるRunnerScaleSet名:
 # リポジトリ名 "my.project" → Runner名 "my-project-runners"
 # (ドット、アンダースコアは自動的にハイフンに変換)
 #
 # 📝 使用例:
 # arc_repositories = [
-#     ["k8s_myHome", 1, 3, "メインの k8s_myHome プロジェクト"],
-#     ["slack.rs", 0, 3, "Slack.rs Rust プロジェクト"], 
-#     ["docs-site", 0, 1, "軽量なドキュメントサイト"],
-#     ["api-server", 0, 2, "API サーバープロジェクト"]
+#     ["k8s_myHome", 1, 3, "メインの k8s_myHome プロジェクト", "latest"],
+#     ["slack.rs", 0, 3, "Slack.rs Rust プロジェクト", "semver"],
+#     ["docs-site", 0, 1, "軽量なドキュメントサイト", "latest"],
+#     ["api-server", 0, 2, "API サーバープロジェクト", "semver"]
 # ]
 #
 # 🎯 Workflow内での使用:

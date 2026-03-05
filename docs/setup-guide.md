@@ -63,7 +63,7 @@ username = "your-github-username"  # GitHubユーザー名
 
 # GitHub Actions Runner対象リポジトリ
 arc_repositories = [
-    ["your-repo", 1, 3, "Your repository description"],
+    ["your-repo", 1, 3, "Your repository description", "latest"],
 ]
 
 # USB外部ストレージ（使用する場合）
@@ -224,7 +224,7 @@ settings.tomlに`arc_repositories`を設定済みの場合、`make add-runners-a
 
 ```bash
 # 個別リポジトリ用Runner追加
-make add-runner REPO=your-repository-name
+make add-runner REPO=your-repository-name MIN=1 MAX=3 STRATEGY=latest
 
 # 一括追加（settings.tomlから）
 make add-runners-all

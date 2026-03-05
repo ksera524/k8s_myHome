@@ -106,7 +106,7 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 | `make phase5` | 確認 |
 | `ssh k8suser@192.168.122.10` | Control PlaneへSSH |
 | `cat automation/run.log` | ログ表示 |
-| `make add-runner REPO=name` | GitHub Runner追加 |
+| `make add-runner REPO=name MIN=1 MAX=3 STRATEGY=latest` | GitHub Runner追加 |
 
 ## 🔧 カスタマイズ
 
@@ -115,7 +115,7 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 ```bash
 # settings.tomlに追加
 arc_repositories = [
-    ["your-repo", 1, 3, "Your repository"],
+    ["your-repo", 1, 3, "Your repository", "latest"],
 ]
 
 # Runner作成

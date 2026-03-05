@@ -900,24 +900,25 @@ if [[ -f "$SETTINGS_FILE" ]]; then
             while IFS= read -r line; do
                 [[ -z "$line" ]] && continue
                 
-                # 正規表現で配列要素を抽出: ["name", min, max, "description"]
+                # 正規表現で配列要素を抽出: ["name", min, max, "description", "strategy"]
                 # スペースに対して柔軟になるよう改善
-                if [[ $line =~ \[\"([^\"]+)\"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,.*\] ]]; then
+                if [[ $line =~ \[\"([^\"]+)\"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*\"([^\"]*)\"[[:space:]]*,[[:space:]]*\"(latest|semver)\"[[:space:]]*\],? ]]; then
                     REPO_NAME="${BASH_REMATCH[1]}"
                     MIN_RUNNERS="${BASH_REMATCH[2]}"
                     MAX_RUNNERS="${BASH_REMATCH[3]}"
+                    STRATEGY="${BASH_REMATCH[5]}"
                     CURRENT=$((CURRENT+1))
                     
-                    log_status "🏃 [$CURRENT/$REPO_COUNT] $REPO_NAME のRunnerを追加中... (min=$MIN_RUNNERS, max=$MAX_RUNNERS)"
+                    log_status "🏃 [$CURRENT/$REPO_COUNT] $REPO_NAME のRunnerを追加中... (min=$MIN_RUNNERS, max=$MAX_RUNNERS, strategy=$STRATEGY)"
                     
                     # add-runner.shを実行
                     ADD_RUNNER_SCRIPT="$SCRIPT_DIR/../scripts/github-actions/add-runner.sh"
                     if [[ -f "$ADD_RUNNER_SCRIPT" ]]; then
                         # 環境変数を明示的にエクスポート
-                        export REPO_NAME MIN_RUNNERS MAX_RUNNERS
+                        export REPO_NAME MIN_RUNNERS MAX_RUNNERS STRATEGY
                         
                         # add-runner.shを通常実行（サブシェル内ではない）
-                        if bash "$ADD_RUNNER_SCRIPT" "$REPO_NAME" "$MIN_RUNNERS" "$MAX_RUNNERS" < /dev/null; then
+                        if bash "$ADD_RUNNER_SCRIPT" "$REPO_NAME" "$MIN_RUNNERS" "$MAX_RUNNERS" "$STRATEGY" < /dev/null; then
                             log_status "✓ $REPO_NAME Runner追加完了"
                             PROCESSED=$((PROCESSED+1))
                         else
@@ -939,7 +940,9 @@ if [[ -f "$SETTINGS_FILE" ]]; then
                         break
                     fi
                 else
-                    log_warning "⚠️ 解析できない行: $line"
+                    log_error "❌ arc_repositories の形式が不正です: $line"
+                    log_error '   期待形式: ["repo", min, max, "description", "latest|semver"]'
+                    FAILED=$((FAILED+1))
                 fi
             done <<< "$ARC_REPOS_TEMP"
         fi
@@ -948,8 +951,10 @@ if [[ -f "$SETTINGS_FILE" ]]; then
         
         # 失敗があった場合は警告
         if [[ $FAILED -gt 0 ]]; then
-            log_warning "⚠️ $FAILED 個のリポジトリでRunner追加に失敗しました"
-            log_warning "手動で 'make add-runner REPO=<name>' を実行してください"
+            log_error "❌ $FAILED 個のリポジトリでRunner追加に失敗しました"
+            log_error "arc_repositories の各要素は [\"repo\", min, max, \"description\", \"latest|semver\"] 形式で設定してください"
+            log_error "必要に応じて 'make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=<latest|semver>' を実行してください"
+            exit 1
         fi
     else
         log_debug "arc_repositories設定が見つかりません（スキップ）"

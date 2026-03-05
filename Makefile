@@ -18,7 +18,7 @@ help:
 	@echo "  make phase5 / make verify       - 確認"
 	@echo ""
 	@echo "Runners:"
-	@echo "  make add-runner REPO=<name>     - GitHub Actions Runner追加"
+	@echo "  make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=<latest|semver> - GitHub Actions Runner追加"
 	@echo "  make add-runners-all            - settings.tomlから一括Runner追加"
 
 all:
@@ -56,10 +56,14 @@ upgrade-postcheck:
 
 add-runner:
 	@if [ -z "$(REPO)" ]; then \
-		echo "REPO変数が必要です (例: make add-runner REPO=my-project)"; \
+		echo "REPO変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
 		exit 1; \
 	fi
-	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)"'
+	@if [ -z "$(MIN)" ] || [ -z "$(MAX)" ] || [ -z "$(STRATEGY)" ]; then \
+		echo "MIN/MAX/STRATEGY変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=semver)"; \
+		exit 1; \
+	fi
+	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)" "$(MIN)" "$(MAX)" "$(STRATEGY)"'
 
 add-runners-all:
 	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runners-bulk.sh'

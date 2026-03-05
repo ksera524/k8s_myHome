@@ -169,7 +169,7 @@ kubectl auth can-i list secrets --all-namespaces \
 
 ```bash
 # 個別Runner追加
-make add-runner REPO=repository-name
+make add-runner REPO=repository-name MIN=1 MAX=3 STRATEGY=latest
 
 # 一括Runner追加（settings.tomlから）
 make add-runners-all
