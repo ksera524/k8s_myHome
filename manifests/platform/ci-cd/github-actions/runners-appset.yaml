@@ -12,32 +12,37 @@ spec:
         githubOwner: ksera524
         githubRepo: blog
         runnerName: blog-runners
-        minRunners: '1'
+        minRunners: '0'
         maxRunners: '3'
+        workflowStrategy: semver
       - name: cooklog
         githubOwner: ksera524
         githubRepo: cookLog
         runnerName: cooklog-runners
-        minRunners: '1'
+        minRunners: '0'
         maxRunners: '3'
+        workflowStrategy: semver
       - name: hitomi
         githubOwner: ksera524
         githubRepo: hitomi
         runnerName: hitomi-runners
-        minRunners: '1'
+        minRunners: '0'
         maxRunners: '3'
+        workflowStrategy: latest
       - name: slack-rs
         githubOwner: ksera524
         githubRepo: slack.rs
         runnerName: slack-rs-runners
-        minRunners: '1'
+        minRunners: '0'
         maxRunners: '3'
+        workflowStrategy: semver
       - name: home-camera
         githubOwner: ksera524
         githubRepo: home-camera
         runnerName: home-camera-runners
         minRunners: '1'
         maxRunners: '1'
+        workflowStrategy: latest
   template:
     metadata:
       name: '{{ .name }}-runner'
@@ -104,7 +109,7 @@ spec:
         namespace: arc-systems
       syncPolicy:
         automated:
-          prune: false
+          prune: true
           selfHeal: true
         syncOptions:
         - CreateNamespace=true

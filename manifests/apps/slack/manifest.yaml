@@ -20,7 +20,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: slack
-          image: harbor.qroksera.com/sandbox/slack.rs:0.0.1
+          image: harbor.qroksera.com/sandbox/slack.rs:0.0.7
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -33,23 +33,29 @@ spec:
                   key: SLACK_BOT_TOKEN
             - name: RUST_LOG
               value: "INFO"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
           command: ["./slack"]
           # GitHub Actionsでビルドしたイメージの即時終了対策
           livenessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - "test -f /app/slack"
-            initialDelaySeconds: 10
-            periodSeconds: 30
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 5
           readinessProbe:
             tcpSocket:
               port: 3000
             initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            timeoutSeconds: 3
+            failureThreshold: 5
 
 
 ---
