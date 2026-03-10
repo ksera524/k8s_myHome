@@ -6,3 +6,4 @@ resources:
   - harbor-routes.yaml
   - harbor-node-hostaliases.yaml
   - containerd-config.yaml
+  - harbor-image-cleanup-cronjob.yaml

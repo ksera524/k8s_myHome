@@ -1,0 +1,250 @@
+# Harborのsandboxプロジェクトで不要タグ削除とGC実行を行うCronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: harbor-sandbox-image-cleanup
+  namespace: harbor
+spec:
+  schedule: "30 3 * * *"
+  timeZone: "Asia/Tokyo"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              image: python:3.12-slim
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: HARBOR_URL
+                  value: https://harbor.qroksera.com
+                - name: HARBOR_PROJECT
+                  value: sandbox
+                - name: HARBOR_USERNAME
+                  value: admin
+                - name: HARBOR_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: harbor-admin-secret
+                      key: password
+              command:
+                - /usr/local/bin/python3
+                - -c
+                - |
+                  import json
+                  import os
+                  import re
+                  import ssl
+                  import sys
+                  import urllib.error
+                  import urllib.parse
+                  import urllib.request
+
+
+                  HARBOR_URL = os.environ["HARBOR_URL"].rstrip("/")
+                  PROJECT = os.environ["HARBOR_PROJECT"]
+                  USERNAME = os.environ["HARBOR_USERNAME"]
+                  PASSWORD = os.environ["HARBOR_PASSWORD"]
+                  PAGE_SIZE = 100
+
+
+                  def log(message):
+                      print(message, flush=True)
+
+
+                  def request(method, path, payload=None, expected=(200, 201, 202), allow_not_found=False):
+                      url = f"{HARBOR_URL}{path}"
+                      auth = (f"{USERNAME}:{PASSWORD}").encode("utf-8")
+                      headers = {
+                          "Authorization": "Basic " + __import__("base64").b64encode(auth).decode("ascii"),
+                          "Accept": "application/json",
+                      }
+                      body = None
+                      if payload is not None:
+                          body = json.dumps(payload).encode("utf-8")
+                          headers["Content-Type"] = "application/json"
+
+                      req = urllib.request.Request(url, data=body, method=method, headers=headers)
+                      ctx = ssl.create_default_context()
+                      try:
+                          with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+                              status = resp.getcode()
+                              raw = resp.read().decode("utf-8")
+                      except urllib.error.HTTPError as e:
+                          status = e.code
+                          raw = e.read().decode("utf-8", errors="ignore")
+                          if allow_not_found and status == 404:
+                              return status, None
+                          if status not in expected:
+                              raise RuntimeError(f"HTTP {method} {path} failed: {status} {raw}")
+                          return status, raw
+
+                      if status not in expected:
+                          raise RuntimeError(f"HTTP {method} {path} failed: {status} {raw}")
+                      if not raw:
+                          return status, None
+                      return status, raw
+
+
+                  def list_repositories(project):
+                      repos = []
+                      page = 1
+                      while True:
+                          _, raw = request(
+                              "GET",
+                              f"/api/v2.0/projects/{urllib.parse.quote(project, safe='')}/repositories?page={page}&page_size={PAGE_SIZE}",
+                          )
+                          chunk = json.loads(raw or "[]")
+                          if not chunk:
+                              break
+                          repos.extend(chunk)
+                          if len(chunk) < PAGE_SIZE:
+                              break
+                          page += 1
+                      return repos
+
+
+                  def list_artifacts_with_tags(project, repo_short):
+                      artifacts = []
+                      page = 1
+                      project_path = urllib.parse.quote(project, safe="")
+                      repo_path = urllib.parse.quote(repo_short, safe="")
+                      while True:
+                          path = (
+                              f"/api/v2.0/projects/{project_path}/repositories/{repo_path}/artifacts"
+                              f"?page={page}&page_size={PAGE_SIZE}&with_tag=true"
+                          )
+                          _, raw = request(
+                              "GET",
+                              path,
+                          )
+                          chunk = json.loads(raw or "[]")
+                          if not chunk:
+                              break
+                          artifacts.extend(chunk)
+                          if len(chunk) < PAGE_SIZE:
+                              break
+                          page += 1
+                      return artifacts
+
+
+                  semver_pattern = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+
+
+                  def build_keep_set(tag_infos):
+                      keep = set()
+                      semvers = []
+
+                      for info in tag_infos:
+                          tag = info["tag"]
+                          if tag == "latest":
+                              keep.add(tag)
+                          m = semver_pattern.match(tag)
+                          if m:
+                              semvers.append((tuple(int(x) for x in m.groups()), tag))
+
+                      if semvers:
+                          semvers.sort(key=lambda x: x[0], reverse=True)
+                          keep.add(semvers[0][1])
+
+                      # latest/semverが無いリポジトリ向けフォールバック
+                      if not keep and tag_infos:
+                          newest = max(tag_infos, key=lambda x: x.get("pushed_at") or "")
+                          keep.add(newest["tag"])
+
+                      return keep
+
+
+                  def trigger_gc():
+                      # Harborバージョン差異を吸収するため、2系統のエンドポイントを順に試す
+                      candidates = [
+                          ("/api/v2.0/system/gc", {"dry_run": False}),
+                          (
+                              "/api/v2.0/system/gc/schedule",
+                              {
+                                  "schedule": {"type": "Manual"},
+                                  "parameters": {
+                                      "delete_untagged": False,
+                                      "dry_run": False,
+                                  },
+                              },
+                          ),
+                      ]
+
+                      for path, payload in candidates:
+                          try:
+                              status, _ = request("POST", path, payload=payload, expected=(200, 201, 202), allow_not_found=True)
+                              if status != 404:
+                                  log(f"GC trigger requested: {path}")
+                                  return
+                          except RuntimeError as e:
+                              log(f"GC trigger failed on {path}: {e}")
+
+                      raise RuntimeError("Failed to trigger Harbor GC with available endpoints")
+
+
+                  def main():
+                      repos = list_repositories(PROJECT)
+                      if not repos:
+                          log(f"No repositories found in project: {PROJECT}")
+                          return
+
+                      total_deleted = 0
+                      for repo in repos:
+                          full_name = repo.get("name", "")
+                          if "/" not in full_name:
+                              log(f"Skip malformed repository name: {full_name}")
+                              continue
+                          repo_short = full_name.split("/", 1)[1]
+
+                          artifacts = list_artifacts_with_tags(PROJECT, repo_short)
+                          tag_infos = []
+                          for art in artifacts:
+                              digest = art.get("digest")
+                              for tag in art.get("tags") or []:
+                                  tag_infos.append(
+                                      {
+                                          "tag": tag.get("name"),
+                                          "digest": digest,
+                                          "pushed_at": tag.get("push_time") or art.get("push_time"),
+                                      }
+                                  )
+
+                          tag_infos = [x for x in tag_infos if x.get("tag") and x.get("digest")]
+                          if not tag_infos:
+                              log(f"{full_name}: no tags, skip")
+                              continue
+
+                          keep = build_keep_set(tag_infos)
+                          log(f"{full_name}: keep={sorted(keep)}")
+
+                          for info in tag_infos:
+                              tag_name = info["tag"]
+                              if tag_name in keep:
+                                  continue
+                              repo_path = urllib.parse.quote(repo_short, safe="")
+                              digest_path = urllib.parse.quote(info["digest"], safe="")
+                              tag_path = urllib.parse.quote(tag_name, safe="")
+                              request(
+                                  "DELETE",
+                                  f"/api/v2.0/projects/{urllib.parse.quote(PROJECT, safe='')}/repositories/{repo_path}/artifacts/{digest_path}/tags/{tag_path}",
+                                  expected=(200, 202),
+                              )
+                              total_deleted += 1
+                              log(f"{full_name}: deleted tag={tag_name}")
+
+                      log(f"Total deleted tags: {total_deleted}")
+                      trigger_gc()
+
+
+                  if __name__ == "__main__":
+                      try:
+                          main()
+                      except Exception as exc:
+                          print(f"ERROR: {exc}", file=sys.stderr, flush=True)
+                          sys.exit(1)
