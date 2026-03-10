@@ -149,7 +149,6 @@ jobs:
             ('cert-manager', 'cert-manager', 'jetstack/cert-manager'),
             ('external-secrets-operator', 'external-secrets', 'external-secrets/external-secrets'),
             ('tailscale-operator', 'tailscale-operator', 'tailscale/tailscale-operator'),
-            ('argocd-image-updater', 'ArgoCD Image Updater', 'argo/argocd-image-updater'),
             ('harbor', 'Harbor', 'harbor/harbor'),
           ]
           for app_name, label, repo_chart in chart_targets:

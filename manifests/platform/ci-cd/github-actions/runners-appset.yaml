@@ -14,14 +14,14 @@ spec:
         runnerName: blog-runners
         minRunners: '0'
         maxRunners: '3'
-        workflowStrategy: semver
+        workflowStrategy: latest
       - name: cooklog
         githubOwner: ksera524
         githubRepo: cookLog
         runnerName: cooklog-runners
         minRunners: '0'
         maxRunners: '3'
-        workflowStrategy: semver
+        workflowStrategy: latest
       - name: hitomi
         githubOwner: ksera524
         githubRepo: hitomi
@@ -35,7 +35,7 @@ spec:
         runnerName: slack-rs-runners
         minRunners: '0'
         maxRunners: '3'
-        workflowStrategy: semver
+        workflowStrategy: latest
       - name: home-camera
         githubOwner: ksera524
         githubRepo: home-camera

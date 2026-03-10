@@ -26,7 +26,6 @@ flowchart TD
   gwRes["Gateway Resources\nwave 8"]:::wave8
   cfgSecrets["External Secrets Definitions\nwave 9"]:::wave9
   platform["Platform\nwave 10"]:::wave10
-  imgUpdater["ArgoCD Image Updater\nwave 10"]:::wave10
   harbor["Harbor\nwave 10"]:::wave10
   tailscaleOp["Tailscale Operator\nwave 10"]:::wave10
   monitoring["Monitoring\nwave 11"]:::wave11
@@ -50,7 +49,6 @@ flowchart TD
   root --> gwRes
   root --> cfgSecrets
   root --> platform
-  root --> imgUpdater
   root --> harbor
   root --> tailscaleOp
   root --> monitoring
@@ -73,7 +71,6 @@ flowchart TD
   cfgSecrets --> tailscaleOp
   cfgSecrets --> monitoring
   gwRes --> platform
-  gwRes --> imgUpdater
   gwRes --> harbor
   tailscaleOp --> tailscaleConn
   platform --> monitoring
@@ -140,7 +137,7 @@ flowchart TD
 | 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書/Secret 管理を整備 |
 | 8 | Gateway Resources | Gateway/共通設定を適用 |
 | 9 | External Secrets Definitions | 外部連携用のExternalSecretを適用 |
-| 10 | Platform / ArgoCD Image Updater / Harbor / Tailscale Operator | 基盤サービス群の展開 |
+| 10 | Platform / Harbor / Tailscale Operator | 基盤サービス群の展開 |
 | 11 | Monitoring | 監視スタック（Grafana k8s-monitoring） |
 | 11 | User App Definitions | ArgoCD Application 定義を作成 |
 | 11 | Tailscale Connector | サブネットルータ（k8s内ネットワーク公開） |
