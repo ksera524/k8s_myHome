@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: slack
+  name: slack-rs
   namespace: sandbox
   labels:
     app: slack

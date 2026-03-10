@@ -192,7 +192,7 @@ username = ""
 # 
 # 📋 設定方法:
 # 各配列要素: [リポジトリ名, 最小Runner数, 最大Runner数, 説明, 戦略]
-# 戦略は必須で "latest" または "semver" を指定
+# 戦略は必須で "latest" を指定
 #
 # 🔧 Runner数の設定指針:
 # minRunners (最小Runner数):
@@ -204,8 +204,7 @@ username = ""
 #   推奨: 通常は 1-3、大規模プロジェクトは 5以下
 #
 # strategy (戦略):
-#   latest = ブランチpushで latest と SHA タグをpush
-#   semver = vX.Y.Z タグpushで X.Y.Z と SHA タグをpush（latestはpushしない）
+#   latest = main/masterへのpushで latest タグをpush
 #
 # 🏃 作成されるRunnerScaleSet名:
 # リポジトリ名 "my.project" → Runner名 "my-project-runners"
@@ -214,9 +213,8 @@ username = ""
 # 📝 使用例:
 # arc_repositories = [
 #     ["k8s_myHome", 1, 3, "メインの k8s_myHome プロジェクト", "latest"],
-#     ["slack.rs", 0, 3, "Slack.rs Rust プロジェクト", "semver"],
 #     ["docs-site", 0, 1, "軽量なドキュメントサイト", "latest"],
-#     ["api-server", 0, 2, "API サーバープロジェクト", "semver"]
+#     ["api-server", 0, 2, "API サーバープロジェクト", "latest"]
 # ]
 #
 # 🎯 Workflow内での使用:

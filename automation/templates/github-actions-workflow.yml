@@ -5,9 +5,9 @@ name: Build and Push to Harbor - {{REPOSITORY_NAME}}
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ main ]
+    branches: [ master, main ]
 
 jobs:
   build-and-push:
@@ -49,7 +49,6 @@ jobs:
       run: |
         echo "=== Building Docker image ==="
         docker build -t {{REPOSITORY_NAME}}:latest .
-        docker build -t {{REPOSITORY_NAME}}:${{ github.sha }} .
         echo "✅ Docker images built successfully"
 
     - name: Push to Harbor
@@ -67,11 +66,9 @@ jobs:
 
         # Tag images
         docker tag {{REPOSITORY_NAME}}:latest "$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:latest"
-        docker tag {{REPOSITORY_NAME}}:${{ github.sha }} "$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:${{ github.sha }}"
 
         # Push images
         docker push "$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:latest"
-        docker push "$HARBOR_URL/$HARBOR_PROJECT/{{REPOSITORY_NAME}}:${{ github.sha }}"
 
         echo "✅ Images pushed successfully to Harbor"
 

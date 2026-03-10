@@ -902,7 +902,7 @@ if [[ -f "$SETTINGS_FILE" ]]; then
                 
                 # 正規表現で配列要素を抽出: ["name", min, max, "description", "strategy"]
                 # スペースに対して柔軟になるよう改善
-                if [[ $line =~ \[\"([^\"]+)\"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*\"([^\"]*)\"[[:space:]]*,[[:space:]]*\"(latest|semver)\"[[:space:]]*\],? ]]; then
+                if [[ $line =~ \[\"([^\"]+)\"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*\"([^\"]*)\"[[:space:]]*,[[:space:]]*\"(latest)\"[[:space:]]*\],? ]]; then
                     REPO_NAME="${BASH_REMATCH[1]}"
                     MIN_RUNNERS="${BASH_REMATCH[2]}"
                     MAX_RUNNERS="${BASH_REMATCH[3]}"
@@ -941,7 +941,7 @@ if [[ -f "$SETTINGS_FILE" ]]; then
                     fi
                 else
                     log_error "❌ arc_repositories の形式が不正です: $line"
-                    log_error '   期待形式: ["repo", min, max, "description", "latest|semver"]'
+                    log_error '   期待形式: ["repo", min, max, "description", "latest"]'
                     FAILED=$((FAILED+1))
                 fi
             done <<< "$ARC_REPOS_TEMP"
@@ -952,8 +952,8 @@ if [[ -f "$SETTINGS_FILE" ]]; then
         # 失敗があった場合は警告
         if [[ $FAILED -gt 0 ]]; then
             log_error "❌ $FAILED 個のリポジトリでRunner追加に失敗しました"
-            log_error "arc_repositories の各要素は [\"repo\", min, max, \"description\", \"latest|semver\"] 形式で設定してください"
-            log_error "必要に応じて 'make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=<latest|semver>' を実行してください"
+            log_error "arc_repositories の各要素は [\"repo\", min, max, \"description\", \"latest\"] 形式で設定してください"
+            log_error "必要に応じて 'make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest' を実行してください"
             exit 1
         fi
     else

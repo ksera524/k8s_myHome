@@ -3,8 +3,7 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
-  - image-updater.yaml
 
 images:
   - name: harbor.qroksera.com/sandbox/blog
-    newTag: 0.0.1
+    newTag: latest

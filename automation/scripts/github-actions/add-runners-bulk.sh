@@ -63,9 +63,9 @@ try:
     repositories_text = match.group(1)
 
     # 各リポジトリエントリを厳密に検証
-    # ["repo", min, max, "description", "strategy"] 形式のみ許可
+    # ["repo", min, max, "description", "latest"] 形式のみ許可
     entry_pattern = r'\[[^\[\]]+\]'
-    repo_pattern = r'^\[\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*"(latest|semver)"\s*\]$'
+    repo_pattern = r'^\[\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*"(latest)"\s*\]$'
 
     entries = re.findall(entry_pattern, repositories_text)
     if not entries:
@@ -80,7 +80,7 @@ try:
                 file=sys.stderr,
             )
             print(
-                '期待形式: ["repo", min, max, "description", "latest|semver"]',
+                '期待形式: ["repo", min, max, "description", "latest"]',
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -97,14 +97,14 @@ EOF
         log_warning "Pythonが利用できません。Bashで厳密パースを使用します。"
 
         local line
-        local repo_regex='^\["([^"]+)"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*"([^"]*)"[[:space:]]*,[[:space:]]*"(latest|semver)"[[:space:]]*\],?$'
+        local repo_regex='^\["([^"]+)"[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*"([^"]*)"[[:space:]]*,[[:space:]]*"(latest)"[[:space:]]*\],?$'
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             if [[ $line =~ $repo_regex ]]; then
                 echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}|${BASH_REMATCH[3]}|${BASH_REMATCH[4]}|${BASH_REMATCH[5]}"
             else
                 log_error "arc_repositories の形式が不正です: $line"
-                log_error '期待形式: ["repo", min, max, "description", "latest|semver"]'
+                log_error '期待形式: ["repo", min, max, "description", "latest"]'
                 return 1
             fi
         done < <(awk '/^arc_repositories = \[/,/^\]/' "$settings_file" | grep -E '^\s*\[')
@@ -149,7 +149,7 @@ main() {
     for repo_entry in "${repositories[@]}"; do
         IFS='|' read -r repo_name min_runners max_runners description strategy <<< "$repo_entry"
 
-        if [[ "$strategy" != "latest" && "$strategy" != "semver" ]]; then
+        if [[ "$strategy" != "latest" ]]; then
             log_error "✗ $repo_name のstrategyが不正です: $strategy"
             failed_repos+=("$repo_name")
             failed_count=$((failed_count + 1))
