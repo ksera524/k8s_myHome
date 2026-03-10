@@ -27,6 +27,7 @@ WORKFLOW_STRATEGY="$4"
 RUNNER_SLUG="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')"
 RUNNER_NAME="${RUNNER_SLUG}-runners"
 DEPLOYMENT_NAME="$RUNNER_SLUG"
+LEGACY_DEPLOYMENT_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[._].*$//')"
 
 if [[ "$WORKFLOW_STRATEGY" != "latest" ]]; then
     log_error "strategy は latest のみ指定可能です: $WORKFLOW_STRATEGY"
@@ -40,6 +41,7 @@ log_debug "Min Runners: $MIN_RUNNERS"
 log_debug "Max Runners: $MAX_RUNNERS"
 log_debug "Workflow Strategy: $WORKFLOW_STRATEGY"
 log_debug "Deployment名: $DEPLOYMENT_NAME"
+log_debug "Legacy Deployment名: $LEGACY_DEPLOYMENT_NAME"
 
 # GitHubユーザー名を取得（settings.tomlから）
 SETTINGS_FILE="$SCRIPTS_ROOT/../settings.toml"
@@ -270,8 +272,12 @@ jobs:
           kubectl rollout restart deployment/$DEPLOYMENT_NAME -n sandbox
           kubectl rollout status deployment/$DEPLOYMENT_NAME -n sandbox --timeout=180s
           echo "✅ Restarted deployment/$DEPLOYMENT_NAME"
+        elif [[ "$LEGACY_DEPLOYMENT_NAME" != "$DEPLOYMENT_NAME" ]] && kubectl get deployment $LEGACY_DEPLOYMENT_NAME -n sandbox >/dev/null 2>&1; then
+          kubectl rollout restart deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox
+          kubectl rollout status deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox --timeout=180s
+          echo "✅ Restarted deployment/$LEGACY_DEPLOYMENT_NAME (legacy fallback)"
         else
-          echo "ℹ️ deployment/$DEPLOYMENT_NAME は存在しないため再起動をスキップします"
+          echo "ℹ️ deployment/$DEPLOYMENT_NAME および deployment/$LEGACY_DEPLOYMENT_NAME は存在しないため再起動をスキップします"
         fi
 
     - name: Cleanup
