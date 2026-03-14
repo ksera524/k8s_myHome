@@ -13,6 +13,7 @@ flowchart TD
 
   argocdCore["ArgoCD Core (Helm)\nwave 1"]:::wave1
   lp["Local Path Provisioner\nwave 1"]:::wave1
+  nfsProv["NFS Subdir External Provisioner\nwave 1"]:::wave1
   core["Core (Namespaces/Storage/RBAC)\nwave 2"]:::wave2
   coredns["CoreDNS Config\nwave 2"]:::wave2
 
@@ -37,6 +38,7 @@ flowchart TD
   root --> argocdProjects
   root --> argocdCore
   root --> lp
+  root --> nfsProv
   root --> core
   root --> coredns
   root --> metallb
@@ -58,6 +60,7 @@ flowchart TD
   root --> harborPatch
 
   argocdProjects --> lp
+  argocdProjects --> nfsProv
   argocdProjects --> argocdCore
   argocdProjects --> core
 
@@ -128,7 +131,7 @@ flowchart TD
 |------|----------------|--------------|
 | 0 | ArgoCD Projects | AppProjectを先に作成 |
 | 1 | ArgoCD Core (Helm) | ArgoCD本体のHelm移行を段階的に適用（手動同期） |
-| 1 | Local Path Provisioner | 永続ボリューム基盤を先に準備 |
+| 1 | Local Path Provisioner / NFS Subdir External Provisioner | 永続ボリューム基盤を先に準備 |
 | 2 | Core / CoreDNS | 基本リソースとストレージ設定の土台 |
 | 3 | MetalLB | LoadBalancer を提供 |
 | 4 | MetalLB Config | IP プール設定を適用 |

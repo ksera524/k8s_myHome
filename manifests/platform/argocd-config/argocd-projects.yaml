@@ -29,6 +29,7 @@ spec:
     - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     - https://charts.jetstack.io
     - https://pkgs.tailscale.com/helmcharts
+    - https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
   destinations:
     - server: https://kubernetes.default.svc
       namespace: cert-manager
@@ -42,6 +43,8 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: tailscale
+    - server: https://kubernetes.default.svc
+      namespace: nfs-storage
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
