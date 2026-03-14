@@ -25,12 +25,12 @@ spec:
                 - configMapRef:
                     name: sandbox-connection-info
               env:
-                - name: AWS_ACCESS_KEY_ID
+                - name: RUSTFS_S3_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
                       name: rustfs-auth
                       key: RUSTFS_ACCESS_KEY
-                - name: AWS_SECRET_ACCESS_KEY
+                - name: RUSTFS_S3_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       name: rustfs-auth
