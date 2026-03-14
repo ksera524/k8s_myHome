@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hitomi-pdf-monitor
+  namespace: sandbox
+spec:
+  schedule: "55 13 * * *"
+  concurrencyPolicy: "Forbid"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: hitomi-pdf-monitor
+        spec:
+          containers:
+            - name: hitomi-pdf-monitor
+              image: harbor.qroksera.com/sandbox/hitomi-pdf-batch:latest
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: sandbox-connection-info
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: rustfs-auth
+                      key: RUSTFS_ACCESS_KEY
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: rustfs-auth
+                      key: RUSTFS_SECRET_KEY
+                - name: RUSTFS_S3_BUCKET
+                  value: pdfs
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: harbor-registry
