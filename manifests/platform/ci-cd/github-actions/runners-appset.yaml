@@ -43,6 +43,13 @@ spec:
         minRunners: '1'
         maxRunners: '1'
         workflowStrategy: latest
+      - name: hitomi-pdf-batch
+        githubOwner: ksera524
+        githubRepo: hitomi-pdf-batch
+        runnerName: hitomi-pdf-batch-runners
+        minRunners: '0'
+        maxRunners: '3'
+        workflowStrategy: latest
   template:
     metadata:
       name: '{{ .name }}-runner'
