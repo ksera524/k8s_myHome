@@ -828,6 +828,19 @@ spec:
 
         database:
           type: internal
+          internal:
+            # NFS上の内部DBで一時遅延が発生しても再起動ループしないように調整
+            livenessProbe:
+              timeoutSeconds: 5
+            readinessProbe:
+              timeoutSeconds: 5
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 300m
+                memory: 512Mi
 
         redis:
           type: internal
