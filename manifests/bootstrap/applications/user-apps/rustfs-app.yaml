@@ -32,8 +32,8 @@ spec:
         ingress:
           enabled: false
         storageclass:
-          name: local-path
-          dataStorageSize: 3.5Ti
+          name: nfs-external
+          dataStorageSize: 3Ti
           logStorageSize: 10Gi
   destination:
     server: https://kubernetes.default.svc

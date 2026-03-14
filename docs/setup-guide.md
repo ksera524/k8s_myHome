@@ -66,9 +66,10 @@ arc_repositories = [
     ["your-repo", 1, 3, "Your repository description", "latest"],
 ]
 
-# USB外部ストレージ（使用する場合）
+# USB外部ストレージ（通常は自動検出）
 [host_setup]
-usb_device_name = "sdb"  # lsblkで確認したデバイス名
+# 通常は未設定でOK（最大容量のUSB SSDを自動選択）
+# usb_device_name = "sdb"  # 明示指定したい場合のみ設定
 ```
 
 ### 3. 完全自動セットアップ

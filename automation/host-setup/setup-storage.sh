@@ -23,6 +23,60 @@ fi
 
 log_status "Starting external storage setup for k8s cluster"
 
+detect_usb_storage_device() {
+    local root_source=""
+    local root_disk_name=""
+    local root_parent=""
+    local name=""
+    local size=""
+    local type=""
+    local tran=""
+    local rota=""
+    local best_usb_name=""
+    local best_usb_size=0
+    local best_ssd_name=""
+    local best_ssd_size=0
+
+    root_source="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
+    if [[ -n "$root_source" && -b "$root_source" ]]; then
+        root_parent="$(lsblk -no PKNAME "$root_source" 2>/dev/null || true)"
+        if [[ -n "$root_parent" ]]; then
+            root_disk_name="$root_parent"
+        else
+            root_disk_name="$(basename "$root_source")"
+        fi
+    fi
+
+    while read -r name size type tran rota; do
+        [[ "$type" == "disk" ]] || continue
+        [[ "$tran" == "usb" ]] || continue
+        [[ -n "$root_disk_name" && "$name" == "$root_disk_name" ]] && continue
+
+        if (( size > best_usb_size )); then
+            best_usb_size=$size
+            best_usb_name="$name"
+        fi
+
+        if [[ "$rota" == "0" ]] && (( size > best_ssd_size )); then
+            best_ssd_size=$size
+            best_ssd_name="$name"
+        fi
+    done < <(lsblk -dbn -o NAME,SIZE,TYPE,TRAN,ROTA)
+
+    if [[ -n "$best_ssd_name" ]]; then
+        echo "$best_ssd_name"
+        return 0
+    fi
+
+    if [[ -n "$best_usb_name" ]]; then
+        log_warning "非回転ディスク判定のUSBデバイスが見つからないため、最大容量のUSBデバイスを使用します: /dev/$best_usb_name" >&2
+        echo "$best_usb_name"
+        return 0
+    fi
+
+    return 1
+}
+
 # 1. Detect USB storage devices
 log_status "Detecting USB storage devices..."
 echo "Available block devices:"
@@ -37,15 +91,19 @@ log_status "Disk usage information:"
 df -h | head -1
 df -h | grep -E "(sd[b-z]|nvme|mmc)" || echo "No additional storage devices mounted"
 
-# 2. Interactive device selection or automatic from settings
+# 2. Device selection (settings override or automatic detection)
 echo ""
 if [[ -n "${HOST_SETUP_USB_DEVICE_NAME:-}" ]]; then
     DEVICE_NAME="${HOST_SETUP_USB_DEVICE_NAME}"
     log_status "Using device from settings: $DEVICE_NAME"
 else
-    log_input "Please identify your USB external storage device from the list above."
-    log_input "Enter the device name (e.g., sdb, sdc, nvme0n1): "
-    read -r DEVICE_NAME
+    if DEVICE_NAME="$(detect_usb_storage_device)"; then
+        log_status "Auto-detected USB storage device: /dev/$DEVICE_NAME"
+    else
+        log_error "USB接続ストレージを自動検出できませんでした"
+        log_error "settings.toml の [host_setup] usb_device_name で明示指定するか、USBストレージ接続状態を確認してください"
+        exit 1
+    fi
 fi
 
 # Validate device
