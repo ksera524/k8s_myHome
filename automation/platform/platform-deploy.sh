@@ -600,16 +600,45 @@ kubectl create namespace arc-systems --dry-run=client -o yaml | kubectl apply -f
 
 # ARC Runner用のHarbor内部CAをConfigMapに反映
 echo "Harbor内部CA ConfigMap作成中..."
-if kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; then
+timeout=180
+while [ $timeout -gt 0 ]; do
+    if kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; then
+        break
+    fi
+    echo "内部CA secret (ca-key-pair) 作成待機中... (残り ${timeout}秒)"
+    sleep 5
+    timeout=$((timeout - 5))
+done
+
+if ! kubectl get secret ca-key-pair -n cert-manager >/dev/null 2>&1; then
+    echo "エラー: 内部CA secret (ca-key-pair) が見つかりません"
+    echo "cert-manager の同期状態を確認してください"
+    exit 1
+fi
+
+if kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
+    kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/harbor-ca.crt
+elif kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' 2>/dev/null | grep -q .; then
     kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/harbor-ca.crt
-    kubectl create configmap harbor-ca-cert \
-      --namespace=arc-systems \
-      --from-file=ca.crt=/tmp/harbor-ca.crt \
-      --dry-run=client -o yaml | kubectl apply -f -
-    rm -f /tmp/harbor-ca.crt
-    echo "✓ harbor-ca-cert ConfigMap作成完了"
 else
-    echo "警告: 内部CA secret (ca-key-pair) が存在しません"
+    echo "エラー: ca-key-pair に ca.crt/tls.crt が存在しません"
+    exit 1
+fi
+
+kubectl create configmap harbor-internal-ca \
+  --namespace=arc-systems \
+  --from-file=ca.crt=/tmp/harbor-ca.crt \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 旧ConfigMap名の互換クリーンアップ
+kubectl delete configmap harbor-ca-cert -n arc-systems --ignore-not-found
+rm -f /tmp/harbor-ca.crt
+
+if kubectl get configmap harbor-internal-ca -n arc-systems >/dev/null 2>&1; then
+    echo "✓ harbor-internal-ca ConfigMap作成完了"
+else
+    echo "エラー: harbor-internal-ca ConfigMapの作成に失敗しました"
+    exit 1
 fi
 
 # GitHub Actions用のharbor-auth secret作成

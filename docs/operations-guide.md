@@ -136,22 +136,29 @@ curl -X GET "https://harbor.internal.qroksera.com/api/v2.0/projects/sandbox/repo
 
 ```bash
 # Runner ScaleSet一覧
-helm list -n arc-systems | grep runners
+kubectl get autoscalingrunnersets -n arc-systems
 
 # Runner Pods確認
 kubectl get pods -n arc-systems | grep runner
 
 # 特定RunnerScaleSetの詳細
-helm get values <runner-name> -n arc-systems
+kubectl describe autoscalingrunnerset <runner-name> -n arc-systems
 ```
 
-RunnerはGitOps管理ではなく、`add-runner.sh` による作成運用とします。
-内部CAは `add-runner.sh` で Runner(dind) に自動配布されます。
+Runner定義は `add-runner.sh` で `manifests/platform/ci-cd/github-actions/runners-appset.yaml` へ登録し、実体デプロイはArgoCD + ApplicationSetでGitOps管理します。
+内部CAは `make all` の Phase 4 で `arc-systems/harbor-internal-ca` ConfigMap として配布されます。
 ARC ControllerはGitOps管理（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）を正とし、手動Helm適用は行いません。
 `manifests/platform/ci-cd/github-actions/` には controller と RBAC を保持します。
 Runner ServiceAccount（`arc-systems/github-actions-runner`）の権限は最小化し、実行時に必要なSecretのみ許可します。
 - `arc-systems/harbor-auth`（Harbor push用資格情報）
 - `cert-manager/ca-key-pair`（内部CA証明書）
+
+Runnerの前提リソース確認:
+
+```bash
+kubectl get secret github-multi-repo-secret -n arc-systems
+kubectl get configmap harbor-internal-ca -n arc-systems
+```
 
 ```bash
 # 権限確認（許可されること）
@@ -175,19 +182,14 @@ make add-runner REPO=repository-name MIN=1 MAX=3 STRATEGY=latest
 make add-runners-all
 
 # Runner削除
-helm uninstall <runner-name> -n arc-systems
+kubectl delete autoscalingrunnerset <runner-name> -n arc-systems
 ```
 
 #### Runner設定変更
 
 ```bash
 # minRunners/maxRunners変更
-helm upgrade <runner-name> \
-  oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
-  --namespace arc-systems \
-  --set minRunners=2 \
-  --set maxRunners=5 \
-  --wait
+make add-runner REPO=<repository-name> MIN=2 MAX=5 STRATEGY=latest
 ```
 
 ### Secret管理

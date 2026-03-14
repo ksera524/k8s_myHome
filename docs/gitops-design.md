@@ -82,9 +82,10 @@ manifests/
 - 手動での kubectl 適用は一時対応に留め、最終的には Git に反映する
 
 例外:
-- GitHub Actions Runner は `add-runner.sh` による作成運用（GitOps 管理外）
+- GitHub Actions Runner は `add-runner.sh` で Runner定義を登録し、ArgoCD ApplicationSet によりデプロイ（実体はGitOps管理）
 - ARC Controller は GitOps 管理対象（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）
 - ARC Runner ServiceAccount のRBACは GitOps 管理し、Secretアクセスは `harbor-auth` と `ca-key-pair` のみに限定
+- ARC Runner Podの起動には `arc-systems/harbor-internal-ca` ConfigMap が必要
 
 補足:
 - ArgoCD ApplicationSet CRD（`applicationsets.argoproj.io`）は `manifests/platform/argocd-config/kustomization.yaml` で管理し、Controller依存CRDの欠落を防止
