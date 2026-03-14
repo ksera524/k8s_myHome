@@ -68,6 +68,7 @@ manifests/
     ├── cloudflared/
     ├── cooklog/
     ├── hitomi/
+    ├── hitomi-pdf/
     ├── rustfs/
     ├── selenium/
     └── slack/

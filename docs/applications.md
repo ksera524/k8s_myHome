@@ -13,6 +13,7 @@
 | cloudflared | cloudflared | Deployment / ConfigMap | `manifests/apps/cloudflared/` |
 | cooklog | sandbox | Deployment / Service / HTTPRoute | `manifests/apps/cooklog/` |
 | hitomi | sandbox | CronJob | `manifests/apps/hitomi/` |
+| hitomi-pdf | sandbox | CronJob | `manifests/apps/hitomi-pdf/` |
 | rustfs-external | rustfs | HTTPRoute | `manifests/apps/rustfs/` |
 | selenium | tools | Deployment / Service | `manifests/apps/selenium/` |
 | slack | sandbox | Deployment / Service(NodePort) | `manifests/apps/slack/` |
@@ -70,6 +71,15 @@
 | 種別 | CronJob |
 | Image | `harbor.qroksera.com/sandbox/hitomi:latest` |
 | 参照 | `manifests/apps/hitomi/manifest.yaml` |
+
+### Hitomi PDF
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `sandbox` |
+| 種別 | CronJob |
+| Image | `harbor.qroksera.com/sandbox/hitomi-pdf-batch:latest` |
+| 参照 | `manifests/apps/hitomi-pdf/manifest.yaml` |
 
 ### Selenium
 
