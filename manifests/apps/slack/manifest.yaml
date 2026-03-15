@@ -39,12 +39,25 @@ spec:
           ports:
             - containerPort: 3000
           workingDir: /app
+          envFrom:
+            - configMapRef:
+                name: sandbox-connection-info
           env:
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: slack
                   key: SLACK_BOT_TOKEN
+            - name: RUSTFS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-auth
+                  key: RUSTFS_ACCESS_KEY
+            - name: RUSTFS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-auth
+                  key: RUSTFS_SECRET_KEY
             - name: RUST_LOG
               value: "INFO"
           resources:
@@ -87,3 +100,43 @@ spec:
       port: 3000
       targetPort: 3000
       nodePort: 32001
+
+---
+# slack内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: slack-internal-redirect
+  namespace: sandbox
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - slack.internal.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+
+---
+# slack内部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: slack-internal
+  namespace: sandbox
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-internal
+  hostnames:
+    - slack.internal.qroksera.com
+  rules:
+    - backendRefs:
+        - name: slack
+          port: 3000
