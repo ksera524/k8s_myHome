@@ -25,11 +25,11 @@ spec:
           ports:
             - containerPort: 80
           env:
-            - name: VITE_WRAPPER_API_BASE_URL
+            - name: WRAPPER_API_BASE_URL
               value: "http://slack:3000"
-            - name: VITE_S3_BUCKET
+            - name: S3_BUCKET
               value: "pdfs"
-            - name: VITE_S3_PREFIX
+            - name: S3_PREFIX
               value: "hitomi"
 
 ---
