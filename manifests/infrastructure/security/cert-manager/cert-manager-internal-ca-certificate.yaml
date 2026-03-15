@@ -6,8 +6,12 @@ metadata:
   namespace: cert-manager
 spec:
   secretName: ca-key-pair
+  duration: 43800h # 5年
+  renewBefore: 720h # 30日前から更新
   isCA: true
   commonName: k8s-myhome-internal-ca
+  privateKey:
+    rotationPolicy: Never
   issuerRef:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer

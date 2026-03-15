@@ -6,6 +6,8 @@ metadata:
   namespace: nginx-gateway
 spec:
   secretName: wildcard-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
   issuerRef:
     name: internal-ca-issuer
     kind: ClusterIssuer
