@@ -26,7 +26,7 @@ spec:
             - containerPort: 80
           env:
             - name: WRAPPER_API_BASE_URL
-              value: "https://slack.internal.qroksera.com"
+              value: "https://api-hub.internal.qroksera.com"
             - name: S3_BUCKET
               value: "pdfs"
             - name: S3_PREFIX

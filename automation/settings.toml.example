@@ -221,7 +221,7 @@ username = ""
 # jobs:
 #   build:
 #     runs-on: k8s-myhome-runners    # k8s_myHome専用
-#     runs-on: slack-rs-runners      # slack.rs専用
+#     runs-on: api-hub-runners       # api-hub専用
 arc_repositories = []
 
 # ========================================

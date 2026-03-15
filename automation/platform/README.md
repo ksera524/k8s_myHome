@@ -372,7 +372,7 @@ kubectl get secrets -n sandbox | grep harbor-http
 kubectl get secrets -n default | grep harbor-http
 
 # Harbor イメージプル権限テスト
-kubectl run test-harbor --image=192.168.122.100/sandbox/slack.rs:latest --dry-run=client -o yaml | \
+kubectl run test-harbor --image=192.168.122.100/sandbox/api-hub:latest --dry-run=client -o yaml | \
 sed '/^metadata:/a\
   namespace: sandbox' | kubectl apply -f -
 ```

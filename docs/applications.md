@@ -16,7 +16,7 @@
 | hitomi-pdf | sandbox | CronJob | `manifests/apps/hitomi-pdf/` |
 | rustfs-external | rustfs | HTTPRoute | `manifests/apps/rustfs/` |
 | selenium | tools | Deployment / Service | `manifests/apps/selenium/` |
-| slack | sandbox | Deployment / Service(NodePort) | `manifests/apps/slack/` |
+| api-hub | sandbox | Deployment / Service(NodePort) | `manifests/apps/api-hub/` |
 
 補足:
 
@@ -25,15 +25,15 @@
 
 ## アプリごとの要点
 
-### Slack
+### API Hub
 
 | 項目 | 内容 |
 |------|------|
 | Namespace | `sandbox` |
-| Image | `harbor.qroksera.com/sandbox/slack.rs:<tag>` |
+| Image | `harbor.qroksera.com/sandbox/api-hub:<tag>` |
 | Service | `NodePort` (`32001`) |
 | Secret | `slack` (`SLACK_BOT_TOKEN`) |
-| 参照 | `manifests/apps/slack/manifest.yaml` |
+| 参照 | `manifests/apps/api-hub/manifest.yaml` |
 
 ### Cloudflared
 

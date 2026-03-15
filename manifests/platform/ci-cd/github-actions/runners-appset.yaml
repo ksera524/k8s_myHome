@@ -29,10 +29,10 @@ spec:
         minRunners: '0'
         maxRunners: '3'
         workflowStrategy: latest
-      - name: slack-rs
+      - name: api-hub
         githubOwner: ksera524
-        githubRepo: slack.rs
-        runnerName: slack-rs-runners
+        githubRepo: api-hub
+        runnerName: api-hub-runners
         minRunners: '0'
         maxRunners: '3'
         workflowStrategy: latest

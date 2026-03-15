@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: slack
+  name: api-hub
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/apps/slack
+    path: manifests/apps/api-hub
   destination:
     server: https://kubernetes.default.svc
     namespace: sandbox
