@@ -32,6 +32,7 @@ flowchart TD
   monitoring["Monitoring\nwave 11"]:::wave11
   userDefs["User App Definitions\nwave 11"]:::wave11
   tailscaleConn["Tailscale Connector\nwave 11"]:::wave11
+  tailscaleDns["Tailscale Split DNS\nwave 11"]:::wave11
   userApps["User Applications\nwave 12"]:::wave12
   harborPatch["Harbor Patch\nwave 13"]:::wave13
 
@@ -56,6 +57,7 @@ flowchart TD
   root --> monitoring
   root --> userDefs
   root --> tailscaleConn
+  root --> tailscaleDns
   root --> userApps
   root --> harborPatch
 
@@ -76,6 +78,7 @@ flowchart TD
   gwRes --> platform
   gwRes --> harbor
   tailscaleOp --> tailscaleConn
+  tailscaleConn --> tailscaleDns
   platform --> monitoring
   monitoring --> userDefs
   userDefs --> userApps
@@ -146,6 +149,7 @@ flowchart TD
 | 11 | Monitoring | 監視スタック（Grafana k8s-monitoring） |
 | 11 | User App Definitions | ArgoCD Application 定義を作成 |
 | 11 | Tailscale Connector | サブネットルータ（k8s内ネットワーク公開） |
+| 11 | Tailscale Split DNS | VPNクライアント向け `internal.qroksera.com` の名前解決 |
 | 12 | User Applications | 実アプリのマニフェスト適用 |
 | 13 | Harbor Patch | Harbor 後処理パッチ |
 

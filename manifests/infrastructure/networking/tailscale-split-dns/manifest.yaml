@@ -1,0 +1,110 @@
+# Tailnet Split DNS向けCoreDNS
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-split-dns
+  namespace: tailscale
+data:
+  Corefile: |
+    internal.qroksera.com:53 {
+        errors
+        health
+        ready
+        hosts {
+            192.168.122.100 cooklog.internal.qroksera.com
+            192.168.122.100 hitomi-upload-viewer.internal.qroksera.com
+            192.168.122.100 api-hub.internal.qroksera.com
+            fallthrough
+        }
+        cache 30
+        reload
+    }
+---
+# Tailnet Split DNSの名前解決Pod
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-split-dns
+  namespace: tailscale
+  labels:
+    app: tailscale-split-dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailscale-split-dns
+  template:
+    metadata:
+      labels:
+        app: tailscale-split-dns
+    spec:
+      containers:
+        - name: coredns
+          image: registry.k8s.io/coredns/coredns:v1.11.1
+          args:
+            - -conf
+            - /etc/coredns/Corefile
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: metrics
+              containerPort: 9153
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8181
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/coredns
+      volumes:
+        - name: config-volume
+          configMap:
+            name: tailscale-split-dns
+            items:
+              - key: Corefile
+                path: Corefile
+---
+# Tailnet Split DNSをLB IPで公開
+apiVersion: v1
+kind: Service
+metadata:
+  name: tailscale-split-dns
+  namespace: tailscale
+  labels:
+    app: tailscale-split-dns
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 192.168.122.101
+  selector:
+    app: tailscale-split-dns
+  ports:
+    - name: dns-udp
+      protocol: UDP
+      port: 53
+      targetPort: 53
+    - name: dns-tcp
+      protocol: TCP
+      port: 53
+      targetPort: 53
