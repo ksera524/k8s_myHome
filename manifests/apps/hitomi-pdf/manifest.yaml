@@ -25,16 +25,8 @@ spec:
                 - configMapRef:
                     name: sandbox-connection-info
               env:
-                - name: RUSTFS_S3_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: rustfs-auth
-                      key: RUSTFS_ACCESS_KEY
-                - name: RUSTFS_S3_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: rustfs-auth
-                      key: RUSTFS_SECRET_KEY
+                - name: WRAPPER_API_BASE_URL
+                  value: "https://api-hub.internal.qroksera.com"
                 - name: RUSTFS_S3_BUCKET
                   value: pdfs
           restartPolicy: Never
