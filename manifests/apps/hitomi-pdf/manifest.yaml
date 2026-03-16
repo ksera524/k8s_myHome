@@ -4,7 +4,7 @@ metadata:
   name: hitomi-pdf-monitor
   namespace: sandbox
 spec:
-  schedule: "55 13 * * *"
+  schedule: "30 14 * * *"
   concurrencyPolicy: "Forbid"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
