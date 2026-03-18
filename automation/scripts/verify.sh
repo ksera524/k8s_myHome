@@ -41,6 +41,8 @@ ssh_cmd=(ssh "${ssh_opts[@]}" "${K8S_USER}@${CONTROL_PLANE_IP}")
 
 log_status "=== Phase 5: Verify ==="
 
+verify_failures=0
+
 if [[ "${CI:-}" == "true" || "${CI:-}" == "1" || "${VERIFY_SKIP_SSH:-}" == "true" ]]; then
   log_warning "CIモードのためSSH検証をスキップします（VERIFY_SKIP_SSH=true でもスキップ）"
   exit 0
@@ -88,13 +90,15 @@ done
 log_status "ノード状態確認中..."
 node_list=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get nodes --no-headers" 2>/dev/null || true)
 if [[ -z "$node_list" ]]; then
-  log_warning "ノード一覧を取得できませんでした"
+  log_error "ノード一覧を取得できませんでした"
+  ((verify_failures++))
 else
   total_nodes=$(echo "$node_list" | awk 'NF{count++} END {print count+0}')
   not_ready_nodes=$(echo "$node_list" | awk '$2 !~ /^Ready/ {count++} END {print count+0}')
   if [[ "$not_ready_nodes" -gt 0 ]]; then
-    log_warning "Ready でないノードがあります: ${not_ready_nodes}/${total_nodes}"
+    log_error "Ready でないノードがあります: ${not_ready_nodes}/${total_nodes}"
     echo "$node_list" | awk '$2 !~ /^Ready/ {printf "  - %s (%s)\n", $1, $2}'
+    ((verify_failures++))
   else
     log_status "✓ 全ノード Ready: ${total_nodes}"
   fi
@@ -103,12 +107,14 @@ fi
 log_status "Pod 状態確認中..."
 pod_list=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get pods -A --no-headers" 2>/dev/null || true)
 if [[ -z "$pod_list" ]]; then
-  log_warning "Pod一覧を取得できませんでした"
+  log_error "Pod一覧を取得できませんでした"
+  ((verify_failures++))
 else
   problem_pod_count=$(echo "$pod_list" | awk '$4 != "Running" && $4 != "Completed" {count++} END {print count+0}')
   if [[ "$problem_pod_count" -gt 0 ]]; then
-    log_warning "Running/Completed 以外の Pod があります: ${problem_pod_count}"
+    log_error "Running/Completed 以外の Pod があります: ${problem_pod_count}"
     echo "$pod_list" | awk '$4 != "Running" && $4 != "Completed" {printf "  - %s/%s (%s)\n", $1, $2, $4; count++} count>=20 {exit}'
+    ((verify_failures++))
   else
     log_status "✓ 異常Podなし"
   fi
@@ -117,14 +123,16 @@ fi
 log_status "ArgoCD アプリ状態確認中..."
 app_table=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get applications -n argocd -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.status.sync.status}{\"\\t\"}{.status.health.status}{\"\\n\"}{end}'" 2>/dev/null || true)
 if [[ -z "$app_table" ]]; then
-  log_warning "ArgoCDアプリ一覧を取得できませんでした"
+  log_error "ArgoCDアプリ一覧を取得できませんでした"
+  ((verify_failures++))
 else
   app_total=$(echo "$app_table" | awk 'NF{count++} END {print count+0}')
   app_out_of_sync=$(echo "$app_table" | awk '$2 != "Synced" {count++} END {print count+0}')
   app_degraded=$(echo "$app_table" | awk '$3 != "Healthy" {count++} END {print count+0}')
   if [[ "$app_out_of_sync" -gt 0 || "$app_degraded" -gt 0 ]]; then
-    log_warning "ArgoCDアプリ異常: OutOfSync=${app_out_of_sync}, Degraded=${app_degraded}"
+    log_error "ArgoCDアプリ異常: OutOfSync=${app_out_of_sync}, Degraded=${app_degraded}"
     echo "$app_table" | awk '$2 != "Synced" || $3 != "Healthy" {printf "  - %s (sync=%s, health=%s)\n", $1, $2, $3; count++} count>=20 {exit}'
+    ((verify_failures++))
   else
     log_status "✓ ArgoCDアプリ正常: ${app_total}"
   fi
@@ -143,20 +151,23 @@ clusterstore_status=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kube
 if [[ "$clusterstore_status" == "True" ]]; then
   log_status "✓ ClusterSecretStore (pulumi-esc-store) Ready"
 else
-  log_warning "ClusterSecretStore (pulumi-esc-store) が Ready ではありません"
+  log_error "ClusterSecretStore (pulumi-esc-store) が Ready ではありません"
+  ((verify_failures++))
 fi
 
 externalsecret_table=$("${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{\"/\"}{.metadata.name}{\"\\t\"}{.status.conditions[?(@.type==\"Ready\")].status}{\"\\n\"}{end}'" 2>/dev/null || true)
 if [[ -n "$externalsecret_table" ]]; then
   externalsecret_not_ready=$(echo "$externalsecret_table" | awk '$2 != "True" {count++} END {print count+0}')
   if [[ "$externalsecret_not_ready" -gt 0 ]]; then
-    log_warning "ExternalSecret 未Ready: ${externalsecret_not_ready}"
+    log_error "ExternalSecret 未Ready: ${externalsecret_not_ready}"
     echo "$externalsecret_table" | awk '$2 != "True" {printf "  - %s (Ready=%s)\n", $1, $2; count++} count>=20 {exit}'
+    ((verify_failures++))
   else
     log_status "✓ ExternalSecret 正常"
   fi
 else
-  log_warning "ExternalSecret 一覧を取得できませんでした"
+  log_error "ExternalSecret 一覧を取得できませんでした"
+  ((verify_failures++))
 fi
 
 log_status "Gateway/LoadBalancer 確認中..."
@@ -183,3 +194,10 @@ fi
 
 log_status "ArgoCDアプリ一覧:"
 "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get applications -n argocd --no-headers" | awk '{print "  - " $1 " (" $2 "/" $3 ")"}' || true
+
+if [[ "$verify_failures" -gt 0 ]]; then
+  log_error "Phase 5 検証に失敗しました: ${verify_failures} 件"
+  exit 1
+fi
+
+log_status "✓ Phase 5 検証に成功しました"
