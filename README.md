@@ -3,7 +3,7 @@
 
 ## 構成図
 
-![](./diagrams/diagram.svg)
+- [App-of-Apps / Sync Wave 図](docs/diagrams/app-of-apps-sync-wave.md)
 
 ## 目的
 
