@@ -29,7 +29,7 @@ spec:
                   value: "https://api-hub.internal.qroksera.com"
                 - name: RUSTFS_S3_BUCKET
                   value: pdfs
-                - name: WRAPPER_API_INSECURE_SKIP_VERIFY 
+                - name: WRAPPER_API_INSECURE_SKIP_VERIFY
                   value: "true"
           restartPolicy: Never
           imagePullSecrets:
