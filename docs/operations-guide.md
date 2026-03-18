@@ -27,8 +27,10 @@
 - External Secrets（ClusterSecretStore/ExternalSecret）
 - Gateway/LoadBalancer の基本状態
 
-CIで実行する場合は `CI=true` を設定して SSH 検証をスキップします。
-手動実行でスキップしたい場合は `VERIFY_SKIP_SSH=true` を設定してください。
+`make phase5` は異常を検知した場合に非0で終了します。
+手動実行でSSH検証をスキップしたい場合は `VERIFY_SKIP_SSH=true` を設定してください。
+
+CI では `automation/scripts/ci/validate.sh` を実行し、静的検証と整合性チェックを実施します。
 
 ## 日常運用タスク
 
@@ -81,15 +83,15 @@ kubectl uncordon <node-name>
 
 #### ノード設定の運用（/etc書き換え）
 
-Harbor連携のため、以下のDaemonSetがノードの`/etc`を更新します。
+Harbor連携のノード改変リソースは既定では適用しません（オプトイン）。
 
-- `manifests/infrastructure/gitops/harbor/containerd-config.yaml`
-- `manifests/infrastructure/gitops/harbor/harbor-node-hostaliases.yaml`
+- `manifests/infrastructure/gitops/harbor/node-mutations/harbor-node-hostaliases.yaml`
+- `manifests/infrastructure/gitops/harbor/node-mutations/containerd-config.yaml`
 
 **注意点**:
-- `hostPath`と`privileged`を使用するため、影響範囲はノード全体
-- 変更内容は`/etc/hosts`と`/etc/containerd/config.toml`
-- 反映後の挙動確認は`kubectl get ds -n kube-system | grep harbor`で実施
+- `hostPath` と `privileged` を使用するため、影響範囲はノード全体
+- 変更内容は `/etc/hosts` と `/etc/containerd/config.toml`
+- 適用は要件がある場合のみ実施し、実施履歴を記録する
 
 ### アプリケーション管理
 

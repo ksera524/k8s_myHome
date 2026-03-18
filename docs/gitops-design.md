@@ -54,6 +54,7 @@ manifests/
 │   │   └── local-path/          # Local Path Provisioner
 │   └── gitops/
 │       └── harbor/              # Harborパッチ
+│           └── node-mutations/  # ノード改変（オプトイン）
 ├── monitoring/
 │   └── grafana-k8s-monitoring-values.yaml  # 監視用values（App-of-Apps管理）
 ├── platform/

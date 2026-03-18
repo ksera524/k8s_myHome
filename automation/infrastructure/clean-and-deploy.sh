@@ -13,6 +13,8 @@ source "$SCRIPT_DIR/../scripts/common-logging.sh"
 
 log_status "=== 完全クリーンアップ開始 ==="
 
+ALLOW_WEAK_HOST_SECURITY="${ALLOW_WEAK_HOST_SECURITY:-false}"
+
 # 0. 必要なパッケージの確認（expectは削除）
 which jq >/dev/null 2>&1 || sudo apt-get install -y jq 2>/dev/null
 
@@ -36,27 +38,36 @@ rm -rf .terraform/
 rm -f terraform.tfstate*
 rm -f tfplan
 
-# 4. AppArmor無効化（libvirt権限問題の根本解決）
-if systemctl is-active --quiet apparmor; then
-    sudo -n systemctl stop apparmor 2>/dev/null
-    sudo -n systemctl disable apparmor 2>/dev/null
-else
-    log_debug "AppArmorは既に無効化されています"
-fi
+# 4. ホストセキュリティ低下設定（明示オプトイン時のみ）
+if [[ "$ALLOW_WEAK_HOST_SECURITY" == "true" ]]; then
+    log_warning "ALLOW_WEAK_HOST_SECURITY=true のため、ホスト保護を弱める設定を適用します"
 
-# libvirt関連のAppArmorプロファイルを無効化
-if command -v aa-disable >/dev/null 2>&1; then
-    sudo -n aa-disable /usr/sbin/libvirtd 2>/dev/null || true
-    sudo -n aa-disable /usr/lib/libvirt/virt-aa-helper 2>/dev/null || true
-    log_debug "libvirt関連AppArmorプロファイルを無効化"
+    if systemctl is-active --quiet apparmor; then
+        sudo -n systemctl stop apparmor 2>/dev/null
+        sudo -n systemctl disable apparmor 2>/dev/null
+    else
+        log_debug "AppArmorは既に無効化されています"
+    fi
+
+    if command -v aa-disable >/dev/null 2>&1; then
+        sudo -n aa-disable /usr/sbin/libvirtd 2>/dev/null || true
+        sudo -n aa-disable /usr/lib/libvirt/virt-aa-helper 2>/dev/null || true
+        log_debug "libvirt関連AppArmorプロファイルを無効化"
+    fi
+else
+    log_status "安全モード: AppArmor/aa-disable の変更をスキップします"
 fi
 
 # 5. libvirt権限問題の根本修正
 log_status "libvirt権限設定を修正中..."
 
 # qemu.confのセキュリティ設定
-if ! grep -q '^security_driver = "none"' /etc/libvirt/qemu.conf; then
-    echo 'security_driver = "none"' | sudo -n tee -a /etc/libvirt/qemu.conf
+if [[ "$ALLOW_WEAK_HOST_SECURITY" == "true" ]]; then
+    if ! grep -q '^security_driver = "none"' /etc/libvirt/qemu.conf; then
+        echo 'security_driver = "none"' | sudo -n tee -a /etc/libvirt/qemu.conf
+    fi
+else
+    log_status "安全モード: security_driver=none の追記をスキップします"
 fi
 
 # ユーザー・グループ設定確認

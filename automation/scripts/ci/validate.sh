@@ -45,3 +45,6 @@ while IFS= read -r kfile; do
   kustomize build "$kdir" >/dev/null
 
 done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
+
+log_section "Consistency checks"
+"$ROOT_DIR/automation/scripts/ci/consistency-check.sh"

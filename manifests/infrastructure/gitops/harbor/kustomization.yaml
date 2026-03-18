@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
   - harbor-routes.yaml
-  - harbor-node-hostaliases.yaml
-  - containerd-config.yaml
   - harbor-image-cleanup-cronjob.yaml
+
+# ノード改変（/etc更新）が必要な場合は
+# node-mutations/kustomization.yaml を明示的に適用する

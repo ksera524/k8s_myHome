@@ -113,6 +113,13 @@ make phase1
 make phase2
 ```
 
+ホスト保護を弱める設定（AppArmor停止や `security_driver = "none"`）は既定で無効です。
+どうしても必要な場合のみ、以下のように明示的に有効化してください。
+
+```bash
+ALLOW_WEAK_HOST_SECURITY=true make phase2
+```
+
 このステップでは以下を実行：
 - 3台のVMを作成（Terraform使用）
 - Kubernetesクラスターの初期化（kubeadm）
