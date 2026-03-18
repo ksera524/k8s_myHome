@@ -14,6 +14,8 @@
 | cooklog | sandbox | Deployment / Service / HTTPRoute | `manifests/apps/cooklog/` |
 | hitomi | sandbox | CronJob | `manifests/apps/hitomi/` |
 | hitomi-pdf | sandbox | CronJob | `manifests/apps/hitomi-pdf/` |
+| hitomi-upload-viewer | sandbox | Deployment / Service / HTTPRoute | `manifests/apps/hitomi-upload-viewer/` |
+| home-camera | sandbox | CronJob | `manifests/apps/home-camera/` |
 | rustfs-external | rustfs | HTTPRoute | `manifests/apps/rustfs/` |
 | selenium | tools | Deployment / Service | `manifests/apps/selenium/` |
 | api-hub | sandbox | Deployment / Service(NodePort) | `manifests/apps/api-hub/` |
@@ -80,6 +82,26 @@
 | 種別 | CronJob |
 | Image | `harbor.qroksera.com/sandbox/hitomi-pdf-batch:latest` |
 | 参照 | `manifests/apps/hitomi-pdf/manifest.yaml` |
+
+### Hitomi Upload Viewer
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `sandbox` |
+| 種別 | Deployment / Service / HTTPRoute |
+| Image | `harbor.qroksera.com/sandbox/hitomi-upload-viewer:latest` |
+| 公開 | `hitomi-upload-viewer.internal.qroksera.com`（内部公開） |
+| 参照 | `manifests/apps/hitomi-upload-viewer/manifest.yaml` |
+
+### Home Camera
+
+| 項目 | 内容 |
+|------|------|
+| Namespace | `sandbox` |
+| 種別 | CronJob |
+| Image | `harbor.qroksera.com/sandbox/home-camera:latest` |
+| 実行 | 毎日 `08:00-20:00`（毎時） |
+| 参照 | `manifests/apps/home-camera/manifest.yaml` |
 
 ### Selenium
 

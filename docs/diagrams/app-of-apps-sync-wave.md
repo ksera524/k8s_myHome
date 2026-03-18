@@ -85,6 +85,7 @@ flowchart TD
   userApps --> harborPatch
 
   subgraph user_definitions["User App Definitions (wave 11)"]
+    uad_api_hub["api-hub"]:::wave11
     uad_argocd["argocd-external"]:::wave11
     uad_blog["blog"]:::wave11
     uad_cooklog["cooklog"]:::wave11
@@ -93,13 +94,16 @@ flowchart TD
     uad_cloudflared["cloudflared"]:::wave11
     uad_hitomi["hitomi"]:::wave11
     uad_hitomi_pdf["hitomi-pdf"]:::wave11
-    uad_slack["slack"]:::wave11
+    uad_hitomi_upload_viewer["hitomi-upload-viewer"]:::wave11
+    uad_home_camera["home-camera"]:::wave11
+    uad_sandbox_config["sandbox-config"]:::wave11
     uad_selenium["selenium"]:::wave11
   end
 
   userDefs --> user_definitions
 
   subgraph user_applications["User Applications (wave 12)"]
+    ua_api_hub["api-hub"]:::wave12
     ua_argocd["argocd"]:::wave12
     ua_blog["blog"]:::wave12
     ua_cooklog["cooklog"]:::wave12
@@ -107,7 +111,9 @@ flowchart TD
     ua_cloudflared["cloudflared"]:::wave12
     ua_hitomi["hitomi"]:::wave12
     ua_hitomi_pdf["hitomi-pdf"]:::wave12
-    ua_slack["slack"]:::wave12
+    ua_hitomi_upload_viewer["hitomi-upload-viewer"]:::wave12
+    ua_home_camera["home-camera"]:::wave12
+    ua_sandbox_config["sandbox-config"]:::wave12
     ua_selenium["selenium"]:::wave12
   end
 

@@ -63,15 +63,19 @@ manifests/
 │   └── secrets/
 │       └── external-secrets/    # ESO設定
 └── apps/
+    ├── api-hub/
     ├── argocd/
     ├── blog/
     ├── cloudflared/
     ├── cooklog/
     ├── hitomi/
     ├── hitomi-pdf/
+    ├── hitomi-upload-viewer/
+    ├── home-camera/
     ├── rustfs/
+    ├── sandbox-config/
     ├── selenium/
-    └── slack/
+    └── ...
 ```
 
 ## GitOps運用の境界と配置規約
