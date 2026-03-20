@@ -37,7 +37,7 @@ spec:
                 - sh
                 - -c
               args:
-                - exec /app/hitomi-pdf-batch
+                - if [ -n "$TARGET_DATE" ]; then exec /app/hitomi-pdf-batch "$TARGET_DATE"; else exec /app/hitomi-pdf-batch; fi
               envFrom:
                 - configMapRef:
                     name: sandbox-connection-info
@@ -50,6 +50,8 @@ spec:
                   value: pdfs
                 - name: WRAPPER_API_INSECURE_SKIP_VERIFY
                   value: "true"
+                - name: TARGET_DATE
+                  value: ""
               volumeMounts:
                 - name: tools
                   mountPath: /tools
