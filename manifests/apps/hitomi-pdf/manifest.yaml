@@ -17,27 +17,13 @@ spec:
           labels:
             app: hitomi-pdf-monitor
         spec:
-          initContainers:
-            - name: setup-busybox
-              image: busybox:1.36
-              imagePullPolicy: IfNotPresent
-              command:
-                - sh
-                - -c
-                - cp /bin/busybox /work/busybox && chmod +x /work/busybox
-              volumeMounts:
-                - name: tools
-                  mountPath: /work
           containers:
             - name: hitomi-pdf-monitor
               image: harbor.qroksera.com/sandbox/hitomi-pdf-batch:latest
               imagePullPolicy: Always
               command:
-                - /tools/busybox
-                - sh
-                - -c
-              args:
-                - if [ -n "$TARGET_DATE" ]; then exec /app/hitomi-pdf-batch "$TARGET_DATE"; else exec /app/hitomi-pdf-batch; fi
+                - /app/hitomi-pdf-batch
+              args: []
               envFrom:
                 - configMapRef:
                     name: sandbox-connection-info
@@ -50,14 +36,6 @@ spec:
                   value: pdfs
                 - name: WRAPPER_API_INSECURE_SKIP_VERIFY
                   value: "true"
-                - name: TARGET_DATE
-                  value: ""
-              volumeMounts:
-                - name: tools
-                  mountPath: /tools
           restartPolicy: Never
           imagePullSecrets:
             - name: harbor-registry
-          volumes:
-            - name: tools
-              emptyDir: {}
