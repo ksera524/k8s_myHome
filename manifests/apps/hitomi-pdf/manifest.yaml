@@ -37,7 +37,7 @@ spec:
                 - sh
                 - -c
               args:
-                - exec /app/hitomi-pdf-batch "$(/tools/busybox date +%Y%m%d)"
+                - exec /app/hitomi-pdf-batch
               envFrom:
                 - configMapRef:
                     name: sandbox-connection-info
