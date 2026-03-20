@@ -214,7 +214,6 @@ kubectl logs -n arc-systems deploy/arc-controller-gha-rs-controller --since=10m
 確認ポイント:
 
 - `arc-systems/github-multi-repo-secret` が存在し、`github_token` キーを持つか
-- `arc-systems/harbor-internal-ca` ConfigMap が存在するか
 - listenerログに `Job assigned message received` が出るか
 - Runner Pod が `Init:0/2` で止まる場合、`kubectl describe pod <runner-pod> -n arc-systems` で `FailedMount` の有無を確認
 
@@ -222,8 +221,6 @@ kubectl logs -n arc-systems deploy/arc-controller-gha-rs-controller --since=10m
 
 - `failed to get kubernetes secret: "arc-systems/github-multi-repo-secret"`
   - ExternalSecret の同期状態を確認し、`github-multi-repo-secret` を再作成
-- `MountVolume.SetUp failed ... configmap "harbor-internal-ca" not found`
-  - `make all` を再実行、または `ca-key-pair` から `harbor-internal-ca` を再作成
 
 ### 10. PVC が `Pending`
 

@@ -148,25 +148,20 @@ kubectl describe autoscalingrunnerset <runner-name> -n arc-systems
 ```
 
 Runner定義は `add-runner.sh` で `manifests/platform/ci-cd/github-actions/runners-appset.yaml` へ登録し、実体デプロイはArgoCD + ApplicationSetでGitOps管理します。
-内部CAは `make all` の Phase 4 で `arc-systems/harbor-internal-ca` ConfigMap として配布されます。
 ARC ControllerはGitOps管理（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）を正とし、手動Helm適用は行いません。
 `manifests/platform/ci-cd/github-actions/` には controller と RBAC を保持します。
 Runner ServiceAccount（`arc-systems/github-actions-runner`）の権限は最小化し、実行時に必要なSecretのみ許可します。
 - `arc-systems/harbor-auth`（Harbor push用資格情報）
-- `cert-manager/ca-key-pair`（内部CA証明書）
 
 Runnerの前提リソース確認:
 
 ```bash
 kubectl get secret github-multi-repo-secret -n arc-systems
-kubectl get configmap harbor-internal-ca -n arc-systems
 ```
 
 ```bash
 # 権限確認（許可されること）
 kubectl auth can-i get secret/harbor-auth -n arc-systems \
-  --as=system:serviceaccount:arc-systems:github-actions-runner
-kubectl auth can-i get secret/ca-key-pair -n cert-manager \
   --as=system:serviceaccount:arc-systems:github-actions-runner
 
 # 権限確認（拒否されること）

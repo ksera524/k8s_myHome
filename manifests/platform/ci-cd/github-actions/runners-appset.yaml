@@ -79,38 +79,68 @@ spec:
             value: arc-systems
           - name: controllerServiceAccount.name
             value: arc-controller-gha-rs-controller
-          values: "template:\n  spec:\n    serviceAccountName: github-actions-runner\n\
-            \    hostAliases:\n      - ip: 192.168.122.100\n        hostnames:\n \
-            \         - harbor.internal.qroksera.com\n    initContainers:\n      -\
-            \ name: init-dind-externals\n        image: ghcr.io/actions/actions-runner:latest\n\
-            \        command: [\"cp\"]\n        args: [\"-r\", \"/home/runner/externals/.\"\
-            , \"/home/runner/tmpDir/\"]\n        volumeMounts:\n          - name:\
-            \ dind-externals\n            mountPath: /home/runner/tmpDir\n      -\
-            \ name: dind\n        image: docker:dind\n        command: [\"sh\", \"\
-            -c\"]\n        args:\n          - |\n            set -e\n            cp\
-            \ /etc/docker/certs.d/harbor.internal.qroksera.com/ca.crt /usr/local/share/ca-certificates/harbor-internal-ca.crt\n\
-            \            update-ca-certificates\n            dockerd --host=unix:///var/run/docker.sock\
-            \ --group=$(DOCKER_GROUP_GID) --insecure-registry=harbor.internal.qroksera.com\n\
-            \        env:\n          - name: DOCKER_GROUP_GID\n            value:\
-            \ \"123\"\n        securityContext:\n          privileged: true\n    \
-            \    restartPolicy: Always\n        startupProbe:\n          exec:\n \
-            \           command: [\"docker\", \"info\"]\n          failureThreshold:\
-            \ 24\n          periodSeconds: 5\n        volumeMounts:\n          - name:\
-            \ work\n            mountPath: /home/runner/_work\n          - name: dind-sock\n\
-            \            mountPath: /var/run\n          - name: dind-externals\n \
-            \           mountPath: /home/runner/externals\n          - name: harbor-internal-ca\n\
-            \            mountPath: /etc/docker/certs.d/harbor.internal.qroksera.com\n\
-            \            readOnly: true\n    containers:\n      - name: runner\n \
-            \       image: ghcr.io/actions/actions-runner:latest\n        command:\
-            \ [\"/home/runner/run.sh\"]\n        env:\n          - name: DOCKER_HOST\n\
-            \            value: unix:///var/run/docker.sock\n          - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS\n\
-            \            value: \"120\"\n        volumeMounts:\n          - name:\
-            \ work\n            mountPath: /home/runner/_work\n          - name: dind-sock\n\
-            \            mountPath: /var/run\n    volumes:\n      - name: dind-sock\n\
-            \        emptyDir: {}\n      - name: dind-externals\n        emptyDir:\
-            \ {}\n      - name: work\n        emptyDir: {}\n      - name: harbor-internal-ca\n\
-            \        configMap:\n          name: harbor-internal-ca\n          items:\n\
-            \            - key: ca.crt\n              path: ca.crt\n"
+          values: |
+            template:
+              spec:
+                serviceAccountName: github-actions-runner
+                hostAliases:
+                  - ip: 192.168.122.100
+                    hostnames:
+                      - harbor.internal.qroksera.com
+                initContainers:
+                  - name: init-dind-externals
+                    image: ghcr.io/actions/actions-runner:latest
+                    command: ["cp"]
+                    args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                    volumeMounts:
+                      - name: dind-externals
+                        mountPath: /home/runner/tmpDir
+                  - name: dind
+                    image: docker:dind
+                    command: ["sh", "-c"]
+                    args:
+                      - |
+                        set -e
+                        dockerd --host=unix:///var/run/docker.sock --group=$(DOCKER_GROUP_GID)
+                    env:
+                      - name: DOCKER_GROUP_GID
+                        value: "123"
+                    securityContext:
+                      privileged: true
+                    restartPolicy: Always
+                    startupProbe:
+                      exec:
+                        command: ["docker", "info"]
+                      failureThreshold: 24
+                      periodSeconds: 5
+                    volumeMounts:
+                      - name: work
+                        mountPath: /home/runner/_work
+                      - name: dind-sock
+                        mountPath: /var/run
+                      - name: dind-externals
+                        mountPath: /home/runner/externals
+                containers:
+                  - name: runner
+                    image: ghcr.io/actions/actions-runner:latest
+                    command: ["/home/runner/run.sh"]
+                    env:
+                      - name: DOCKER_HOST
+                        value: unix:///var/run/docker.sock
+                      - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                        value: "120"
+                    volumeMounts:
+                      - name: work
+                        mountPath: /home/runner/_work
+                      - name: dind-sock
+                        mountPath: /var/run
+                volumes:
+                  - name: dind-sock
+                    emptyDir: {}
+                  - name: dind-externals
+                    emptyDir: {}
+                  - name: work
+                    emptyDir: {}
       destination:
         server: https://kubernetes.default.svc
         namespace: arc-systems

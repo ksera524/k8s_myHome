@@ -197,10 +197,10 @@ metadata:
 spec:
   secretName: example-tls-secret
   issuerRef:
-    name: selfsigned-cluster-issuer
+    name: letsencrypt-cloudflare
     kind: ClusterIssuer
   dnsNames:
-  - example.local
+  - example.qroksera.com
 ```
 
 ### ArgoCD HTTPRoute設定例

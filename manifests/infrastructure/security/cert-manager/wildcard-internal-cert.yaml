@@ -9,7 +9,7 @@ spec:
   duration: 8760h # 1年
   renewBefore: 720h # 30日前から更新
   issuerRef:
-    name: internal-ca-issuer
+    name: letsencrypt-cloudflare
     kind: ClusterIssuer
   dnsNames:
     - "*.internal.qroksera.com"

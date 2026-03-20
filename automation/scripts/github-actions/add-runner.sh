@@ -230,7 +230,6 @@ jobs:
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_USERNAME}' | base64 -d > /tmp/harbor_username
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PASSWORD}' | base64 -d > /tmp/harbor_password
         kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PROJECT}' | base64 -d > /tmp/harbor_project
-        kubectl get secret ca-key-pair -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/harbor_ca.crt
 
         chmod 600 /tmp/harbor_*
         echo "✅ Harbor credentials retrieved successfully"
@@ -243,14 +242,6 @@ jobs:
         HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
         HARBOR_URL="harbor.internal.qroksera.com"
         HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-
-        echo "Installing internal CA..."
-        sudo cp /tmp/harbor_ca.crt /usr/local/share/ca-certificates/harbor-internal-ca.crt
-        sudo update-ca-certificates
-
-        echo "Configuring Docker CA..."
-        sudo mkdir -p /etc/docker/certs.d/harbor.internal.qroksera.com
-        sudo cp /tmp/harbor_ca.crt /etc/docker/certs.d/harbor.internal.qroksera.com/ca.crt
 
         docker tag $REPOSITORY_NAME:ci \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
 
