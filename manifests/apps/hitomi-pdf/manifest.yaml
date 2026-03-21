@@ -23,8 +23,7 @@ spec:
               imagePullPolicy: Always
               command:
                 - /app/hitomi-pdf-batch
-              args:
-                - "20260319"
+              args: []
               envFrom:
                 - configMapRef:
                     name: sandbox-connection-info
