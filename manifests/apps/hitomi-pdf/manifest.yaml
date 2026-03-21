@@ -24,7 +24,7 @@ spec:
               command:
                 - /app/hitomi-pdf-batch
               args:
-                - "20260320"
+                - "20260319"
               envFrom:
                 - configMapRef:
                     name: sandbox-connection-info
