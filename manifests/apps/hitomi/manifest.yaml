@@ -33,9 +33,14 @@ spec:
                   value: "INFO"
                 - name: SELENIUM_COMMAND_EXECUTOR
                   value: http://selenium-standalone-chrome.tools:4444/wd/hub
+                - name: TMPDIR
+                  value: /tmp
           restartPolicy: Never
           volumes:
             - name: tmp
               emptyDir: {}
+          volumeMounts:
+              - name: tmp
+                mountPath: /tmp
           imagePullSecrets:
             - name: harbor-registry
