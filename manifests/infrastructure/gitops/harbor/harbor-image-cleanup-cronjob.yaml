@@ -38,7 +38,6 @@ spec:
                 - |
                   import json
                   import os
-                  import re
                   import ssl
                   import sys
                   import urllib.error
@@ -133,31 +132,11 @@ spec:
                       return artifacts
 
 
-                  semver_pattern = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
-
-
                   def build_keep_set(tag_infos):
-                      keep = set()
-                      semvers = []
-
                       for info in tag_infos:
-                          tag = info["tag"]
-                          if tag == "latest":
-                              keep.add(tag)
-                          m = semver_pattern.match(tag)
-                          if m:
-                              semvers.append((tuple(int(x) for x in m.groups()), tag))
-
-                      if semvers:
-                          semvers.sort(key=lambda x: x[0], reverse=True)
-                          keep.add(semvers[0][1])
-
-                      # latest/semverが無いリポジトリ向けフォールバック
-                      if not keep and tag_infos:
-                          newest = max(tag_infos, key=lambda x: x.get("pushed_at") or "")
-                          keep.add(newest["tag"])
-
-                      return keep
+                          if info["tag"] == "latest":
+                              return {"latest"}
+                      return set()
 
 
                   def trigger_gc():
@@ -221,6 +200,9 @@ spec:
                               continue
 
                           keep = build_keep_set(tag_infos)
+                          if not keep:
+                              log(f"{full_name}: skip (latest not found)")
+                              continue
                           log(f"{full_name}: keep={sorted(keep)}")
 
                           for info in tag_infos:
