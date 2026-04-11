@@ -35,12 +35,12 @@ spec:
                   value: http://selenium-standalone-chrome.tools:4444/wd/hub
                 - name: TMPDIR
                   value: /tmp
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
           restartPolicy: Never
           volumes:
             - name: tmp
               emptyDir: {}
-          volumeMounts:
-              - name: tmp
-                mountPath: /tmp
           imagePullSecrets:
             - name: harbor-registry
