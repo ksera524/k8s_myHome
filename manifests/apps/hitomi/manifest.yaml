@@ -34,5 +34,8 @@ spec:
                 - name: SELENIUM_COMMAND_EXECUTOR
                   value: http://selenium-standalone-chrome.tools:4444/wd/hub
           restartPolicy: Never
+          volumes:
+            - name: tmp
+              emptyDir: {}
           imagePullSecrets:
             - name: harbor-registry
