@@ -161,7 +161,7 @@ alloy-logs:
         value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-logs-$(NODE_NAME)
 
 alloy-receiver:
-  enabled: true
+  enabled: false
   remoteConfig:
     enabled: false
   alloy:
