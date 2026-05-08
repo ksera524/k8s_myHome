@@ -50,6 +50,22 @@ apt_channel = "v1.33"
 make upgrade
 ```
 
+#### 2.1 厳格ゲート付き実行（推奨）
+
+毎回の更新をより安全に行うため、事前/事後ゲートチェック付きの実行を推奨します。
+
+```bash
+make upgrade-safe
+```
+
+`upgrade-safe` は以下を自動実行します。
+
+1. 事前ゲート（Node Ready / 異常Podなし / ArgoCD全ApplicationがSynced+Healthy）
+2. 通常アップグレード（precheck -> control-plane -> workers -> postcheck）
+3. 事後ゲート（同じ判定を再実施）
+
+いずれかが不合格の場合はその場で停止し、次のマイナーバージョンへ進みません。
+
 #### 3. 事前/事後の分割実行（必要時）
 
 ```bash
@@ -242,6 +258,31 @@ kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Doc
 2. **アップグレードは1つのマイナーバージョンずつ実施**
 3. **etcdのバックアップを必ず取得**
 4. **アップグレード中のサービス停止を考慮**
+5. **各マイナー更新ごとに `make upgrade-safe` で合格してから次へ進む**
+
+## 継続運用テンプレート（毎回同じ手順）
+
+1回の更新で1マイナーだけ進め、これを繰り返します。
+
+```bash
+# 例: 1.33 -> 1.34 の回
+cd /home/ksera/k8s_myHome
+
+# target_version と apt_channel を設定
+# [upgrade]
+# target_version = "v1.34.x"
+# apt_channel = "v1.34"
+
+make upgrade-safe
+
+# 合格確認後に次マイナーへ進む
+# 例: 次は v1.35.x / v1.35
+```
+
+補足:
+
+- `target_version` は `apt-cache madison kubeadm` で存在するパッチを指定してください
+- 失敗時は `automation/run.log` を確認し、原因を解消して同じマイナーで再試行してください
 
 ## ロールバック方針
 

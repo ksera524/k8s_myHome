@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help all phase1 phase2 phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify
-.PHONY: upgrade upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
+.PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: add-runner add-runners-all all-runner
 
 help:
@@ -41,6 +41,9 @@ phase5 verify:
 
 upgrade:
 	@./automation/scripts/run.sh upgrade
+
+upgrade-safe:
+	@./automation/scripts/run.sh upgrade-safe
 
 upgrade-precheck:
 	@./automation/scripts/run.sh upgrade-precheck

@@ -52,6 +52,7 @@ Phases:
   phase4|gitops-apps  - GitOpsによるアプリ展開（app-deploy）
   phase5|verify       - 確認（verify）
   upgrade             - k8sアップグレード（完全自動）
+  upgrade-safe        - ゲートチェック付きアップグレード
   upgrade-precheck    - アップグレード事前チェック
   upgrade-control-plane - コントロールプレーン更新
   upgrade-workers     - ワーカーノード更新
@@ -98,6 +99,14 @@ main() {
       run_step "Upgrade: Control Plane" with_settings "$SCRIPT_DIR/upgrade/upgrade-control-plane.sh"
       run_step "Upgrade: Workers" with_settings "$SCRIPT_DIR/upgrade/upgrade-workers.sh"
       run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
+      ;;
+    upgrade-safe)
+      run_step "Upgrade Gate: Pre" with_settings "$SCRIPT_DIR/upgrade/upgrade-gate-check.sh" --phase pre
+      run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"
+      run_step "Upgrade: Control Plane" with_settings "$SCRIPT_DIR/upgrade/upgrade-control-plane.sh"
+      run_step "Upgrade: Workers" with_settings "$SCRIPT_DIR/upgrade/upgrade-workers.sh"
+      run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
+      run_step "Upgrade Gate: Post" with_settings "$SCRIPT_DIR/upgrade/upgrade-gate-check.sh" --phase post
       ;;
     upgrade-precheck)
       run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"
