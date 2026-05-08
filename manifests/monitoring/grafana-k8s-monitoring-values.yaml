@@ -47,7 +47,7 @@ podLogs:
   enabled: true
 
 applicationObservability:
-  enabled: true
+  enabled: false
   receivers:
     otlp:
       grpc:

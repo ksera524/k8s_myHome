@@ -54,8 +54,6 @@ spec:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
     path: manifests/platform/argocd-config
-    directory:
-      include: 'argocd-config.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
