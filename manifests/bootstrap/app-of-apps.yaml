@@ -37,7 +37,7 @@ spec:
         factor: 2
         maxDuration: 3m
 
-# ArgoCD Core - ArgoCD本体をHelm chartで段階移行（手動同期）
+# ArgoCD Core - 本体ワークロードではなく設定リソースのみをGitOps管理
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -51,67 +51,22 @@ metadata:
 spec:
   project: platform
   source:
-    repoURL: https://argoproj.github.io/argo-helm
-    chart: argo-cd
-    targetRevision: 9.4.2
-    helm:
-      releaseName: argocd
-      values: |
-        configs:
-          cm:
-            create: false
-          rbac:
-            create: false
-          secret:
-            createSecret: false
-          params:
-            create: false
-        redisSecretInit:
-          enabled: false
-        server:
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          livenessProbe:
-            timeoutSeconds: 5
-            failureThreshold: 6
-          readinessProbe:
-            timeoutSeconds: 5
-            failureThreshold: 6
-        repoServer:
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          livenessProbe:
-            timeoutSeconds: 5
-            failureThreshold: 6
-          readinessProbe:
-            timeoutSeconds: 5
-            failureThreshold: 6
-        controller:
-          resources:
-            requests:
-              cpu: 200m
-              memory: 512Mi
-            limits:
-              cpu: 1000m
-              memory: 1Gi
+    repoURL: https://github.com/ksera524/k8s_myHome.git
+    targetRevision: HEAD
+    path: manifests/platform/argocd-config
+    directory:
+      include: 'argocd-config.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - DisableClientSideApplyMigration=true
+      - RespectIgnoreDifferences=true
 
 # Local Path Provisioner - Harborより先にデプロイが必要
 ---
