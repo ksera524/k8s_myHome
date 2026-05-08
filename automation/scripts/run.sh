@@ -92,6 +92,8 @@ Phases:
   upgrade-control-plane - コントロールプレーン更新
   upgrade-workers     - ワーカーノード更新
   upgrade-postcheck   - アップグレード後チェック
+  containerd-precheck - containerd更新 事前診断
+  containerd-safe     - containerd更新（カナリア/ロールバック対応）
 
 Log:
   automation/run.log
@@ -154,6 +156,12 @@ main() {
       ;;
     upgrade-postcheck)
       run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
+      ;;
+    containerd-precheck)
+      run_step "Containerd: Precheck" with_settings "$SCRIPT_DIR/upgrade/containerd-precheck.sh"
+      ;;
+    containerd-safe)
+      run_step "Containerd: Safe Upgrade" with_settings "$SCRIPT_DIR/upgrade/containerd-upgrade-safe.sh"
       ;;
     -h|--help|help)
       usage

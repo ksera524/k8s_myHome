@@ -4,6 +4,7 @@
 
 .PHONY: help all phase1 phase2 phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
+.PHONY: containerd-precheck containerd-safe
 .PHONY: add-runner add-runners-all all-runner
 
 help:
@@ -56,6 +57,12 @@ upgrade-workers:
 
 upgrade-postcheck:
 	@./automation/scripts/run.sh upgrade-postcheck
+
+containerd-precheck:
+	@./automation/scripts/run.sh containerd-precheck
+
+containerd-safe:
+	@./automation/scripts/run.sh containerd-safe
 
 add-runner:
 	@if [ -z "$(REPO)" ]; then \

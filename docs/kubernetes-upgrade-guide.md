@@ -75,6 +75,61 @@ gate_retries = 3
 gate_retry_wait_seconds = 30
 ```
 
+### 2.2 containerd 更新（検証先行・カナリア適用）
+
+containerd は Kubernetes の実行基盤のため、先に本番外で検証し、
+本番は 1 ノードずつ段階適用してください。
+
+#### 1) 事前診断
+
+```bash
+make containerd-precheck
+```
+
+確認内容:
+
+1. 各ノードの `containerd --version`
+2. `crictl info` による CRI 疎通
+3. `kubelet` エラーログ（`runtime.v1.RuntimeService`）
+4. `sandbox_image` / `SystemdCgroup` の設定差分
+5. ArgoCD 全 Application の `Synced/Healthy`
+
+#### 2) カナリア更新（既定: worker2）
+
+```bash
+make containerd-safe
+```
+
+`settings.toml` の `[upgrade]` で、利用するパッケージと配布元を指定できます。
+
+```toml
+containerd_package = "containerd.io"
+containerd_source_channel = "docker"
+containerd_current_version = "1.7.28-0ubuntu1~24.04.2"
+containerd_target_version = "2.2.3-1~ubuntu.24.04~noble"
+containerd_canary_node = "k8s-worker2"
+```
+
+実施内容:
+
+1. 対象ノード cordon + drain
+2. `containerd` 更新（`containerd_package` で指定したパッケージ）
+3. `containerd/kubelet` 再起動
+4. `crictl info` と Ready 復帰確認
+5. uncordon
+6. `upgrade-gate-check.sh --phase post`
+
+#### 3) 失敗時ロールバック
+
+```bash
+./automation/scripts/upgrade/containerd-upgrade-safe.sh --rollback
+```
+
+`--rollback` は `upgrade.containerd_current_version` へ復旧します。
+また、`containerd_package` に合わせたパッケージへ復旧します。
+復旧後は `make containerd-precheck` と `./automation/scripts/upgrade/upgrade-gate-check.sh --phase post` を実行し、
+状態が正常に戻ったことを確認してください。
+
 #### 3. 事前/事後の分割実行（必要時）
 
 ```bash

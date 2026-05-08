@@ -38,6 +38,18 @@ gate_retries = 3
 # ゲート再試行の待機秒数
 gate_retry_wait_seconds = 30
 
+# containerd 更新設定
+# 更新元パッケージ（推奨: containerd.io）
+containerd_package = "containerd.io"
+# 更新元チャネル（docker / ubuntu）
+containerd_source_channel = "docker"
+# 現行バージョン（ロールバック先）
+containerd_current_version = "1.7.28-0ubuntu1~24.04.2"
+# 更新先バージョン
+containerd_target_version = "2.2.3-1~ubuntu.24.04~noble"
+# カナリア対象ノード（k8s-worker1 / k8s-worker2 / k8s-control-plane）
+containerd_canary_node = "k8s-worker2"
+
 # ========================================
 # ネットワーク設定（デフォルト値・通常変更不要）
 # ========================================
