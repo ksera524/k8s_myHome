@@ -3,4 +3,3 @@ kind: Kustomization
 
 resources:
   - ci-cd/github-actions/
-  - argocd-config/
