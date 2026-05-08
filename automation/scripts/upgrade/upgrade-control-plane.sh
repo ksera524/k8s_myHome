@@ -58,11 +58,11 @@ log_status "APTチャネル: ${apt_channel}"
 "${ssh_cmd[@]}" "sudo apt-get update -y"
 
 "${ssh_cmd[@]}" "sudo apt-mark unhold kubeadm kubelet kubectl"
-"${ssh_cmd[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\"; while read -r _ version _; do if [[ \"$version\" == \"$target\"* ]]; then pkg=\"$version\"; break; fi; done < <(apt-cache madison kubeadm); if [[ -z \"$pkg\" ]]; then echo \"kubeadm ${target} が見つかりません\" >&2; exit 1; fi; apt-get install -y kubeadm=\"$pkg\"'"
+"${ssh_cmd[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\$(apt-cache madison kubeadm | awk -F\"|\" -v t=\"${target_version#v}\" '\''{gsub(/ /, \"\", \$2); if (index(\$2, t) == 1 && first == \"\") {first = \$2}} END {print first}'\'')\"; if [[ -z \"\$pkg\" ]]; then echo \"kubeadm \$target が見つかりません\" >&2; exit 1; fi; apt-get install -y kubeadm=\"\$pkg\"'"
 
 log_status "kubeadm upgrade apply 実行中..."
 "${ssh_cmd[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubeadm upgrade apply ${target_version} -y"
 
-"${ssh_cmd[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\"; while read -r _ version _; do if [[ \"$version\" == \"$target\"* ]]; then pkg=\"$version\"; break; fi; done < <(apt-cache madison kubelet); if [[ -z \"$pkg\" ]]; then echo \"kubelet ${target} が見つかりません\" >&2; exit 1; fi; apt-get install -y kubelet=\"$pkg\" kubectl=\"$pkg\"; systemctl daemon-reload; systemctl restart kubelet'"
+"${ssh_cmd[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\$(apt-cache madison kubelet | awk -F\"|\" -v t=\"${target_version#v}\" '\''{gsub(/ /, \"\", \$2); if (index(\$2, t) == 1 && first == \"\") {first = \$2}} END {print first}'\'')\"; if [[ -z \"\$pkg\" ]]; then echo \"kubelet \$target が見つかりません\" >&2; exit 1; fi; apt-get install -y kubelet=\"\$pkg\" kubectl=\"\$pkg\"; systemctl daemon-reload; systemctl restart kubelet'"
 
 log_status "Upgrade Control Plane 完了"

@@ -13,6 +13,7 @@ if [ -f "$SCRIPT_DIR/common-logging.sh" ]; then
 else
   log_status() { echo "$@"; }
   log_error() { echo "$@"; }
+  log_warning() { echo "$@"; }
 fi
 
 run_step() {
@@ -38,6 +39,40 @@ with_settings() {
     source "$SCRIPT_DIR/settings-loader.sh" load 2>/dev/null || true
   fi
   "$@"
+}
+
+run_gate_with_retry() {
+  local phase="$1"
+  local label="$2"
+  local retries="3"
+  local wait_seconds="30"
+
+  if declare -f get_config >/dev/null 2>&1; then
+    retries="$(get_config upgrade gate_retries "3")"
+    wait_seconds="$(get_config upgrade gate_retry_wait_seconds "30")"
+  fi
+
+  if [[ ! "$retries" =~ ^[0-9]+$ ]] || [[ "$retries" -lt 1 ]]; then
+    retries="3"
+  fi
+  if [[ ! "$wait_seconds" =~ ^[0-9]+$ ]] || [[ "$wait_seconds" -lt 1 ]]; then
+    wait_seconds="30"
+  fi
+
+  local attempt=1
+  while [[ "$attempt" -le "$retries" ]]; do
+    if run_step "$label (attempt ${attempt}/${retries})" with_settings "$SCRIPT_DIR/upgrade/upgrade-gate-check.sh" --phase "$phase"; then
+      return 0
+    fi
+
+    if [[ "$attempt" -lt "$retries" ]]; then
+      log_warning "$label 失敗。${wait_seconds}秒後に再試行します"
+      sleep "$wait_seconds"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  return 1
 }
 
 usage() {
@@ -101,12 +136,12 @@ main() {
       run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
       ;;
     upgrade-safe)
-      run_step "Upgrade Gate: Pre" with_settings "$SCRIPT_DIR/upgrade/upgrade-gate-check.sh" --phase pre
+      run_gate_with_retry pre "Upgrade Gate: Pre"
       run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"
       run_step "Upgrade: Control Plane" with_settings "$SCRIPT_DIR/upgrade/upgrade-control-plane.sh"
       run_step "Upgrade: Workers" with_settings "$SCRIPT_DIR/upgrade/upgrade-workers.sh"
       run_step "Upgrade: Postcheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-postcheck.sh"
-      run_step "Upgrade Gate: Post" with_settings "$SCRIPT_DIR/upgrade/upgrade-gate-check.sh" --phase post
+      run_gate_with_retry post "Upgrade Gate: Post"
       ;;
     upgrade-precheck)
       run_step "Upgrade: Precheck" with_settings "$SCRIPT_DIR/upgrade/upgrade-precheck.sh"

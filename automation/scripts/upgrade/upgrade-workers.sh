@@ -81,11 +81,11 @@ for worker_ip in "${worker_ips[@]}"; do
   "${worker_ssh[@]}" "sudo bash -c 'set -euo pipefail; echo deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${apt_channel}/deb/ / > /etc/apt/sources.list.d/kubernetes.list'"
   "${worker_ssh[@]}" "sudo apt-get update -y"
   "${worker_ssh[@]}" "sudo apt-mark unhold kubeadm kubelet kubectl"
-  "${worker_ssh[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\"; while read -r _ version _; do if [[ \"$version\" == \"$target\"* ]]; then pkg=\"$version\"; break; fi; done < <(apt-cache madison kubeadm); if [[ -z \"$pkg\" ]]; then echo \"kubeadm ${target} が見つかりません\" >&2; exit 1; fi; apt-get install -y kubeadm=\"$pkg\"'"
+  "${worker_ssh[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\$(apt-cache madison kubeadm | awk -F\"|\" -v t=\"${target_version#v}\" '\''{gsub(/ /, \"\", \$2); if (index(\$2, t) == 1 && first == \"\") {first = \$2}} END {print first}'\'')\"; if [[ -z \"\$pkg\" ]]; then echo \"kubeadm \$target が見つかりません\" >&2; exit 1; fi; apt-get install -y kubeadm=\"\$pkg\"'"
 
   "${worker_ssh[@]}" "sudo kubeadm upgrade node"
 
-  "${worker_ssh[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\"; while read -r _ version _; do if [[ \"$version\" == \"$target\"* ]]; then pkg=\"$version\"; break; fi; done < <(apt-cache madison kubelet); if [[ -z \"$pkg\" ]]; then echo \"kubelet ${target} が見つかりません\" >&2; exit 1; fi; apt-get install -y kubelet=\"$pkg\" kubectl=\"$pkg\"; systemctl daemon-reload; systemctl restart kubelet'"
+  "${worker_ssh[@]}" "sudo bash -c 'set -euo pipefail; target=\"${target_version#v}\"; pkg=\"\$(apt-cache madison kubelet | awk -F\"|\" -v t=\"${target_version#v}\" '\''{gsub(/ /, \"\", \$2); if (index(\$2, t) == 1 && first == \"\") {first = \$2}} END {print first}'\'')\"; if [[ -z \"\$pkg\" ]]; then echo \"kubelet \$target が見つかりません\" >&2; exit 1; fi; apt-get install -y kubelet=\"\$pkg\" kubectl=\"\$pkg\"; systemctl daemon-reload; systemctl restart kubelet'"
 
   "${control_ssh[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl uncordon ${node_name}"
 

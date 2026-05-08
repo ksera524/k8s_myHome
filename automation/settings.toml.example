@@ -33,6 +33,10 @@ target_version = ""
 # APTチャネル（未指定時は target_version から自動推定）
 # 例: "v1.33"
 apt_channel = ""
+# ゲートチェック再試行回数（pre/post 共通）
+gate_retries = 3
+# ゲート再試行の待機秒数
+gate_retry_wait_seconds = 30
 
 # ========================================
 # ネットワーク設定（デフォルト値・通常変更不要）

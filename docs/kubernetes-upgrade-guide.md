@@ -66,6 +66,15 @@ make upgrade-safe
 
 いずれかが不合格の場合はその場で停止し、次のマイナーバージョンへ進みません。
 
+補足: 一時的な再起動直後の揺らぎ（ImagePullBackOff など）を吸収するため、
+`upgrade-safe` のゲートチェックは自動再試行します（デフォルト: 3回, 30秒間隔）。
+必要に応じて `settings.toml` の `[upgrade]` で以下を調整できます。
+
+```toml
+gate_retries = 3
+gate_retry_wait_seconds = 30
+```
+
 #### 3. 事前/事後の分割実行（必要時）
 
 ```bash

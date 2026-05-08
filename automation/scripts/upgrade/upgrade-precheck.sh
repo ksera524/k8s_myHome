@@ -62,7 +62,7 @@ log_status "クラスタ健全性確認中..."
 "${ssh_cmd[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get pods -A"
 
 log_status "etcd スナップショット取得中..."
-"${ssh_cmd[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf bash -c 'set -euo pipefail; pod=\"\$(kubectl -n kube-system get pods -l component=etcd -o jsonpath={.items[0].metadata.name})\"; ts=\"\$(date +%Y%m%d-%H%M%S)\"; kubectl -n kube-system exec \"$pod\" -- sh -c \"ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /var/lib/etcd/etcd-snapshot-$ts.db\"'"
+"${ssh_cmd[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf bash -c 'set -euo pipefail; pod=\"\$(kubectl -n kube-system get pods -l component=etcd -o jsonpath={.items[0].metadata.name})\"; ts=\"\$(date +%Y%m%d-%H%M%S)\"; kubectl -n kube-system exec \"\$pod\" -- etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /var/lib/etcd/etcd-snapshot-\$ts.db'"
 
 log_status "kubeadm upgrade plan 実行中..."
 "${ssh_cmd[@]}" "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubeadm upgrade plan"
