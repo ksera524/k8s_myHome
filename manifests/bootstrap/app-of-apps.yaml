@@ -737,10 +737,7 @@ spec:
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/platform
-    directory:
-      recurse: true
-      include: 'ci-cd/**/*.yaml'
+    path: manifests/platform/ci-cd/github-actions
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
