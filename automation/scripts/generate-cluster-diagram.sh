@@ -5,6 +5,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OUTPUT_FILE="$ROOT_DIR/cluster-diagram.png"
+NAMESPACE_LIST=(
+  argocd
+  harbor
+  cert-manager
+  external-secrets
+  arc-systems
+  nginx-gateway
+  metallb-system
+  monitoring
+  apps
+)
 
 # 共通関数読み込み
 source "$SCRIPT_DIR/common-logging.sh"
@@ -47,16 +58,18 @@ append_resource_yaml() {
   fi
 }
 
-generate_diagram() {
+generate_namespace_diagram() {
   local input_yaml="$1"
+  local namespace="$2"
+  local output_png="$3"
 
   case "$DIAGRAM_MODE" in
     local)
-      kube-diagrams - -o "$OUTPUT_FILE" < "$input_yaml"
+      kube-diagrams --without-namespace -n "$namespace" - -o "$output_png" < "$input_yaml"
       ;;
     docker)
-      docker run --rm -i -v "$ROOT_DIR:/work" philippemerle/kubediagrams \
-        kube-diagrams - -o /work/cluster-diagram.png < "$input_yaml"
+      docker run --rm -i --user "$(id -u):$(id -g)" -v "$ROOT_DIR:/work" philippemerle/kubediagrams \
+        kube-diagrams --without-namespace -n "$namespace" - -o "/work/${output_png##$ROOT_DIR/}" < "$input_yaml"
       ;;
     *)
       log_error "不正な DIAGRAM_MODE: $DIAGRAM_MODE"
@@ -65,17 +78,64 @@ generate_diagram() {
   esac
 }
 
+compose_diagrams() {
+  local output_file="$1"
+  shift
+  python3 - "$output_file" "$@" <<'PY'
+import math
+import sys
+from PIL import Image, ImageOps, ImageDraw
+
+out = sys.argv[1]
+files = sys.argv[2:]
+images = []
+for f in files:
+    img = Image.open(f).convert("RGB")
+    # 横長を抑えるため高さ基準でリサイズ
+    h = 900
+    w = max(800, int(img.width * (h / img.height)))
+    img = img.resize((w, h), Image.Resampling.LANCZOS)
+    images.append((f, img))
+
+if not images:
+    raise SystemExit("no images")
+
+cols = 2
+rows = math.ceil(len(images) / cols)
+cell_w = max(img.width for _, img in images) + 40
+cell_h = max(img.height for _, img in images) + 70
+canvas = Image.new("RGB", (cell_w * cols, cell_h * rows), "white")
+draw = ImageDraw.Draw(canvas)
+
+for idx, (name, img) in enumerate(images):
+    r = idx // cols
+    c = idx % cols
+    x = c * cell_w + (cell_w - img.width) // 2
+    y = r * cell_h + 40
+    canvas.paste(img, (x, y))
+    title = name.split("/")[-1].replace(".png", "")
+    draw.text((c * cell_w + 20, r * cell_h + 12), title, fill="black")
+
+canvas.save(out, format="PNG")
+print(f"saved {out}")
+PY
+}
+
 main() {
   local temp_yaml
+  local temp_dir
+  local namespace
+  local generated_files=()
   temp_yaml="$(mktemp)"
-  trap "rm -f '$temp_yaml'" EXIT
+  temp_dir="$(mktemp -d "$ROOT_DIR/.tmp-diagrams.XXXXXX")"
+  trap "rm -f '$temp_yaml'; rm -rf '$temp_dir'" EXIT
 
   check_dependencies
 
   log_status "クラスタ構成情報の収集中..."
 
   # Pod/ReplicaSet を大量に含めると図が巨大化するため、主要リソースを選択して収集する
-  append_resource_yaml "namespaces,nodes,deployments,statefulsets,daemonsets,services,configmaps,secrets,serviceaccounts" "$temp_yaml"
+  append_resource_yaml "namespaces,nodes,deployments,statefulsets,daemonsets,services" "$temp_yaml"
   append_resource_yaml "ingress,networkpolicy,pvc,pv,storageclasses" "$temp_yaml"
   append_resource_yaml "applications.argoproj.io" "$temp_yaml"
   append_resource_yaml "certificates.cert-manager.io,issuers.cert-manager.io,clusterissuers.cert-manager.io" "$temp_yaml"
@@ -87,8 +147,25 @@ main() {
     exit 1
   fi
 
-  log_status "構成図を生成中..."
-  generate_diagram "$temp_yaml"
+  log_status "Namespace ごとの構成図を生成中..."
+  for namespace in "${NAMESPACE_LIST[@]}"; do
+    local ns_output
+    ns_output="$temp_dir/${namespace}.png"
+    if generate_namespace_diagram "$temp_yaml" "$namespace" "$ns_output" >/dev/null 2>&1; then
+      generated_files+=("$ns_output")
+      log_info "生成成功: namespace=$namespace"
+    else
+      log_warning "生成スキップ: namespace=$namespace (リソースなし/未導入)"
+    fi
+  done
+
+  if [[ ${#generated_files[@]} -eq 0 ]]; then
+    log_error "有効な namespace 構成図を生成できませんでした"
+    exit 1
+  fi
+
+  log_status "構成図を合成中..."
+  compose_diagrams "$OUTPUT_FILE" "${generated_files[@]}"
 
   if [[ -f "$OUTPUT_FILE" ]]; then
     local size
