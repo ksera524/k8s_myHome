@@ -2,7 +2,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all phase1 phase2 phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify
+.PHONY: help all phase1 phase2 phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify recover diagrams
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: containerd-precheck containerd-safe
 .PHONY: add-runner add-runners-all all-runner
@@ -17,6 +17,8 @@ help:
 	@echo "  make phase3 / make gitops-prep  - GitOps準備"
 	@echo "  make phase4 / make gitops-apps  - GitOpsアプリ展開"
 	@echo "  make phase5 / make verify       - 確認"
+	@echo "  make recover                    - Ubuntu再起動後のk8s復旧"
+	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
 	@echo ""
 	@echo "Runners:"
 	@echo "  make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest - GitHub Actions Runner追加"
@@ -39,6 +41,12 @@ phase4 gitops-apps:
 
 phase5 verify:
 	@./automation/scripts/run.sh phase5
+
+recover:
+	@./automation/scripts/recover-after-reboot.sh
+
+diagrams:
+	@./automation/scripts/generate-cluster-diagram.sh
 
 upgrade:
 	@./automation/scripts/run.sh upgrade
