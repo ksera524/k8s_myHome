@@ -232,6 +232,38 @@ kubectl describe storageclass local-path
 kubectl get pods -n local-path-storage
 ```
 
+### 11. Ubuntu 再起動後に k8s へ接続できない
+
+症状例:
+
+- `kubectl get nodes` で `no route to host` / `connection refused`
+- `virsh list --all` で k8s ノード VM が `shut off`
+
+復旧用スクリプト（推奨）:
+
+```bash
+bash automation/scripts/recover-after-reboot.sh
+```
+
+このスクリプトで実行する内容:
+
+- `k8s-` プレフィックスの VM（control-plane / worker）を起動
+- Kubernetes API 応答を待機
+- 全ノード `Ready` を待機（タイムアウトあり）
+- 復旧後の VM / ノード / 異常 Pod 状態を表示
+
+必要に応じて待機時間を上書き:
+
+```bash
+RECOVER_MAX_WAIT_SECONDS=600 RECOVER_CHECK_INTERVAL_SECONDS=15 \
+  bash automation/scripts/recover-after-reboot.sh
+```
+
+補足:
+
+- 一部 Pod が `ContainerCreating` のまま数分かかることがあります（再起動直後の再スケジュール）
+- `ImagePullBackOff` / `ErrImagePull` は別問題の可能性があるため、該当 namespace の `describe` と `logs` で切り分けてください
+
 ## ログ収集テンプレート
 
 ```bash
