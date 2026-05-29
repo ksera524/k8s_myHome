@@ -34,7 +34,7 @@ variable "network_gateway" {
 variable "control_plane_memory" {
   description = "Control PlaneのメモリサイズMB"
   type        = number
-  default     = 8192 # 8GB
+  default     = 6144 # 6GB
 }
 
 variable "control_plane_vcpu" {
@@ -46,7 +46,7 @@ variable "control_plane_vcpu" {
 variable "worker_memory" {
   description = "Worker NodeのメモリサイズMB"
   type        = number
-  default     = 12288 # 12GB
+  default     = 6144 # 6GB
 }
 
 variable "worker_vcpu" {
