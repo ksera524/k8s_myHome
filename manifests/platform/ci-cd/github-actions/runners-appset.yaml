@@ -13,34 +13,34 @@ spec:
         githubRepo: blog
         runnerName: blog-runners
         minRunners: '0'
-        maxRunners: '3'
+        maxRunners: '1'
         workflowStrategy: latest
       - name: cooklog
         githubOwner: ksera524
         githubRepo: cookLog
         runnerName: cooklog-runners
         minRunners: '0'
-        maxRunners: '3'
+        maxRunners: '1'
         workflowStrategy: latest
       - name: hitomi
         githubOwner: ksera524
         githubRepo: hitomi
         runnerName: hitomi-runners
         minRunners: '0'
-        maxRunners: '3'
+        maxRunners: '1'
         workflowStrategy: latest
       - name: api-hub
         githubOwner: ksera524
         githubRepo: api-hub
         runnerName: api-hub-runners
         minRunners: '0'
-        maxRunners: '3'
+        maxRunners: '1'
         workflowStrategy: latest
       - name: home-camera
         githubOwner: ksera524
         githubRepo: home-camera
         runnerName: home-camera-runners
-        minRunners: '1'
+        minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: hitomi-pdf-batch
@@ -48,7 +48,7 @@ spec:
         githubRepo: hitomi-pdf-batch
         runnerName: hitomi-pdf-batch-runners
         minRunners: '0'
-        maxRunners: '3'
+        maxRunners: '1'
         workflowStrategy: latest
   template:
     metadata:

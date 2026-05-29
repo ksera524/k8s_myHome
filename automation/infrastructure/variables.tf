@@ -34,7 +34,7 @@ variable "network_gateway" {
 variable "control_plane_memory" {
   description = "Control PlaneのメモリサイズMB"
   type        = number
-  default     = 8192  # 8GB
+  default     = 8192 # 8GB
 }
 
 variable "control_plane_vcpu" {
@@ -46,13 +46,13 @@ variable "control_plane_vcpu" {
 variable "worker_memory" {
   description = "Worker NodeのメモリサイズMB"
   type        = number
-  default     = 4096  # 4GB
+  default     = 12288 # 12GB
 }
 
 variable "worker_vcpu" {
   description = "Worker NodeのvCPU数"
   type        = number
-  default     = 2
+  default     = 4
 }
 
 # Kubernetesクラスター設定
