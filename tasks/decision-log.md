@@ -342,3 +342,12 @@
 - 判断: `docs/` は current main / live repo の構成と手順を正とし、構造改革の将来像、PH 計画、target owner/path/contract は `tasks/` を正とする。未実装の target-state 名称（例: `make bootstrap`, `nix develop .#bootstrap`）は `tasks/` 側でのみ計画として扱い、`docs/` は cutover 完了まで現行実装ベースで維持する
 - 影響: `tasks/README.md` に正本マトリクスを追加し、PH 文書と cutover 文書は target-state のみを記述する。`docs/` は current-state 注記を持った上で、現行構成の説明責務を維持する
 - 代替案: `docs/` を先行して target-state へ更新する（不採用: live repo と乖離した手順書が発生し、運用事故を招く）
+
+### DEC-0038: root Application と child Application discovery source を `bootstrap/applications` に固定する
+
+- 日付: 2026-05-31
+- 状態: accepted
+- 背景: root `Application` や planning docs を version 監査や topology-aware automation の discovery input にすると、トポロジ変更のたびに監査ロジックが壊れやすく、root の責務も肥大化する
+- 判断: `manifests/bootstrap/app-of-apps.yaml` は single root `Application` 1 件のみを置く。root `Application` の `spec.source.path` は `manifests/bootstrap/applications/` に固定し、render entrypoint は同ディレクトリの top-level `kustomization.yaml` とする。version audit / topology-aware automation の child `Application` discovery source は `manifests/bootstrap/applications/**` に固定し、root `Application`、contract、planning docs は discovery の implementation 正本にしない
+- 影響: `.github/workflows/weekly-version-audit.yml` は `app-of-apps.yaml` 直読みと `monitoring` hardcode 依存をやめ、child `Application` 群から監査対象を列挙する。PH2/PH6 の topology・cutover 文書は root と child の責務境界をこの前提で記述する
+- 代替案: root `Application` を監査の一次入力にし続ける、または contract/docs を version discovery の正本にする（不採用: topology 変更耐性が低く、責務も混線する）

@@ -970,16 +970,15 @@ else
 fi
 
 # Applications同期確認
-if kubectl get application user-applications -n argocd 2>/dev/null; then
-    echo "user-applications同期待機中..."
-    # Health状態の確認
+if kubectl get application bootstrap-root -n argocd 2>/dev/null; then
+    echo "bootstrap-root同期待機中..."
     for i in {1..30}; do
-        HEALTH=$(kubectl get application user-applications -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+        HEALTH=$(kubectl get application bootstrap-root -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
         if [ "${HEALTH}" = "Healthy" ] || [ "${HEALTH}" = "Progressing" ]; then
-            echo "✓ user-applications: ${HEALTH}"
+            echo "✓ bootstrap-root: ${HEALTH}"
             break
         fi
-        echo "user-applications Health: ${HEALTH} (待機中 $i/30)"
+        echo "bootstrap-root Health: ${HEALTH} (待機中 $i/30)"
         sleep 10
     done
 fi

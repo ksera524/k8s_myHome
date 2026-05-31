@@ -1,6 +1,6 @@
 # 外部公開（Cloudflared + Gateway API + DNS-01）の運用手順
 
-> 注記: この文書は current main の外部公開構成を正とします。`manifests/access/**` への将来分離や access contract の target-state は `tasks/` を参照してください。
+> 注記: この文書は current main の外部公開構成を正とします。access contract や長期計画の補助資料は `tasks/` を参照してください。
 
 このドキュメントは、外部公開の標準構成と、新しい接続先を追加する際の手順をまとめたものです。
 外部公開は Cloudflared 経由で Gateway に統一し、TLS は Cloudflare DNS-01（Let’s Encrypt）で発行します。
@@ -113,23 +113,23 @@ spec:
 
 ### 5. Application 定義を追加
 
-`manifests/apps/<app>/` の適用は App-of-Apps 配下の Application で管理します。
+`manifests/access/<app>/` の適用は App-of-Apps 配下の access child `Application` で管理します。
 
-- 追加先: `manifests/bootstrap/applications/user-apps/`
-- 例: `argocd-external-app.yaml`
+- 追加先: `manifests/bootstrap/applications/access/`
+- 例: `argocd-access.yaml`
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: <app>-external
+  name: <app>-access
   namespace: argocd
 spec:
-  project: default
+  project: access
   source:
     repoURL: https://github.com/ksera524/k8s_myHome.git
     targetRevision: HEAD
-    path: manifests/apps/<app>
+    path: manifests/access/<app>
   destination:
     server: https://kubernetes.default.svc
     namespace: <namespace>
@@ -173,7 +173,7 @@ ingress:
 
 #### 2. config.yml を更新
 
-`manifests/apps/cloudflared/cloudflared-config.yaml` の `config.yml` に追記します。
+`manifests/access/cloudflared/cloudflared-config.yaml` の `config.yml` に追記します。
 
 ```yaml
 tunnel: <tunnel-id>
@@ -188,7 +188,7 @@ ingress:
 
 #### 3. Deployment を更新
 
-`manifests/apps/cloudflared/manifest.yaml` を更新します。
+`manifests/access/cloudflared/manifest.yaml` を更新します。
 
 - `--token` を削除
 - Secret を volume でマウントし、`token -> credentials.json` に変換
@@ -222,7 +222,7 @@ curl -k https://<hostname>/
 ### 7. 反映と確認
 
 ```bash
-kubectl -n argocd annotate application user-application-definitions \
+kubectl -n argocd annotate application bootstrap-root \
   argocd.argoproj.io/refresh=hard --overwrite
 
 kubectl get certificate -A

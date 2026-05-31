@@ -37,5 +37,10 @@ jobs:
           sudo mv /tmp/kustomize /usr/local/bin/kustomize
           kustomize version
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
       - name: Validate deployment assets
         run: automation/scripts/ci/validate.sh

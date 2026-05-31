@@ -41,8 +41,8 @@ fi
 
 while IFS= read -r kfile; do
   kdir="$(dirname "$kfile")"
-  echo "kustomize build $kdir"
-  kustomize build "$kdir" >/dev/null
+  echo "kustomize build --enable-helm $kdir"
+  kustomize build --enable-helm "$kdir" >/dev/null
 
 done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
 

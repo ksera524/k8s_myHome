@@ -70,8 +70,10 @@
 ### 5) Grafana Cloud / 現行 monitoring stack
 
 - `manifests/bootstrap/app-of-apps.yaml` 内の `monitoring` Application
+- `manifests/bootstrap/app-of-apps.yaml` 内の `config-secrets` `destination.namespace: monitoring`
 - `manifests/monitoring/grafana-k8s-monitoring-values.yaml`
 - `manifests/platform/argocd-config/argocd-projects.yaml` の `https://grafana.github.io/helm-charts` 許可
+- `manifests/platform/argocd-config/argocd-projects.yaml` の `namespace: monitoring`
 - `manifests/platform/secrets/external-secrets/kustomization.yaml` の Grafana Cloud 関連参照
 - `manifests/platform/secrets/external-secrets/grafana-cloud-external-secret.yaml`
 - `manifests/platform/secrets/external-secrets/grafana-monitoring-external-secret.yaml`
@@ -121,7 +123,7 @@
 grep -R -n -E 'user-applications|user-application-definitions' manifests automation docs .github AGENTS.md README.md Makefile
 grep -R -n -E 'add-runner\.sh|add-runners-bulk\.sh|add-runners-all|arc_repositories' manifests automation docs .github AGENTS.md README.md Makefile
 grep -R -n -E 'harbor-patch|argocd-external-app\.yaml|rustfs-external-app\.yaml|cloudflared-app\.yaml|manifests/bootstrap/applications/user-apps/rustfs-app\.yaml|manifests/apps/cloudflared/manifest\.yaml|argocd-external|rustfs-external' manifests automation docs .github AGENTS.md README.md Makefile
-grep -R -n -E 'k8s-monitoring|grafana-cloud-monitoring|grafana-cloud-credentials|promtail-grafana-cloud-config|grafana\.github\.io/helm-charts|grafana\.net|deploy-grafana-monitoring|deploy-grafana-with-secret|deploy-grafana-monitoring-simple' manifests automation docs .github AGENTS.md README.md Makefile
+grep -R -n -E 'k8s-monitoring|grafana-cloud-monitoring|grafana-cloud-credentials|promtail-grafana-cloud-config|grafana\.github\.io/helm-charts|grafana\.net|deploy-grafana-monitoring|deploy-grafana-with-secret|deploy-grafana-monitoring-simple|namespace:[[:space:]]*monitoring' manifests automation docs .github AGENTS.md README.md Makefile
 grep -R -n -E 'harbor-auth|harbor-auth-secret|github-auth|github-auth-secret|harbor-registry-secret' manifests automation docs .github AGENTS.md README.md Makefile
 grep -R -n -E 'kind:[[:space:]]*(HTTPRoute|Gateway|Ingress|ClientSettingsPolicy|BackendTLSPolicy|ReferenceGrant)' manifests/apps
 if [ -d automation/scripts/github-actions ]; then grep -R -n -E 'kubectl rollout restart' automation/scripts/github-actions; fi

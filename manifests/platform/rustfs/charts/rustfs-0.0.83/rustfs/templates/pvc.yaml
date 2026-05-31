@@ -1,0 +1,39 @@
+{{- if .Values.mode.standalone.enabled }}
+{{- with .Values.storageclass }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ include "rustfs.fullname" $ }}-data
+  labels:
+    {{- toYaml $.Values.commonLabels | nindent 4 }}
+spec:
+  accessModes: [ ReadWriteOnce ]
+  {{- with .name }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .dataStorageSize }}
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: {{ include "rustfs.fullname" $ }}-logs
+  labels:
+    {{- toYaml $.Values.commonLabels | nindent 4 }}
+spec:
+  accessModes: [ ReadWriteOnce ]
+  {{- with .name }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .logStorageSize }}
+{{- end }}
+{{- end }}

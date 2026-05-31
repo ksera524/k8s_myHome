@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - gateway-shared.yaml
+  - harbor-access.yaml
+  - argocd-access.yaml
+  - rustfs-access.yaml
+  - blog-access.yaml
+  - cooklog-access.yaml
+  - api-hub-access.yaml
+  - hitomi-upload-viewer-access.yaml
+  - cloudflared.yaml
+  - dns-core.yaml
+  - dns-tailscale.yaml

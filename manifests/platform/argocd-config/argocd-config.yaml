@@ -16,6 +16,9 @@ data:
   # OCI Helmレジストリの利用を有効化
   helm.oci.enabled: "true"
 
+  # repo-local wrapper で helmCharts を render する
+  kustomize.buildOptions: --enable-helm
+
   # GitHub OAuth設定（Dex）
   dex.config: |
     connectors:

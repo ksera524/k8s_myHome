@@ -49,6 +49,8 @@
    - child Application が `1 Application / 1 file / 1 owner` で差分レビュー可能になっている
    - remote chart を含む runtime owner でも `1 owner / 1 path` 原則が維持され、Harbor は repo-local wrapper path に収束している
    - empty dir / dead path が reservation として残らない方針が確定している
+   - single root `Application` が `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint として参照している
+   - version audit / topology-aware automation が `manifests/bootstrap/applications/**` を child `Application` discovery source として使い、root `Application` や `monitoring` legacy に依存していない
 3. Gate PH4（PH4 完了条件）
    - 非機密 environment contract と access contract の正本が 1 か所に定義されている
    - hostname / LB IP / StorageClass / NFS など主要値と、そこから導出される access URL / host alias の根拠が contract から追跡可能である
@@ -80,6 +82,7 @@
    - main に旧仕様が残っていない
    - `policy-rule-spec.md` で定義した Grafana / monitoring legacy identifier set が main に残っていない
    - runtime/access pair と access surface の最終構成が docs / checklist / verify 手順に反映されている
+   - `monitoring` namespace / Grafana chart allowlist / `config-secrets` の `destination.namespace: monitoring` など、monitoring legacy の残留前提が main に残っていない
 
 ## 依存関係
 

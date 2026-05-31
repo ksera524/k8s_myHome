@@ -1,0 +1,103 @@
+expose:
+  type: clusterIP
+  tls:
+    enabled: false
+
+externalURL: https://harbor.qroksera.com
+
+existingSecretAdminPassword: harbor-admin-secret
+existingSecretAdminPasswordKey: password
+
+persistence:
+  enabled: true
+  resourcePolicy: keep
+  persistentVolumeClaim:
+    registry:
+      size: 10Gi
+      storageClass: nfs-external
+    jobservice:
+      jobLog:
+        size: 1Gi
+        storageClass: nfs-external
+    database:
+      size: 1Gi
+      storageClass: nfs-external
+    redis:
+      size: 1Gi
+      storageClass: nfs-external
+    trivy:
+      size: 5Gi
+      storageClass: nfs-external
+
+database:
+  type: internal
+  internal:
+    livenessProbe:
+      timeoutSeconds: 5
+    readinessProbe:
+      timeoutSeconds: 5
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+redis:
+  type: internal
+
+trivy:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+core:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+portal:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+registry:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+chartmuseum:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+jobservice:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 150m
+      memory: 256Mi

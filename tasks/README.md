@@ -26,6 +26,7 @@
 | target owner / target path の設計 | `component-ownership-matrix.md` | 対応する `manifests/bootstrap/**`, `manifests/apps/**`, `manifests/access/**`, `manifests/platform/**` | `tasks/` 側は planning canonical。実装後の live ownership は manifest 実体を正とする |
 | target access surface の設計 | `access-surface-matrix.md` | `manifests/contracts/home-lab/access-surfaces.yaml`, `manifests/access/**` | hostname / listener / backend / publish の planning canonical |
 | target contract 棚卸し | `environment-contract-inventory.md` | `manifests/contracts/home-lab/cluster-contract.yaml` と関連 manifest | 非機密 contract / shared-config / owner-local の planning canonical |
+| child Application discovery / version audit input | `decision-log.md`, `ph2-gitops-topology-normalization.md` | `manifests/bootstrap/applications/**` | root `Application` と planning docs は version discovery の implementation 正本ではない |
 | cutover 手順 / PH6 pass-fail | `cutover-checklist.md` | - | rehearsal / live / rollback の詳細手順と判定正本 |
 | ExternalSecret keep / delete / live-confirm | `external-secret-split-plan.md` | `manifests/platform/secrets/external-secrets/**` | secret 判定の planning canonical。`legacy-removal-inventory.md` は索引 |
 | legacy 削除対象の索引 / operational grep | `legacy-removal-inventory.md` | candidate commit, repo grep, `automation/scripts/ci/validate.sh` | canonical identifier set は `policy-rule-spec.md` を参照する |

@@ -42,7 +42,8 @@ else
   check_ng "README の構成図リンクが不正です"
 fi
 
-if grep -q -E '^\s*-\s*node-mutations/' "$ROOT_DIR/manifests/infrastructure/gitops/harbor/kustomization.yaml"; then
+if [[ -f "$ROOT_DIR/manifests/infrastructure/gitops/harbor/kustomization.yaml" ]] \
+  && grep -q -E '^\s*-\s*node-mutations/' "$ROOT_DIR/manifests/infrastructure/gitops/harbor/kustomization.yaml"; then
   check_ng "harbor 既定 kustomization に node-mutations が含まれています"
 else
   check_ok "harbor のノード改変リソースは既定で無効です"

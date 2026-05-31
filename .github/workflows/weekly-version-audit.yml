@@ -111,21 +111,46 @@ jobs:
               return str(max(stable, key=semver_key))
             return ''
 
-          def load_app_docs(path: Path):
-            with path.open('r', encoding='utf-8') as f:
-              return [d for d in yaml.safe_load_all(f) if isinstance(d, dict)]
+          def load_child_apps():
+            apps = {}
+            app_root = ROOT / 'manifests/bootstrap/applications'
+            for path in sorted(app_root.rglob('*.yaml')):
+              if path.name == 'kustomization.yaml':
+                continue
+              with path.open('r', encoding='utf-8') as f:
+                docs = [d for d in yaml.safe_load_all(f) if isinstance(d, dict)]
+              for doc in docs:
+                if doc.get('kind') != 'Application':
+                  continue
+                name = doc.get('metadata', {}).get('name')
+                if name:
+                  apps[name] = {
+                    'doc': doc,
+                    'path': path.relative_to(ROOT).as_posix(),
+                  }
+            return apps
 
-          def find_app(docs, name: str):
-            for d in docs:
-              if d.get('kind') == 'Application' and d.get('metadata', {}).get('name') == name:
-                return d
-            raise RuntimeError(f'Application not found: {name}')
+          def find_app(apps, name: str):
+            app = apps.get(name)
+            if app is None:
+              raise RuntimeError(f'Application not found: {name}')
+            return app['doc'], app['path']
 
-          app_docs = load_app_docs(ROOT / 'manifests/bootstrap/app-of-apps.yaml')
+          def load_kustomization(path_str: str):
+            kustomization_path = ROOT / path_str / 'kustomization.yaml'
+            return yaml.safe_load(kustomization_path.read_text(encoding='utf-8'))
+
+          def first_helm_chart(kustomization):
+            charts = kustomization.get('helmCharts') or []
+            if not charts:
+              raise RuntimeError('helmCharts entry not found')
+            return charts[0]
+
+          child_apps = load_child_apps()
 
           # helm repos for search
           repos = {
-            'argo': 'https://argoproj.github.io/argo-helm',
+            'nfs-subdir': 'https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner',
             'metallb': 'https://metallb.github.io/metallb',
             'jetstack': 'https://charts.jetstack.io',
             'external-secrets': 'https://charts.external-secrets.io',
@@ -144,15 +169,14 @@ jobs:
 
           # Chart-based components
           chart_targets = [
-            ('argocd-core', 'ArgoCD Core', 'argo/argo-cd'),
+            ('nfs-subdir-external-provisioner', 'NFS Subdir External Provisioner', 'nfs-subdir/nfs-subdir-external-provisioner'),
             ('metallb', 'MetalLB', 'metallb/metallb'),
             ('cert-manager', 'cert-manager', 'jetstack/cert-manager'),
             ('external-secrets-operator', 'external-secrets', 'external-secrets/external-secrets'),
             ('tailscale-operator', 'tailscale-operator', 'tailscale/tailscale-operator'),
-            ('harbor', 'Harbor', 'harbor/harbor'),
           ]
           for app_name, label, repo_chart in chart_targets:
-            app = find_app(app_docs, app_name)
+            app, app_path = find_app(child_apps, app_name)
             current = str(app['spec']['source']['targetRevision'])
             latest = helm_latest(repo_chart)
             checks.append({
@@ -162,28 +186,49 @@ jobs:
               'latest': latest,
               'status': compare(current, latest),
               'ref': repo_chart,
-              'path': 'manifests/bootstrap/app-of-apps.yaml',
+              'path': app_path,
             })
 
-          # Monitoring uses spec.sources[]
-          monitoring = find_app(app_docs, 'monitoring')
-          mon_source = None
-          for src in monitoring['spec'].get('sources', []):
-            if src.get('chart') == 'k8s-monitoring':
-              mon_source = src
-              break
-          if mon_source:
-            current = str(mon_source['targetRevision'])
-            latest = helm_latest('grafana/k8s-monitoring')
+          wrapper_targets = [
+            ('harbor', 'Harbor', 'harbor/harbor'),
+            ('rustfs', 'RustFS', 'rustfs/rustfs'),
+          ]
+          for app_name, label, repo_chart in wrapper_targets:
+            app, app_path = find_app(child_apps, app_name)
+            source_path = app['spec']['source']['path']
+            chart = first_helm_chart(load_kustomization(source_path))
+            current = str(chart['version'])
+            latest = helm_latest(repo_chart)
             checks.append({
-              'component': 'k8s-monitoring',
+              'component': label,
               'kind': 'helm-chart',
               'current': current,
               'latest': latest,
               'status': compare(current, latest),
-              'ref': 'grafana/k8s-monitoring',
-              'path': 'manifests/bootstrap/app-of-apps.yaml',
+              'ref': repo_chart,
+              'path': f'{source_path}/kustomization.yaml',
             })
+
+          monitoring_app = child_apps.get('monitoring')
+          if monitoring_app:
+            monitoring = monitoring_app['doc']
+            mon_source = None
+            for src in monitoring['spec'].get('sources', []):
+              if src.get('chart') == 'k8s-monitoring':
+                mon_source = src
+                break
+            if mon_source:
+              current = str(mon_source['targetRevision'])
+              latest = helm_latest('grafana/k8s-monitoring')
+              checks.append({
+                'component': 'k8s-monitoring',
+                'kind': 'helm-chart',
+                'current': current,
+                'latest': latest,
+                'status': compare(current, latest),
+                'ref': 'grafana/k8s-monitoring',
+                'path': monitoring_app['path'],
+              })
 
           # ARC controller (OCI chart)
           arc_doc = yaml.safe_load((ROOT / 'manifests/platform/ci-cd/github-actions/arc-controller.yaml').read_text(encoding='utf-8'))
@@ -213,20 +258,6 @@ jobs:
             'path': 'manifests/platform/ci-cd/github-actions/',
           })
 
-          # rustfs chart (manual)
-          rustfs_doc = yaml.safe_load((ROOT / 'manifests/bootstrap/applications/user-apps/rustfs-app.yaml').read_text(encoding='utf-8'))
-          rustfs_current = str(rustfs_doc['spec']['source']['targetRevision'])
-          rustfs_latest = helm_latest('rustfs/rustfs')
-          checks.append({
-            'component': 'RustFS',
-            'kind': 'helm-chart',
-            'current': rustfs_current,
-            'latest': rustfs_latest,
-            'status': compare(rustfs_current, rustfs_latest),
-            'ref': 'rustfs/rustfs',
-            'path': 'manifests/bootstrap/applications/user-apps/rustfs-app.yaml',
-          })
-
           # local-path-provisioner image (manual pin)
           lpp_text = (ROOT / 'manifests/infrastructure/storage/local-path/local-path-provisioner.yaml').read_text(encoding='utf-8')
           m = re.search(r'image:\s*rancher/local-path-provisioner:([^\s]+)', lpp_text)
@@ -243,7 +274,7 @@ jobs:
           })
 
           # cloudflared latest digest tracking only
-          cloudflared_text = (ROOT / 'manifests/apps/cloudflared/manifest.yaml').read_text(encoding='utf-8')
+          cloudflared_text = (ROOT / 'manifests/access/cloudflared/manifest.yaml').read_text(encoding='utf-8')
           m2 = re.search(r'image:\s*cloudflare/cloudflared:([^\s]+)', cloudflared_text)
           cloud_tag = m2.group(1) if m2 else ''
           cloud_digest = ''
@@ -257,7 +288,7 @@ jobs:
             'latest': cloud_tag,
             'status': 'tracked-by-digest',
             'ref': 'cloudflare/cloudflared',
-            'path': 'manifests/apps/cloudflared/manifest.yaml',
+            'path': 'manifests/access/cloudflared/manifest.yaml',
             'note': f'digest={cloud_digest}' if cloud_digest else 'digest unavailable',
           })
 

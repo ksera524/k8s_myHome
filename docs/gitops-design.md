@@ -1,7 +1,5 @@
 # GitOps設計
 
-> 注記: この文書は current main の GitOps 構成を正とします。構造改革で計画中の target topology や `access/` / contract / `make bootstrap` への再編は `tasks/` を参照してください。
-
 ## 概要
 
 k8s_myHomeプロジェクトは、ArgoCDを使用したGitOpsパターンを採用しています。すべてのKubernetesリソースはGitリポジトリで宣言的に管理され、ArgoCDによって自動的に同期されます。
@@ -21,62 +19,79 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 | Wave | コンポーネント | 説明 |
 |------|-------------|------|
 | 0 | ArgoCD Projects | AppProjectを先行作成 |
-| 1 | Local Path Provisioner | ストレージプロビジョナー |
-| 2 | Core / CoreDNS Config | 基本リソースとDNS固定設定 |
+| 1 | ArgoCD Core / Provisioners | GitOps基盤とストレージプロビジョナー |
+| 2 | Core | 基本リソース |
 | 3 | MetalLB | LoadBalancer |
 | 4 | MetalLB Config | IPプール設定 |
 | 5 | Gateway API CRD | Gateway APIリソース |
 | 6 | NGINX Gateway Fabric | Gatewayコントローラー |
 | 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書・Secret管理 |
-| 8 | Gateway Resources | Gateway/共通設定 |
+| 8 | Gateway Shared | Gateway/共通listener |
 | 9 | Config Secrets | 外部連携用ExternalSecret |
-| 10 | Platform / Harbor / Tailscale Operator | 基盤サービス |
-| 11 | Monitoring / User App Definitions / Tailscale Connector | 監視・アプリ定義・接続基盤 |
-| 12 | User Applications | 実際のアプリケーション |
-| 13 | Harbor Patches | Harbor後処理 |
+| 10 | Platform / Harbor / RustFS / Tailscale Operator | 基盤サービス |
+| 11 | Monitoring / Sandbox Config / Tailscale Connector | 補助基盤 |
+| 12 | Runtime Apps | workload-only アプリケーション |
+| 13 | Service Access | appごとのHTTPRoute |
+| 14 | Shared Publishers | Cloudflared / CoreDNS / Tailnet DNS |
 
 ## ディレクトリ構造
 
 ```
 manifests/
 ├── bootstrap/
-│   └── app-of-apps.yaml         # ルートApplication
+│   ├── app-of-apps.yaml         # ルートApplication（bootstrap-root）
+│   └── applications/            # child Application 定義
+│       ├── core/
+│       ├── infrastructure/
+│       ├── platform/
+│       ├── access/
+│       └── user-apps/
+├── access/
+│   ├── argocd/
+│   ├── api-hub/
+│   ├── blog/
+│   ├── cloudflared/
+│   ├── cooklog/
+│   ├── dns/
+│   ├── gateway/
+│   ├── harbor/
+│   ├── hitomi-upload-viewer/
+│   └── rustfs/
 ├── core/
-│   ├── namespaces.yaml          # Namespace定義
-│   └── networkpolicies.yaml     # 基本NetworkPolicy
+│   ├── namespaces.yaml
+│   └── networkpolicies.yaml
 ├── infrastructure/
 │   ├── networking/
-│   │   ├── coredns/             # CoreDNS固定エントリ
-│   │   ├── metallb/             # MetalLB設定
+│   │   ├── metallb/
 │   │   ├── nginx-gateway-fabric/
 │   │   └── tailscale-operator/
 │   ├── security/
-│   │   └── cert-manager/        # 証明書管理
+│   │   └── cert-manager/
 │   ├── storage/
-│   │   └── local-path/          # Local Path Provisioner
+│   │   └── local-path/
 │   └── gitops/
-│       └── harbor/              # Harborパッチ
-│           └── node-mutations/  # ノード改変（オプトイン）
+│       └── harbor/
+│           └── node-mutations/
 ├── monitoring/
-│   └── grafana-k8s-monitoring-values.yaml  # 監視用values（App-of-Apps管理）
+│   └── grafana-k8s-monitoring-values.yaml
 ├── platform/
-│   ├── argocd-config/           # ArgoCD設定
+│   ├── argocd-config/
 │   ├── ci-cd/
-│   │   └── github-actions/      # ARC設定
+│   │   └── github-actions/
+│   ├── harbor/
+│   ├── rustfs/
+│   ├── shared-config/
+│   │   └── sandbox/
 │   └── secrets/
-│       └── external-secrets/    # ESO設定
+│       └── external-secrets/
 └── apps/
     ├── api-hub/
-    ├── argocd/
     ├── blog/
-    ├── cloudflared/
     ├── cooklog/
     ├── hitomi/
     ├── hitomi-pdf/
     ├── hitomi-upload-viewer/
     ├── home-camera/
-    ├── rustfs/
-    ├── sandbox-config/
     ├── selenium/
     └── ...
 ```
@@ -85,7 +100,7 @@ manifests/
 
 - GitOps 管理対象は `manifests/` 配下のみ（ArgoCD が同期）
 - `automation/` はローカル実行用で GitOps 対象外（VM/クラスタ構築や運用補助）
-- 新規アプリは `manifests/apps/<app-name>/` に配置し、App-of-Apps から参照する
+- 新規アプリは workload を `manifests/apps/<app-name>/`、公開/接続系を `manifests/access/<app-name>/` に配置する
 - 共通基盤は `manifests/core/`、`manifests/infrastructure/`、`manifests/platform/` に分類
 - 手動での kubectl 適用は一時対応に留め、最終的には Git に反映する
 
@@ -99,14 +114,15 @@ manifests/
 
 ## ArgoCD AppProject（権限境界）
 
-運用の安全性と見通しを高めるため、AppProject を 4 分割して運用します。
+運用の安全性と見通しを高めるため、AppProject を 5 分割して運用します。
 AppProject は「どのApplicationが、どのnamespace/リソースにデプロイできるか」を制御します。
 
 | Project | 主な対象 | 備考 |
 |---------|---------|------|
 | core | Namespace/StorageClass/NetworkPolicy | クラスタ基礎
 | infrastructure | MetalLB/NGINX Gateway/cert-manager/Storage | クラスタ基盤
-| platform | ArgoCD/ESO/Harbor/Monitoring/CI | 運用基盤
+| platform | ArgoCD/ESO/Harbor/RustFS/Monitoring/CI | 運用基盤
+| access | Gateway/DNS/Cloudflared/HTTPRoute | 公開/接続系
 | apps | ユーザーアプリ | namespacedのみ
 
 AppProject 定義は `manifests/platform/argocd-config/argocd-projects.yaml` で管理します。
@@ -123,7 +139,7 @@ metadata:
   name: <app-name>
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "12"  # user-applications に合わせる
+    argocd.argoproj.io/sync-wave: "12"
 spec:
   project: apps
   source:

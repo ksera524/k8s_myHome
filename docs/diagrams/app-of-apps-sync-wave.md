@@ -1,125 +1,114 @@
 # App-of-Apps 依存関係と Sync Wave
 
-> 注記: この図は current main の `manifests/bootstrap/app-of-apps.yaml` を正としており、構造改革で計画中の target-state sync wave ではありません。将来の再編計画は `tasks/` を参照してください。
-
-ArgoCD の App-of-Apps 構成と Sync Wave の関係を 1 枚で把握するための図です。
-`manifests/bootstrap/app-of-apps.yaml` の定義を基準にしています。
+ArgoCD の current main 構成と Sync Wave の関係を 1 枚で把握するための図です。
+`manifests/bootstrap/app-of-apps.yaml` と `manifests/bootstrap/applications/**` を基準にしています。
 
 ## 依存関係図
 
 ```mermaid
 flowchart TD
-  root["Root Application\nbootstrap/app-of-apps.yaml"]:::root
+  root["bootstrap-root\nbootstrap/app-of-apps.yaml"]:::root
 
-  argocdProjects["ArgoCD Projects\nwave 0"]:::wave0
+  wave0["argocd-projects\nwave 0"]:::wave0
+  wave1a["argocd-core\nwave 1"]:::wave1
+  wave1b["local-path-provisioner\nwave 1"]:::wave1
+  wave1c["nfs-subdir-external-provisioner\nwave 1"]:::wave1
+  wave2["core\nwave 2"]:::wave2
+  wave3["metallb\nwave 3"]:::wave3
+  wave4["metallb-config\nwave 4"]:::wave4
+  wave5["gateway-api\nwave 5"]:::wave5
+  wave6["nginx-gateway-fabric\nwave 6"]:::wave6
+  wave7a["cert-manager\nwave 7"]:::wave7
+  wave7b["cert-manager-config\nwave 7"]:::wave7
+  wave7c["external-secrets-operator\nwave 7"]:::wave7
+  wave8["gateway-shared\nwave 8"]:::wave8
+  wave9["config-secrets\nwave 9"]:::wave9
+  wave10a["platform\nwave 10"]:::wave10
+  wave10b["harbor\nwave 10"]:::wave10
+  wave10c["rustfs\nwave 10"]:::wave10
+  wave10d["tailscale-operator\nwave 10"]:::wave10
+  wave11a["sandbox-config\nwave 11"]:::wave11
+  wave11b["monitoring\nwave 11"]:::wave11
+  wave11c["tailscale-connector\nwave 11"]:::wave11
+  wave12["runtime apps\nwave 12"]:::wave12
+  wave13["service access apps\nwave 13"]:::wave13
+  wave14["shared publishers\nwave 14"]:::wave14
 
-  argocdCore["ArgoCD Core (Helm)\nwave 1"]:::wave1
-  lp["Local Path Provisioner\nwave 1"]:::wave1
-  nfsProv["NFS Subdir External Provisioner\nwave 1"]:::wave1
-  core["Core (Namespaces/Storage/RBAC)\nwave 2"]:::wave2
-  coredns["CoreDNS Config\nwave 2"]:::wave2
+  root --> wave0
+  root --> wave1a
+  root --> wave1b
+  root --> wave1c
+  root --> wave2
+  root --> wave3
+  root --> wave4
+  root --> wave5
+  root --> wave6
+  root --> wave7a
+  root --> wave7b
+  root --> wave7c
+  root --> wave8
+  root --> wave9
+  root --> wave10a
+  root --> wave10b
+  root --> wave10c
+  root --> wave10d
+  root --> wave11a
+  root --> wave11b
+  root --> wave11c
+  root --> wave12
+  root --> wave13
+  root --> wave14
 
-  metallb["MetalLB\nwave 3"]:::wave3
-  metallbCfg["MetalLB Config\nwave 4"]:::wave4
-  gwApi["Gateway API CRD\nwave 5"]:::wave5
-  ngf["NGINX Gateway Fabric\nwave 6"]:::wave6
-  certmgr["cert-manager\nwave 7"]:::wave7
-  certcfg["cert-manager Config\nwave 7"]:::wave7
-  eso["External Secrets Operator\nwave 7"]:::wave7
-  gwRes["Gateway Resources\nwave 8"]:::wave8
-  cfgSecrets["External Secrets Definitions\nwave 9"]:::wave9
-  platform["Platform\nwave 10"]:::wave10
-  harbor["Harbor\nwave 10"]:::wave10
-  tailscaleOp["Tailscale Operator\nwave 10"]:::wave10
-  monitoring["Monitoring\nwave 11"]:::wave11
-  userDefs["User App Definitions\nwave 11"]:::wave11
-  tailscaleConn["Tailscale Connector\nwave 11"]:::wave11
-  tailscaleDns["Tailscale Split DNS\nwave 11"]:::wave11
-  userApps["User Applications\nwave 12"]:::wave12
-  harborPatch["Harbor Patch\nwave 13"]:::wave13
+  wave0 --> wave1a
+  wave0 --> wave1b
+  wave0 --> wave1c
+  wave0 --> wave2
+  wave2 --> wave3
+  wave3 --> wave4
+  wave4 --> wave5
+  wave5 --> wave6
+  wave6 --> wave7a
+  wave6 --> wave8
+  wave7c --> wave9
+  wave8 --> wave13
+  wave9 --> wave10b
+  wave9 --> wave10c
+  wave10d --> wave11c
+  wave10c --> wave11a
+  wave11a --> wave12
+  wave12 --> wave13
+  wave13 --> wave14
 
-  root --> argocdProjects
-  root --> argocdCore
-  root --> lp
-  root --> nfsProv
-  root --> core
-  root --> coredns
-  root --> metallb
-  root --> metallbCfg
-  root --> gwApi
-  root --> ngf
-  root --> certmgr
-  root --> certcfg
-  root --> eso
-  root --> gwRes
-  root --> cfgSecrets
-  root --> platform
-  root --> harbor
-  root --> tailscaleOp
-  root --> monitoring
-  root --> userDefs
-  root --> tailscaleConn
-  root --> tailscaleDns
-  root --> userApps
-  root --> harborPatch
-
-  argocdProjects --> lp
-  argocdProjects --> nfsProv
-  argocdProjects --> argocdCore
-  argocdProjects --> core
-
-  core --> metallb
-  metallb --> metallbCfg
-  metallbCfg --> gwApi
-  gwApi --> ngf
-  ngf --> certmgr
-  certmgr --> gwRes
-  eso --> cfgSecrets
-  cfgSecrets --> tailscaleOp
-  cfgSecrets --> monitoring
-  gwRes --> platform
-  gwRes --> harbor
-  tailscaleOp --> tailscaleConn
-  tailscaleConn --> tailscaleDns
-  platform --> monitoring
-  monitoring --> userDefs
-  userDefs --> userApps
-  userApps --> harborPatch
-
-  subgraph user_definitions["User App Definitions (wave 11)"]
-    uad_api_hub["api-hub"]:::wave11
-    uad_argocd["argocd-external"]:::wave11
-    uad_blog["blog"]:::wave11
-    uad_cooklog["cooklog"]:::wave11
-    uad_rustfs["rustfs"]:::wave11
-    uad_rustfs_ext["rustfs-external"]:::wave11
-    uad_cloudflared["cloudflared"]:::wave11
-    uad_hitomi["hitomi"]:::wave11
-    uad_hitomi_pdf["hitomi-pdf"]:::wave11
-    uad_hitomi_upload_viewer["hitomi-upload-viewer"]:::wave11
-    uad_home_camera["home-camera"]:::wave11
-    uad_sandbox_config["sandbox-config"]:::wave11
-    uad_selenium["selenium"]:::wave11
+  subgraph runtime_apps["Runtime Apps (wave 12)"]
+    apiHub["api-hub"]:::wave12
+    blog["blog"]:::wave12
+    cooklog["cooklog"]:::wave12
+    hitomi["hitomi"]:::wave12
+    hitomiPdf["hitomi-pdf"]:::wave12
+    huv["hitomi-upload-viewer"]:::wave12
+    camera["home-camera"]:::wave12
+    selenium["selenium"]:::wave12
   end
 
-  userDefs --> user_definitions
-
-  subgraph user_applications["User Applications (wave 12)"]
-    ua_api_hub["api-hub"]:::wave12
-    ua_argocd["argocd"]:::wave12
-    ua_blog["blog"]:::wave12
-    ua_cooklog["cooklog"]:::wave12
-    ua_rustfs["rustfs"]:::wave12
-    ua_cloudflared["cloudflared"]:::wave12
-    ua_hitomi["hitomi"]:::wave12
-    ua_hitomi_pdf["hitomi-pdf"]:::wave12
-    ua_hitomi_upload_viewer["hitomi-upload-viewer"]:::wave12
-    ua_home_camera["home-camera"]:::wave12
-    ua_sandbox_config["sandbox-config"]:::wave12
-    ua_selenium["selenium"]:::wave12
+  subgraph service_access["Service Access (wave 13)"]
+    argocdAccess["argocd-access"]:::wave13
+    harborAccess["harbor-access"]:::wave13
+    rustfsAccess["rustfs-access"]:::wave13
+    blogAccess["blog-access"]:::wave13
+    cooklogAccess["cooklog-access"]:::wave13
+    apiHubAccess["api-hub-access"]:::wave13
+    huvAccess["hitomi-upload-viewer-access"]:::wave13
   end
 
-  userApps --> user_applications
+  subgraph shared_publishers["Shared Publishers (wave 14)"]
+    cloudflared["cloudflared"]:::wave14
+    dnsCore["dns-core"]:::wave14
+    dnsTs["dns-tailscale"]:::wave14
+  end
+
+  wave12 --> runtime_apps
+  wave13 --> service_access
+  wave14 --> shared_publishers
 
   classDef root fill:#f2f4f7,stroke:#475467,stroke-width:1px,color:#101828
   classDef wave0 fill:#f5f3ff,stroke:#6d28d9,stroke-width:1px,color:#3b0764
@@ -136,32 +125,26 @@ flowchart TD
   classDef wave11 fill:#f0fdf4,stroke:#166534,stroke-width:1px,color:#14532d
   classDef wave12 fill:#eff6ff,stroke:#1d4ed8,stroke-width:1px,color:#1e3a8a
   classDef wave13 fill:#fffbeb,stroke:#92400e,stroke-width:1px,color:#78350f
+  classDef wave14 fill:#fdf2f8,stroke:#be185d,stroke-width:1px,color:#831843
 ```
 
-## Sync Wave 一覧と意味
+## Sync Wave 一覧
 
-| Wave | コンポーネント | 意味/依存関係 |
-|------|----------------|--------------|
-| 0 | ArgoCD Projects | AppProjectを先に作成 |
-| 1 | ArgoCD Core (Helm) | ArgoCD本体のHelm移行を段階的に適用（手動同期） |
-| 1 | Local Path Provisioner / NFS Subdir External Provisioner | 永続ボリューム基盤を先に準備 |
-| 2 | Core / CoreDNS | 基本リソースとストレージ設定の土台 |
-| 3 | MetalLB | LoadBalancer を提供 |
-| 4 | MetalLB Config | IP プール設定を適用 |
-| 5 | Gateway API CRD | Gateway API の CRD を先行適用 |
-| 6 | NGINX Gateway Fabric | Gateway コントローラー本体 |
-| 7 | cert-manager / cert-manager Config / External Secrets Operator | 証明書/Secret 管理を整備 |
-| 8 | Gateway Resources | Gateway/共通設定を適用 |
-| 9 | External Secrets Definitions | 外部連携用のExternalSecretを適用 |
-| 10 | Platform / Harbor / Tailscale Operator | 基盤サービス群の展開 |
-| 11 | Monitoring | 監視スタック（Grafana k8s-monitoring） |
-| 11 | User App Definitions | ArgoCD Application 定義を作成 |
-| 11 | Tailscale Connector | サブネットルータ（k8s内ネットワーク公開） |
-| 11 | Tailscale Split DNS | VPNクライアント向け `internal.qroksera.com` の名前解決 |
-| 12 | User Applications | 実アプリのマニフェスト適用 |
-| 13 | Harbor Patch | Harbor 後処理パッチ |
+| Wave | コンポーネント | 意味 |
+|---|---|---|
+| 0 | `argocd-projects` | AppProject を先行適用 |
+| 1 | `argocd-core` / storage provisioners | GitOps 基盤とストレージ基盤 |
+| 2 | `core` | Namespace / StorageClass / RBAC の土台 |
+| 3-7 | infra controllers | MetalLB / Gateway API / NGF / cert-manager / ESO |
+| 8 | `gateway-shared` | Gateway / listener 基盤 |
+| 9 | `config-secrets` | ExternalSecret 定義 |
+| 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator |
+| 11 | 補助 runtime | shared config / monitoring / tailscale connector |
+| 12 | runtime apps | workload-only アプリ |
+| 13 | service access | app ごとの HTTPRoute / Harbor / RustFS / ArgoCD 公開 |
+| 14 | shared publishers | Cloudflared / CoreDNS / Tailnet DNS |
 
 ## 参照
 
 - `manifests/bootstrap/app-of-apps.yaml`
-- `manifests/bootstrap/applications/user-apps/`
+- `manifests/bootstrap/applications/`

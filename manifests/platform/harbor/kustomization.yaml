@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - harbor-image-cleanup-cronjob.yaml
+
+helmCharts:
+  - name: harbor
+    repo: https://helm.goharbor.io
+    version: 1.18.2
+    releaseName: harbor
+    namespace: harbor
+    valuesFile: values.yaml
+
+patches:
+  - path: harbor-core-configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: harbor-core

@@ -55,12 +55,11 @@ metadata:
   name: platform
   namespace: argocd
 spec:
-  description: 運用基盤（ArgoCD/ESO/Harbor/Monitoring/CI）
+  description: 運用基盤（ArgoCD/ESO/Harbor/RustFS/Monitoring/CI）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
     - https://charts.external-secrets.io
     - https://argoproj.github.io/argo-helm
-    - https://helm.goharbor.io
     - https://grafana.github.io/helm-charts
     - ghcr.io/actions/actions-runner-controller-charts
     - oci://ghcr.io/actions/actions-runner-controller-charts
@@ -80,8 +79,6 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: kube-system
     - server: https://kubernetes.default.svc
-      namespace: cloudflared
-    - server: https://kubernetes.default.svc
       namespace: cert-manager
     - server: https://kubernetes.default.svc
       namespace: rustfs
@@ -100,6 +97,34 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
+  name: access
+  namespace: argocd
+spec:
+  description: 公開/接続系（Gateway/DNS/Cloudflared/HTTPRoute）
+  sourceRepos:
+    - https://github.com/ksera524/k8s_myHome.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: harbor
+    - server: https://kubernetes.default.svc
+      namespace: rustfs
+    - server: https://kubernetes.default.svc
+      namespace: sandbox
+    - server: https://kubernetes.default.svc
+      namespace: cloudflared
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: nginx-gateway
+    - server: https://kubernetes.default.svc
+      namespace: tailscale
+  clusterResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
   name: apps
   namespace: argocd
 spec:
@@ -107,14 +132,7 @@ spec:
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
     - https://charts.bitnami.com/bitnami
-    - https://charts.rustfs.com
   destinations:
-    - server: https://kubernetes.default.svc
-      namespace: argocd
-    - server: https://kubernetes.default.svc
-      namespace: cloudflared
-    - server: https://kubernetes.default.svc
-      namespace: rustfs
     - server: https://kubernetes.default.svc
       namespace: database
     - server: https://kubernetes.default.svc

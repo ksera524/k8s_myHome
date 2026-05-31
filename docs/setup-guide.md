@@ -210,17 +210,17 @@ kubectl config view
 
 ### 6. アプリケーションのデプロイ
 
-GitOpsによる自動デプロイが設定されています。アプリケーションは`manifests/apps/`に配置されており、ArgoCDが自動的に同期します。
+GitOpsによる自動デプロイが設定されています。workload は `manifests/apps/`、公開/接続系は `manifests/access/` に配置され、ArgoCD が `bootstrap-root` 配下で自動的に同期します。
 
 #### 手動同期（必要な場合）
 
 ```bash
 # ArgoCD CLIを使用
-argocd app sync user-applications --grpc-web --insecure \
+argocd app sync bootstrap-root --grpc-web --insecure \
   --server localhost:8080
 
 # または kubectl を使用
-kubectl patch application user-applications -n argocd \
+kubectl patch application bootstrap-root -n argocd \
   --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 

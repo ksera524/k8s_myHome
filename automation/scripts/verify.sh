@@ -73,8 +73,8 @@ if ! "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl version >/dev
 fi
 
 log_status "ArgoCDリフレッシュ中..."
+"${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application bootstrap-root -n argocd >/dev/null 2>&1 && sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl annotate application bootstrap-root -n argocd argocd.argoproj.io/refresh=hard --overwrite" || true
 "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application platform -n argocd >/dev/null 2>&1 && sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl annotate application platform -n argocd argocd.argoproj.io/refresh=hard --overwrite" || true
-"${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application user-applications -n argocd >/dev/null 2>&1 && sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl annotate application user-applications -n argocd argocd.argoproj.io/refresh=hard --overwrite" || true
 sleep 5
 
 log_status "主要Namespace確認中..."

@@ -53,7 +53,7 @@ kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/conf
 # 2. Gateway API CRD + NGINX Gateway Fabric インストール
 kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v2.3.0" | kubectl apply -f -
 helm install ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric --create-namespace -n nginx-gateway
-kubectl apply -f manifests/infrastructure/networking/nginx-gateway-fabric/gateway/gateway.yaml
+kubectl apply -f manifests/access/gateway/gateway.yaml
 
 # 3. cert-manager インストール
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml

@@ -36,6 +36,9 @@
 7. remote chart を含む runtime owner でも child `Application` の例外を作らず、repo-local wrapper path を正本にする
 8. empty dir / dead path は reservation せず削除する
 9. ArgoCD `AppProject` は `core`, `infrastructure`, `platform`, `access`, `apps` の 5 系統を canonical とし、`access` child Application は専用 project に固定する
+10. single root `Application` は `manifests/bootstrap/app-of-apps.yaml` 1 件に固定し、`spec.source.path` は `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint とする
+11. version audit / topology-aware automation の child `Application` discovery source は `manifests/bootstrap/applications/**` に固定し、root `Application` や planning docs を discovery 入力にしない
+12. `rustfs` の runtime owner は `platform` に固定し、repo-local wrapper path は `manifests/platform/rustfs/` とする
 
 ## 抽出順序
 
@@ -62,10 +65,10 @@
 
 ## 具体タスク
 
-1. `manifests/bootstrap/app-of-apps.yaml` を root Application 1 件へ再定義
-2. child Application を `manifests/bootstrap/applications/{core,infrastructure,platform,access,user-apps}/` に `1 Application / 1 file` で分割
+1. `manifests/bootstrap/app-of-apps.yaml` を single root `Application` 1 件へ再定義し、`spec.source.path` を `manifests/bootstrap/applications/` に固定する
+2. `manifests/bootstrap/applications/` に top-level `kustomization.yaml` を置き、child Application を `manifests/bootstrap/applications/{core,infrastructure,platform,access,user-apps}/` に `1 Application / 1 file` で分割する
 3. `user-applications` / `user-application-definitions` を新正本から切り離し、PH6 cutover で削除する差分を準備
-4. `manifests/bootstrap/applications/user-apps/` を runtime owner の正本として整理する
+4. runtime owner の正本を `manifests/bootstrap/applications/user-apps/` と `manifests/bootstrap/applications/platform/` に整理し、`rustfs` と `sandbox-config` は `platform` 側へ置く
 5. `manifests/bootstrap/applications/access/` を access owner の正本として整理する
 6. `manifests/apps/**` にある `HTTPRoute` などの公開/接続系 resource を `manifests/access/**` へ移す target state を、`service access` と `shared access plane` の 2 層 owner で設計する
 7. `argocd-external`, `rustfs-external`, `cloudflared`, `nginx-gateway-resources`, Harbor routes, app 配下の route 類を canonical access owner に再分類する
@@ -73,7 +76,7 @@
 9. `harbor-patch` と旧 `prune:false` / stale `ignoreDifferences` を legacy 削除差分へ移す
 10. AppProject を `core` / `infrastructure` / `platform` / `access` / `apps` の 5 系統で再設計し、`sourceRepos` / `destinations` / `clusterResourceWhitelist` を最小権限に固定する。owner 一意性の最終担保は PH5 の resource collision check に委ねる
 11. `automation/platform/platform-deploy.sh` と `automation/scripts/verify.sh` の旧 owner 参照を更新し、個別 Application / access child Application 確認へ移行する
-12. `.github/workflows/weekly-version-audit.yml` の `app-of-apps.yaml`, `manifests/bootstrap/applications/user-apps/rustfs-app.yaml`, `manifests/apps/cloudflared/manifest.yaml` hardcode 依存を更新する
+12. `.github/workflows/weekly-version-audit.yml` の discovery source を `manifests/bootstrap/applications/**` に切り替え、`app-of-apps.yaml`, `monitoring`, legacy path hardcode 依存を除去する
 13. `manifests/bootstrap/app-of-apps.yaml` の `monitoring` Application を新正本から切り離し、PH6 cutover で削除する差分を準備する
 14. `.github/workflows/weekly-version-audit.yml` の Grafana k8s-monitoring 監査ロジックを削除対象として整理する
 15. `docs/diagrams/app-of-apps-sync-wave.md` から Monitoring wave を除去する前提で実装との差分を整理し、diagram / docs を同期する
@@ -109,6 +112,8 @@
 6. child Application 追加/変更が「1ファイル差分」でレビュー可能であること
 7. `monitoring` Application と Grafana k8s-monitoring 監査依存の削除差分が PH6 cutover 用として準備済みであること
 8. empty dir / dead path が reservation として残っていないこと
+9. root `Application` が `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint として参照していること
+10. `weekly-version-audit` 相当の対象列挙が `manifests/bootstrap/applications/**` だけで成立し、root `Application` や `monitoring` に依存しないこと
 
 ## 完了条件
 
@@ -124,3 +129,5 @@
 10. `monitoring` Application の owner / docs / audit 依存が新 target state から切り離されている
 11. empty dir / dead path が削除方針で整理され、予約ディレクトリが残っていない
 12. `access` child Application 群が専用 `AppProject` に乗り、現行 `apps` / `platform` との権限境界が文書化されている
+13. single root `Application` と child `Application` 群の境界が固定され、root が topology entrypoint だけを担っている
+14. version audit / verify / docs の child `Application` discovery source が `manifests/bootstrap/applications/**` に切り替わっている
