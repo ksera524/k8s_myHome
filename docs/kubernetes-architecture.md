@@ -1,5 +1,7 @@
 # Kubernetesアーキテクチャ
 
+> 注記: この文書は現行 live repo のクラスター構成を正とします。監視、bootstrap、contract 一元化などの構造改革 target-state は `tasks/` を参照してください。
+
 ## 概要
 
 k8s_myHomeは、QEMU/KVM仮想化基盤上に構築された本格的な3ノードKubernetesクラスターです。本ドキュメントでは、クラスターのアーキテクチャ、ネットワーク設計、およびコンポーネント構成について詳説します。

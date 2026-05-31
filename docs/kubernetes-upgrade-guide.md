@@ -1,5 +1,7 @@
 # Kubernetes バージョンアップグレード手順書
 
+> 注記: この文書は current main のアップグレード手順を正とします。構造改革で planned target-state にのみ存在する bootstrap / contract / validate 導線は `tasks/` を参照してください。
+
 このドキュメントでは、k8s_myHomeプロジェクトのKubernetesバージョンをアップグレードする手順を説明します。
 
 ## 現在のバージョン

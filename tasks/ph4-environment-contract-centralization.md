@@ -52,7 +52,7 @@
 9. app 固有の非機密設定と shared app config を棚卸しし、どこまでを runtime owner path に残し、どこからを `manifests/platform/shared-config/**` へ昇格させるかを分類する
 10. `sandbox-config` のような shared app config を `manifests/platform/shared-config/**` へ再配置する方針を確定する
 11. `external-secret-resources.yaml` の monolith 解消方針を定義し、secret domain 単位の分割方針を整理する
-12. `ExternalSecret` inventory を `Harbor`、`GitHub/ARC`、`ArgoCD`、`networking`、`app-runtime`、`legacy-monitoring` の secret domain に分類し、keep / merge / delete / live-confirm を決める
+12. `ExternalSecret` inventory を `Harbor`、`GitHub/ARC`、`ArgoCD`、`networking`、`app-runtime`、`legacy-monitoring` の論理 secret domain に分類し、keep / merge / delete / live-confirm を決める
 13. 同一 `remoteRef.key` から派生する Secret は consumer と format 差分の必要性を確認し、用途差がない duplicate を増やさない方針を定義する
 14. Namespace 複製が必要な Secret は consumer と owner を明記し、実在 consumer が確認できる namespace のみを残す
 15. `harbor-auth` / `github-auth` のような旧 automation 互換 Secret を PH3/PH6 の legacy 削除対象として分類し、steady-state 正本から外す
@@ -62,6 +62,8 @@
 19. Grafana Cloud endpoint（`grafana.net`）と Grafana Cloud token を非機密 contract / secret 正本から除去する計画を定義する
 20. `grafana-cloud-monitoring` / `grafana-cloud-credentials` / `promtail-grafana-cloud-config` の ESO 依存を target-state から除去する
 21. access URL を独立 key にせず surface から導出するルールを docs / inventory / validation に反映する
+
+補足: 上記の secret domain は分類用の論理単位であり、target directory 構成の正本は `external-secret-split-plan.md` を参照する。
 
 ## 変更対象
 

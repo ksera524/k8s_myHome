@@ -1,5 +1,7 @@
 # アプリケーション管理
 
+> 注記: この文書は current main のアプリ配置と ArgoCD 管理単位を正とします。`apps/` workload-only 化や `access/` 分離後の target-state は `tasks/` を参照してください。
+
 ## 概要
 
 このドキュメントは、`manifests/apps/` と `manifests/bootstrap/applications/user-apps/` の定義を基準に、現在運用中のアプリ構成をまとめたものです。

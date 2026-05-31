@@ -3,6 +3,7 @@
 ## 目的
 
 - PH6 の cutover 判定を主観ではなく手順ベースで実施する
+- PH6 rehearsal / live cutover / rollback の詳細手順と pass-fail 判定は本書を正とする
 
 ## 役割
 
@@ -16,6 +17,7 @@
 ## 実行境界
 
 - この checklist は PH1 実装を含む branch / single cutover candidate commit 上で `make bootstrap` / `automation/scripts/run.sh bootstrap` が利用可能な状態になった時点で有効とする。`main` 反映済みであること自体は前提にしない
+- disposable rehearsal 環境の標準は pre-cutover VM snapshot restore clone とし、同等 clone は再現性と rollback 検証性を説明できる場合のみ代替可とする
 - PH6 rehearsal / cutover で使う `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`）は GitOps bootstrap 専用入口とし、`make phase1` / `make phase2` を含まない
 - fresh cluster の標準順序は `make phase1 -> make phase2 -> make bootstrap -> make phase5` とする
 - 既存 cluster に対する PH6 rehearsal / cutover では `make phase1` / `make phase2` を再実行しない
@@ -34,7 +36,7 @@
 
 ## Rehearsal（必須）
 
-- [ ] disposable rehearsal 環境を用意（pre-cutover VM snapshot 復元または同等 clone）
+- [ ] 標準の disposable rehearsal 環境を用意（pre-cutover VM snapshot restore clone。代替時は同等性の説明を記録）
 - [ ] single cutover candidate commit を checkout した状態で rehearsal を開始
 - [ ] PH1 で確定した bootstrap 入口（`make bootstrap` / `automation/scripts/run.sh bootstrap`）のみで初期化を実施
 - [ ] ArgoCD Application 全体が `Synced/Healthy` 到達
@@ -82,16 +84,16 @@
 
 ## 実施後（必須）
 
-- [ ] 旧手順参照の grep 検証が 0 件（対象: `manifests/`, `automation/`, `docs/`, `.github/`, `AGENTS.md`, `README.md`, `Makefile`; `tasks/` は除外）
-- [ ] `.github/workflows/` と `automation/scripts/github-actions/` 配下の `kubectl rollout restart` が 0 件
+- [ ] `legacy-removal-inventory.md` の operational checks に従う grep 検証が 0 件（`tasks/` は除外）
+- [ ] `.github/workflows/`, `automation/platform/.github/workflows/`, `automation/scripts/github-actions/`, `automation/scripts/github-actions/.github/workflows/` 配下の `kubectl rollout restart` が 0 件
 - [ ] `automation/scripts/ci/validate.sh`（内部で `policy-check.sh` を含む）が成功
 - [ ] policy 例外台帳で legacy 影響 `Yes` が 0 件
 - [ ] `harbor.qroksera.com` / `rustfs.qroksera.com` の到達確認
 - [ ] `argocd.qroksera.com` の到達確認
 - [ ] Harbor cleanup CronJob が in-cluster Harbor Service を到達先として動作し、`harbor-patch` legacy が repo / live cluster に残っていない
-- [ ] Grafana legacy 識別子（`k8s-monitoring`, `grafana-cloud-monitoring`, `grafana-cloud-credentials`, `grafana.net`, `deploy-grafana-*`）の grep 検証が 0 件
+- [ ] `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set の grep 検証が 0 件
 - [ ] `automation/scripts/verify.sh` と `automation/scripts/generate-cluster-diagram.sh` に `monitoring` namespace 必須前提が残っていない
-- [ ] docs / README 更新完了（`README.md`, `AGENTS.md`, `docs/README.md`, `docs/setup-guide.md`, `docs/applications.md`, `docs/gitops-design.md`, `docs/operations-guide.md`, `docs/troubleshooting.md`, `docs/manifest-layout.md`, `docs/kubernetes-architecture.md`, `manifests/README.md`）
+- [ ] docs / README 更新完了（`README.md`, `AGENTS.md`, `docs/README.md`, `docs/quickstart.md`, `docs/setup-guide.md`, `docs/applications.md`, `docs/gitops-design.md`, `docs/operations-guide.md`, `docs/troubleshooting.md`, `docs/kubernetes-upgrade-guide.md`, `docs/manifest-layout.md`, `docs/kubernetes-architecture.md`, `manifests/README.md`）
 - [ ] `docs/external-access-guide.md` の更新完了
 - [ ] ArgoCD 自動同期を再開し、controlled sync 後も新構造へ収束している
 - [ ] `tasks/backlog.md` に残課題を記録

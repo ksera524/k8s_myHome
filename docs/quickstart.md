@@ -1,5 +1,7 @@
 # クイックスタートガイド
 
+> 注記: この文書は current main の最短セットアップ導線を正とします。構造改革で planned target-state にのみ存在する導線や未実装の将来手順は `tasks/` を参照してください。
+
 ## 🚀 5分でk8s_myHomeを起動
 
 このガイドでは、k8s_myHome Kubernetesクラスターを最速でセットアップする方法を説明します。

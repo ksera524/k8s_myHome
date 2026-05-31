@@ -1,5 +1,7 @@
 # App-of-Apps 依存関係と Sync Wave
 
+> 注記: この図は current main の `manifests/bootstrap/app-of-apps.yaml` を正としており、構造改革で計画中の target-state sync wave ではありません。将来の再編計画は `tasks/` を参照してください。
+
 ArgoCD の App-of-Apps 構成と Sync Wave の関係を 1 枚で把握するための図です。
 `manifests/bootstrap/app-of-apps.yaml` の定義を基準にしています。
 

@@ -333,3 +333,12 @@
 - 判断: app 固有の非機密設定は `manifests/apps/<app>/` または対応する runtime owner path の owner-local configuration として扱い、contract / shared-config / secret へ昇格させない。複数 workload が共有する値だけを `manifests/platform/shared-config/**` へ寄せる
 - 影響: `home-camera` は一時的な Secret 化を採らず manifest 直下の owner-local non-secret config として戻す。PH0 / PH4 / policy / inventory / docs は owner-local non-secret config の分類を明示する
 - 代替案: 非機密でも Secret に入れる、または shared-config に一律集約する（不採用: 管理経路が増え、shared config の責務が不必要に広がる）
+
+### DEC-0037: `docs/` は current-state、`tasks/` は target-state を正とする
+
+- 日付: 2026-05-31
+- 状態: accepted
+- 背景: 構造改革の将来像を `docs/` に先書きすると、現行 live repo の手順と planned target-state が混在し、利用者が現在使えるコマンドと将来導入予定の導線を誤認しやすい
+- 判断: `docs/` は current main / live repo の構成と手順を正とし、構造改革の将来像、PH 計画、target owner/path/contract は `tasks/` を正とする。未実装の target-state 名称（例: `make bootstrap`, `nix develop .#bootstrap`）は `tasks/` 側でのみ計画として扱い、`docs/` は cutover 完了まで現行実装ベースで維持する
+- 影響: `tasks/README.md` に正本マトリクスを追加し、PH 文書と cutover 文書は target-state のみを記述する。`docs/` は current-state 注記を持った上で、現行構成の説明責務を維持する
+- 代替案: `docs/` を先行して target-state へ更新する（不採用: live repo と乖離した手順書が発生し、運用事故を招く）

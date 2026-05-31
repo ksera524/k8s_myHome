@@ -1,5 +1,7 @@
 # GitOps設計
 
+> 注記: この文書は current main の GitOps 構成を正とします。構造改革で計画中の target topology や `access/` / contract / `make bootstrap` への再編は `tasks/` を参照してください。
+
 ## 概要
 
 k8s_myHomeプロジェクトは、ArgoCDを使用したGitOpsパターンを採用しています。すべてのKubernetesリソースはGitリポジトリで宣言的に管理され、ArgoCDによって自動的に同期されます。

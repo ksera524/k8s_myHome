@@ -25,6 +25,14 @@
 6. M6: 安全弁と検証強化（PH5 完了）
 7. M7: 新構造への完全移行（PH6 完了）
 
+## この文書の位置付け
+
+- 本書は構造改革プログラム全体の順序、依存、Gate 要約の正本とする
+- 各 PH の詳細スコープと完了条件は `ph0-*.md` 〜 `ph6-*.md` を正とする
+- PH6 rehearsal / live cutover / rollback の詳細手順と pass-fail 判定は `cutover-checklist.md` を正とする
+- `component-ownership-matrix.md`, `access-surface-matrix.md`, `environment-contract-inventory.md` は planning canonical とし、実装後の live 正本は対応する `manifests/**` / contract file を正とする
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` など PH1 実装後の target-state 名称は、現行 live repo の即時実行手順ではない
+
 ## フェーズゲート
 
 1. Gate PH0（PH0 完了条件）
@@ -64,13 +72,13 @@
 6. Gate PH5（PH5 完了条件）
    - branch / rehearsal 上の target-state で `automation/scripts/ci/validate.sh` が主要禁止パターンを検出して fail できる
    - `apps/**` への access resource 混入、hostname/publication 定義の逸脱、rendered resource collision を検出して fail できる
-   - Grafana legacy 識別子（`k8s-monitoring`, `grafana-cloud-monitoring`, `grafana-cloud-credentials`, `grafana.net`, `deploy-grafana-*`）の再流入を検出して fail できる
+   - Grafana / monitoring legacy の canonical identifier set と fixed-delete credential identifier set が `policy-rule-spec.md` に定義され、再流入を検出して fail できる
    - `validate.sh` 実行依存が `flake.nix` / `flake.lock` で pin され、CI とローカルで共通 toolchain を使える
 7. Gate PH6（PH6 完了条件）
    - docs と実装が一致し、旧フローが削除されている
    - `automation/scripts/ci/validate.sh`（内部で `policy-check.sh` を含む）が green である
    - main に旧仕様が残っていない
-   - Grafana Cloud と現行 monitoring stack の legacy が main に残っていない
+   - `policy-rule-spec.md` で定義した Grafana / monitoring legacy identifier set が main に残っていない
    - runtime/access pair と access surface の最終構成が docs / checklist / verify 手順に反映されている
 
 ## 依存関係
@@ -89,27 +97,19 @@
 - 仕様変更は `decision-log.md` へ追記
 - リスク・ブロッカーは `risk-register.md` で追跡
 - 例外運用は `policy-exception-register.md` で期限管理する
-- 未決論点は `status.md` の Open Decisions で owner / 期限付き管理とする
+- 未決論点は `status.md` の `Open Decisions` で owner / 期限付き管理し、解消済み論点の履歴は `open-issues.md` に残す
 - PH1〜PH5 の完了は branch/rehearsal 上の新構造準備完了を含み、main からの旧仕様完全削除は PH6 で確定させる
-- `component-ownership-matrix.md`、`access-surface-matrix.md`、`environment-contract-inventory.md` を planning artifact の正本として維持する
+- `component-ownership-matrix.md`、`access-surface-matrix.md`、`environment-contract-inventory.md` を planning canonical として維持し、implementation source が追従した後も差分説明用 artifact として扱う
 
 ## cutover 原則
 
 - main ブランチへの反映は「旧新併存なし」の単発 cutover を原則とする
-- `make bootstrap` / `automation/scripts/run.sh bootstrap` は PH1 実装後の target-state alias を指し、PH1 完了前の現行実装手順ではない
-- cutover 前に、pre-cutover snapshot から復元した disposable rehearsal 環境または同等 clone で end-to-end rehearsal を 1 回以上成功させる
-- `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`）は GitOps bootstrap 専用入口とし、VM / k8s 基盤構築を含めない
-- fresh cluster の標準順序は `make phase1 -> make phase2 -> make bootstrap -> make phase5` とする
-- PH6 cutover / rehearsal の既存 cluster では `make phase1` / `make phase2` を再実行せず、`make bootstrap` のみを使う
-- single cutover 用の candidate commit には legacy 削除差分・docs 更新・新 bootstrap 入口対応を含め、rehearsal はその同一 candidate commit で実施する
-- legacy 削除系ルール（`R-001`, `R-002`, `R-003`, `R-007` 以降の access / collision ルールを含む）の fail-closed required status は target-state branch / candidate commit から有効化し、current main では PH6 まで advisory を許容する
-- live cutover では candidate commit を main に反映する前に、ArgoCD の自動同期を affected bootstrap / legacy Application で一時停止する
-- live cutover では main freeze -> old tag 作成 -> candidate commit を main へ反映 -> その commit を checkout した作業ツリーから `make bootstrap` を実行、の順序を固定する
-- `make bootstrap` による bootstrap 反映と初期確認の後、自動同期を再開し、1 回の controlled sync で新構造へ収束させる
-- rehearsal 合格条件は「candidate commit 上の PH1 で確定した bootstrap 入口（`make bootstrap` / `automation/scripts/run.sh bootstrap`）のみで適用完了」「Harbor / RustFS の target runtime/access pair を含む主要 child Application が `Synced/Healthy`」「`automation/scripts/ci/validate.sh`（内部で `policy-check.sh` を含む）が green」「主要 access surface 到達確認」「rollback rehearsal 記録あり」とする
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` は PH1 実装後の target-state alias を指し、詳細な役割境界は DEC-0019 と `ph1-bootstrap-minimalization.md` を正とする
+- rehearsal / live cutover / rollback の標準順序、証跡、合格条件は `cutover-checklist.md` を正とする
+- legacy 削除系ルール（`R-001`, `R-002`, `R-003`, `R-007` 以降の access / collision ルールを含む）の required 化タイミングは `policy-rule-spec.md` を正とする
 - rehearsal 環境を用意できない場合は PH6 Go 判定を出さない
 - cutover 前に最低でも VM snapshot と etcd snapshot を取得する
-- `rebuildable-stateful` と判断した workload は clean rebuild を許容する。初期対象は Harbor と RustFS とし、image/file backup は任意、ただし Namespace/PVC/NFS archive/Secret の削除範囲を事前確定する
+- `rebuildable-stateful` と判断した workload は clean rebuild を許容する。初期対象は Harbor と RustFS とし、delete scope は `cutover-checklist.md` を正とする
 - rollback は「旧 tag + snapshot」で即時復元できる形を維持し、発動基準と authority は `cutover-checklist.md` の表で固定する
 
 ## 非ゴール（今回の改革対象外）

@@ -12,6 +12,7 @@
 - secret 値本文は引き続き Git に置かず、`automation/settings.toml` と ESO の参照元を正本とする
 - app / chart / script 側 consumer が既に安定しているものは、first cut で Secret schema を変えない
 - `ghcr-nginx-charts-secret`、`github-repo-secret`、`harbor-registry` の `default` / `argocd` copy は repo 参照だけで未使用断定しない
+- keep / delete / live-confirm の判定正本は本ファイルとし、`legacy-removal-inventory.md` と `ph6-cutover-docs-and-cleanup.md` は本ファイルを参照する索引として扱う
 
 ## target tree
 

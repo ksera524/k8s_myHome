@@ -42,8 +42,8 @@
 7. `apps/**` 配下への access resource 混入検出ルールを CI に追加する
 8. rendered resource collision 検出ルールを CI に追加する
 9. access surface 契約逸脱（contract 未登録 hostname、publication owner 不一致）検出ルールを CI に追加する
-10. Grafana legacy 再流入検出（`chart: k8s-monitoring`, `grafana-cloud-monitoring`, `grafana-cloud-credentials`, `grafana.github.io/helm-charts`, `grafana.net`, `deploy-grafana-*`）を CI に追加し、`grafana` 全面禁止にはしない
-11. secret inventory drift 検出として、top-level `ExternalSecret` の許容 path、legacy secret 名（`harbor-auth`, `github-auth`, `harbor-registry-secret`, `github-repo-secret` 等）、stale template の再流入を CI で検出する
+10. Grafana legacy 再流入検出は `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set を正として CI に追加し、`grafana` 全面禁止にはしない
+11. secret inventory drift 検出として、top-level `ExternalSecret` の許容 path、`policy-rule-spec.md` の canonical fixed-delete credential identifier set、stale template の再流入を CI で検出する。`github-repo-secret` のような live-confirm 対象は fixed delete ではなく inventory 判定へ回す
 12. `ExternalSecret` の重複を secret domain 単位で把握できる advisory チェックを追加し、candidate commit では不要 duplicate / legacy Secret を fail-closed にする
 13. `latest` 判定は line regex ではなく、raw manifest または render 出力単位で namespace と image を同時評価する
 14. schema 検証として `kubeconform` を導入し、CRD allowlist / skip list を定義する
@@ -80,8 +80,8 @@
 9. `validate.sh` 実行だけで policy / schema / consistency の主要検証が走ること
 10. CI とローカルが同一 Nix toolchain で `validate.sh` を実行できること
 11. target-state branch / candidate commit では legacy 削除ルールが fail-closed で動作すること
-12. Grafana legacy 識別子の再流入が `validate.sh` で fail になること
-13. target-state branch / candidate commit では legacy secret identifiers / stale secret templates / pre-ESO `ExternalSecret` が fail になること
+12. `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set の再流入が `validate.sh` で fail になること
+13. target-state branch / candidate commit では canonical fixed-delete credential identifier set / stale secret template / pre-ESO `ExternalSecret` が fail になること
 14. duplicate / legacy Secret の inventory drift が `validate.sh` で検出できること
 
 ## 完了条件
@@ -96,7 +96,7 @@
 8. app owner 重複と rendered resource collision を `validate.sh` が検出できる
 9. access contract / publication 逸脱を `validate.sh` が検出できる
 10. legacy 削除ルールの required 化タイミングが文書化され、PH6 cutover 手順と矛盾しない
-11. Grafana legacy 識別子の再流入を `validate.sh` が検出できる
+11. `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set の再流入を `validate.sh` が検出できる
 12. `validate.sh` の依存 toolchain がローカル / CI で共通化されている
 13. legacy secret identifiers と stale secret templates の再流入を `validate.sh` が検出できる
 14. pre-ESO path / duplicate secret drift / legacy credential drift を `validate.sh` が検出できる

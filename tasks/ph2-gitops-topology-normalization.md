@@ -73,7 +73,7 @@
 9. `harbor-patch` と旧 `prune:false` / stale `ignoreDifferences` を legacy 削除差分へ移す
 10. AppProject を `core` / `infrastructure` / `platform` / `access` / `apps` の 5 系統で再設計し、`sourceRepos` / `destinations` / `clusterResourceWhitelist` を最小権限に固定する。owner 一意性の最終担保は PH5 の resource collision check に委ねる
 11. `automation/platform/platform-deploy.sh` と `automation/scripts/verify.sh` の旧 owner 参照を更新し、個別 Application / access child Application 確認へ移行する
-12. `.github/workflows/weekly-version-audit.yml` の `app-of-apps.yaml` 依存を更新する
+12. `.github/workflows/weekly-version-audit.yml` の `app-of-apps.yaml`, `manifests/bootstrap/applications/user-apps/rustfs-app.yaml`, `manifests/apps/cloudflared/manifest.yaml` hardcode 依存を更新する
 13. `manifests/bootstrap/app-of-apps.yaml` の `monitoring` Application を新正本から切り離し、PH6 cutover で削除する差分を準備する
 14. `.github/workflows/weekly-version-audit.yml` の Grafana k8s-monitoring 監査ロジックを削除対象として整理する
 15. `docs/diagrams/app-of-apps-sync-wave.md` から Monitoring wave を除去する前提で実装との差分を整理し、diagram / docs を同期する

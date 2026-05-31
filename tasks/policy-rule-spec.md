@@ -64,6 +64,55 @@
 
 `Application/argocd/harbor-patch` の `prune:false` は current main にのみ残る legacy transitional state として扱い、target-state branch / candidate commit の allowlist には含めない。
 
+## Canonical Identifier Sets
+
+以下の identifier set は `tasks/` 内の phase 文書、checklist、inventory で共通に参照する canonical set とする。重複列挙が必要な場合でも、本節の語彙を増減させず参照する。
+
+### legacy app aggregation identifiers
+
+- `user-applications`
+- `user-application-definitions`
+
+### runner automation legacy identifiers
+
+- `add-runner.sh`
+- `add-runners-bulk.sh`
+- `add-runners-all`
+- `arc_repositories`
+- generated workflow artifact: `automation/platform/.github/workflows/**`
+- generated workflow artifact: `automation/scripts/github-actions/.github/workflows/**`
+
+### Grafana / monitoring legacy identifiers
+
+- `k8s-monitoring`
+- `grafana-cloud-monitoring`
+- `grafana-cloud-credentials`
+- `promtail-grafana-cloud-config`
+- `grafana.github.io/helm-charts`
+- `grafana.net`
+- `deploy-grafana-monitoring`
+- `deploy-grafana-with-secret`
+- `deploy-grafana-monitoring-simple`
+
+### fixed-delete credential identifiers
+
+- `harbor-auth`
+- `harbor-auth-secret`
+- `github-auth`
+- `github-auth-secret`
+- `harbor-registry-secret`
+
+### PH6 grep path set
+
+- `manifests/`
+- `automation/`
+- `docs/`
+- `.github/`
+- `AGENTS.md`
+- `README.md`
+- `Makefile`
+- `kubectl rollout restart` の grep は `automation/platform/.github/workflows/` と `automation/scripts/github-actions/.github/workflows/` も明示対象に含める
+
 ## ルール定義
 
 ### R-001: legacy app 集約経路の禁止
@@ -72,16 +121,17 @@
 - 期待: 0 件
 - 例外可否: 不可
 
-### R-002: runner 自動生成運用の禁止
+### R-002: runner 自動生成運用と generated workflow legacy の禁止
 
 - パターン: `add-runner\.sh|add-runners-bulk\.sh|add-runners-all|arc_repositories`
+- 対象追加制約: `automation/platform/.github/workflows/` と `automation/scripts/github-actions/.github/workflows/` に add-runner 由来 artifact を残さない
 - 期待: 0 件
 - 例外可否: 不可
 
 ### R-003: app delivery 経路での直接 rollout 禁止
 
 - パターン: `kubectl rollout restart`
-- 対象追加制約: `.github/workflows/` と `automation/scripts/github-actions/` 配下
+- 対象追加制約: `.github/workflows/`, `automation/scripts/github-actions/`, `automation/platform/.github/workflows/`, `automation/scripts/github-actions/.github/workflows/` 配下
 - 期待: 0 件
 - 例外可否: 不可
 

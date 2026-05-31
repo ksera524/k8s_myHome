@@ -11,6 +11,11 @@
 - bootstrap と steady-state の責務が混在し、依存順不整合が発生しやすい
 - topology 確定前に bootstrap を最適化すると手戻りが増える
 
+## 用語注記
+
+- 現行 live repo の公式実行入口は `make phase1` 〜 `make phase5` と `automation/scripts/run.sh phase1|phase2|phase3|phase4|phase5` を正とする
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は PH1 実装後の target-state 名称であり、現行 live repo の即時実行コマンドではない
+
 ## スコープ
 
 - ArgoCD 初期導入に必要な最小リソース定義
@@ -31,12 +36,12 @@
 1. bootstrap 対象リソースを「ArgoCD 初期導入 + root Application 適用 + pre-ESO 最小前提」として再定義する
 2. pre-ESO で適用される `ExternalSecret` を禁止し、post-ESO へ移動する
 3. `manifests/platform/argocd-config/` の pre-ESO 依存（例: registry ExternalSecret）を分離する
-4. `manifests/platform/argocd-config/harbor-unified-registry-secrets.yaml` を post-ESO path へ移し、`manifests/platform/argocd-config/**` 配下の top-level `ExternalSecret` を 0 件にする
+4. `manifests/platform/argocd-config/harbor-unified-registry-secrets.yaml` の `sandbox` copy を post-ESO path へ移し、`default` / `argocd` copy は live-confirm 対象として切り分けた上で、`manifests/platform/argocd-config/**` 配下の top-level `ExternalSecret` を 0 件にする
 5. `harbor-registry` の namespace 複製は consumer 実在が確認できる namespace のみに絞り、bootstrap の pre-ESO 必須前提を持たせない
 6. `automation/platform/platform-deploy.sh` の steady-state 処理（patch / restart / sync 強制）を切り出す
 7. bootstrap 経路から Grafana k8s-monitoring 自動デプロイ導線と `deploy-grafana-*` スクリプト群を除去する
 8. bootstrap 経路から access plane の個別収束ロジックを外し、child owner 判断を持たせない
-9. `automation/scripts/app-deploy.sh` の責務を bootstrap 境界に合わせて整理し、phase4 の意味と乖離する場合は bootstrap 専用名への改称も含めて検討する
+9. `automation/scripts/app-deploy.sh` の責務を bootstrap 境界に合わせて整理し、現行 `make phase4` / `run.sh phase4` の app-deploy 役割と将来の `make bootstrap` を混同しないよう、必要なら bootstrap 専用名への改称も含めて検討する
 10. bootstrap と steady-state のディレクトリ境界を定義する
 11. 初回構築向け smoke test 項目を定義する
 12. `flake.nix` / `flake.lock` を追加し、fresh host で使う `devShells.bootstrap` と validate 用 `devShells.default` を定義する

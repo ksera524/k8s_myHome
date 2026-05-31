@@ -1,5 +1,7 @@
 # マニフェスト配置ルール
 
+> 注記: この文書は current main の `manifests/` 配置を正とします。構造改革で計画中の `access/` / `contracts/` / root Application 再編は `tasks/` を参照してください。
+
 このドキュメントは `manifests/` 配下の配置ルールを定義します。GitOps 運用と App-of-Apps 構成の一貫性を保つために、ここで定めたルールに従ってください。
 
 ## トップレベルの責務

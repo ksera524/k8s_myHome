@@ -1,5 +1,7 @@
 # 外部公開（Cloudflared + Gateway API + DNS-01）の運用手順
 
+> 注記: この文書は current main の外部公開構成を正とします。`manifests/access/**` への将来分離や access contract の target-state は `tasks/` を参照してください。
+
 このドキュメントは、外部公開の標準構成と、新しい接続先を追加する際の手順をまとめたものです。
 外部公開は Cloudflared 経由で Gateway に統一し、TLS は Cloudflare DNS-01（Let’s Encrypt）で発行します。
 
@@ -41,7 +43,7 @@ kubectl get clusterissuer letsencrypt-cloudflare
 
 外部公開は `nginx-gateway` に 1 枚だけ発行します。
 
-- 対象ファイル: `manifests/infrastructure/networking/nginx-gateway-fabric/gateway/wildcard-external-cert.yaml`
+- 対象ファイル: `manifests/infrastructure/security/cert-manager/wildcard-external-cert.yaml`
 
 ```yaml
 apiVersion: cert-manager.io/v1

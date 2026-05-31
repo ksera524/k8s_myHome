@@ -1,5 +1,7 @@
 # トラブルシューティングガイド
 
+> 注記: この文書は current main の障害切り分け手順を正とします。構造改革で planned target-state にのみ存在する owner/path/command は `tasks/` を参照してください。
+
 ## 概要
 
 このガイドは、k8s_myHome の現行構成（App-of-Apps + GitOps）で発生しやすい問題の切り分け手順をまとめたものです。
