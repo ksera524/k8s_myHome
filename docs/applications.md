@@ -101,6 +101,7 @@
 | 種別 | CronJob |
 | Image | `harbor.qroksera.com/sandbox/home-camera:latest` |
 | 実行 | 毎日 `08:00-20:00`（毎時） |
+| 設定 | `RTSP_URL` は app 固有の非機密設定として manifest 内で管理 |
 | 参照 | `manifests/apps/home-camera/manifest.yaml` |
 
 ### Selenium
@@ -135,6 +136,8 @@
 - `RUSTFS_S3_REGION`
 
 `rustfs-auth` Secret（`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`）は ExternalSecret で同期されます。
+
+app 固有の非機密設定はここへ混ぜず、各 app の runtime owner path に置きます。たとえば `home-camera` の `RTSP_URL` は `sandbox-connection-info` ではなく `manifests/apps/home-camera/manifest.yaml` 側で管理します。
 
 ## 新規アプリ追加（実運用フロー）
 

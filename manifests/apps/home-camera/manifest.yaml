@@ -26,6 +26,7 @@ spec:
                 - configMapRef:
                     name: sandbox-connection-info
               env:
+                # RTSP URL は app 固有の非機密設定として runtime owner 配下に置く。
                 - name: RTSP_URL
                   value: "rtsp://s5kVuizVreFu2SxK:0FnaKGTm2bGgqxK2@192.168.10.15/live0"
                 - name: AWS_ACCESS_KEY_ID

@@ -23,6 +23,7 @@
 - `policy-exception-register.md`: ポリシー例外台帳（期限付き）
 - `policy-rule-spec.md`: CI 検証の判定仕様
 - `legacy-removal-inventory.md`: 旧仕様の削除対象一覧
+- `external-secret-split-plan.md`: `manifests/platform/secrets/external-secrets/` の target-state 分割案
 - `cutover-checklist.md`: cutover 実施チェックリスト
 - `backlog.md`: PH6 後の残課題一覧
 - `ph0-*.md` 〜 `ph6-*.md`: フェーズ別タスクと完了条件

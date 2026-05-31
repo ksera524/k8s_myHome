@@ -3,17 +3,29 @@
 ## 目的
 
 - infra 管理と app delivery を分離し、責務境界を明確化する
+- runtime 変更と access 変更の変更経路を整理し、二重管理を防ぐ
 
 ## 背景
 
 - infra repo 側で app workflow 生成・再起動まで実行しており、境界が混在
+- `apps` workload と `access` 公開面の変更粒度が混ざると review / rollback 単位が曖昧になる
 
 ## スコープ
 
 - app deploy フローを GitOps commit 経由へ統一
-- `latest` 依存の廃止（first-party workloads）
+- first-party workload の image tag ルール整理（`sandbox` namespace のみ `:latest` を条件付き許容）
 - runner 権限見直し
 - `add-runner` 系自動生成運用の廃止
+- runtime / access の変更契約分離
+
+## 新運用契約
+
+1. app repo workflow / release bot が行うのは `image build/push` と `infra repo PR 作成` までとする
+2. runtime 変更の正本は `manifests/apps/<app>/` または app 専用 values のみとし、PR は `1 app / 1 image update / 1 PR` に固定する
+3. access 変更の正本は `manifests/access/<service>/` と `manifests/contracts/home-lab/access-surfaces.yaml` とし、hostname / route / tunnel / DNS 変更は runtime PR と分けて扱えるようにする
+4. merge 条件は「policy / validate / app 固有 CI が green」かつ infra owner review 済みとする
+5. 失敗時の再実行は PR の再生成または同一 PR 更新で行い、`kubectl` 直接変更へフォールバックしない
+6. runner / bot の credential は repo-scoped とし、cluster 変更権限は持たせない
 
 ## 非ゴール
 
@@ -21,40 +33,59 @@
 
 ## 具体タスク
 
-1. app repo と infra repo の責務契約を文書化
-2. image 更新方式を確定（infra repo への PR bot 方式）
-3. `latest` を immutable tag/digest に移行するルール定義
-4. app delivery での `kubectl` 直接変更（特に rollout restart）を禁止
-5. `automation/scripts/github-actions/add-runner.sh` / `add-runners-bulk.sh` を削除
-6. `automation/templates/github-actions-workflow.yml` と `arc_repositories` 運用を削除
-7. runner 定義を manifests 正本（Git 管理）へ移行
-8. ARC runner の RBAC 最小化と secret 取り扱いを見直し
-9. 新規アプリ onboarding 手順を更新
+1. app repo と infra repo の責務契約を文書化する
+2. image 更新方式を確定する（app repo workflow または release bot が infra repo へ `1 app / 1 image update / 1 PR` を作成）
+3. `:latest` は `sandbox` namespace の first-party workload に限定し、それ以外は immutable tag/digest に移行するルールを定義する
+4. app delivery での `kubectl` 直接変更（特に rollout restart）を禁止する
+5. `automation/scripts/github-actions/add-runner.sh` / `add-runners-bulk.sh` を新運用から切り離し、PH6 cutover で削除する差分を準備する
+6. `automation/templates/github-actions-workflow.yml` と `arc_repositories` 運用を新運用から切り離し、PH6 cutover で削除する差分を準備する
+7. runner 定義を manifests 正本（Git 管理）へ移行する
+8. ARC runner / PR bot の credential, RBAC, secret 取り扱いを最小化する
+9. `harbor-auth` と `github-auth` を旧 automation 互換 Secret として棚卸しし、`add-runner` 廃止と同じ change set で削除する差分を準備する
+10. runner / bot が必要とする credential は `github-multi-repo-secret` 等の repo-scoped Secret に縮約し、`harbor-auth` のような shared push credential 読み出しを新運用から外す
+11. `automation/scripts/common-k8s-utils.sh` や `automation/templates/external-secrets/**` の legacy secret 名依存を PH6 cutover 削除対象として固定する
+12. Harbor の sandbox image cleanup/retention を `sandbox latest` 条件付き許容と整合させ、`harbor-access` ではなく Harbor runtime ops の責務として固定する
+13. 新規アプリ onboarding 手順を `runtime + access` の 2 面で更新する
+14. runtime 変更 PR と access 変更 PR の切り分け基準を examples 付きで定義する
 
 ## 変更対象
 
 - `automation/scripts/github-actions/`
+- `automation/scripts/common-k8s-utils.sh`
 - `automation/templates/github-actions-workflow.yml`
+- `automation/templates/external-secrets/`
 - `automation/settings.toml*`
 - `automation/platform/platform-deploy.sh`
 - `Makefile`
 - `manifests/platform/ci-cd/github-actions/`
 - `manifests/apps/`
+- `manifests/access/`
+- `manifests/contracts/home-lab/access-surfaces.yaml`
 - `docs/applications.md`
 - `docs/setup-guide.md`
 - `docs/operations-guide.md`
 - `docs/quickstart.md`
+- `docs/external-access-guide.md`
 
 ## 検証
 
 1. app deploy が GitOps 経由で完結すること
 2. runner が不要なクラスタ変更権限を持たないこと
-3. `add-runner` / `add-runners-all` / `arc_repositories` 参照が repo から消えていること
+3. `add-runner` / `add-runners-bulk` / `add-runners-all` / `arc_repositories` が新運用から切り離され、PH6 cutover 用の削除差分が準備済みであること
+4. `sandbox` namespace の first-party workload は `:latest` で pass し、非 `sandbox` は fail になること
+5. runtime 変更と access 変更の変更経路が docs と policy に反映されていること
+6. runner / bot が `github-auth` / `harbor-auth` のような legacy shared credential に依存しないこと
+7. legacy secret / RBAC / template の削除差分が `add-runner` 廃止と同じ PH6 入力に束ねられていること
+8. manifests 正本の runner credential が repo-scoped に縮約されていること
 
 ## 完了条件
 
 1. infra repo が app 固有 workflow 生成に依存しない
 2. app release は commit/PR ベースで追跡可能
-3. `latest` 運用が原則廃止されている
+3. first-party workload の `:latest` は `sandbox` namespace に限定されている
 4. onboarding 手順が新モデルに一致している
 5. app delivery 経路に cluster 直接変更が残っていない
+6. Harbor の sandbox image cleanup/retention が `sandbox latest` 条件付き許容と矛盾せず、runtime owner 側の運用責務として定義されている
+7. runtime 変更と access 変更の切り分け基準が明文化されている
+8. runner / bot credential が repo-scoped に縮約されている
+9. `harbor-auth` / `github-auth` など legacy automation Secret の削除差分が PH6 入力として固定されている

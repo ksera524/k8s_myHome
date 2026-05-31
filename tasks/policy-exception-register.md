@@ -10,8 +10,10 @@
 1. 例外は PR で明示し、この台帳へ同時登録する
 2. 期限なし例外は禁止
 3. 期限到来時に更新または削除の判断を必ず行う
-4. CI は「禁止」項目を fail、「例外登録済み」を pass する
+4. CI は「禁止」項目と条件違反を fail し、例外可のルールに限って「例外登録済み」を pass する
 5. PH6 完了条件では legacy 関連例外（旧仕様削除を妨げる例外）を Open 0 件にする
+6. `manifests/bootstrap/**` の `targetRevision: HEAD` と allowlisted `prune:false` は条件付き許容であり、例外登録対象にしない
+7. 例外照合キーは `rule_id + file_path + document identity + field_path` とする
 
 ## 区分
 
@@ -21,12 +23,15 @@
 
 ## 例外一覧
 
-| ID | ルールID | 区分 | 対象 | 理由 | Owner | 期限 | 除去条件 | Legacy影響 | 状態 |
-|---|---|---|---|---|---|---|---|---|---|
-| EX-001 | R-006 | 例外 | `manifests/bootstrap/app-of-apps.yaml` の `targetRevision: HEAD` | bootstrap 追従性を優先 | gitops | 2026-08-31 | pinned revision 戦略を確定して置換 | No | Open |
-| EX-002 | R-006 | 例外 | `manifests/bootstrap/app-of-apps.yaml` の `prune: false`（限定リソース） | 誤削除回避が必要なパッチ運用 | platform | 2026-08-31 | 代替安全策（sync option）確立後に削除 | No | Open |
+| ID | ルールID | 区分 | 対象ファイル | Document | Field | 理由 | Owner | 期限 | 除去条件 | Legacy影響 | 状態 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| （なし） | - | - | - | - | - | - | - | - | - | - | - |
 
 ## メモ
 
-- first-party workloads の `:latest` は例外対象にしない（PH3 で廃止対象）
+- `harbor.qroksera.com/sandbox/*:latest` は `manifests/apps/` 配下かつ workload namespace が `sandbox` の場合のみ条件付き許容であり、例外登録対象にしない
+- `manifests/bootstrap/**` の `targetRevision: HEAD` は repo 既知条件に基づく条件付き許容であり、例外登録対象にしない
+- `allowlisted prune:false` も条件付き許容であり、例外登録対象にしない
+- 例外登録が必要な場合、`Document` は `kind/namespace/name` または `kind/name` 形式、`Field` は `spec.source.targetRevision` のような dot path で記録する
+- 非 `sandbox` namespace の first-party workload に対する `:latest` は禁止とし、例外でも許可しない
 - third-party image tag は別途 version 管理方針に従う
