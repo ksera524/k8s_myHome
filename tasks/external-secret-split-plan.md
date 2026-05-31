@@ -57,7 +57,7 @@ manifests/platform/secrets/external-secrets/
 | `pulumi-esc-secretstore.yaml` | `pulumi-esc-store` | `stores/pulumi-esc-secretstore.yaml` | keep | ClusterSecretStore は最上流。分割後も root `kustomization.yaml` の先頭で読む |
 | `argocd-github-oauth-secret.yaml` | `argocd-github-oauth-secret` | `argocd/argocd-github-oauth-secret.yaml` | keep | `argocd-secret` へ merge する現行仕様を維持 |
 | `external-secret-resources.yaml` | `harbor-admin-secret` | `harbor/harbor-admin-secret.yaml` | keep | Harbor chart と cleanup CronJob の consumer がある |
-| `external-secret-resources.yaml` | `cloudflared-secret` | `networking/cloudflared-secret.yaml` | keep | `manifests/apps/cloudflared/manifest.yaml` が consumer |
+| `external-secret-resources.yaml` | `cloudflared-secret` | `networking/cloudflared-secret.yaml` | keep | `manifests/access/cloudflared/manifest.yaml` が consumer |
 | `external-secret-resources.yaml` | `cloudflare-api-token` | `networking/cloudflare-api-token.yaml` | keep | cert-manager issuer の consumer がある |
 | `external-secret-resources.yaml` | `tailscale-oauth` | `networking/tailscale-oauth.yaml` | keep | chart 既定 Secret 名利用の可能性が高く、削除しない |
 | `external-secret-resources.yaml` | `github-multi-repo-secret` | `github-actions/github-multi-repo-secret.yaml` | keep | ARC runner の現行 consumer がある |

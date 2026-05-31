@@ -78,7 +78,7 @@
 - [ ] Gateway / LoadBalancer 割当が確認できる
 - [ ] `component-ownership-matrix.md` で定義した Harbor / RustFS の target runtime owner と target access owner が個別に `Synced/Healthy` 到達
 - [ ] Harbor cleanup CronJob が runtime owner 配下で in-cluster Harbor Service を到達先に設定されている
-- [ ] `monitoring` Application、Grafana Cloud 用 ExternalSecret、`deploy-grafana-*` 由来の legacy が live cluster / repo の両方から除去されている
+- [ ] `manifests/bootstrap/applications/platform/monitoring.yaml` 由来の `monitoring` Application、Grafana Cloud 用 ExternalSecret、`deploy-grafana-*` 由来の legacy が live cluster / repo の両方から除去されている
 - [ ] Harbor / RustFS の clean rebuild または再利用が事前決定どおりに完了
 - [ ] `legacy-removal-inventory` の削除対象が candidate commit に含まれ、live cluster 上でも旧 owner / 旧導線が再出現していない
 
@@ -90,7 +90,7 @@
 - [ ] policy 例外台帳で legacy 影響 `Yes` が 0 件
 - [ ] `harbor.qroksera.com` / `rustfs.qroksera.com` の到達確認
 - [ ] `argocd.qroksera.com` の到達確認
-- [ ] Harbor cleanup CronJob が in-cluster Harbor Service を到達先として動作し、`harbor-patch` legacy が repo / live cluster に残っていない
+- [ ] Harbor cleanup CronJob が in-cluster Harbor Service を到達先として動作し、`harbor-patch` historical legacy が repo / live cluster に再流入していない
 - [ ] `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set の grep 検証が 0 件
 - [ ] `automation/scripts/verify.sh` と `automation/scripts/generate-cluster-diagram.sh` に `monitoring` namespace 必須前提が残っていない
 - [ ] docs / README 更新完了（`README.md`, `AGENTS.md`, `docs/README.md`, `docs/quickstart.md`, `docs/setup-guide.md`, `docs/applications.md`, `docs/gitops-design.md`, `docs/operations-guide.md`, `docs/troubleshooting.md`, `docs/kubernetes-upgrade-guide.md`, `docs/manifest-layout.md`, `docs/kubernetes-architecture.md`, `manifests/README.md`）

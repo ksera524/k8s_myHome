@@ -18,7 +18,7 @@
 ## マイルストーン
 
 1. M1: 改革方針と taxonomy 確定（PH0 完了）
-2. M2: GitOps topology 正規化と access 抽出（PH2 完了）
+2. M2: GitOps topology residual cleanup と access ownership 同期（PH2 完了）
 3. M3: 環境契約 / access 契約一元化（PH4 完了）
 4. M4: target topology 追従 bootstrap 確立（PH1 完了）
 5. M5: delivery separation 完了（PH3 完了）
@@ -42,15 +42,15 @@
    - `component-ownership-matrix.md`、`access-surface-matrix.md`、`environment-contract-inventory.md` が planning artifact として作成済みである
    - 「旧仕様を完全削除する」方針が明文化されている
 2. Gate PH2（PH2 完了条件）
-   - legacy 集約 owner が除去され、app child Application の owner 重複が解消されている
-   - `user-applications` / `user-application-definitions` の代替 owner と削除差分が PH6 cutover 入力として準備済みである
-   - `apps/**` から公開/接続系 resource を排除する target topology が確定し、`access/**` への収束先が定義済みである
+   - legacy 集約 owner が implementation path から除去され、全 child `Application` の name/path 一意性が確認済みである
+   - `user-applications` / `user-application-definitions` などの historical legacy identifier が implementation source から除去され、reflow check と cutover inventory が定義済みである
+   - `apps/**` workload と `access/**` 公開/接続系の current topology が planning artifact に反映され、`access/**` への収束先が説明可能である
    - `access` owner が `service access` と `shared access plane` の 2 層に整理され、`Gateway` resource / listener 基盤の owner が `gateway-shared` に固定されている
    - child Application が `1 Application / 1 file / 1 owner` で差分レビュー可能になっている
    - remote chart を含む runtime owner でも `1 owner / 1 path` 原則が維持され、Harbor は repo-local wrapper path に収束している
-   - empty dir / dead path が reservation として残らない方針が確定している
+   - dead path / stale reference / tracked placeholder path が reservation として残らない方針が確定している
    - single root `Application` が `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint として参照している
-   - version audit / topology-aware automation が `manifests/bootstrap/applications/**` を child `Application` discovery source として使い、root `Application` や `monitoring` legacy に依存していない
+   - version audit / topology-aware automation が `manifests/bootstrap/applications/**` を child `Application` discovery source として使い、root `Application` や monitoring 特別扱いに依存していない
 3. Gate PH4（PH4 完了条件）
    - 非機密 environment contract と access contract の正本が 1 か所に定義されている
    - hostname / LB IP / StorageClass / NFS など主要値と、そこから導出される access URL / host alias の根拠が contract から追跡可能である
@@ -90,7 +90,7 @@
 - PH4 は PH2 の target topology と access 抽出先定義に依存
 - PH1 は PH2 / PH4 の target topology / contract 確定に依存
 - PH3 は PH2 / PH4 の runtime/access 境界と contract 確定に依存
-- PH5 は PH0〜PH4 の新ルール確定に依存
+- PH5 は PH0〜PH4 の新ルール確定に依存する。ただし advisory な topology guard は PH2 residual scope 固定後に前倒し着手できる
 - PH6 は PH1〜PH5 の反映完了に依存
 
 ## 進行管理ルール
@@ -103,6 +103,7 @@
 - 未決論点は `status.md` の `Open Decisions` で owner / 期限付き管理し、解消済み論点の履歴は `open-issues.md` に残す
 - PH1〜PH5 の完了は branch/rehearsal 上の新構造準備完了を含み、main からの旧仕様完全削除は PH6 で確定させる
 - `component-ownership-matrix.md`、`access-surface-matrix.md`、`environment-contract-inventory.md` を planning canonical として維持し、implementation source が追従した後も差分説明用 artifact として扱う
+- main に既に反映済みの topology change は current-state fact として planning 文書へ同期し、未完了の residual / delete scope だけを active task として残す
 
 ## cutover 原則
 

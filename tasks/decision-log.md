@@ -302,9 +302,9 @@
 
 - 日付: 2026-05-31
 - 状態: accepted
-- 背景: `manifests/apps/harbor` などの空ディレクトリは owner 候補にも dead path にも見え、GitOps 正本の可読性を下げていた
-- 判断: empty dir / dead path は reservation 用に残さず、実体がないものは削除する。将来必要になった時点で、owner と manifest を伴う形で新規追加する
-- 影響: OI-006 を Close し、legacy removal inventory と PH2 完了条件は「空ディレクトリが存在しないこと」を前提にする
+- 背景: `manifests/apps/harbor` などの historical name は owner 候補にも dead path にも見え、GitOps 正本の可読性を下げていた
+- 判断: dead path / reservation は Git 正本に残さず、必要になった時点で owner と manifest を伴う形で新規追加する
+- 影響: OI-006 を Close し、legacy removal inventory と PH2 完了条件は reservation 用の tracked path / stale reference / placeholder file を残さないことを前提にする。workspace-local empty dir の扱いは DEC-0039 で補足する
 - 代替案: 予約ディレクトリとして残す（不採用: path の意味が曖昧になり、policy と grep のノイズになる）
 
 ### DEC-0034: Harbor cleanup CronJob は access surface ではなく runtime-local endpoint を使う
@@ -351,3 +351,13 @@
 - 判断: `manifests/bootstrap/app-of-apps.yaml` は single root `Application` 1 件のみを置く。root `Application` の `spec.source.path` は `manifests/bootstrap/applications/` に固定し、render entrypoint は同ディレクトリの top-level `kustomization.yaml` とする。version audit / topology-aware automation の child `Application` discovery source は `manifests/bootstrap/applications/**` に固定し、root `Application`、contract、planning docs は discovery の implementation 正本にしない
 - 影響: `.github/workflows/weekly-version-audit.yml` は `app-of-apps.yaml` 直読みと `monitoring` hardcode 依存をやめ、child `Application` 群から監査対象を列挙する。PH2/PH6 の topology・cutover 文書は root と child の責務境界をこの前提で記述する
 - 代替案: root `Application` を監査の一次入力にし続ける、または contract/docs を version discovery の正本にする（不採用: topology 変更耐性が低く、責務も混線する）
+
+### DEC-0039: PH2 は topology 新設ではなく residual cleanup として扱う
+
+- 日付: 2026-05-31
+- 状態: accepted
+- 背景: single root `Application`、child split、`access/**` 分離の多くは既に main に反映されている一方、`tasks/` と inventory がそれを未実装フェーズとして扱い続けると、PH4 / PH1 / PH5 の優先順位判断が鈍る
+- 判断: main に既に反映済みの topology change は current-state fact として planning 文書へ同期し、PH2 は planning artifact / audit / stale reference / cutover inventory の residual cleanup に縮小する
+- 判断: Git が空ディレクトリを追跡しないため、dead path / reservation policy の gate は workspace-local empty dir ではなく、tracked path / stale reference / placeholder file / reinflow rule を正とする
+- 影響: `status.md`, `roadmap.md`, `ph2-gitops-topology-normalization.md`, inventory, policy, cutover 文書は PH2 の未完了範囲を current repo 基準へ更新する必要がある
+- 代替案: PH2 を従来どおり topology 実装フェーズとして維持する（不採用: 実装済み事項と未実装事項が混在し、次フェーズ着手判断が遅れる）

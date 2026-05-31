@@ -1,59 +1,60 @@
-# PH2: GitOps Topology Normalization and Access Extraction
+# PH2: GitOps Topology Residual Cleanup and Access Ownership Synchronization
 
 ## 目的
 
-- App-of-Apps 配下の所有関係を正規化し、重複管理と誤解をなくす
-- owner を一意化し、差分レビュー可能な粒度へ再構成する
-- `apps` 配下から公開/接続系 resource を追い出し、`access` ドメインへ抽出する
+- main に既に入った GitOps topology change を current-state の事実として固定する
+- planning artifact、audit、inventory、stale reference の残差を収束させる
+- PH4 / PH1 / PH5 へ進む前に topology 関連の認識ずれをなくす
 
 ## 背景
 
-- 単一巨大ファイルと二重経路により、どの Application が owner か追いにくい
-- workload 本体と公開/接続系が同じパスに混在し、責務境界が曖昧
+- single root `Application`、child `Application` split、`access/**` への owner 分離は current repo に既に反映されている
+- 一方で `tasks/` の planning artifact、inventory、cutover 前提、週次 audit には旧 topology 前提が残っている
+- 実装済み事項と未実装事項が PH2 に混在すると、PH4 / PH1 / PH5 の依存判断が鈍る
 
 ## スコープ
 
-- Application 定義の分割
-- owner 一意化
-- `apps` から `access` への公開/接続系 resource の抽出
-- `user-applications` / `user-application-definitions` を新正本から切り離し、PH6 cutover で完全廃止する準備
-- `monitoring` Application と Grafana Cloud 前提の owner/監査依存を PH6 cutover 用削除差分として準備
-- 図と実装の一致
-- empty dir / dead path の棚卸し
+- current repo に合わせた planning artifact の同期
+- topology-aware automation / audit の residual cleanup
+- dead path / stale reference / tracked placeholder の整理
+- monitoring legacy を PH6 delete scope として inventory 化する追跡
+- PH5 policy 実装へ渡す暫定チェック手順の定義
 
 ## 非ゴール
 
-- app repo の CI 方式変更
+- single root `Application` や `access/**` 分離の再実装
+- bootstrap 入口の再設計（PH1 で扱う）
+- monitoring legacy の実削除（PH6 で扱う）
+- app repo CI / delivery 契約の変更（PH3 で扱う）
 
-## 設計固定
+## current-state 固定事項
 
 1. access owner は `service access` と `shared access plane` の 2 層で固定する
 2. `service access` owner は `argocd-access`, `harbor-access`, `rustfs-access`, `blog-access`, `cooklog-access`, `api-hub-access`, `hitomi-upload-viewer-access` とする
 3. `shared access plane` owner は `gateway-shared`, `cloudflared`, `dns-core`, `dns-tailscale` とする
-4. `Gateway` resource / listener 基盤は controller / CRD と分離し、`gateway-shared` が `manifests/access/gateway/` を所有する
-5. `Cloudflared`, `CoreDNS`, `Tailscale Split DNS` は service ごとに複製せず、shared access plane owner に集約する
+4. `Gateway` resource / listener 基盤は `gateway-shared` が `manifests/access/gateway/` を所有する
+5. `Cloudflared`, `CoreDNS`, `Tailscale Split DNS` は shared access plane owner に集約する
 6. child `Application` の粒度は `1 owner / 1 file / 1 path` に固定する
 7. remote chart を含む runtime owner でも child `Application` の例外を作らず、repo-local wrapper path を正本にする
-8. empty dir / dead path は reservation せず削除する
-9. ArgoCD `AppProject` は `core`, `infrastructure`, `platform`, `access`, `apps` の 5 系統を canonical とし、`access` child Application は専用 project に固定する
+8. `rustfs` の runtime owner は `platform` に固定し、repo-local wrapper path は `manifests/platform/rustfs/` とする
+9. ArgoCD `AppProject` は `core`, `infrastructure`, `platform`, `access`, `apps` の 5 系統を canonical とし、`access` child `Application` は専用 project に固定する
 10. single root `Application` は `manifests/bootstrap/app-of-apps.yaml` 1 件に固定し、`spec.source.path` は `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint とする
 11. version audit / topology-aware automation の child `Application` discovery source は `manifests/bootstrap/applications/**` に固定し、root `Application` や planning docs を discovery 入力にしない
-12. `rustfs` の runtime owner は `platform` に固定し、repo-local wrapper path は `manifests/platform/rustfs/` とする
+12. `docs/` は current-state、`tasks/` は target-state planning を正とし、main に既に入った topology change は planning 側でも current-state fact として同期する
+13. Git が追跡しない workspace-local empty dir は PH2 gate target に含めず、tracked path / stale reference / placeholder file / policy rule を正とする
 
-## 抽出順序
+## residual cleanup 順序
 
-1. shared foundation を先に定義する
-   - `gateway-shared` の child `Application` / path / sync wave を確定
-   - `cloudflared`, `dns-core`, `dns-tailscale` の child `Application` / path / sync wave を確定
-2. service access route を分離する
-   - `blog`, `cooklog`, `api-hub`, `hitomi-upload-viewer` の `HTTPRoute` を service access owner へ移す
-3. legacy external app を service access owner へ置換する
-   - `argocd-external`, `rustfs-external` を canonical service access owner に置き換える
-4. Harbor を split owner へ再分類する
-   - `harbor-routes.yaml` の route / policy を `harbor-access` へ移し、cleanup CronJob は runtime owner に残して in-cluster Harbor Service を使う
-   - `harbor-patch` Application と旧 `prune:false` / `ignoreDifferences` は同一 change set で除去する
-5. shared publisher を移す
-   - `CoreDNS`, `Tailscale Split DNS`, `Cloudflared` の publication 定義を shared access plane owner に移し、旧 path を同一 change set から除去する
+1. planning artifact を current repo に同期する
+   - `component-ownership-matrix.md`, `access-surface-matrix.md`, `environment-contract-inventory.md`, `legacy-removal-inventory.md`, `status.md`
+2. audit / inventory の stale reference を更新する
+   - `weekly-version-audit.yml`, cutover inventory, policy input を current topology に揃える
+3. dead path / reinflow 語彙を整理する
+   - 既に main から消えた legacy と、PH6 でまだ消すべき legacy を分離する
+4. monitoring legacy を PH6 delete scope として隔離する
+   - PH2 は inventory と追跡に留め、削除そのものは PH6 に寄せる
+5. PH5 へ暫定チェックを handoff する
+   - structural rule / reinflow check / collision check の実装入力を固定する
 
 ## sync wave 原則
 
@@ -65,69 +66,50 @@
 
 ## 具体タスク
 
-1. `manifests/bootstrap/app-of-apps.yaml` を single root `Application` 1 件へ再定義し、`spec.source.path` を `manifests/bootstrap/applications/` に固定する
-2. `manifests/bootstrap/applications/` に top-level `kustomization.yaml` を置き、child Application を `manifests/bootstrap/applications/{core,infrastructure,platform,access,user-apps}/` に `1 Application / 1 file` で分割する
-3. `user-applications` / `user-application-definitions` を新正本から切り離し、PH6 cutover で削除する差分を準備
-4. runtime owner の正本を `manifests/bootstrap/applications/user-apps/` と `manifests/bootstrap/applications/platform/` に整理し、`rustfs` と `sandbox-config` は `platform` 側へ置く
-5. `manifests/bootstrap/applications/access/` を access owner の正本として整理する
-6. `manifests/apps/**` にある `HTTPRoute` などの公開/接続系 resource を `manifests/access/**` へ移す target state を、`service access` と `shared access plane` の 2 層 owner で設計する
-7. `argocd-external`, `rustfs-external`, `cloudflared`, `nginx-gateway-resources`, Harbor routes, app 配下の route 類を canonical access owner に再分類する
-8. Harbor runtime owner を `manifests/platform/harbor/` の repo-local wrapper へ収束させ、cleanup CronJob を同 owner に移し、到達先を in-cluster Harbor Service に切り替える
-9. `harbor-patch` と旧 `prune:false` / stale `ignoreDifferences` を legacy 削除差分へ移す
-10. AppProject を `core` / `infrastructure` / `platform` / `access` / `apps` の 5 系統で再設計し、`sourceRepos` / `destinations` / `clusterResourceWhitelist` を最小権限に固定する。owner 一意性の最終担保は PH5 の resource collision check に委ねる
-11. `automation/platform/platform-deploy.sh` と `automation/scripts/verify.sh` の旧 owner 参照を更新し、個別 Application / access child Application 確認へ移行する
-12. `.github/workflows/weekly-version-audit.yml` の discovery source を `manifests/bootstrap/applications/**` に切り替え、`app-of-apps.yaml`, `monitoring`, legacy path hardcode 依存を除去する
-13. `manifests/bootstrap/app-of-apps.yaml` の `monitoring` Application を新正本から切り離し、PH6 cutover で削除する差分を準備する
-14. `.github/workflows/weekly-version-audit.yml` の Grafana k8s-monitoring 監査ロジックを削除対象として整理する
-15. `docs/diagrams/app-of-apps-sync-wave.md` から Monitoring wave を除去する前提で実装との差分を整理し、diagram / docs を同期する
-16. PH2 判定用の暫定 app owner / access owner / dead path チェック手順を定義し実行する
-17. rendered resource collision check の恒久実装を PH5 へ引き継ぐ
+1. `tasks/` の planning artifact を current repo の child `Application` 名、path、owner、current location に同期する
+2. main に既に入った root / child split と `access/**` 分離を、PH2 の未完了タスクではなく current-state fact として扱う
+3. 全 child `Application` の `metadata.name` / `spec.source.path` 一意性を確認し、PH5 structural rule の入力へ落とす
+4. `.github/workflows/weekly-version-audit.yml` の child `Application` discovery を維持したまま、monitoring 特別扱いと stale hardcode を除去する
+5. current-state を説明する docs のうち、すでに main に入った topology change を説明する箇所だけを同期し、target-only 記述は PH6 まで `tasks/` に留める
+6. `legacy-removal-inventory.md` を current repo 基準へ更新し、すでに main から消えた legacy は「reflow check」へ、まだ live path に残る legacy は「active delete scope」へ分離する
+7. `manifests/apps/**` の retired access path については tracked file の再流入禁止を正とし、workspace-local empty dir を gate target にしない方針を明文化する
+8. Harbor runtime/access split は current repo fact として matrix / inventory / cutover 文書へ反映し、`node-mutations/` は opt-in overlay として扱う
+9. monitoring legacy は `manifests/bootstrap/applications/platform/monitoring.yaml`、`config-secrets` の `destination.namespace: monitoring`、Grafana 監査ロジック等の current live path を inventory 化し、PH6 delete scope として固定する
+10. PH2 判定用の暫定チェック手順を定義し、恒久ルールの実装を PH5 へ引き継ぐ
 
 ## 変更対象
 
-- `manifests/bootstrap/`
-- `manifests/bootstrap/applications/`
-- `manifests/bootstrap/applications/user-apps/`
-- `manifests/bootstrap/applications/access/`
-- `manifests/access/`
-- `manifests/infrastructure/networking/`
-- `manifests/platform/argocd-config/`
-- `automation/platform/platform-deploy.sh`
-- `automation/scripts/verify.sh`
-- `automation/scripts/ci/`
+- `tasks/status.md`
+- `tasks/component-ownership-matrix.md`
+- `tasks/access-surface-matrix.md`
+- `tasks/environment-contract-inventory.md`
+- `tasks/legacy-removal-inventory.md`
+- `tasks/policy-rule-spec.md`
+- `tasks/ph6-cutover-docs-and-cleanup.md`
+- `tasks/cutover-checklist.md`
 - `.github/workflows/weekly-version-audit.yml`
-- `docs/diagrams/app-of-apps-sync-wave.md`
-- `docs/setup-guide.md`
-- `docs/gitops-design.md`
-- `docs/external-access-guide.md`
-- `docs/applications.md`
+- `automation/scripts/ci/`
+- current-state を説明する `docs/` の該当箇所
 
 ## 検証
 
-1. 全 child Application の `metadata.name` と `spec.source.path` が一意であること
-2. `apps/**` に公開/接続系 resource を残さない target topology が定義されていること
-3. `service access` と `shared access plane` の owner 境界、および sync wave 原則が図と manifest で一致していること
-4. Harbor の runtime owner が repo-local wrapper path に収束し、cleanup CronJob が runtime owner 側へ帰属していること
-5. `user-applications` / `user-application-definitions` の runtime 依存が新 owner へ置き換わり、削除差分が PH6 cutover 用として準備済みであること
-6. child Application 追加/変更が「1ファイル差分」でレビュー可能であること
-7. `monitoring` Application と Grafana k8s-monitoring 監査依存の削除差分が PH6 cutover 用として準備済みであること
-8. empty dir / dead path が reservation として残っていないこと
-9. root `Application` が `manifests/bootstrap/applications/` の top-level `kustomization.yaml` を entrypoint として参照していること
-10. `weekly-version-audit` 相当の対象列挙が `manifests/bootstrap/applications/**` だけで成立し、root `Application` や `monitoring` に依存しないこと
+1. 全 child `Application` の `metadata.name` と `spec.source.path` が一意であること
+2. `apps/**` workload と `access/**` 公開/接続系の current topology が planning artifact に一致していること
+3. `service access` と `shared access plane` の owner 境界、および sync wave 原則が planning artifact と manifest で一致していること
+4. Harbor の runtime/access split と `sandbox-config` の shared config owner が current repo どおりに planning artifact へ反映されていること
+5. `weekly-version-audit` 相当の対象列挙が `manifests/bootstrap/applications/**` だけで成立し、root `Application` や monitoring 特別扱いに依存しないこと
+6. `legacy-removal-inventory.md` が「active delete scope」と「historical reflow check」を区別して current repo を説明できること
+7. current-state docs と target-state planning の境界が崩れていないこと
+8. workspace-local empty dir ではなく tracked path / stale reference / reinflow rule を gate target として説明できること
 
 ## 完了条件
 
-1. legacy 集約 owner がなく、app child Application の owner 重複がない
-2. `user-applications` / `user-application-definitions` の代替 owner が成立し、削除差分が PH6 cutover 入力として確定している
-3. `apps/**` から access resource を排除する target topology が確定している
-4. `access` child Application 群の責務と配置先が、`service access` と `shared access plane` の 2 層で定義済みである
-5. Harbor の runtime/access/optional ops 境界が repo-local wrapper + `harbor-access` + opt-in overlay の形で定義済みである
-6. App-of-Apps 構成が差分レビュー可能な粒度になっている
-7. 依存順を docs で再現できる
-8. bootstrap/verify/audit/docs の参照先が新トポロジへ切り替わっている
-9. 暫定チェック手順が定義・実行済みで、恒久ルールが PH5 へ引き継がれている
-10. `monitoring` Application の owner / docs / audit 依存が新 target state から切り離されている
-11. empty dir / dead path が削除方針で整理され、予約ディレクトリが残っていない
-12. `access` child Application 群が専用 `AppProject` に乗り、現行 `apps` / `platform` との権限境界が文書化されている
-13. single root `Application` と child `Application` 群の境界が固定され、root が topology entrypoint だけを担っている
-14. version audit / verify / docs の child `Application` discovery source が `manifests/bootstrap/applications/**` に切り替わっている
+1. planning artifact が current repo の topology を正しく反映している
+2. legacy 集約 owner は implementation path から除去済みで、全 child `Application` の一意性が確認済みである
+3. `apps/**` workload と `access/**` 公開/接続系の責務分離が current-state fact として固定されている
+4. `access` child `Application` 群の責務と配置先が、`service access` と `shared access plane` の 2 層で定義済みである
+5. `weekly-version-audit` / inventory / cutover 文書の child `Application` discovery source が current topology に追従している
+6. Harbor の runtime/access/optional ops 境界が repo-local wrapper + `harbor-access` + opt-in overlay の形で planning artifact に反映済みである
+7. monitoring legacy が PH2 blocker ではなく PH6 delete scope として切り分け済みである
+8. dead path / stale reference / reinflow check の語彙が整理され、workspace-local empty dir を完了条件に含めていない
+9. 暫定チェック手順が定義済みで、恒久ルールの実装が PH5 へ引き継がれている

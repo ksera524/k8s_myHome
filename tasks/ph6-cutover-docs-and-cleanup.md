@@ -38,9 +38,9 @@
 10. `AGENTS.md` を新責務に合わせ更新する
 11. onboarding と validate の docs を Nix ベースの正式導線へ統一し、旧 ad-hoc tool install 手順を削除する。あわせて current-state 注記の粒度と broken current-state reference を揃える
 12. 旧 workflow / script / manifest の削除一覧を作成する
-13. `monitoring` Application、`manifests/monitoring/`、Grafana Cloud 用 ExternalSecret、`deploy-grafana-*`、Grafana 監査 workflow、`config-secrets` の `destination.namespace: monitoring`、`argocd-projects.yaml` の Grafana chart allowlist / `monitoring` destination を削除対象として single cutover candidate commit に含める
-14. `apps/` 配下に残る access legacy（例: `apps/argocd`, `apps/rustfs`, `apps/cloudflared`, app 配下 route 定義）を削除対象として single cutover candidate commit に含める
-15. Harbor access/runtime legacy（`harbor-patch`, 旧 `harbor-routes.yaml`, 旧 `harbor-image-cleanup-cronjob.yaml`, stale `prune:false` / `ignoreDifferences`）を削除対象として single cutover candidate commit に含める
+13. `manifests/bootstrap/applications/platform/monitoring.yaml`、`manifests/bootstrap/applications/platform/kustomization.yaml` の `monitoring.yaml` entry、`manifests/monitoring/`、Grafana Cloud 用 ExternalSecret、`deploy-grafana-*`、Grafana 監査 workflow、`config-secrets` の `destination.namespace: monitoring`、`argocd-projects.yaml` の Grafana chart allowlist / `monitoring` destination を削除対象として single cutover candidate commit に含める
+14. retired access path（例: `manifests/apps/argocd/**`, `manifests/apps/rustfs/**`, `manifests/apps/cloudflared/**`）に tracked file を再作成しないことを cutover 判定へ含める
+15. Harbor access/runtime historical legacy（`harbor-patch`, 旧 `harbor-routes.yaml`, 旧 `harbor-image-cleanup-cronjob.yaml`, stale `prune:false` / `ignoreDifferences`）が repo / live cluster に再流入していないことを cutover 判定へ含める
 16. `policy-rule-spec.md` の canonical fixed-delete credential identifier set に該当する legacy / duplicate credential Secret を single cutover candidate commit の削除対象として含める
 17. `automation/templates/external-secrets/*.yaml` と `automation/templates/platform/argocd-github-oauth-secret.yaml` の stale secret template を削除対象として含める
 18. `ghcr-nginx-charts-secret`、`github-repo-secret`、`harbor-registry` の `default` / `argocd` copy など repo だけでは未使用断定できない Secret は live cluster / ArgoCD inventory を確認し、不要なら cutover で削除し、必要なら owner と除去条件を記録する

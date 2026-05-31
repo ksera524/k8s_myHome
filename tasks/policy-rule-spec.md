@@ -42,11 +42,12 @@
 
 - `bootstrap scope`: `manifests/bootstrap/**` と、bootstrap script が ArgoCD steady-state 前に直接適用するリソース
 - `bootstrap 直下 Application`: `manifests/bootstrap/**` 配下の ArgoCD `Application`
+- `bootstrap child Application`: `manifests/bootstrap/applications/{core,infrastructure,platform,access,user-apps}/*.yaml` 配下の top-level `Application`
 - `first-party image`: `harbor.qroksera.com/` で始まる image
 - `first-party workload`: `manifests/apps/**` 配下の top-level workload manifest document で、`Deployment`, `StatefulSet`, `DaemonSet`, `Job`, `CronJob`, `Pod` のいずれかを kind に持ち、`first-party image` を参照するもの
 - `pre-ESO scope`: `ExternalSecret` controller が Ready になる前に適用される scope。初期実装では少なくとも `manifests/bootstrap/**` と `manifests/platform/argocd-config/**` を含む
 - `allowlisted prune:false`: 以下の `document identity + field_path` の組み合わせのみを指す
-- `app child Application`: `manifests/bootstrap/applications/user-apps/*.yaml` 配下の ArgoCD `Application`
+- `user-app child Application`: `manifests/bootstrap/applications/user-apps/*.yaml` 配下の ArgoCD `Application`
 - `access child Application`: `manifests/bootstrap/applications/access/*.yaml` 配下の ArgoCD `Application`
 - `document identity`: 原則 `kind + metadata.namespace + metadata.name`。namespace がない場合は `kind + metadata.name` を用いる
 - `rendered first-party workload`: raw manifest または app 専用 values / template から最終的に render された namespaced workload で、`first-party image` を参照するもの
@@ -62,7 +63,7 @@
 | `Application/argocd/argocd-core` | `spec.syncPolicy.automated.prune` |
 | `Application/argocd/arc-controller` | `spec.syncPolicy.automated.prune` |
 
-`Application/argocd/harbor-patch` の `prune:false` は current main にのみ残る legacy transitional state として扱い、target-state branch / candidate commit の allowlist には含めない。
+`Application/argocd/harbor-patch` の `prune:false` は historical legacy identifier として扱い、allowlist には含めない。target-state branch / candidate commit では repo / live cluster の双方に再流入していないことを前提とする。
 
 ## Canonical Identifier Sets
 
@@ -171,18 +172,18 @@
 
 ### R-007: app owner 重複の禁止
 
-- 目的: legacy 集約 owner への回帰と、per-app child Application の owner 二重化を防ぐ
+- 目的: legacy 集約 owner への回帰と、child `Application` 群の owner 二重化を防ぐ
 - 禁止:
-  - `manifests/bootstrap/**` 配下の top-level `Application` が `spec.source.path: manifests/apps` を持つこと
-  - `manifests/bootstrap/**` 配下の top-level `Application` が `spec.source.path: manifests/bootstrap/applications/user-apps` を持つこと
-  - `app child Application` 間で `metadata.name` が重複すること
-  - `app child Application` 間で `spec.source.path` が重複すること
-  - `app child Application` の `spec.source.path` が `manifests/apps/<app>` 形式でないこと
+   - `manifests/bootstrap/**` 配下の top-level `Application` が `spec.source.path: manifests/apps` を持つこと
+   - `manifests/bootstrap/**` 配下の top-level `Application` が `spec.source.path: manifests/bootstrap/applications/user-apps` を持つこと
+   - `bootstrap child Application` 間で `metadata.name` が重複すること
+   - `bootstrap child Application` 間で `spec.source.path` が重複すること
+   - `user-app child Application` の `spec.source.path` が `manifests/apps/<app>` 形式でないこと
 - 条件付き許容: なし
 - 例外可否: 不可
 - 実装メモ:
-  - 初期実装では「汎用 resource 重複検出」ではなく、bootstrap app owner 構造に限定した structural rule とする
-  - `argocd-projects` と `argocd-core` のように同一 directory を参照しても source 設定が異なるケースは、このルールの違反対象にしない
+   - 初期実装では「汎用 resource 重複検出」ではなく、bootstrap app owner 構造に限定した structural rule とする
+   - `argocd-projects` と `argocd-core` のように同一 directory を参照しても source 設定が異なるケースは、このルールの違反対象にしない
 
 ### R-008: `manifests/apps/**` 配下への access resource 配置禁止
 
@@ -195,9 +196,10 @@
 - 条件付き許容: なし
 - 例外可否: 不可
 - 実装メモ:
-  - 初期実装は kind ベース denylist と path ベースチェックの組み合わせでよい
-  - `CoreDNS`, `Tailscale Split DNS`, Harbor routes のような access-only document は target path を `manifests/access/**` とし、semantic owner 名ではなく path/identity で判定する
-  - app workload 内部の環境変数文字列やコメント中の hostname は、このルール単独では違反にしない
+   - 初期実装は kind ベース denylist と path ベースチェックの組み合わせでよい
+   - `CoreDNS`, `Tailscale Split DNS`, Harbor routes のような access-only document は target path を `manifests/access/**` とし、semantic owner 名ではなく path/identity で判定する
+   - app workload 内部の環境変数文字列やコメント中の hostname は、このルール単独では違反にしない
+   - Git が追跡しない workspace-local empty dir はこのルール単独の違反対象にしない。retired path への tracked file 再流入だけを判定する
 
 ### R-009: rendered resource collision の禁止
 
