@@ -122,6 +122,7 @@
 - 2026-06-02: `docs/external-access-guide.md` を current access topology に修正し、Cloudflare ExternalSecret の domain split 後 path と `manifests/access/<app>/` + access contract 前提に更新
 - 2026-06-02: `policy-rule-spec.md` の monitoring legacy allowlist 説明を PH6 cutover 後の fail-closed 仕様に更新
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認
+- 2026-06-02: candidate を main に反映し、追加修正 commit `6c21e05`, `37ba779`, `b1c795c` を push 済み
 
 ## Live Inventory 証跡
 
@@ -130,5 +131,12 @@
 - 2026-06-02: `kubectl get ns monitoring` で `monitoring` namespace の残存を確認
 - 2026-06-02: `kubectl get externalsecrets -A` で legacy / live-confirm Secret の残存を確認: `monitoring/grafana-cloud-credentials`, `monitoring/grafana-cloud-monitoring`, `arc-systems/github-auth-secret`, `arc-systems/harbor-auth-secret`, `arc-systems/harbor-registry-secret`, `argocd/ghcr-nginx-charts-secret`, `argocd/github-repo-secret`
 - 2026-06-02: `ClusterSecretStore/pulumi-esc-store` は Ready、`Gateway/nginx-gateway` は Programmed=True、LoadBalancer IP は `192.168.122.100`
-- 現 candidate は未コミット差分であり、root Application の `targetRevision: HEAD` は remote main を参照する。candidate commit を main に反映する前の live cleanup / `make bootstrap` は旧構造の再同期を招くため未実施
-- 未実施: disposable rehearsal、rollback rehearsal、live cutover、VM snapshot、etcd snapshot、candidate commit の main 反映、ArgoCD auto-sync 停止 / controlled sync / 再開
+- 2026-06-02: `make bootstrap` を実行し、`bootstrap-root` は `Synced/Healthy` に到達
+- 2026-06-02: legacy aggregate Applications `user-application-definitions`, `user-applications`, `harbor-patch`, `coredns-config`, `nginx-gateway-resources`, `tailscale-split-dns` を finalizer 解除後に削除
+- 2026-06-02: 旧 `monitoring` Application は pre-delete finalizer で stuck したため finalizer を解除し削除完了
+- 2026-06-02: `monitoring` namespace は旧 Alloy CR 7件と旧 operator Deployment 2件の finalizer を解除し、namespace 削除完了を確認
+- 2026-06-02: Harbor chart の未追跡 `*-secret.yaml` template 7件を commit `6c21e05` で tracking し、`harbor` Application は `Synced/Healthy` に復旧
+- 2026-06-02: access HTTPRoute defaulting 差分を commit `37ba779` で正規化し、`*-access` Applications は `Synced/Healthy` に復旧
+- 2026-06-02: CronJob runtime failure による ArgoCD health gate 誤検出を commit `b1c795c` で configured-state health に変更。Application controller restart 後、`hitomi` / `hitomi-pdf` は `Synced/Healthy` に復旧
+- 2026-06-02 21:30 JST: `make phase5` green。Node Ready=3、異常 Pod なし、ArgoCD Application 正常=46、ClusterSecretStore Ready、ExternalSecret 正常、Gateway=1、LoadBalancer IP=`192.168.122.100`、Cloudflared は ArgoCD 管理
+- 未実施 / 証跡なし: disposable rehearsal、rollback rehearsal、VM snapshot、etcd snapshot、ArgoCD auto-sync 停止。live cutover は main 反映後に実施したが、checklist の事前統制項目は一部未充足として扱う

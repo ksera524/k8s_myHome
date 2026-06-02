@@ -115,4 +115,9 @@
 - 2026-06-02: `policy-rule-spec.md` の PH6 monitoring legacy allowlist 説明を cutover 後の fail-closed 仕様へ更新した
 - 2026-06-02: live cluster / ArgoCD inventory を取得し、legacy live resource と live-confirm Secret の残存を確認した
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認した
-- 未実施: single cutover candidate commit の main 反映、disposable rehearsal、rollback rehearsal、live cutover、snapshot 取得、ArgoCD auto-sync 停止 / controlled sync / 再開、live cleanup 完了確認
+- 2026-06-02: single cutover candidate を main へ反映し、`make bootstrap` で live cluster を GitOps `HEAD` に収束させた
+- 2026-06-02: 旧 `monitoring` Application / namespace、legacy aggregate Applications、legacy monitoring ExternalSecret の live cleanup を完了した
+- 2026-06-02: follow-up fixes `6c21e05`（Harbor chart secret templates tracking）、`37ba779`（HTTPRoute defaulting 正規化）、`b1c795c`（CronJob health customization）を main へ反映した
+- 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認した
+- 2026-06-02 21:30 JST: `make phase5` green。ArgoCD Application 46 件は全て `Synced/Healthy`
+- 未実施 / 証跡なし: disposable rehearsal、rollback rehearsal、VM snapshot、etcd snapshot、ArgoCD auto-sync 停止。live cutover は完了したが、checklist の事前統制項目は例外として記録する

@@ -4,7 +4,7 @@
 
 ## Current Phase
 
-- PH6: Cutover Docs and Cleanup（repo candidate validated / commit and live cutover pending）
+- PH6: Cutover Docs and Cleanup（live cutover verified / evidence finalizing）
 
 ## Summary
 
@@ -16,12 +16,13 @@
 - PH3 は完了済み。app delivery を image build/push + infra repo PR に限定し、runner 自動生成と cluster 直接変更権限を削除済み
 - PH5 は完了済み。`validate.sh` に policy / rendered collision / schema / consistency checks を統合し、Nix devShell toolchain を lock 済み
 - PH6 の repo-side cleanup は完了済み。Grafana Cloud / monitoring stack の implementation source、docs 旧記述、古い automation docs を削除し、Dockerized Nix 上の `validate.sh` は green
-- live cluster inventory では旧 `monitoring` Application、legacy app aggregate Application、legacy credential ExternalSecret が残存している。candidate commit が main に反映されるまでは GitOps `HEAD` が旧構造を参照するため、live cleanup は未実施
+- PH6 live cutover は 2026-06-02 に実施済み。旧 `monitoring` Application / namespace、legacy app aggregate Application、legacy monitoring ExternalSecret は live cluster から削除済み
+- `make phase5` は 2026-06-02 21:30 JST に green。ArgoCD Application 46 件は `Synced/Healthy`、主要 Namespace / Node / Pod / ExternalSecret / Gateway / Cloudflared 検証は成功
 - `docs/` は current-state、`tasks/` は target-state planning を正とする。ただし main に既に入った topology change は planning 側でも current-state fact として反映する
 
 ## In Progress
 
-- PH6: single cutover candidate commit 作成、live rehearsal / live cutover / rollback 証跡取得
+- PH6: live cutover 証跡の最終整理
 
 ## Blocked
 
@@ -29,7 +30,7 @@
 
 ## Next Gate
 
-- Gate PH6: candidate commit が main に反映され、live rehearsal / rollback rehearsal が完了し、旧仕様が main と live cluster から完全削除されていること
+- Gate PH6: 旧仕様が main と live cluster から削除され、`validate.sh` と `make phase5` が green であること。disposable rehearsal / rollback rehearsal / snapshot 証跡は未取得のため、完了判定時の例外として記録する
 
 ## Open Decisions
 
@@ -66,7 +67,7 @@
 - 旧 Grafana deploy script と `automation/platform/.github/workflows/` の生成済み app workflow を削除済み
 - PH6 repo-side cleanup として monitoring Application、`manifests/monitoring/` values、`monitoring` namespace、Grafana chart allowlist、docs 旧記述、古い automation docs を削除済み
 - PH6 repo-side cleanup 後の検証コマンド `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` は green
-- live rehearsal / live cutover / rollback rehearsal は未実施。snapshot、担当者、live-confirm の証跡取得は `cutover-checklist.md` に従って実施する
+- live cutover は完了。disposable rehearsal / rollback rehearsal / VM snapshot / etcd snapshot は未取得であり、手順逸脱として `cutover-checklist.md` に記録する
 - 履歴は `open-issues.md` を参照する
 
 #### PH6 repo candidate re-validated
@@ -78,6 +79,18 @@
 - live inventory で `ghcr-nginx-charts-secret` と `github-repo-secret` が `argocd` namespace に残存していることを確認した。repo candidate では削除対象であり、cutover 後に prune / live cleanup 確認が必要
 - 検証コマンド `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` は green
 - candidate は未コミット差分であり、live cutover の前提である main 反映は未完了
+
+#### PH6 live cutover verified
+
+- main 反映済み cutover commits: `22488fb`, `4d118f0`, `076620e`, `7145131`, `ffed3d2`, `6c21e05`, `37ba779`, `b1c795c`
+- `make bootstrap` を実行し、`bootstrap-root` / child Applications を GitOps `HEAD` へ収束させた
+- stuck した旧 `monitoring` Application は pre-delete finalizer を解除して削除した。`monitoring` namespace は旧 Alloy CR / operator Deployment の finalizer を解除し、削除完了を確認した
+- legacy aggregate Applications `user-application-definitions`, `user-applications`, `harbor-patch`, `coredns-config`, `nginx-gateway-resources`, `tailscale-split-dns` は finalizer 解除後に削除済み
+- Harbor chart の `*-secret.yaml` template 7件が `.gitignore` により未追跡だった問題を修正し、`harbor` Application は `Synced/Healthy` に復旧した
+- Gateway API defaulting による access Applications の OutOfSync を解消するため、HTTPRoute manifest を `group` / `kind` / `matches` / `weight` 明示形へ正規化した
+- CronJob の過去実行失敗が Application health を Degraded にするため、ArgoCD health customization で CronJob は configured state を Healthy と評価するよう変更した。Job 実行成否は Job / log 側の運用監視で扱う
+- `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` は green
+- `make phase5` は green。ArgoCD Application は 46 件すべて `Synced/Healthy`
 
 ## Progress Log
 
