@@ -27,7 +27,7 @@
 | alerting | Alertmanager 互換または Grafana alert | 初期は必須にせず、後続で段階導入 |
 | external uptime | Uptime Kuma または Cloudflare health check | cluster 内 metrics と外形監視を分離できる |
 
-初期実装は metrics backend + dashboard のみとし、alerting / uptime は次段階に分ける。
+初期実装は metrics backend + kube-state-metrics を先行し、Grafana dashboard / alerting / uptime は次段階に分ける。Grafana は admin credential の ExternalSecret 方針を固定してから導入する。
 
 ## 監視対象
 
@@ -110,8 +110,8 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 1. `tasks/observability-plan.md` を設計正本として固定する
 2. `component-ownership-matrix.md` に `observability` row を追加する
 3. `access-surface-matrix.md` に access 候補を追加する
-4. `manifests/platform/observability/` の repo-local wrapper を作る
-5. `manifests/bootstrap/applications/platform/observability.yaml` を追加する
+4. `manifests/platform/observability/` の repo-local wrapper を作る（完了）
+5. `manifests/bootstrap/applications/platform/observability.yaml` を追加する（完了）
 6. internal access が必要なら `access-surfaces.yaml` と `manifests/access/observability/` を追加する
 7. `make validate` を green にする
 8. live cluster で `observability` Application が `Synced/Healthy` になることを確認する

@@ -9,3 +9,4 @@ resources:
   - harbor.yaml
   - rustfs.yaml
   - sandbox-config.yaml
+  - observability.yaml

@@ -89,6 +89,8 @@ spec:
       namespace: tailscale
     - server: https://kubernetes.default.svc
       namespace: cloudflared
+    - server: https://kubernetes.default.svc
+      namespace: observability
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
