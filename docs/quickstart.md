@@ -15,26 +15,20 @@
 
 ## 事前ツール確認
 
-CI と同等の検証をローカルで実行するため、以下のツールが必要です。
+CI と同等の検証は Nix toolchain を正規導線にします。ローカルに Nix がない場合は Dockerized Nix の `make validate` を使います。
 
 ```bash
-command -v shellcheck
-command -v yamllint
-command -v kustomize
+make validate
 ```
 
-導入済みかの確認と検証は次で実行できます。
-
-```bash
-automation/scripts/ci/validate.sh
-```
-
-Nix を使える環境では、検証ツールと bootstrap 用CLIを次で揃えます。
+Nix を使える環境では、検証ツールと bootstrap 用 CLI を次で揃えます。
 
 ```bash
 nix develop .#default --command automation/scripts/ci/validate.sh
 nix develop .#bootstrap
 ```
+
+`automation/scripts/ci/validate.sh` の直実行は、`shellcheck`, `yamllint`, `kustomize`, `kubeconform` などが導入済みの場合だけ使います。
 
 ## ステップ1: リポジトリ取得
 

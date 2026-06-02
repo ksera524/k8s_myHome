@@ -27,11 +27,14 @@ make phase5
 ## 検証・チェック
 
 ```bash
-# CI と同等の検証
-automation/scripts/ci/validate.sh
+# CI と同等の検証（推奨）
+make validate
 
-# Nix toolchain を使う場合
+# Nix がローカルにある場合
 nix develop .#default --command automation/scripts/ci/validate.sh
+
+# 必要 toolchain が導入済みの場合のみ
+make validate-local
 
 # 個別チェック
 shellcheck -S error -x automation/scripts/<file>.sh

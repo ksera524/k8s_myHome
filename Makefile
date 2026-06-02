@@ -2,7 +2,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all phase1 phase2 bootstrap phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify recover diagrams
+.PHONY: help all phase1 phase2 bootstrap phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify recover diagrams validate validate-local
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: containerd-precheck containerd-safe
 
@@ -17,6 +17,8 @@ help:
 	@echo "  make phase3 / make gitops-prep  - bootstrap互換入口"
 	@echo "  make phase4 / make gitops-apps  - root Application再適用"
 	@echo "  make phase5 / make verify       - 確認"
+	@echo "  make validate                   - Dockerized NixでCI相当の検証"
+	@echo "  make validate-local             - ローカル導入済みtoolchainで検証"
 	@echo "  make recover                    - Ubuntu再起動後のk8s復旧"
 	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
 
@@ -40,6 +42,12 @@ phase4 gitops-apps:
 
 phase5 verify:
 	@./automation/scripts/run.sh phase5
+
+validate:
+	@docker run --rm -v "$$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh
+
+validate-local:
+	@automation/scripts/ci/validate.sh
 
 recover:
 	@./automation/scripts/recover-after-reboot.sh

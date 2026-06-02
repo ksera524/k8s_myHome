@@ -121,3 +121,16 @@
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認した
 - 2026-06-02 21:30 JST: `make phase5` green。ArgoCD Application 46 件は全て `Synced/Healthy`
 - 未実施 / 証跡なし: disposable rehearsal、rollback rehearsal、VM snapshot、etcd snapshot、ArgoCD auto-sync 停止。live cutover は完了したが、checklist の事前統制項目は例外として記録する
+- 2026-06-02: `automation/docs/external-secrets-README.md` を current GitOps 正本への案内へ置換し、旧 automation / monitoring 手順の残留を解消した
+- 2026-06-02: `cutover-checklist.md` の必須項目を実施済みまたは記録済み例外へ分類した
+- 2026-06-02: `risk-register.md` の PH6 関連 Open risk を close した
+- 2026-06-02: Gate PH6 passed。構造改革完了
+
+## 完了記録
+
+- 完了日: 2026-06-02
+- 判定: Gate PH6 passed
+- repo-side legacy: Grafana Cloud / 現行 monitoring stack、legacy aggregate Application、runner 自動生成、legacy credential / stale template は削除済み
+- live-side legacy: `monitoring` namespace、`Application/monitoring`、`Application/user-applications`、`Application/user-application-definitions`、`Application/harbor-patch` は削除済み
+- 検証: Dockerized Nix 上の `automation/scripts/ci/validate.sh` green、`make phase5` green、ArgoCD Application 46 件 `Synced/Healthy`
+- 例外: disposable rehearsal、rollback rehearsal、VM snapshot、etcd snapshot、ArgoCD auto-sync 停止は未実施。`cutover-checklist.md` に記録済み例外として固定

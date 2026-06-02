@@ -4,7 +4,7 @@
 
 ## Current Phase
 
-- PH6: Cutover Docs and Cleanup（live cutover verified / evidence finalizing）
+- PH6: Complete（構造改革完了）
 
 ## Summary
 
@@ -18,11 +18,14 @@
 - PH6 の repo-side cleanup は完了済み。Grafana Cloud / monitoring stack の implementation source、docs 旧記述、古い automation docs を削除し、Dockerized Nix 上の `validate.sh` は green
 - PH6 live cutover は 2026-06-02 に実施済み。旧 `monitoring` Application / namespace、legacy app aggregate Application、legacy monitoring ExternalSecret は live cluster から削除済み
 - `make phase5` は 2026-06-02 21:30 JST に green。ArgoCD Application 46 件は `Synced/Healthy`、主要 Namespace / Node / Pod / ExternalSecret / Gateway / Cloudflared 検証は成功
+- 2026-06-02 の最終確認で ArgoCD Application 46 件は引き続き `Synced/Healthy`、`monitoring` namespace と legacy Applications は NotFound、ExternalSecret は全件 Ready
+- disposable rehearsal / rollback rehearsal / VM snapshot / etcd snapshot / ArgoCD auto-sync 停止は未実施だが、live cutover 後の記録済み例外として `cutover-checklist.md` に固定済み
+- `automation/docs/external-secrets-README.md` は旧 automation 手順から current GitOps 正本への案内に置換済み
 - `docs/` は current-state、`tasks/` は target-state planning を正とする。ただし main に既に入った topology change は planning 側でも current-state fact として反映する
 
 ## In Progress
 
-- PH6: live cutover 証跡の最終整理
+- なし
 
 ## Blocked
 
@@ -30,7 +33,7 @@
 
 ## Next Gate
 
-- Gate PH6: 旧仕様が main と live cluster から削除され、`validate.sh` と `make phase5` が green であること。disposable rehearsal / rollback rehearsal / snapshot 証跡は未取得のため、完了判定時の例外として記録する
+- なし。Gate PH6 passed。構造改革は完了
 
 ## Open Decisions
 
@@ -68,6 +71,10 @@
 - PH6 repo-side cleanup として monitoring Application、`manifests/monitoring/` values、`monitoring` namespace、Grafana chart allowlist、docs 旧記述、古い automation docs を削除済み
 - PH6 repo-side cleanup 後の検証コマンド `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` は green
 - live cutover は完了。disposable rehearsal / rollback rehearsal / VM snapshot / etcd snapshot は未取得であり、手順逸脱として `cutover-checklist.md` に記録する
+- PH6 完了整理として `automation/docs/external-secrets-README.md` を current GitOps 正本への案内へ置換し、旧 automation / monitoring 手順の残留を解消した
+- `cutover-checklist.md` の必須項目は実施済みまたは記録済み例外へ分類済み
+- `risk-register.md` の PH6 関連 Open risk は close し、代替監視は backlog 管理へ切り離した
+- Gate PH6 passed と判定し、構造改革を完了した
 - 履歴は `open-issues.md` を参照する
 
 #### PH6 repo candidate re-validated
