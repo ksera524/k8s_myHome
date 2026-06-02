@@ -8,7 +8,9 @@ metadata:
     contracts.k8s-myhome.local/access-surface: cooklog-internal
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: http
   hostnames:
@@ -19,6 +21,10 @@ spec:
           requestRedirect:
             scheme: https
             statusCode: 301
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
 ---
 # cooklog内部公開用HTTPRoute（HTTPS）
 apiVersion: gateway.networking.k8s.io/v1
@@ -30,12 +36,21 @@ metadata:
     contracts.k8s-myhome.local/access-surface: cooklog-internal
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: https-internal
   hostnames:
     - cooklog.internal.qroksera.com
   rules:
-    - backendRefs:
-        - name: cooklog
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: cooklog
           port: 80
+          weight: 1
