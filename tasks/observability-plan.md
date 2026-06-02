@@ -27,7 +27,7 @@
 | alerting | Alertmanager 互換または Grafana alert | 初期は必須にせず、後続で段階導入 |
 | external uptime | Uptime Kuma または Cloudflare health check | cluster 内 metrics と外形監視を分離できる |
 
-初期実装は metrics backend + kube-state-metrics を先行し、Grafana dashboard / alerting / uptime は次段階に分ける。Grafana は admin credential の ExternalSecret 方針を固定してから導入する。
+初期実装は metrics backend + kube-state-metrics を先行し、Grafana dashboard / alerting / uptime は次段階に分ける。Grafana は admin credential の ExternalSecret 方針を固定してから導入する。ArgoCD / ExternalSecret / Gateway などの CRD metrics は kube-state-metrics の custom-resource-state 設定が必要なため、初期実装では built-in Kubernetes resource の収集に限定する。
 
 ## 監視対象
 

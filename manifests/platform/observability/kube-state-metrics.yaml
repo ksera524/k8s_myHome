@@ -51,24 +51,6 @@ rules:
     resources:
       - poddisruptionbudgets
     verbs: ["list", "watch"]
-  - apiGroups: ["cert-manager.io"]
-    resources:
-      - certificates
-    verbs: ["list", "watch"]
-  - apiGroups: ["external-secrets.io"]
-    resources:
-      - externalsecrets
-      - clustersecretstores
-    verbs: ["list", "watch"]
-  - apiGroups: ["argoproj.io"]
-    resources:
-      - applications
-    verbs: ["list", "watch"]
-  - apiGroups: ["gateway.networking.k8s.io"]
-    resources:
-      - gateways
-      - httproutes
-    verbs: ["list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -121,7 +103,7 @@ spec:
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
           imagePullPolicy: IfNotPresent
           args:
-            - --resources=certificates,clustersecretstores,cronjobs,deployments,externalsecrets,gateways,httproutes,jobs,namespaces,nodes,persistentvolumeclaims,persistentvolumes,pods,replicasets,statefulsets,storageclasses
+            - --resources=cronjobs,deployments,jobs,namespaces,nodes,persistentvolumeclaims,persistentvolumes,pods,replicasets,statefulsets,storageclasses
           ports:
             - name: http
               containerPort: 8080
