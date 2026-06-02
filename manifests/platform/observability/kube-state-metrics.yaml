@@ -120,19 +120,23 @@ spec:
         - name: kube-state-metrics
           image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
           imagePullPolicy: IfNotPresent
+          args:
+            - --resources=certificates,clustersecretstores,cronjobs,deployments,externalsecrets,gateways,httproutes,jobs,namespaces,nodes,persistentvolumeclaims,persistentvolumes,pods,replicasets,statefulsets,storageclasses
           ports:
             - name: http
               containerPort: 8080
+            - name: telemetry
+              containerPort: 8081
           readinessProbe:
             httpGet:
               path: /readyz
-              port: http
+              port: telemetry
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /livez
-              port: http
+              port: telemetry
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
