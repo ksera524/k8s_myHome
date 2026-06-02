@@ -15,4 +15,4 @@
 
 | ID | 内容 | 優先度 | Owner | 期限 | 状態 |
 |---|---|---|---|---|---|
-| B-001 | 代替監視基盤（self-hosted もしくは別 SaaS）の要件整理、配置先、導入順序を設計する | Medium | platform | TBD | Open |
+| B-001 | 代替監視基盤（self-hosted もしくは別 SaaS）の要件整理、配置先、導入順序を設計する。設計正本は `tasks/observability-plan.md` | Medium | platform | TBD | Designing |

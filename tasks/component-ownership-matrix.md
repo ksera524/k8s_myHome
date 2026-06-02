@@ -35,6 +35,7 @@
 | home-camera | `Application/home-camera` -> `manifests/apps/home-camera/` | - | `Application/home-camera` | - | `manifests/apps/home-camera/` | - | no | workload-only。RTSP URL は owner-local non-secret config として runtime owner path に残す |
 | selenium | `Application/selenium` -> `manifests/apps/selenium/` | - | `Application/selenium` | - | `manifests/apps/selenium/` | - | no | shared tooling workload。`tools` namespace 常駐 |
 | sandbox-config | `Application/sandbox-config` -> `manifests/platform/shared-config/sandbox/` | - | `Application/sandbox-config` | - | `manifests/platform/shared-config/sandbox/` | - | no | shared config owner。複数 workload 参照のため platform 配下に収束済み |
+| observability | - | - | `Application/observability` | `Application/observability-access`（必要な場合のみ） | `manifests/platform/observability/` | `manifests/access/observability/` | yes | PH6 後の代替監視基盤。旧 `monitoring` owner は復活させず、新規 owner として設計する。初期導入は runtime owner のみを優先し、公開は internal access から段階導入する |
 | monitoring (legacy) | `Application/monitoring` -> `grafana/k8s-monitoring` + `manifests/monitoring/` | - | `PH6 で削除` | - | `manifests/monitoring/` | - | no | target state では owner を持たせず除去 |
 
 ## メモ
