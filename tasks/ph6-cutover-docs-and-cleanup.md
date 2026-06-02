@@ -105,3 +105,14 @@
 6. Grafana Cloud と現行 monitoring stack の legacy が実装・docs・workflow・script から除去済みである
 7. Harbor cleanup CronJob、`apps/` workload と `access/` 公開/接続系の責務分離、Nix ベースの正式導線が docs / manifest / validate に反映済みである
 8. residual item は `backlog.md` に記録され、live-confirm 対象 Secret の keep / delete 判断と根拠が記録済みである
+
+## 進捗記録
+
+- 2026-06-02: repo-side cutover candidate cleanup は完了。Grafana Cloud / 現行 monitoring stack の Application、values、namespace、AppProject allowlist / destination、docs 旧記述、古い automation docs を削除した
+- 2026-06-02: `policy-check.py` の PH6 monitoring legacy allowlist を縮小し、旧 monitoring path の再流入を fail-closed にした
+- 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を確認した
+- 2026-06-02: `docs/external-access-guide.md` の stale path を更新し、新規 access 追加手順を `manifests/access/<app>/` + `access-surfaces.yaml` 前提へ修正した
+- 2026-06-02: `policy-rule-spec.md` の PH6 monitoring legacy allowlist 説明を cutover 後の fail-closed 仕様へ更新した
+- 2026-06-02: live cluster / ArgoCD inventory を取得し、legacy live resource と live-confirm Secret の残存を確認した
+- 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認した
+- 未実施: single cutover candidate commit の main 反映、disposable rehearsal、rollback rehearsal、live cutover、snapshot 取得、ArgoCD auto-sync 停止 / controlled sync / 再開、live cleanup 完了確認

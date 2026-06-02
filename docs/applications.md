@@ -18,12 +18,11 @@ root `Application` は `manifests/bootstrap/app-of-apps.yaml` の `bootstrap-roo
 |---|---|---|
 | `argocd-core` | `argocd` | `manifests/platform/argocd-config/` |
 | `external-secrets-operator` | `external-secrets-system` | chart |
-| `config-secrets` | `monitoring` | `manifests/platform/secrets/external-secrets/` |
+| `config-secrets` | `external-secrets-system` | `manifests/platform/secrets/external-secrets/` |
 | `platform` | `argocd` | `manifests/platform/ci-cd/github-actions/` |
 | `harbor` | `harbor` | `manifests/platform/harbor/` |
 | `rustfs` | `rustfs` | `manifests/platform/rustfs/` |
 | `sandbox-config` | `sandbox` | `manifests/platform/shared-config/sandbox/` |
-| `monitoring` | `monitoring` | Grafana chart + `manifests/monitoring/` values |
 
 ### User Apps
 
@@ -129,6 +128,15 @@ root `Application` は `manifests/bootstrap/app-of-apps.yaml` の `bootstrap-roo
 3. `manifests/bootstrap/applications/user-apps/` に runtime 側 `Application` を追加
 4. access owner が必要なら `manifests/bootstrap/applications/access/` に `Application` を追加
 5. `kubectl get applications -n argocd` で `Synced/Healthy` を確認
+
+## App Delivery 契約
+
+- app repo workflow / release bot は image build / push と infra repo PR 作成までを担当する
+- runtime 変更は `manifests/apps/<app-name>/` の image tag 更新 PR とし、`1 app / 1 image update / 1 PR` にする
+- access 変更は `manifests/access/<app-name>/` と `manifests/contracts/home-lab/access-surfaces.yaml` の PR とし、runtime PR と分ける
+- `sandbox` namespace の first-party workload に限り `harbor.qroksera.com/sandbox/*:latest` を条件付きで許容する
+- app delivery から `kubectl apply` / `kubectl patch` / `kubectl rollout restart` で cluster を直接変更しない
+- Runner / bot credential は repo-scoped secret または GitHub App 側で管理し、cluster 内の shared Secret を読み取らない
 
 ## 運用確認コマンド
 

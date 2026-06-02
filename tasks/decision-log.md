@@ -361,3 +361,30 @@
 - 判断: Git が空ディレクトリを追跡しないため、dead path / reservation policy の gate は workspace-local empty dir ではなく、tracked path / stale reference / placeholder file / reinflow rule を正とする
 - 影響: `status.md`, `roadmap.md`, `ph2-gitops-topology-normalization.md`, inventory, policy, cutover 文書は PH2 の未完了範囲を current repo 基準へ更新する必要がある
 - 代替案: PH2 を従来どおり topology 実装フェーズとして維持する（不採用: 実装済み事項と未実装事項が混在し、次フェーズ着手判断が遅れる）
+
+### DEC-0040: PH4 contract drift は `validate.sh` 内の contract-aware check で検出する
+
+- 日付: 2026-06-02
+- 状態: accepted
+- 背景: `access-surfaces.yaml` を正本化しても、manifest 側の hostname / listener / DNS publish / Cloudflared publish が手動管理のままだと drift を検出できない
+- 判断: PH4 初期段階では即時の全値生成に踏み切らず、`contracts.k8s-myhome.local/*` annotation で manifest と contract entry の対応を明示し、`automation/scripts/ci/contract-check.py` を `automation/scripts/ci/validate.sh` 経由で実行して contract と access manifests の整合性を検出する
+- 影響: `HTTPRoute`, `Gateway`, Cloudflared, CoreDNS, Tailscale Split DNS の hostname / listener / backend / publication drift は CI で検出できる。Kustomize replacements / values fragment による実値注入は PH4 の後続作業として段階移行する
+- 代替案: すぐに全 manifest を contract 生成に切り替える（不採用: 変更範囲が大きく、bootstrap / access plane の同時リスクが高い）
+
+### DEC-0041: ExternalSecret は secret domain 単位に分割し pre-ESO path から除去する
+
+- 日付: 2026-06-02
+- 状態: accepted
+- 背景: `external-secret-resources.yaml` monolith と `platform/argocd-config/harbor-unified-registry-secrets.yaml` の top-level `ExternalSecret` が混在すると、secret domain ごとの review と PH6 delete scope の判定が難しい
+- 判断: `manifests/platform/secrets/external-secrets/` 配下を `stores`, `argocd`, `harbor`, `github-actions`, `networking`, `app-runtime` に分割し、pre-ESO path の top-level `ExternalSecret` を 0 件にする。Grafana Cloud / monitoring legacy secret は target-state secret 正本から除外する
+- 影響: 既存 consumer 向けの Secret 名・namespace・template shape は維持しつつ、`harbor-auth-secret`, `github-auth-secret`, `harbor-registry-secret` など旧 automation 互換 Secret は target-state から外れる。default / argocd / sandbox の `harbor-registry` は挙動維持のため `harbor/` domain に集約する
+- 代替案: monolith を維持して checklist だけで管理する（不採用: 再流入検出と domain owner review が弱い）
+
+### DEC-0042: app delivery は image push と infra repo PR 作成までに限定する
+
+- 日付: 2026-06-02
+- 状態: accepted
+- 背景: infra repo 側の runner 自動生成、generated workflow、shared Secret 読み取り、Deployment patch 権限が残ると、app release と cluster 変更の責務境界が混ざり続ける
+- 判断: app repo workflow / release bot は image build / push と infra repo PR 作成までを担当する。runtime 変更は `manifests/apps/<app>/` の `1 app / 1 image update / 1 PR`、access 変更は `manifests/access/<service>/` と `access-surfaces.yaml` の別 PR とする。Runner 定義は `runners-appset.yaml` を Git 正本とし、Runner ServiceAccount には cluster 変更権限や shared Secret 読み取り権限を付与しない
+- 影響: `Makefile` の runner 自動生成ターゲット、旧生成スクリプト、generated workflow、legacy secret template、sandbox Deployment patch RBAC は削除対象ではなく削除済み current-state となる。PH5 はこの前提を policy / validate で fail-closed にする
+- 代替案: 旧生成スクリプトを deprecated として残す（不採用: 誤実行と旧 credential 再流入のリスクが残る）

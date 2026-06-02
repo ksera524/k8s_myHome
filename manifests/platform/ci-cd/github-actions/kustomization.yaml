@@ -8,12 +8,10 @@ resources:
   - arc-controller.yaml
   # ARC RunnerScaleSet (ApplicationSetでGitOps管理)
   - runners-appset.yaml
-  # RBAC
+  # Runner Pod ServiceAccount（cluster変更権限は付与しない）
   - github-actions-rbac.yaml
-  - github-actions-harbor-rbac.yaml
-  # External Secrets (GitHub PATはESO経由で取得)
-  # Note: github-auth-secretはplatform/secrets/external-secrets/external-secret-resources.yamlで管理
-  # Runner ScaleSetはadd-runner.shでsettings.tomlに基づいて作成
+  # GitHub PAT は platform/secrets/external-secrets/github-actions/ で管理
+  # Runner ScaleSetは runners-appset.yaml の list generator をGit管理する
 
 replacements:
   - source:

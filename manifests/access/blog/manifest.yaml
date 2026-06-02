@@ -4,6 +4,8 @@ kind: HTTPRoute
 metadata:
   name: blog-external-redirect
   namespace: sandbox
+  annotations:
+    contracts.k8s-myhome.local/access-surface: blog-external
 spec:
   parentRefs:
     - name: nginx-gateway
@@ -24,6 +26,8 @@ kind: HTTPRoute
 metadata:
   name: blog-external
   namespace: sandbox
+  annotations:
+    contracts.k8s-myhome.local/access-surface: blog-external
 spec:
   parentRefs:
     - name: nginx-gateway

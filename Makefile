@@ -2,27 +2,23 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all phase1 phase2 phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify recover diagrams
+.PHONY: help all phase1 phase2 bootstrap phase3 phase4 phase5 vm k8s gitops-prep gitops-apps verify recover diagrams
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: containerd-precheck containerd-safe
-.PHONY: add-runner add-runners-all all-runner
 
 help:
 	@echo "k8s_myHome task runner"
 	@echo ""
 	@echo "Phases:"
-	@echo "  make all                 - Phase 1〜5を順番に実行"
+	@echo "  make all                 - phase1 -> phase2 -> bootstrap -> phase5を順番に実行"
 	@echo "  make phase1 / make vm     - VMの構成"
 	@echo "  make phase2 / make k8s    - k8sの構成"
-	@echo "  make phase3 / make gitops-prep  - GitOps準備"
-	@echo "  make phase4 / make gitops-apps  - GitOpsアプリ展開"
+	@echo "  make bootstrap            - GitOps bootstrap（ArgoCD + root Application）"
+	@echo "  make phase3 / make gitops-prep  - bootstrap互換入口"
+	@echo "  make phase4 / make gitops-apps  - root Application再適用"
 	@echo "  make phase5 / make verify       - 確認"
 	@echo "  make recover                    - Ubuntu再起動後のk8s復旧"
 	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
-	@echo ""
-	@echo "Runners:"
-	@echo "  make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest - GitHub Actions Runner追加"
-	@echo "  make add-runners-all            - settings.tomlから一括Runner追加"
 
 all:
 	@./automation/scripts/run.sh all
@@ -32,6 +28,9 @@ phase1 vm:
 
 phase2 k8s:
 	@./automation/scripts/run.sh phase2
+
+bootstrap:
+	@./automation/scripts/run.sh bootstrap
 
 phase3 gitops-prep:
 	@./automation/scripts/run.sh phase3
@@ -71,17 +70,3 @@ containerd-precheck:
 
 containerd-safe:
 	@./automation/scripts/run.sh containerd-safe
-
-add-runner:
-	@if [ -z "$(REPO)" ]; then \
-		echo "REPO変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
-		exit 1; \
-	fi
-	@if [ -z "$(MIN)" ] || [ -z "$(MAX)" ] || [ -z "$(STRATEGY)" ]; then \
-		echo "MIN/MAX/STRATEGY変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
-		exit 1; \
-	fi
-	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)" "$(MIN)" "$(MAX)" "$(STRATEGY)"'
-
-add-runners-all:
-	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runners-bulk.sh'

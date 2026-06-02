@@ -113,3 +113,22 @@
 
 - 必須項目がすべて完了した場合のみ cutover 完了とする
 - rollback 発動時は「旧 tag + snapshot」へ戻し、失敗原因を `status.md` と `risk-register.md` に追記してから再計画する
+
+## Repo Candidate 証跡
+
+- 2026-06-02: repo-side PH6 cleanup candidate を作成
+- 2026-06-02: Grafana Cloud / 現行 monitoring stack の repo implementation source と docs 旧記述を削除
+- 2026-06-02: `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` green
+- 2026-06-02: `docs/external-access-guide.md` を current access topology に修正し、Cloudflare ExternalSecret の domain split 後 path と `manifests/access/<app>/` + access contract 前提に更新
+- 2026-06-02: `policy-rule-spec.md` の monitoring legacy allowlist 説明を PH6 cutover 後の fail-closed 仕様に更新
+- 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認
+
+## Live Inventory 証跡
+
+- 2026-06-02: `kubectl get nodes --request-timeout=5s` で live cluster 接続を確認。全 node Ready
+- 2026-06-02: `kubectl get applications -n argocd` で legacy live Application の残存を確認: `monitoring`, `user-applications`, `user-application-definitions`, `harbor-patch`
+- 2026-06-02: `kubectl get ns monitoring` で `monitoring` namespace の残存を確認
+- 2026-06-02: `kubectl get externalsecrets -A` で legacy / live-confirm Secret の残存を確認: `monitoring/grafana-cloud-credentials`, `monitoring/grafana-cloud-monitoring`, `arc-systems/github-auth-secret`, `arc-systems/harbor-auth-secret`, `arc-systems/harbor-registry-secret`, `argocd/ghcr-nginx-charts-secret`, `argocd/github-repo-secret`
+- 2026-06-02: `ClusterSecretStore/pulumi-esc-store` は Ready、`Gateway/nginx-gateway` は Programmed=True、LoadBalancer IP は `192.168.122.100`
+- 現 candidate は未コミット差分であり、root Application の `targetRevision: HEAD` は remote main を参照する。candidate commit を main に反映する前の live cleanup / `make bootstrap` は旧構造の再同期を招くため未実施
+- 未実施: disposable rehearsal、rollback rehearsal、live cutover、VM snapshot、etcd snapshot、candidate commit の main 反映、ArgoCD auto-sync 停止 / controlled sync / 再開

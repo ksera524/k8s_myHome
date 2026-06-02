@@ -196,49 +196,15 @@ project = "k8s"
 environment = "secret"
 
 # ========================================
-# GitHub設定（GitHub Actions Runner用）
+# GitHub設定（ArgoCD OAuth / ARC GitHub App用）
 # ========================================
 [github]
 # GitHubユーザー名（必須・要入力）
-# add-runner.sh, ArgoCD OAuth設定で使用
+# ArgoCD OAuth設定で使用
 username = ""
 
-# GitHub Actions Runner Controller (ARC) 対象リポジトリリスト
-# make all実行時に自動作成されるRunnerScaleSet用設定
-# 
-# 📋 設定方法:
-# 各配列要素: [リポジトリ名, 最小Runner数, 最大Runner数, 説明, 戦略]
-# 戦略は必須で "latest" を指定
-#
-# 🔧 Runner数の設定指針:
-# minRunners (最小Runner数):
-#   0 = オンデマンド起動 - ジョブがあるときのみRunner起動（リソース節約）
-#   1 = 常時稼働 - 1台のRunnerが常駐してすぐにジョブを開始
-#
-# maxRunners (最大Runner数):
-#   同時実行可能な最大Runner数（並列ジョブ数に応じて設定）
-#   推奨: 通常は 1-3、大規模プロジェクトは 5以下
-#
-# strategy (戦略):
-#   latest = main/masterへのpushで latest タグをpush
-#
-# 🏃 作成されるRunnerScaleSet名:
-# リポジトリ名 "my.project" → Runner名 "my-project-runners"
-# (ドット、アンダースコアは自動的にハイフンに変換)
-#
-# 📝 使用例:
-# arc_repositories = [
-#     ["k8s_myHome", 1, 3, "メインの k8s_myHome プロジェクト", "latest"],
-#     ["docs-site", 0, 1, "軽量なドキュメントサイト", "latest"],
-#     ["api-server", 0, 2, "API サーバープロジェクト", "latest"]
-# ]
-#
-# 🎯 Workflow内での使用:
-# jobs:
-#   build:
-#     runs-on: k8s-myhome-runners    # k8s_myHome専用
-#     runs-on: api-hub-runners       # api-hub専用
-arc_repositories = []
+# ARC RunnerScaleSet は settings.toml から生成しません。
+# `manifests/platform/ci-cd/github-actions/runners-appset.yaml` をGitで更新してください。
 
 # ========================================
 # 自動化オプション（settings-loader.shで使用）

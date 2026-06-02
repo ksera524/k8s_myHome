@@ -9,8 +9,8 @@
 - `infrastructure/`: クラスタ基盤（networking / security / storage など）
 - `platform/`: GitOps運用基盤・CI/CD・Secrets運用・shared config・repo-local wrapper
 - `access/`: Gateway / DNS / Cloudflared / HTTPRoute などの公開/接続系リソース
-- `monitoring/`: 監視関連の values / 補助ファイル
 - `apps/`: ユーザーアプリの workload-only マニフェスト
+- `contracts/`: home-lab の非機密 environment / access contract
 
 ## ArgoCD Application 定義
 
@@ -34,6 +34,14 @@
 ## ExternalSecrets
 
 - ESO 本体と `ExternalSecret` 定義は `platform/secrets/external-secrets/` に集約する
+- `ExternalSecret` は `stores/`, `argocd/`, `harbor/`, `github-actions/`, `networking/`, `app-runtime/` の domain directory で管理する
+- `platform/argocd-config/**` など pre-ESO path に top-level `ExternalSecret` を置かない
+
+## Environment / Access Contract
+
+- 非機密の cluster 固定値は `contracts/home-lab/cluster-contract.yaml` を正本にする
+- hostname / listener / backend / publish は `contracts/home-lab/access-surfaces.yaml` を正本にする
+- 変更手順と例外条件は `docs/environment-contracts.md` を参照する
 
 ## Kustomize / App-of-Apps の原則
 

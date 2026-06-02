@@ -66,9 +66,8 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 helm repo add harbor https://helm.goharbor.io
 helm install harbor harbor/harbor --namespace harbor --create-namespace
 
-# 6. GitHub Actions Runner Controller (ARC) は make all で自動デプロイ
-# Controller本体はArgoCDのGitOps同期でデプロイされます
-# setup-arc.sh はARC運用の事前設定（namespace/ServiceAccount等）を行います
+# 6. GitHub Actions Runner Controller (ARC) はArgoCDのGitOps同期でデプロイ
+# RunnerScaleSetとServiceAccountは manifests/platform/ci-cd/github-actions/ を正本にします
 ```
 
 ## 構築内容

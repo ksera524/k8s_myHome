@@ -156,7 +156,6 @@ jobs:
             'external-secrets': 'https://charts.external-secrets.io',
             'tailscale': 'https://pkgs.tailscale.com/helmcharts',
             'harbor': 'https://helm.goharbor.io',
-            'grafana': 'https://grafana.github.io/helm-charts',
             'rustfs': 'https://charts.rustfs.com',
           }
           for alias, url in repos.items():
@@ -208,27 +207,6 @@ jobs:
               'ref': repo_chart,
               'path': f'{source_path}/kustomization.yaml',
             })
-
-          monitoring_app = child_apps.get('monitoring')
-          if monitoring_app:
-            monitoring = monitoring_app['doc']
-            mon_source = None
-            for src in monitoring['spec'].get('sources', []):
-              if src.get('chart') == 'k8s-monitoring':
-                mon_source = src
-                break
-            if mon_source:
-              current = str(mon_source['targetRevision'])
-              latest = helm_latest('grafana/k8s-monitoring')
-              checks.append({
-                'component': 'k8s-monitoring',
-                'kind': 'helm-chart',
-                'current': current,
-                'latest': latest,
-                'status': compare(current, latest),
-                'ref': 'grafana/k8s-monitoring',
-                'path': monitoring_app['path'],
-              })
 
           # ARC controller (OCI chart)
           arc_doc = yaml.safe_load((ROOT / 'manifests/platform/ci-cd/github-actions/arc-controller.yaml').read_text(encoding='utf-8'))

@@ -156,12 +156,7 @@ NetworkPolicyは一部導入済み（cloudflaredのIngress拒否、rustfsのGate
 
 ## 監視・可観測性
 
-### Grafana K8s Monitoring
-- **方式**: Grafana k8s-monitoring（Helm）
-- **メトリクス収集**: Prometheus Remote Write
-- **ログ収集**: Loki
-- **トレース収集**: OTLP
-- **送信先**: Grafana Cloud
+旧外部監視連携は削除済みです。代替監視基盤の導入は改革後 backlog で別管理します。
 
 ### ヘルスチェック
 

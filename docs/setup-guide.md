@@ -59,14 +59,9 @@ organization = "your-org"  # Pulumi組織名
 project = "k8s"
 environment = "secret"
 
-# GitHub設定（GitHub Actions Runner用）
+# GitHub設定（ArgoCD OAuth / ARC GitHub App用）
 [github]
 username = "your-github-username"  # GitHubユーザー名
-
-# GitHub Actions Runner対象リポジトリ
-arc_repositories = [
-    ["your-repo", 1, 3, "Your repository description", "latest"],
-]
 
 # USB外部ストレージ（通常は自動検出）
 [host_setup]
@@ -85,9 +80,16 @@ make all
 このコマンドは以下の処理を自動実行します：
 1. ホストマシンのセットアップ
 2. VM作成とKubernetesクラスター構築
-3. GitOps準備（ArgoCD/ESOなど）
-4. GitOpsによるアプリケーション展開
-5. 確認
+3. GitOps bootstrap（ArgoCD初期導入、pre-ESO Secret、root Application適用）
+4. 確認
+
+Nix を使える環境では、fresh host 用のoperator toolchainを次で再現できます。
+
+```bash
+nix develop .#bootstrap
+```
+
+`nix develop .#bootstrap` はローカルCLIを提供します。libvirt/KVM/Docker/systemdなどのhost prerequisiteは `make phase1` がホスト側で構成します。
 
 ### 4. ステップバイステップセットアップ（手動）
 
@@ -137,20 +139,19 @@ sudo virsh list --all
 ssh k8suser@192.168.122.10 'kubectl get nodes'
 ```
 
-#### 4.3 プラットフォームサービス
+#### 4.3 GitOps bootstrap
 
 ```bash
-# GitOps準備（ArgoCD/ESOなど）
-make phase3
+# ArgoCD初期導入、pre-ESO Secret、root Application適用
+make bootstrap
 ```
 
 このステップでは以下を実行：
-- MetalLB（LoadBalancer）
-- NGINX Gateway Fabric（Gateway API）
-- cert-manager（証明書管理）
 - ArgoCD（GitOps）
-- Harbor（コンテナレジストリ）
-- External Secrets Operator
+- External Secrets Operator が利用する pre-ESO Secret
+- `manifests/bootstrap/app-of-apps.yaml` の root Application 適用
+
+MetalLB、Gateway、cert-manager、Harbor、各アプリ、access plane の収束は root Application 配下の child Application が管理します。bootstrap script は個別ownerの同期判断を持ちません。
 
 進捗確認：
 ```bash
@@ -158,13 +159,7 @@ make phase3
 kubectl get pods --all-namespaces
 ```
 
-#### 4.4 GitOpsアプリケーション展開
-
-```bash
-make phase4
-```
-
-#### 4.5 確認
+#### 4.4 確認
 
 ```bash
 make phase5
@@ -226,19 +221,9 @@ kubectl patch application bootstrap-root -n argocd \
 
 ### 7. GitHub Actions Runner設定
 
-#### 自動設定（推奨）
+RunnerScaleSet は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` をGitで更新します。旧Runner自動生成は使いません。
 
-settings.tomlに`arc_repositories`を設定済みの場合、`make add-runners-all`で一括作成できます。
-
-#### 手動追加
-
-```bash
-# 個別リポジトリ用Runner追加
-make add-runner REPO=your-repository-name MIN=1 MAX=3 STRATEGY=latest
-
-# 一括追加（settings.tomlから）
-make add-runners-all
-```
+app release workflow は image build / push と infra repo PR 作成までを担当します。cluster への直接変更、`kubectl rollout restart`、runtime PR と access PR の混在は行いません。
 
 ### 8. セットアップ検証
 

@@ -78,7 +78,7 @@ log_status "ArgoCDリフレッシュ中..."
 sleep 5
 
 log_status "主要Namespace確認中..."
-critical_namespaces=(argocd monitoring harbor external-secrets-system nginx-gateway metallb-system)
+critical_namespaces=(argocd harbor external-secrets-system nginx-gateway metallb-system)
 for namespace in "${critical_namespaces[@]}"; do
   if "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get namespace ${namespace} >/dev/null 2>&1"; then
     log_status "✓ ${namespace} namespace 存在"

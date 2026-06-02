@@ -29,6 +29,13 @@ command -v kustomize
 automation/scripts/ci/validate.sh
 ```
 
+Nix を使える環境では、検証ツールと bootstrap 用CLIを次で揃えます。
+
+```bash
+nix develop .#default --command automation/scripts/ci/validate.sh
+nix develop .#bootstrap
+```
+
 ## ステップ1: リポジトリ取得
 
 ```bash
@@ -61,6 +68,8 @@ username = "your-username"   # GitHubユーザー名（必須）
 ```bash
 make all
 ```
+
+`make all` は `make phase1 -> make phase2 -> make bootstrap -> make phase5` の順に実行します。
 
 ⏱️ **所要時間**: 約30-45分
 
@@ -108,27 +117,19 @@ kubectl port-forward svc/harbor-core -n harbor 8081:80
 | `make phase5` | 確認 |
 | `ssh k8suser@192.168.122.10` | Control PlaneへSSH |
 | `cat automation/run.log` | ログ表示 |
-| `make add-runner REPO=name MIN=1 MAX=3 STRATEGY=latest` | GitHub Runner追加 |
 
 ## 🔧 カスタマイズ
 
 ### GitHub Actions Runner追加
 
-```bash
-# settings.tomlに追加
-arc_repositories = [
-    ["your-repo", 1, 3, "Your repository", "latest"],
-]
-
-# Runner作成
-make add-runners-all
-```
+RunnerScaleSet は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` の list generator をGitで更新します。旧Runner自動生成は使いません。
 
 ### アプリケーションデプロイ
 
-1. `manifests/apps/`にアプリケーションマニフェスト作成
-2. Git commit & push
-3. ArgoCDが自動デプロイ
+1. app repo で image を build / push
+2. infra repo の `manifests/apps/<app>/` に image tag 更新 PR を作成
+3. access 変更が必要な場合は `manifests/access/<app>/` と contract 変更を別 PR にする
+4. merge 後に ArgoCD が自動同期
 
 ## ⚠️ トラブルシューティング
 
@@ -139,8 +140,7 @@ make add-runners-all
 cat automation/run.log
 
 # フェーズを個別に再実行
-make phase3
-make phase4
+make bootstrap
 make phase5
 ```
 
@@ -175,7 +175,7 @@ kubectl get events --all-namespaces
 1. **初回は`make all`推奨** - 依存関係を自動解決
 2. **settings.toml重要** - 必須項目は必ず設定
 3. **ログ確認** - `automation/run.log`に全ログ記録
-4. **段階実行も可能** - `make phase1`〜`make phase5`
+4. **段階実行も可能** - `make phase1 -> make phase2 -> make bootstrap -> make phase5`
 
 ## 🎉 完了！
 
@@ -183,7 +183,7 @@ kubectl get events --all-namespaces
 
 次のステップ:
 - アプリケーションをデプロイ
-- 監視ダッシュボードを確認
-- CI/CDパイプラインを構築
+- `docs/applications.md` に従って app delivery PR を作成
+- 必要なら `manifests/access/` に公開経路を追加
 
 質問がある場合は[GitHub Issues](https://github.com/ksera524/k8s_myHome/issues)でお問い合わせください。

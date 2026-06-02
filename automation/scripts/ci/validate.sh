@@ -28,10 +28,19 @@ if ! command -v yamllint >/dev/null 2>&1; then
   exit 1
 fi
 
-yamllint -f parsable -c "$ROOT_DIR/.yamllint.yml" \
-  "$ROOT_DIR/manifests" \
-  "$ROOT_DIR/automation/templates" \
-  "$ROOT_DIR/automation/infrastructure"
+mapfile -t yaml_files < <(
+  find \
+    "$ROOT_DIR/manifests" \
+    "$ROOT_DIR/automation/templates" \
+    "$ROOT_DIR/automation/infrastructure" \
+    -path '*/charts/*' -prune -o \
+    \( -name '*.yaml' -o -name '*.yml' \) -print
+)
+if ((${#yaml_files[@]})); then
+  yamllint -f parsable -c "$ROOT_DIR/.yamllint.yml" "${yaml_files[@]}"
+else
+  echo "No YAML files found for yamllint"
+fi
 
 log_section "Kustomize build"
 if ! command -v kustomize >/dev/null 2>&1; then
@@ -44,6 +53,25 @@ while IFS= read -r kfile; do
   echo "kustomize build --enable-helm $kdir"
   kustomize build --enable-helm "$kdir" >/dev/null
 
+done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
+
+log_section "Policy checks"
+"$ROOT_DIR/automation/scripts/ci/policy-check.sh"
+
+log_section "Kubeconform"
+if ! command -v kubeconform >/dev/null 2>&1; then
+  echo "kubeconform not found" >&2
+  exit 1
+fi
+
+while IFS= read -r kfile; do
+  kdir="$(dirname "$kfile")"
+  echo "kustomize build --enable-helm $kdir | kubeconform"
+  kustomize build --enable-helm "$kdir" \
+    | kubeconform \
+      -strict \
+      -ignore-missing-schemas \
+      -skip Application,ApplicationSet,ExternalSecret,SecretStore,ClusterSecretStore,HTTPRoute,Gateway,GatewayClass,GRPCRoute,ReferenceGrant,TLSRoute,TCPRoute,UDPRoute,ClientSettingsPolicy,BackendTLSPolicy,IPAddressPool,L2Advertisement,Certificate,Issuer,ClusterIssuer
 done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
 
 log_section "Consistency checks"

@@ -7,7 +7,9 @@
 - Secret の keep / delete / live-confirm 判定正本は `external-secret-split-plan.md` とし、本ファイルは削除対象索引と operational grep 観点を集約する
 - canonical identifier set / regex 語彙は `policy-rule-spec.md` を正とし、本ファイルの grep は PH6 実施用の operational example とする
 
-## active delete scope（current repo に残っているもの）
+## PH6 delete scope（repo-side cleanup 済み / live 確認対象）
+
+2026-06-02 時点で repo-side cleanup は完了済み。以下は PH6 で削除対象にした canonical scope と、live cutover 時に repo / live cluster の双方で再出現していないことを確認する対象である。
 
 ### 1) Grafana Cloud / 現行 monitoring stack
 

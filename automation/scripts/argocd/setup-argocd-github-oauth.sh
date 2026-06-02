@@ -11,7 +11,7 @@ AUTOMATION_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # 共通関数の読み込み
 source "${SCRIPT_DIR}/../common-logging.sh"
 source "${SCRIPT_DIR}/../settings-loader.sh"
-source "${ORIGINAL_SCRIPT_DIR}/github-auth-utils.sh"
+source "${ORIGINAL_SCRIPT_DIR}/github-oauth-utils.sh"
 
 # 設定ファイル読み込み
 load_settings "${AUTOMATION_DIR}/settings.toml"

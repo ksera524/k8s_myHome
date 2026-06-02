@@ -125,3 +125,9 @@ manifests/platform/secrets/external-secrets/
 - Grafana legacy secret が root `kustomization.yaml` から外れている
 - `harbor-auth` / `github-auth` の削除計画が PH3 / PH6 と整合している
 - live-confirm 対象の keep / delete 根拠が tasks 側に残っている
+
+## implementation status
+
+- 2026-06-02: `external-secret-resources.yaml` monolith を削除し、`stores`, `argocd`, `harbor`, `github-actions`, `networking`, `app-runtime` へ分割済み
+- 2026-06-02: `platform/argocd-config/harbor-unified-registry-secrets.yaml` を削除し、`harbor-registry` の `default` / `argocd` / `sandbox` copy は `harbor/` domain へ集約済み
+- 2026-06-02: Grafana Cloud / monitoring legacy ExternalSecret は target-state secret 正本から除外済み。monitoring stack 本体の削除は PH6 delete scope として維持する

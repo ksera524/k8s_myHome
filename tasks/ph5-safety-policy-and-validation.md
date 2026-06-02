@@ -100,3 +100,19 @@
 12. `validate.sh` の依存 toolchain がローカル / CI で共通化されている
 13. legacy secret identifiers と stale secret templates の再流入を `validate.sh` が検出できる
 14. pre-ESO path / duplicate secret drift / legacy credential drift を `validate.sh` が検出できる
+
+## 完了記録
+
+- 完了日: 2026-06-02
+- 判定: Gate PH5 passed
+- `automation/scripts/ci/policy-check.sh` と manifest-aware 実装 `automation/scripts/ci/policy-check.py` を追加し、`validate.sh` から実行する公開判定入口に統合した
+- `policy-check.py` は legacy identifier 再流入、app delivery 直接 rollout、first-party `:latest` 条件、pre-ESO `ExternalSecret`、`HEAD` / `prune:false`、child Application owner 重複、`apps/**` access resource 混入、Harbor legacy split-owner artifact、rendered resource collision を検出する
+- monitoring / Grafana legacy は PH6 delete scope の既知 live path を allowlist し、それ以外への再流入を fail する
+- rendered collision check は child `Application` の repo-local kustomize path を render し、複数 owner が同一 document identity を出力した場合に fail する
+- `kubeconform` を `validate.sh` に追加し、CRD / ArgoCD / ExternalSecret / Gateway API / MetalLB / cert-manager 系は skip list と `-ignore-missing-schemas` で段階導入した
+- `flake.nix` に `kubeconform` を追加し、`flake.lock` を生成した
+- `.github/workflows/ci-deploy-validate.yml` は `nix develop .#default --command automation/scripts/ci/validate.sh` へ移行済み
+- 旧 Grafana deploy script と `automation/platform/.github/workflows/` の generated app workflow を削除した
+- 検証コマンド: `nix develop path:/work#default --command automation/scripts/ci/validate.sh`（Dockerized Nix）
+- 検証結果: green
+- 次フェーズ: PH6 Cutover Docs and Cleanup

@@ -31,7 +31,7 @@
 - 各 PH の詳細スコープと完了条件は `ph0-*.md` 〜 `ph6-*.md` を正とする
 - PH6 rehearsal / live cutover / rollback の詳細手順と pass-fail 判定は `cutover-checklist.md` を正とする
 - `component-ownership-matrix.md`, `access-surface-matrix.md`, `environment-contract-inventory.md` は planning canonical とし、実装後の live 正本は対応する `manifests/**` / contract file を正とする
-- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` など PH1 実装後の target-state 名称は、現行 live repo の即時実行手順ではない
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は PH1 完了後の現行 live repo の公式 bootstrap 導線である
 
 ## フェーズゲート
 
@@ -88,7 +88,7 @@
 
 - PH2 は PH0 の taxonomy / owner ルール合意に依存
 - PH4 は PH2 の target topology と access 抽出先定義に依存
-- PH1 は PH2 / PH4 の target topology / contract 確定に依存
+- PH1 は PH2 / PH4 の target topology / contract 確定に依存し、完了済み
 - PH3 は PH2 / PH4 の runtime/access 境界と contract 確定に依存
 - PH5 は PH0〜PH4 の新ルール確定に依存する。ただし advisory な topology guard は PH2 residual scope 固定後に前倒し着手できる
 - PH6 は PH1〜PH5 の反映完了に依存
@@ -108,7 +108,7 @@
 ## cutover 原則
 
 - main ブランチへの反映は「旧新併存なし」の単発 cutover を原則とする
-- `make bootstrap` / `automation/scripts/run.sh bootstrap` は PH1 実装後の target-state alias を指し、詳細な役割境界は DEC-0019 と `ph1-bootstrap-minimalization.md` を正とする
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` は現行 live repo の GitOps bootstrap 入口を指し、詳細な役割境界は DEC-0019 と `ph1-bootstrap-minimalization.md` を正とする
 - rehearsal / live cutover / rollback の標準順序、証跡、合格条件は `cutover-checklist.md` を正とする
 - legacy 削除系ルール（`R-001`, `R-002`, `R-003`, `R-007` 以降の access / collision ルールを含む）の required 化タイミングは `policy-rule-spec.md` を正とする
 - rehearsal 環境を用意できない場合は PH6 Go 判定を出さない

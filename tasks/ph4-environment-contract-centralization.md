@@ -111,3 +111,48 @@
 12. Secret inventory が secret domain 単位で分類済みで、duplicate / legacy / live-confirm 候補が keep / merge / delete / live-confirm のいずれかに判定済みである
 13. pre-ESO path に top-level `ExternalSecret` が残っていない
 14. 旧 automation 互換 Secret と stale secret template の target-state での扱いが PH3 / PH6 へ接続済みである
+
+## 実装結果
+
+- 完了日: 2026-06-02
+- 非機密 cluster contract は `manifests/contracts/home-lab/cluster-contract.yaml` に固定済み
+- 非機密 access contract は `manifests/contracts/home-lab/access-surfaces.yaml` に固定済み
+- `HTTPRoute`, `Gateway`, Cloudflared, CoreDNS, Tailscale Split DNS は contract annotation と `automation/scripts/ci/contract-check.py` で drift 検出済み
+- 値変更手順とハードコード許容例外は `docs/environment-contracts.md` に固定済み
+- `ExternalSecret` は `manifests/platform/secrets/external-secrets/**` の domain directory に分割済み
+- `platform/argocd-config/**` の top-level `ExternalSecret` は 0 件
+- Grafana Cloud / monitoring legacy secret は target-state secret 正本から除外済み。monitoring stack 本体の削除は PH6 delete scope として維持する
+- PH4 完了状態で `automation/scripts/ci/validate.sh` は green
+
+## 完了記録
+
+- 判定日: 2026-06-02
+- 判定: Gate PH4 passed
+- 検証コマンド: `automation/scripts/ci/validate.sh`
+- 検証結果: green
+- 次フェーズ: PH1 Bootstrap Minimalization
+
+### Gate PH4 判定
+
+| 完了条件 | 判定 | 証跡 |
+|---|---|---|
+| 環境契約の正本が定義済み | Pass | `manifests/contracts/home-lab/cluster-contract.yaml` |
+| access 契約の正本が定義済み | Pass | `manifests/contracts/home-lab/access-surfaces.yaml` |
+| 主要コンポーネントが正本ベースに移行済み | Pass | access annotation と `automation/scripts/ci/contract-check.py` |
+| ハードコード許容例外が文書化済み | Pass | `docs/environment-contracts.md` |
+| 値変更時の作業手順が明記されている | Pass | `docs/environment-contracts.md` |
+| `settings.toml` は secret/local 設定の責務に限定 | Pass | contract と secret 正本を分離し、secret は ESO 参照元 / local settings に限定 |
+| hostname ごとの owner / contract entry が追跡可能 | Pass | `access-surfaces.yaml`, access annotation, `access-surface-matrix.md` |
+| Grafana Cloud endpoint / token / ExternalSecret が target-state から除外済み | Pass | Grafana Cloud ExternalSecret を root `kustomization.yaml` から除外し削除対象化 |
+| 派生値と runtime-local endpoint の境界が整理済み | Pass | `environment-contract-inventory.md`, `docs/environment-contracts.md` |
+| app 固有の非機密設定が owner-local として整理済み | Pass | `environment-contract-inventory.md` |
+| shared app config の境界が明文化済み | Pass | `docs/manifest-layout.md`, `docs/environment-contracts.md` |
+| Secret inventory が domain 単位で分類済み | Pass | `external-secret-split-plan.md` と domain split 実装 |
+| pre-ESO path に top-level `ExternalSecret` が残っていない | Pass | `automation/scripts/ci/consistency-check.sh` |
+| 旧 automation 互換 Secret / stale template の扱いが後続 PH に接続済み | Pass | `external-secret-split-plan.md`, PH6 delete scope |
+
+### PH5 / PH6 Handoff
+
+- PH5: `contract-check.py` と `consistency-check.sh` の advisory / required ルールを policy rule set へ統合する。
+- PH6: monitoring stack 本体、Grafana chart、monitoring namespace 前提を delete scope として処理する。
+- PH6: 旧 automation 互換 secret template の残存 grep と live-confirm 対象の最終削除判定を行う。

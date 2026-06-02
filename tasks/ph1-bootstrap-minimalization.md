@@ -14,7 +14,7 @@
 ## 用語注記
 
 - 現行 live repo の公式実行入口は `make phase1` 〜 `make phase5` と `automation/scripts/run.sh phase1|phase2|phase3|phase4|phase5` を正とする
-- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は PH1 実装後の target-state 名称であり、現行 live repo の即時実行コマンドではない
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は PH1 完了後の現行 live repo の公式導線である
 
 ## スコープ
 
@@ -99,3 +99,15 @@
 11. `nix develop .#bootstrap` と `make bootstrap` の役割差分が文書化されている
 12. `manifests/platform/argocd-config/**` の top-level `ExternalSecret` が 0 件である
 13. bootstrap 完了に不要な registry / repository credential が post-ESO path へ分離済みである
+
+## 完了記録
+
+- 完了日: 2026-06-02
+- 判定: Pass
+- `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`）を公式 GitOps bootstrap 入口として実装した
+- `automation/platform/platform-deploy.sh` は ArgoCD 初期導入、pre-ESO Secret / RBAC、root Application 適用に限定した
+- bootstrap 経路から Harbor / ARC / Grafana / access plane の個別収束処理と manual patch / restart を除去した
+- fresh cluster の標準順序は `make phase1 -> make phase2 -> make bootstrap -> make phase5` として docs / Makefile / run.sh に反映済み
+- `flake.nix` を追加し、`devShells.default` と `devShells.bootstrap` を定義した。現 executor に `nix` がないため `flake.lock` 生成は未実施で、PH5 の validate toolchain pinning で生成する
+- `automation/host-setup/setup-host.sh` は Nix-aware mode で CLI 重複導入をスキップし、host prerequisite は維持する
+- `automation/scripts/ci/validate.sh` は green

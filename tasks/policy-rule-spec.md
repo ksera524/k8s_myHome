@@ -245,6 +245,25 @@
   - `node-mutations/**` は opt-in operational overlay であり、このルール単独では違反にしない
   - path 存在チェックと document identity / field path チェックを組み合わせる
 
+### R-012: monitoring legacy 再流入禁止
+
+- 対象:
+  - `manifests/`
+  - `automation/`
+  - `docs/`
+  - `.github/`
+  - `AGENTS.md`
+  - `README.md`
+  - `Makefile`
+- 禁止:
+  - Canonical Grafana / monitoring legacy identifier set が PH6 delete scope allowlist 外へ出現すること
+- 条件付き許容:
+  - `tasks/` 配下の計画・履歴文書
+  - CI check 自身が検出語彙として保持する identifier
+- 例外可否: 不可
+- 実装メモ:
+  - PH6 cutover 後は implementation / docs / workflow / script 側の allowlist を空にし、main に monitoring legacy が残っていないことを fail-closed で判定する
+
 ## CI 連携方針
 
 - `automation/scripts/ci/validate.sh` を唯一の公開入口として維持する
@@ -257,6 +276,7 @@
 - `R-007` は bootstrap Application manifest を対象に structural check として実装する
 - `R-008` は path / kind denylist ベースの再流入防止ルールとして実装する
 - `R-011` は Harbor legacy path / Application identity / stale `ignoreDifferences` の複合チェックとして実装する
+- `R-012` は monitoring legacy を PH6 delete scope allowlist 外への再流入として検出する。PH6 cutover 後は allowlist を空にする
 
 ## 例外IDの紐付け仕様
 

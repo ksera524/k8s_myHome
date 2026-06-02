@@ -22,11 +22,16 @@ make all
 make phase5
 ```
 
+`make all` は `make phase1 -> make phase2 -> make bootstrap -> make phase5` を実行します。GitOps bootstrap の単独実行入口は `make bootstrap` です。
+
 ## 検証・チェック
 
 ```bash
 # CI と同等の検証
 automation/scripts/ci/validate.sh
+
+# Nix toolchain を使う場合
+nix develop .#default --command automation/scripts/ci/validate.sh
 
 # 個別チェック
 shellcheck -S error -x automation/scripts/<file>.sh

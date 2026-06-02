@@ -24,11 +24,11 @@
 
 ## 新しい接続先を追加する手順
 
-### 1. ExternalSecret（Cloudflare API Token）を用意
+### 1. ExternalSecret（Cloudflare API Token）を確認
 
 Pulumi ESC の `dns-01` を使用して、`cert-manager` namespace に Secret を同期します。
 
-- 対象ファイル: `manifests/platform/secrets/external-secrets/external-secret-resources.yaml`
+- 対象ファイル: `manifests/platform/secrets/external-secrets/networking/cloudflare-api-token.yaml`
 - 既存の `cloudflare-api-token` を再利用する
 
 ### 2. ClusterIssuer を確認
@@ -71,7 +71,7 @@ spec:
 
 ### 4. HTTPRoute を追加
 
-同じく `manifests/apps/<app>/` 配下へ HTTPRoute を追加し、Gateway 経由で公開します。
+`manifests/access/<app>/` 配下へ HTTPRoute を追加し、Gateway 経由で公開します。hostname / listener / backend / publish 方式は `manifests/contracts/home-lab/access-surfaces.yaml` にも追加し、HTTPRoute には対応する `contracts.k8s-myhome.local/access-surface` annotation を付与します。
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -79,6 +79,8 @@ kind: HTTPRoute
 metadata:
   name: <app>-external-redirect
   namespace: <namespace>
+  annotations:
+    contracts.k8s-myhome.local/access-surface: <app>-external
 spec:
   parentRefs:
     - name: nginx-gateway
@@ -98,6 +100,8 @@ kind: HTTPRoute
 metadata:
   name: <app>-external
   namespace: <namespace>
+  annotations:
+    contracts.k8s-myhome.local/access-surface: <app>-external
 spec:
   parentRefs:
     - name: nginx-gateway

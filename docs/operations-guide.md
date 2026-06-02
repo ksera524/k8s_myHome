@@ -22,7 +22,7 @@
 `make phase5` では次の項目を確認します。
 
 - Control Plane 接続（kubectl での疎通）
-- 主要Namespaceの存在（argocd/monitoring/harbor/external-secrets-system/nginx-gateway/metallb-system）
+- 主要Namespaceの存在（argocd/harbor/external-secrets-system/nginx-gateway/metallb-system）
 - ノード Ready 状態
 - Pod 異常（Running/Completed 以外）
 - ArgoCD アプリの Sync/Health
@@ -149,11 +149,10 @@ kubectl get pods -n arc-systems | grep runner
 kubectl describe autoscalingrunnerset <runner-name> -n arc-systems
 ```
 
-Runner定義は `add-runner.sh` で `manifests/platform/ci-cd/github-actions/runners-appset.yaml` へ登録し、実体デプロイはArgoCD + ApplicationSetでGitOps管理します。
+Runner定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` の list generator をGitで更新し、実体デプロイはArgoCD + ApplicationSetでGitOps管理します。
 ARC ControllerはGitOps管理（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）を正とし、手動Helm適用は行いません。
 `manifests/platform/ci-cd/github-actions/` には controller と RBAC を保持します。
-Runner ServiceAccount（`arc-systems/github-actions-runner`）の権限は最小化し、実行時に必要なSecretのみ許可します。
-- `arc-systems/harbor-auth`（Harbor push用資格情報）
+Runner ServiceAccount（`arc-systems/github-actions-runner`）には cluster 変更権限や Secret 読み取り権限を付与しません。app repo workflow が必要な資格情報は repo-scoped secret / GitHub App 側で管理します。
 
 Runnerの前提リソース確認:
 
@@ -162,34 +161,22 @@ kubectl get secret github-multi-repo-secret -n arc-systems
 ```
 
 ```bash
-# 権限確認（許可されること）
-kubectl auth can-i get secret/harbor-auth -n arc-systems \
-  --as=system:serviceaccount:arc-systems:github-actions-runner
-
 # 権限確認（拒否されること）
+kubectl auth can-i patch deployments -n sandbox \
+  --as=system:serviceaccount:arc-systems:github-actions-runner
+kubectl auth can-i get secrets -n arc-systems \
+  --as=system:serviceaccount:arc-systems:github-actions-runner
 kubectl auth can-i list secrets --all-namespaces \
   --as=system:serviceaccount:arc-systems:github-actions-runner
 ```
 
 #### Runner追加・削除
 
-```bash
-# 個別Runner追加
-make add-runner REPO=repository-name MIN=1 MAX=3 STRATEGY=latest
+Runner追加・削除・min/max変更は `runners-appset.yaml` の list generator を変更する PR で行います。直接 `kubectl delete autoscalingrunnerset` する場合も、最終状態は必ず Git へ反映してください。
 
-# 一括Runner追加（settings.tomlから）
-make add-runners-all
+#### App Delivery
 
-# Runner削除
-kubectl delete autoscalingrunnerset <runner-name> -n arc-systems
-```
-
-#### Runner設定変更
-
-```bash
-# minRunners/maxRunners変更
-make add-runner REPO=<repository-name> MIN=2 MAX=5 STRATEGY=latest
-```
+app repo workflow / release bot が行うのは image build / push と infra repo PR 作成までです。runtime 変更は `manifests/apps/<app>/` の image tag 更新 PR、access 変更は `manifests/access/<app>/` と `manifests/contracts/home-lab/access-surfaces.yaml` の PR に分けます。
 
 ### Secret管理
 
@@ -504,8 +491,8 @@ make all
 
 # 部分再構築
 make phase2  # インフラのみ
-make phase3  # GitOps準備のみ
-make phase4  # GitOpsアプリ展開のみ
+make bootstrap  # GitOps bootstrapのみ
+make phase5  # 検証のみ
 ```
 
 ### データリカバリ

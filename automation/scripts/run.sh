@@ -80,11 +80,12 @@ usage() {
 Usage: ./scripts/run.sh <phase>
 
 Phases:
-  all                 - 1〜5を順番に実行
+  all                 - phase1 -> phase2 -> bootstrap -> phase5を順番に実行
   phase1|vm           - VMの構成（host-setup）
   phase2|k8s          - k8sの構成（infrastructure）
-  phase3|gitops-prep  - ESOなどGitOps準備（platform）
-  phase4|gitops-apps  - GitOpsによるアプリ展開（app-deploy）
+  bootstrap           - GitOps bootstrap（ArgoCD + root Application）
+  phase3|gitops-prep  - bootstrap互換入口
+  phase4|gitops-apps  - root Application再適用（app-deploy）
   phase5|verify       - 確認（verify）
   upgrade             - k8sアップグレード（完全自動）
   upgrade-safe        - ゲートチェック付きアップグレード
@@ -111,8 +112,7 @@ main() {
       ensure_sudo
       run_step "Phase 1: VM" with_settings bash -c "cd \"$AUTOMATION_DIR/host-setup\" && ./setup-host.sh"
       run_step "Phase 2: k8s" with_settings bash -c "cd \"$AUTOMATION_DIR/infrastructure\" && ./clean-and-deploy.sh"
-      run_step "Phase 3: GitOps Prep" with_settings bash -c "cd \"$AUTOMATION_DIR/platform\" && ./platform-deploy.sh"
-      run_step "Phase 4: GitOps Apps" with_settings "$SCRIPT_DIR/app-deploy.sh"
+      run_step "Bootstrap: GitOps" with_settings bash -c "cd \"$AUTOMATION_DIR/platform\" && ./platform-deploy.sh"
       run_step "Phase 5: Verify" with_settings "$SCRIPT_DIR/verify.sh"
       ;;
     phase1|vm)
@@ -122,8 +122,8 @@ main() {
     phase2|k8s)
       run_step "Phase 2: k8s" with_settings bash -c "cd \"$AUTOMATION_DIR/infrastructure\" && ./clean-and-deploy.sh"
       ;;
-    phase3|gitops-prep)
-      run_step "Phase 3: GitOps Prep" with_settings bash -c "cd \"$AUTOMATION_DIR/platform\" && ./platform-deploy.sh"
+    bootstrap|phase3|gitops-prep)
+      run_step "Bootstrap: GitOps" with_settings bash -c "cd \"$AUTOMATION_DIR/platform\" && ./platform-deploy.sh"
       ;;
     phase4|gitops-apps)
       run_step "Phase 4: GitOps Apps" with_settings "$SCRIPT_DIR/app-deploy.sh"

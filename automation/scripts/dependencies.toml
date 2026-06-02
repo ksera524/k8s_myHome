@@ -26,11 +26,6 @@ description = "settings.toml読み込みとexpect自動化"
 dependencies = ["common-colors"]
 exports = ["load_settings", "get_setting", "create_expect_response"]
 
-[scripts.common-k8s-utils]
-description = "Kubernetes操作用共通関数"
-dependencies = ["common-colors", "common-ssh"]
-exports = ["wait_for_argocd_sync", "configure_external_secrets", "get_secret_value"]
-
 [scripts.sudo-manager]
 description = "改善されたsudo権限管理"
 dependencies = ["common-colors"]
@@ -58,15 +53,9 @@ order = 1
 
 [scripts.platform-deploy]
 description = "プラットフォームデプロイ"
-dependencies = ["common-colors", "common-ssh", "common-k8s-utils", "settings-loader"]
+dependencies = ["common-colors", "common-ssh", "settings-loader"]
 phase = "platform"
 order = 1
-
-[scripts.add-runner]
-description = "GitHub Actions Runner追加"
-dependencies = ["common-colors", "common-k8s-utils", "settings-loader"]
-phase = "platform"
-order = 2
 
 # フェーズ定義
 
@@ -80,4 +69,4 @@ scripts = ["clean-and-deploy"]
 
 [phases.platform]
 description = "プラットフォームサービス構築フェーズ"
-scripts = ["platform-deploy", "add-runner"]
+scripts = ["platform-deploy"]

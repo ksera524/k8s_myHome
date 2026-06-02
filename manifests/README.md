@@ -10,7 +10,8 @@ manifests/
 ├── core/                         # 基本リソース（namespace, storage-class など）
 ├── infrastructure/               # インフラ構成（networking, security など）
 ├── platform/                     # プラットフォームサービス（ArgoCD, ESO, ARC）
-├── monitoring/                   # 監視関連（manifests/values）
+├── access/                       # 公開/接続系リソース
+├── contracts/                    # 非機密 environment / access contract
 └── apps/                         # ユーザーアプリケーション
 ```
 

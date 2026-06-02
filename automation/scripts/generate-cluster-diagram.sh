@@ -13,7 +13,6 @@ NAMESPACE_LIST=(
   arc-systems
   nginx-gateway
   metallb-system
-  monitoring
   apps
 )
 

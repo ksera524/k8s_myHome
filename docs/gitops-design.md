@@ -29,7 +29,7 @@ ArgoCDのSync Wavesを使用して、依存関係を考慮した順序でデプ�
 | 8 | Gateway Shared | Gateway/共通listener |
 | 9 | Config Secrets | 外部連携用ExternalSecret |
 | 10 | Platform / Harbor / RustFS / Tailscale Operator | 基盤サービス |
-| 11 | Monitoring / Sandbox Config / Tailscale Connector | 補助基盤 |
+| 11 | Sandbox Config / Tailscale Connector | 補助基盤 |
 | 12 | Runtime Apps | workload-only アプリケーション |
 | 13 | Service Access | appごとのHTTPRoute |
 | 14 | Shared Publishers | Cloudflared / CoreDNS / Tailnet DNS |
@@ -72,8 +72,6 @@ manifests/
 │   └── gitops/
 │       └── harbor/
 │           └── node-mutations/
-├── monitoring/
-│   └── grafana-k8s-monitoring-values.yaml
 ├── platform/
 │   ├── argocd-config/
 │   ├── ci-cd/
@@ -104,10 +102,11 @@ manifests/
 - 共通基盤は `manifests/core/`、`manifests/infrastructure/`、`manifests/platform/` に分類
 - 手動での kubectl 適用は一時対応に留め、最終的には Git に反映する
 
-例外:
-- GitHub Actions Runner は `add-runner.sh` で Runner定義を登録し、ArgoCD ApplicationSet によりデプロイ（実体はGitOps管理）
+Runner / app delivery:
+- GitHub Actions Runner は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` をGitで更新し、ArgoCD ApplicationSet によりデプロイする
 - ARC Controller は GitOps 管理対象（`manifests/platform/ci-cd/github-actions/arc-controller.yaml`）
-- ARC Runner ServiceAccount のRBACは GitOps 管理し、Secretアクセスは `harbor-auth` のみに限定
+- ARC Runner ServiceAccount には cluster 変更権限や shared Secret 読み取り権限を付与しない
+- app repo workflow / release bot は image build / push と infra repo PR 作成までを担当し、cluster 直接変更へフォールバックしない
 
 補足:
 - ArgoCD ApplicationSet CRD（`applicationsets.argoproj.io`）は `manifests/platform/argocd-config/kustomization.yaml` で管理し、Controller依存CRDの欠落を防止
@@ -121,7 +120,7 @@ AppProject は「どのApplicationが、どのnamespace/リソースにデプロ
 |---------|---------|------|
 | core | Namespace/StorageClass/NetworkPolicy | クラスタ基礎
 | infrastructure | MetalLB/NGINX Gateway/cert-manager/Storage | クラスタ基盤
-| platform | ArgoCD/ESO/Harbor/RustFS/Monitoring/CI | 運用基盤
+| platform | ArgoCD/ESO/Harbor/RustFS/CI | 運用基盤
 | access | Gateway/DNS/Cloudflared/HTTPRoute | 公開/接続系
 | apps | ユーザーアプリ | namespacedのみ
 

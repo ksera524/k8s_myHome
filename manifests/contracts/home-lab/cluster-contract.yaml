@@ -1,0 +1,38 @@
+apiVersion: contracts.k8s-myhome.local/v1alpha1
+kind: ClusterContract
+metadata:
+  name: home-lab
+spec:
+  global:
+    domain:
+      external: qroksera.com
+      internal: internal.qroksera.com
+  network:
+    host:
+      cidr: 192.168.122.0/24
+    nodes:
+      controlPlane: 192.168.122.10
+      workers:
+        - 192.168.122.11
+        - 192.168.122.12
+    podCIDR: 10.244.0.0/16
+    serviceCIDR: 10.96.0.0/12
+    metallb:
+      range: 192.168.122.100-192.168.122.150
+    serviceIPs:
+      gateway: 192.168.122.100
+      tailscaleSplitDNS: 192.168.122.101
+  storage:
+    nfs:
+      server: 192.168.122.1
+      path: /mnt/k8s-storage/nfs-share
+    classes:
+      external: nfs-external
+      local:
+        - local-storage
+        - local-ssd-storage
+        - local-path
+  apps:
+    apiHub:
+      service:
+        nodePort: 32001

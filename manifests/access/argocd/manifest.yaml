@@ -4,6 +4,8 @@ kind: HTTPRoute
 metadata:
   name: argocd-external-redirect
   namespace: argocd
+  annotations:
+    contracts.k8s-myhome.local/access-surface: argocd-external
 spec:
   parentRefs:
     - name: nginx-gateway
@@ -24,6 +26,8 @@ kind: HTTPRoute
 metadata:
   name: argocd-external
   namespace: argocd
+  annotations:
+    contracts.k8s-myhome.local/access-surface: argocd-external
 spec:
   parentRefs:
     - name: nginx-gateway
@@ -42,6 +46,8 @@ kind: HTTPRoute
 metadata:
   name: argocd-internal-redirect
   namespace: argocd
+  annotations:
+    contracts.k8s-myhome.local/access-surface: argocd-internal
 spec:
   parentRefs:
     - name: nginx-gateway
@@ -62,6 +68,8 @@ kind: HTTPRoute
 metadata:
   name: argocd-internal
   namespace: argocd
+  annotations:
+    contracts.k8s-myhome.local/access-surface: argocd-internal
 spec:
   parentRefs:
     - name: nginx-gateway

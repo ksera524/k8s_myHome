@@ -28,8 +28,7 @@ flowchart TD
   wave10c["rustfs\nwave 10"]:::wave10
   wave10d["tailscale-operator\nwave 10"]:::wave10
   wave11a["sandbox-config\nwave 11"]:::wave11
-  wave11b["monitoring\nwave 11"]:::wave11
-  wave11c["tailscale-connector\nwave 11"]:::wave11
+  wave11b["tailscale-connector\nwave 11"]:::wave11
   wave12["runtime apps\nwave 12"]:::wave12
   wave13["service access apps\nwave 13"]:::wave13
   wave14["shared publishers\nwave 14"]:::wave14
@@ -54,7 +53,6 @@ flowchart TD
   root --> wave10d
   root --> wave11a
   root --> wave11b
-  root --> wave11c
   root --> wave12
   root --> wave13
   root --> wave14
@@ -73,7 +71,7 @@ flowchart TD
   wave8 --> wave13
   wave9 --> wave10b
   wave9 --> wave10c
-  wave10d --> wave11c
+  wave10d --> wave11b
   wave10c --> wave11a
   wave11a --> wave12
   wave12 --> wave13
@@ -139,7 +137,7 @@ flowchart TD
 | 8 | `gateway-shared` | Gateway / listener 基盤 |
 | 9 | `config-secrets` | ExternalSecret 定義 |
 | 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator |
-| 11 | 補助 runtime | shared config / monitoring / tailscale connector |
+| 11 | 補助 runtime | shared config / tailscale connector |
 | 12 | runtime apps | workload-only アプリ |
 | 13 | service access | app ごとの HTTPRoute / Harbor / RustFS / ArgoCD 公開 |
 | 14 | shared publishers | Cloudflared / CoreDNS / Tailnet DNS |

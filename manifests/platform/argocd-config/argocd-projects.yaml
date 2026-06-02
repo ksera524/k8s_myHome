@@ -55,19 +55,16 @@ metadata:
   name: platform
   namespace: argocd
 spec:
-  description: 運用基盤（ArgoCD/ESO/Harbor/RustFS/Monitoring/CI）
+  description: 運用基盤（ArgoCD/ESO/Harbor/RustFS/CI）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
     - https://charts.external-secrets.io
     - https://argoproj.github.io/argo-helm
-    - https://grafana.github.io/helm-charts
     - ghcr.io/actions/actions-runner-controller-charts
     - oci://ghcr.io/actions/actions-runner-controller-charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argocd
-    - server: https://kubernetes.default.svc
-      namespace: monitoring
     - server: https://kubernetes.default.svc
       namespace: external-secrets-system
     - server: https://kubernetes.default.svc

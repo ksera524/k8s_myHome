@@ -5,10 +5,10 @@
 - 実行フローの正は `Makefile` と `automation/scripts/run.sh`。`automation/*/README.md` には旧手順が残るため、挙動確認はスクリプトを優先する。
 - GitOps が正。Kubernetes リソース変更は原則 `manifests/`、`automation/` はローカル bootstrap / 運用スクリプト用。
 - `opnecode.jsonc` はあるが、`opencode.json` ではない。自動読込前提で扱わない。
-- `tasks/` 配下には構造改革の target-state 計画があり、未実装の path / command / owner 名が含まれる。実装や挙動確認では現行 repo の実体を優先し、改革タスク時のみ `tasks/` の target-state 文脈を使う。
+- `tasks/` 配下には構造改革の target-state 計画があり、未実装の path / owner 名が含まれる場合がある。実装や挙動確認では現行 repo の実体を優先し、改革タスク時のみ `tasks/` の target-state 文脈を使う。
 
 ## 重要パス
-- 現行 bootstrap 入口: `manifests/bootstrap/app-of-apps.yaml`（現状は child `Application` 群を 1 ファイルに内包。`tasks/` では single root Application への再編を計画中）
+- 現行 bootstrap 入口: `make bootstrap`（実体: `automation/scripts/run.sh bootstrap` -> `automation/platform/platform-deploy.sh`）。root `Application` は `manifests/bootstrap/app-of-apps.yaml`。
 - 配置規約: `docs/manifest-layout.md`
 - App-of-Apps / Sync Wave 図: `docs/diagrams/app-of-apps-sync-wave.md`
 - ArgoCD 設定: `manifests/platform/argocd-config/`
@@ -27,16 +27,16 @@
 
 ## 実行コマンド
 - 初期設定: `cp automation/settings.toml.example automation/settings.toml`
-- 全体/個別: `make all`, `make phase1`, `make phase2`, `make phase3`, `make phase4`, `make phase5`
+- 全体/個別: `make all`, `make phase1`, `make phase2`, `make bootstrap`, `make phase5`。`make phase3` は bootstrap 互換入口、`make phase4` は root Application 再適用。
 - 保守: `make recover`, `make upgrade-safe`, `make containerd-safe`
-- Runner: `make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest`, `make add-runners-all`（現行運用。`tasks/` の改革計画では廃止予定）
-- `make all` と `make phase1` は `sudo` 前提。実行ログは `automation/run.log`。
+- Runner 定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` を Git で更新する。旧Runner自動生成運用は廃止済み。
+- `make all` と `make phase1` は `sudo` 前提。`make all` は `phase1 -> phase2 -> bootstrap -> phase5` の順に実行する。実行ログは `automation/run.log`。
 
 ## 検証
 - CI 相当: `automation/scripts/ci/validate.sh`
 - `validate.sh` は `automation/**/*.sh` への `shellcheck`、`manifests` / `automation/templates` / `automation/infrastructure` への `yamllint`、全 `manifests/**/kustomization.yaml` への `kustomize build`、`automation/scripts/ci/consistency-check.sh` を順に実行する。
 - 個別確認: `shellcheck -S error -x automation/scripts/<file>.sh`, `yamllint -f parsable -c .yamllint.yml manifests/<dir-or-file>`, `kustomize build manifests/<kustomize-dir>`
-- `make phase5` は既定で `k8suser@192.168.122.10` に SSH し、`/etc/kubernetes/admin.conf` をローカル `~/.kube/config` に同期してから検証する。CI または `VERIFY_SKIP_SSH=true` ではライブ検証をスキップして終了する。`tasks/` にある `make bootstrap` は target-state 計画用語であり、現時点での live 手順名とは限らない。
+- `make phase5` は既定で `k8suser@192.168.122.10` に SSH し、`/etc/kubernetes/admin.conf` をローカル `~/.kube/config` に同期してから検証する。CI または `VERIFY_SKIP_SSH=true` ではライブ検証をスキップして終了する。
 
 ## CIで落ちる既知条件
 - `manifests/bootstrap/**` の `targetRevision` は `HEAD` を維持する。`main` は不可。

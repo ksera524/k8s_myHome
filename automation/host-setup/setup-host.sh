@@ -17,6 +17,12 @@ fi
 
 log_status "Starting Phase 1: Host machine setup for k8s migration"
 
+USE_NIX_TOOLCHAIN="${K8S_MYHOME_USE_NIX_TOOLCHAIN:-false}"
+if [[ "$USE_NIX_TOOLCHAIN" == "true" ]]; then
+    log_status "Nix toolchain mode: Terraform/Ansible/kubectl/HelmなどのCLI導入をスキップします"
+    log_status "libvirt/KVM/Docker/systemdなどhost prerequisiteは通常通り構成します"
+fi
+
 # 0. Clean up problematic repositories (Helm 403 error fix)
 log_status "Cleaning up problematic APT repositories..."
 if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
@@ -59,22 +65,26 @@ sudo apt install -y \
     gnupg \
     lsb-release
 
-# 4. Install Terraform
-log_status "Installing Terraform..."
-# 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
-wget -O- https://apt.releases.hashicorp.com/gpg | \
-    gpg --dearmor | \
-    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-    https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
-    sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt update
-sudo apt install -y terraform
+if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
+    # 4. Install Terraform
+    log_status "Installing Terraform..."
+    # 既存のキーファイルを削除してから作成（上書き確認を回避）
+    sudo rm -f /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    wget -O- https://apt.releases.hashicorp.com/gpg | \
+        gpg --dearmor | \
+        sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+        https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+        sudo tee /etc/apt/sources.list.d/hashicorp.list
+    sudo apt update
+    sudo apt install -y terraform
 
-# 5. Install Ansible
-log_status "Installing Ansible..."
-sudo apt install -y ansible
+    # 5. Install Ansible
+    log_status "Installing Ansible..."
+    sudo apt install -y ansible
+else
+    log_status "Skipping Terraform/Ansible install (Nix toolchain mode)"
+fi
 
 # 6. Install Docker (for building and testing)
 log_status "Installing Docker..."
@@ -91,31 +101,35 @@ echo \
 sudo apt-get update || true  # Ignore repository errors
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# 7. Install kubectl
-log_status "Installing kubectl..."
-# 既存のキーファイルを削除してから作成（上書き確認を回避）
-sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-sudo apt-get update || true  # Ignore repository errors
-sudo apt-get install -y kubectl
+if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
+    # 7. Install kubectl
+    log_status "Installing kubectl..."
+    # 既存のキーファイルを削除してから作成（上書き確認を回避）
+    sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+    sudo apt-get update || true  # Ignore repository errors
+    sudo apt-get install -y kubectl
 
-# 8. Install helm
-log_status "Installing Helm..."
-# 古いHelmリポジトリファイルがあれば削除（403エラー対策）
-if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
-    log_status "Removing old Helm repository configuration..."
-    sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
-    sudo rm -f /usr/share/keyrings/helm.gpg
-fi
-# Helmの公式インストールスクリプトを使用（apt リポジトリの問題を回避）
-if ! command -v helm &> /dev/null; then
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    chmod 700 get_helm.sh
-    ./get_helm.sh
-    rm get_helm.sh
+    # 8. Install helm
+    log_status "Installing Helm..."
+    # 古いHelmリポジトリファイルがあれば削除（403エラー対策）
+    if [ -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
+        log_status "Removing old Helm repository configuration..."
+        sudo rm -f /etc/apt/sources.list.d/helm-stable-debian.list
+        sudo rm -f /usr/share/keyrings/helm.gpg
+    fi
+    # Helmの公式インストールスクリプトを使用（apt リポジトリの問題を回避）
+    if ! command -v helm &> /dev/null; then
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+    else
+        log_status "Helm is already installed"
+    fi
 else
-    log_status "Helm is already installed"
+    log_status "Skipping kubectl/Helm install (Nix toolchain mode)"
 fi
 
 # 9. Add user to required groups
@@ -144,11 +158,21 @@ log_status "Verifying installations..."
 
 # Check versions
 echo "=== Installation Verification ==="
-echo "Terraform version: $(terraform version -json | jq -r '.terraform_version')"
-echo "Ansible version: $(ansible --version | head -1)"
+if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
+    echo "Terraform version: $(terraform version -json | jq -r '.terraform_version')"
+    echo "Ansible version: $(ansible --version | head -1)"
+else
+    echo "Terraform version: managed by nix develop .#bootstrap"
+    echo "Ansible version: managed by nix develop .#bootstrap"
+fi
 echo "Docker version: $(docker --version)"
-echo "kubectl version: $(kubectl version --client --short 2>/dev/null || echo 'kubectl installed')"
-echo "Helm version: $(helm version --short)"
+if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
+    echo "kubectl version: $(kubectl version --client --short 2>/dev/null || echo 'kubectl installed')"
+    echo "Helm version: $(helm version --short)"
+else
+    echo "kubectl version: managed by nix develop .#bootstrap"
+    echo "Helm version: managed by nix develop .#bootstrap"
+fi
 
 # Check services
 echo ""
@@ -178,10 +202,14 @@ EOF
 
 log_status "Next steps saved to /tmp/next-steps.txt"
 
-# Helm セットアップを実行
-log_status "Helmセットアップを実行中..."
-if [[ -f "$(dirname "$0")/setup-helm.sh" ]]; then
-    "$(dirname "$0")/setup-helm.sh"
+if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
+    # Helm セットアップを実行
+    log_status "Helmセットアップを実行中..."
+    if [[ -f "$(dirname "$0")/setup-helm.sh" ]]; then
+        "$(dirname "$0")/setup-helm.sh"
+    else
+        log_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
+    fi
 else
-    log_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
+    log_status "HelmセットアップはNix toolchainに委譲します"
 fi

@@ -1,0 +1,117 @@
+apiVersion: contracts.k8s-myhome.local/v1alpha1
+kind: AccessSurfaceContract
+metadata:
+  name: home-lab
+spec:
+  shared:
+    cloudflared:
+      tunnelId: 9fded92e-4b5b-4b7e-b86d-2a10b8bc0e16
+  surfaces:
+    argocd-external:
+      hostname: argocd.qroksera.com
+      scheme: https
+      exposure: external
+      backend:
+        service: argocd-server
+        namespace: argocd
+      gatewayListener: https-argocd-external
+      publish:
+        cloudflared: true
+        coreDNS: false
+        tailscaleSplitDNS: false
+    argocd-internal:
+      hostname: argocd.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: argocd-server
+        namespace: argocd
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: false
+    harbor-external:
+      hostname: harbor.qroksera.com
+      scheme: https
+      exposure: external
+      backend:
+        service: harbor-core
+        namespace: harbor
+      gatewayListener: https-harbor-external
+      publish:
+        cloudflared: true
+        coreDNS: true
+        tailscaleSplitDNS: false
+    harbor-internal:
+      hostname: harbor.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: harbor-core
+        namespace: harbor
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: false
+    rustfs-console:
+      hostname: rustfs.qroksera.com
+      scheme: https
+      exposure: external
+      backend:
+        service: rustfs-svc
+        namespace: rustfs
+      gatewayListener: https-rustfs
+      publish:
+        cloudflared: true
+        coreDNS: false
+        tailscaleSplitDNS: false
+    blog-external:
+      hostname: blog.qroksera.com
+      scheme: https
+      exposure: external
+      backend:
+        service: blog
+        namespace: sandbox
+      gatewayListener: https-blog-external
+      publish:
+        cloudflared: true
+        coreDNS: false
+        tailscaleSplitDNS: false
+    cooklog-internal:
+      hostname: cooklog.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: cooklog
+        namespace: sandbox
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true
+    api-hub-internal:
+      hostname: api-hub.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: api-hub
+        namespace: sandbox
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true
+    hitomi-upload-viewer-internal:
+      hostname: hitomi-upload-viewer.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: hitomi-upload-viewer
+        namespace: sandbox
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true

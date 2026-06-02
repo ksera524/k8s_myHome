@@ -7,6 +7,5 @@ resources:
   - config-secrets.yaml
   - platform.yaml
   - harbor.yaml
-  - monitoring.yaml
   - rustfs.yaml
   - sandbox-config.yaml
