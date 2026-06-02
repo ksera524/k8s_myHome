@@ -87,6 +87,8 @@ spec:
       namespace: default
     - server: https://kubernetes.default.svc
       namespace: tailscale
+    - server: https://kubernetes.default.svc
+      namespace: cloudflared
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
