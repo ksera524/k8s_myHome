@@ -126,6 +126,17 @@ data:
       - /metadata
       - /endpoints
       - /ports
+  # CronJob の実行成否は Job/ログで確認し、GitOps の Application health では desired state の存在を評価する。
+  resource.customizations.health.batch_CronJob: |
+    hs = {}
+    if obj.spec ~= nil and obj.spec.suspend == true then
+      hs.status = "Progressing"
+      hs.message = "CronJob is suspended"
+      return hs
+    end
+    hs.status = "Healthy"
+    hs.message = "CronJob is configured"
+    return hs
   # ExternalSecret を ArgoCD 上で正しくヘルス判定する
   resource.customizations.health.external-secrets.io_ExternalSecret: |
     hs = {}
