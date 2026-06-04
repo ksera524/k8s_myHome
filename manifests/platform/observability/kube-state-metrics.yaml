@@ -110,14 +110,12 @@ spec:
             - name: telemetry
               containerPort: 8081
           readinessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: telemetry
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: telemetry
             initialDelaySeconds: 15
             periodSeconds: 20
