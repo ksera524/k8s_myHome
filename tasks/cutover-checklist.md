@@ -97,8 +97,8 @@
 - [x] Harbor cleanup CronJob が in-cluster Harbor Service を到達先として動作し、`harbor-patch` historical legacy が repo / live cluster に再流入していない
 - [x] `policy-rule-spec.md` の canonical Grafana / monitoring legacy identifier set の grep 検証が 0 件
 - [x] `automation/scripts/verify.sh` と `automation/scripts/generate-cluster-diagram.sh` に `monitoring` namespace 必須前提が残っていない
-- [x] docs / README 更新完了（`README.md`, `AGENTS.md`, `docs/README.md`, `docs/quickstart.md`, `docs/setup-guide.md`, `docs/applications.md`, `docs/gitops-design.md`, `docs/operations-guide.md`, `docs/troubleshooting.md`, `docs/kubernetes-upgrade-guide.md`, `docs/manifest-layout.md`, `docs/kubernetes-architecture.md`, `manifests/README.md`）
-- [x] `docs/external-access-guide.md` の更新完了
+- [x] docs / README 更新完了（`README.md`, `AGENTS.md`, `docs/README.md`, `docs/bootstrap.md`, `docs/app-delivery.md`, `docs/gitops.md`, `docs/operations.md`, `docs/troubleshooting.md`, `docs/upgrade.md`, `docs/manifests.md`, `docs/architecture.md`, `manifests/README.md`）
+- [x] `docs/access.md` の更新完了
 - [x] ArgoCD 自動同期を再開し、controlled sync 後も新構造へ収束している
 - [x] `tasks/backlog.md` に残課題を記録
 
@@ -125,7 +125,7 @@
 - 2026-06-02: repo-side PH6 cleanup candidate を作成
 - 2026-06-02: Grafana Cloud / 現行 monitoring stack の repo implementation source と docs 旧記述を削除
 - 2026-06-02: `docker run --rm -v "$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh` green
-- 2026-06-02: `docs/external-access-guide.md` を current access topology に修正し、Cloudflare ExternalSecret の domain split 後 path と `manifests/access/<app>/` + access contract 前提に更新
+- 2026-06-02: `docs/access.md` を current access topology に修正し、Cloudflare ExternalSecret の domain split 後 path と `manifests/access/<app>/` + access contract 前提に更新
 - 2026-06-02: `policy-rule-spec.md` の monitoring legacy allowlist 説明を PH6 cutover 後の fail-closed 仕様に更新
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認
 - 2026-06-02: candidate を main に反映し、追加修正 commit `6c21e05`, `37ba779`, `b1c795c` を push 済み

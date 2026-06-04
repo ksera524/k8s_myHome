@@ -31,10 +31,10 @@
 3. legacy 削除差分・docs 更新・bootstrap 入口更新を含む single cutover candidate commit の確定と反映順序を固定する
 4. main 反映前後の ArgoCD 自動同期制御（一時停止 / controlled sync / 再開）を cutover 手順へ組み込む
 5. `README.md` と `docs/README.md` を新責務に合わせ更新する
-6. `docs/setup-guide.md` と `docs/applications.md` を新フローへ更新する
-7. `docs/gitops-design.md` / `docs/operations-guide.md` / `docs/troubleshooting.md` を最終整合する
-8. `docs/manifest-layout.md` / `docs/kubernetes-architecture.md` / `manifests/README.md` を最終整合する
-9. `docs/external-access-guide.md` を `access/` 正本前提へ更新する
+6. `docs/bootstrap.md` と `docs/app-delivery.md` を新フローへ更新する
+7. `docs/gitops.md` / `docs/operations.md` / `docs/troubleshooting.md` を最終整合する
+8. `docs/manifests.md` / `docs/architecture.md` / `manifests/README.md` を最終整合する
+9. `docs/access.md` を `access/` 正本前提へ更新する
 10. `AGENTS.md` を新責務に合わせ更新する
 11. onboarding と validate の docs を Nix ベースの正式導線へ統一し、旧 ad-hoc tool install 手順を削除する。あわせて current-state 注記の粒度と broken current-state reference を揃える
 12. 旧 workflow / script / manifest の削除一覧を作成する
@@ -58,16 +58,15 @@
 - `README.md`
 - `AGENTS.md`
 - `docs/README.md`
-- `docs/quickstart.md`
-- `docs/kubernetes-upgrade-guide.md`
-- `docs/setup-guide.md`
-- `docs/applications.md`
-- `docs/external-access-guide.md`
-- `docs/gitops-design.md`
-- `docs/operations-guide.md`
+- `docs/bootstrap.md`
+- `docs/upgrade.md`
+- `docs/app-delivery.md`
+- `docs/access.md`
+- `docs/gitops.md`
+- `docs/operations.md`
 - `docs/troubleshooting.md`
-- `docs/manifest-layout.md`
-- `docs/kubernetes-architecture.md`
+- `docs/manifests.md`
+- `docs/architecture.md`
 - `manifests/README.md`
 - `manifests/apps/`
 - `manifests/access/`
@@ -111,7 +110,7 @@
 - 2026-06-02: repo-side cutover candidate cleanup は完了。Grafana Cloud / 現行 monitoring stack の Application、values、namespace、AppProject allowlist / destination、docs 旧記述、古い automation docs を削除した
 - 2026-06-02: `policy-check.py` の PH6 monitoring legacy allowlist を縮小し、旧 monitoring path の再流入を fail-closed にした
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を確認した
-- 2026-06-02: `docs/external-access-guide.md` の stale path を更新し、新規 access 追加手順を `manifests/access/<app>/` + `access-surfaces.yaml` 前提へ修正した
+- 2026-06-02: `docs/access.md` の stale path を更新し、新規 access 追加手順を `manifests/access/<app>/` + `access-surfaces.yaml` 前提へ修正した
 - 2026-06-02: `policy-rule-spec.md` の PH6 monitoring legacy allowlist 説明を cutover 後の fail-closed 仕様へ更新した
 - 2026-06-02: live cluster / ArgoCD inventory を取得し、legacy live resource と live-confirm Secret の残存を確認した
 - 2026-06-02: Dockerized Nix 上で `automation/scripts/ci/validate.sh` green を再確認した

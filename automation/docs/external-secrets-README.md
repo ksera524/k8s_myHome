@@ -32,7 +32,7 @@ kubectl get applications -n argocd config-secrets external-secrets-operator
 
 ## 関連文書
 
-- `docs/manifest-layout.md`
-- `docs/environment-contracts.md`
+- `docs/secrets.md`
+- `docs/manifests.md`
 - `tasks/external-secret-split-plan.md`
 - `tasks/policy-rule-spec.md`

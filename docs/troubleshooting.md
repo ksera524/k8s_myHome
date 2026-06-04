@@ -1,293 +1,153 @@
-# トラブルシューティングガイド
+# Troubleshooting
 
-> 注記: この文書は current main の障害切り分け手順を正とします。構造改革で planned target-state にのみ存在する owner/path/command は `tasks/` を参照してください。
+この文書は current main の一次切り分け手順です。
 
-## 概要
-
-このガイドは、k8s_myHome の現行構成（App-of-Apps + GitOps）で発生しやすい問題の切り分け手順をまとめたものです。
-
-## このガイドの範囲
-
-- 対象: 障害時の一次切り分け、主要コンポーネントの復旧、ログ収集
-- 非対象: 日常運用は `docs/operations-guide.md`、初期構築は `docs/setup-guide.md`、アップグレードは `docs/kubernetes-upgrade-guide.md`
-
-## まず最初に実行する確認
+## 最初に確認するもの
 
 ```bash
-# 検証フェーズ
 make phase5
-
-# 実行ログ
-cat automation/run.log
-```
-
-Control Plane 上で直接確認する場合:
-
-```bash
-ssh k8suser@192.168.122.10
-kubectl get nodes
+kubectl get nodes -o wide
 kubectl get applications -n argocd
 kubectl get pods -A
+kubectl get events -A --sort-by='.lastTimestamp'
 ```
 
-## 典型障害と対処
+実行ログです。
 
-### 1. `make all` / `make phaseX` が失敗する
+```text
+automation/run.log
+```
+
+## `make all` / phase が失敗する
 
 ```bash
-# 直近エラーの確認
-cat automation/run.log
-
-# 必須ツール確認
-command -v shellcheck
-command -v yamllint
-command -v kustomize
-
-# CI相当チェック
 automation/scripts/ci/validate.sh
 ```
 
-確認ポイント:
+確認観点です。
 
-- `automation/settings.toml` の必須項目が未設定
-- Pulumi / GitHub 認証情報の不足
-- ホスト側のディスク容量不足
+- `automation/settings.toml` の必須項目が未設定ではないか
+- Pulumi / GitHub 認証情報が不足していないか
+- ホスト側のディスク容量が不足していないか
+- `automation/run.log` に直近エラーがないか
 
-### 2. ノードが `NotReady`
+## Node が `NotReady`
 
 ```bash
 kubectl get nodes -o wide
 kubectl describe node <node-name>
-
 ssh k8suser@<node-ip> 'sudo systemctl status kubelet'
 ssh k8suser@<node-ip> 'sudo journalctl -u kubelet -n 200'
 ```
 
-復旧の第一手:
+## Pod が `Pending` / `CrashLoopBackOff`
 
 ```bash
-ssh k8suser@<node-ip> 'sudo systemctl restart containerd && sudo systemctl restart kubelet'
-```
-
-### 3. Pod が `Pending` / `CrashLoopBackOff`
-
-```bash
-kubectl get pods -n <namespace>
 kubectl describe pod <pod-name> -n <namespace>
 kubectl logs <pod-name> -n <namespace>
 kubectl logs <pod-name> -n <namespace> --previous
 kubectl get events -n <namespace> --sort-by='.lastTimestamp'
 ```
 
-切り分け観点:
+確認観点です。
 
-- ImagePull エラー（レジストリ認証、タグ不整合）
-- PVC 未バインド（StorageClass/PV不足）
-- Secret/ConfigMap 不足
+- ImagePull エラー
+- PVC 未バインド
+- Secret / ConfigMap 不足
+- probe 失敗
+- node resource 不足
 
-### 4. ArgoCD が `OutOfSync` / `Degraded`
+## ArgoCD が `OutOfSync` / `Degraded`
 
 ```bash
 kubectl get applications -n argocd
 kubectl describe application <app-name> -n argocd
 kubectl get application <app-name> -n argocd -o jsonpath='{.status}'
-
-# ハードリフレッシュ
-kubectl patch application <app-name> -n argocd \
-  --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
-`OutOfSync` が続く場合:
+確認観点です。
 
-- マニフェストが複数経路で apply されていないか
-- CRD/Webhook など順序依存リソースの Sync Wave を誤っていないか
+- 同一リソースが複数経路で apply されていないか
+- CRD / Webhook など順序依存リソースの Sync Wave が正しいか
+- `targetRevision` が `HEAD` のままか
 
-`argocd-applicationset-controller` が `CrashLoopBackOff` の場合:
-
-```bash
-kubectl get crd applicationsets.argoproj.io
-kubectl logs -n argocd deployment/argocd-applicationset-controller --tail=120
-```
-
-`no matches for kind "ApplicationSet"` が出る場合は CRD 欠落です。復旧手順:
-
-```bash
-kubectl apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.0/manifests/crds/applicationset-crd.yaml
-kubectl rollout restart deployment argocd-applicationset-controller -n argocd
-kubectl rollout status deployment argocd-applicationset-controller -n argocd --timeout=180s
-```
-
-`argocd-core` の手動同期で `spec.selector is immutable` が出る場合:
-
-```bash
-kubectl patch application argocd-core -n argocd --type=merge -p '{
-  "operation": {
-    "sync": {
-      "prune": false,
-      "syncOptions": [
-        "ServerSideApply=true",
-        "Replace=true",
-        "Force=true",
-        "DisableClientSideApplyMigration=true"
-      ]
-    }
-  }
-}'
-```
-
-補足:
-- `argocd-core` は `redisSecretInit.enabled=false` で運用し、hookリソース競合を回避する
-
-### 5. ExternalSecret が同期されない
+## ExternalSecret が同期されない
 
 ```bash
 kubectl get clustersecretstore
 kubectl describe clustersecretstore pulumi-esc-store
-
 kubectl get externalsecrets -A
 kubectl describe externalsecret <name> -n <namespace>
-
-# 再同期トリガー
-kubectl annotate externalsecret <name> -n <namespace> \
-  force-sync="$(date +%s)" --overwrite
 ```
 
-`SecretSyncedError` の主因:
+主な原因です。
 
 - Pulumi ESC 側キー名不一致
 - `remoteRef.key` の誤り
-- トークン期限切れ
+- access token 期限切れ
+- ExternalSecret の配置 domain が誤っている
 
-### 6. Harbor へ push できない
-
-```bash
-# ログイン（内部FQDN）
-docker login harbor.internal.qroksera.com
-
-# Harbor 側の状態
-kubectl get pods -n harbor
-kubectl logs -n harbor deployment/harbor-core
-```
-
-確認ポイント:
-
-- 端末に内部 CA を信頼登録できているか
-- namespace 側の pull secret が最新か
-
-### 7. 外部公開が 502 / 接続不可（Cloudflared + Gateway）
+## Gateway / Cloudflared が 502 または接続不可
 
 ```bash
 kubectl get pods -n cloudflared
 kubectl logs -n cloudflared deploy/cloudflared --since=10m
-
 kubectl get gateway -A
 kubectl get httproute -A
 kubectl describe httproute <route-name> -n <namespace>
-
 kubectl get certificate -A
-kubectl describe certificate <name> -n <namespace>
 ```
 
-確認ポイント:
+確認観点です。
 
 - Cloudflared origin が `nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443` を指しているか
-- `originServerName` が公開ホスト名と一致しているか
-- `wildcard-external-tls` が Ready か
+- `originServerName` と hostname が一致しているか
+- `wildcard-external-tls` / `wildcard-internal-tls` が Ready か
+- HTTPRoute の parentRefs と sectionName が正しいか
 
-### 8. LoadBalancer IP が割り当てられない
-
-```bash
-kubectl get svc -A | grep LoadBalancer
-kubectl get ipaddresspool -n metallb-system
-kubectl get l2advertisement -n metallb-system
-kubectl logs -n metallb-system deployment/controller
-```
-
-### 9. Runner がジョブを拾わない（ARC）
+## Harbor へ push / pull できない
 
 ```bash
-kubectl get pods -n arc-systems
-kubectl get autoscalingrunnersets -n arc-systems
-kubectl get autoscalinglisteners -n arc-systems
-kubectl get ephemeralrunnersets -n arc-systems
-kubectl logs -n arc-systems deploy/arc-controller-gha-rs-controller --since=10m
+kubectl get pods -n harbor
+kubectl logs -n harbor deployment/harbor-core --since=10m
+docker login harbor.internal.qroksera.com
 ```
 
-確認ポイント:
+確認観点です。
 
-- `arc-systems/github-multi-repo-secret` が存在し、`github_token` キーを持つか
-- listenerログに `Job assigned message received` が出るか
-- Runner Pod が `Init:0/2` で止まる場合、`kubectl describe pod <runner-pod> -n arc-systems` で `FailedMount` の有無を確認
+- 端末に内部 CA を信頼登録しているか
+- namespace 側の pull secret が最新か
+- image tag が存在するか
 
-よくあるエラーと対処:
-
-- `failed to get kubernetes secret: "arc-systems/github-multi-repo-secret"`
-  - ExternalSecret の同期状態を確認し、`github-multi-repo-secret` を再作成
-
-### 10. PVC が `Pending`
+## PVC が `Pending`
 
 ```bash
 kubectl get pvc -A
 kubectl describe pvc <pvc-name> -n <namespace>
 kubectl get storageclass
-kubectl describe storageclass local-path
 kubectl get pods -n local-path-storage
 ```
 
-### 11. Ubuntu 再起動後に k8s へ接続できない
-
-症状例:
-
-- `kubectl get nodes` で `no route to host` / `connection refused`
-- `virsh list --all` で k8s ノード VM が `shut off`
-
-復旧用スクリプト（推奨）:
+## CronJob / Job が失敗する
 
 ```bash
-bash automation/scripts/recover-after-reboot.sh
+kubectl get cronjobs -A
+kubectl get jobs -A
+kubectl describe job <job-name> -n <namespace>
+kubectl get pods -n <namespace> -l job-name=<job-name>
+kubectl logs -n <namespace> -l job-name=<job-name>
 ```
 
-このスクリプトで実行する内容:
+failed job の Pod が削除済みの場合、ログは取得できません。次回実行直後にログを取得します。
 
-- `k8s-` プレフィックスの VM（control-plane / worker）を起動
-- Kubernetes API 応答を待機
-- 全ノード `Ready` を待機（タイムアウトあり）
-- 復旧後の VM / ノード / 異常 Pod 状態を表示
-
-必要に応じて待機時間を上書き:
+## Ubuntu 再起動後に接続できない
 
 ```bash
-RECOVER_MAX_WAIT_SECONDS=600 RECOVER_CHECK_INTERVAL_SECONDS=15 \
-  bash automation/scripts/recover-after-reboot.sh
+make recover
 ```
 
-補足:
-
-- 一部 Pod が `ContainerCreating` のまま数分かかることがあります（再起動直後の再スケジュール）
-- `ImagePullBackOff` / `ErrImagePull` は別問題の可能性があるため、該当 namespace の `describe` と `logs` で切り分けてください
-
-## ログ収集テンプレート
+必要に応じて待機時間を上書きします。
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-LOG_DIR="k8s-debug-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$LOG_DIR"
-
-make phase5 > "$LOG_DIR/phase5.txt" 2>&1 || true
-kubectl get nodes -o wide > "$LOG_DIR/nodes.txt"
-kubectl get applications -n argocd > "$LOG_DIR/applications.txt"
-kubectl get pods -A > "$LOG_DIR/pods.txt"
-kubectl get events -A --sort-by='.lastTimestamp' > "$LOG_DIR/events.txt"
-cp automation/run.log "$LOG_DIR/run.log" 2>/dev/null || true
-
-tar czf "$LOG_DIR.tar.gz" "$LOG_DIR"
-echo "ログ収集完了: $LOG_DIR.tar.gz"
+RECOVER_MAX_WAIT_SECONDS=600 RECOVER_CHECK_INTERVAL_SECONDS=15 make recover
 ```
-
-## それでも解決しない場合
-
-1. `automation/run.log` と上記ログ収集アーカイブを保存
-2. 再現手順（いつ、何を実行したか）を時系列で整理
-3. [GitHub Issues](https://github.com/ksera524/k8s_myHome/issues) に報告

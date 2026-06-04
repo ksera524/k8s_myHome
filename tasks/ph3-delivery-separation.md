@@ -61,11 +61,10 @@
 - `manifests/apps/`
 - `manifests/access/`
 - `manifests/contracts/home-lab/access-surfaces.yaml`
-- `docs/applications.md`
-- `docs/setup-guide.md`
-- `docs/operations-guide.md`
-- `docs/quickstart.md`
-- `docs/external-access-guide.md`
+- `docs/app-delivery.md`
+- `docs/bootstrap.md`
+- `docs/operations.md`
+- `docs/access.md`
 
 ## 検証
 
@@ -98,7 +97,7 @@
 - `automation/scripts/github-actions/` の runner 生成スクリプト、生成済み workflow、`setup-arc.sh`、`automation/templates/github-actions-workflow.yml`、legacy secret template、`common-k8s-utils.sh` を削除した
 - `manifests/platform/ci-cd/github-actions/runners-appset.yaml` を runner 定義の Git 正本とし、`github-actions-rbac.yaml` は ServiceAccount のみへ縮小した
 - Runner ServiceAccount から shared Secret 読み取り権限と sandbox Deployment patch 権限を削除し、app delivery の cluster 直接変更経路を断った
-- `docs/applications.md`, `docs/operations-guide.md`, `docs/setup-guide.md`, `docs/quickstart.md`, `docs/gitops-design.md`, `AGENTS.md`, `automation/settings.toml.example` を GitOps PR ベースの app delivery 契約へ更新した
+- `docs/app-delivery.md`, `docs/operations.md`, `docs/bootstrap.md`, `docs/gitops.md`, `AGENTS.md`, `automation/settings.toml.example` を GitOps PR ベースの app delivery 契約へ更新した
 - `sandbox` namespace の first-party workload だけが `harbor.qroksera.com/sandbox/*:latest` を使う現状を維持し、非 sandbox の first-party `:latest` は存在しないことを確認した
 - `automation/settings.toml` は Git 管理外のローカル設定のため編集対象外。旧 runner 設定が残っていても正本ではなく、runner 定義は `runners-appset.yaml` を正とする
 - PH5 では `policy-check.sh` / manifest-aware check / rendered collision check / Nix toolchain pinning を実装する

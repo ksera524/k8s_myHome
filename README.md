@@ -45,7 +45,9 @@ kustomize build manifests/<kustomize-dir>
 ## ドキュメント
 
 - 全体案内: `docs/README.md`
-- GitOps 設計: `docs/gitops-design.md`
-- セットアップ: `docs/quickstart.md`
-- 運用: `docs/operations-guide.md`
+- セットアップ: `docs/bootstrap.md`
+- アーキテクチャ: `docs/architecture.md`
+- GitOps: `docs/gitops.md`
+- マニフェスト配置: `docs/manifests.md`
+- 運用: `docs/operations.md`
 - トラブルシュート: `docs/troubleshooting.md`

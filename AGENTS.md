@@ -9,8 +9,10 @@
 
 ## 重要パス
 - 現行 bootstrap 入口: `make bootstrap`（実体: `automation/scripts/run.sh bootstrap` -> `automation/platform/platform-deploy.sh`）。root `Application` は `manifests/bootstrap/app-of-apps.yaml`。
-- 配置規約: `docs/manifest-layout.md`
+- 配置規約: `docs/manifests.md`
 - App-of-Apps / Sync Wave 図: `docs/diagrams/app-of-apps-sync-wave.md`
+- GitOps 運用: `docs/gitops.md`
+- bootstrap / 検証: `docs/bootstrap.md`
 - ArgoCD 設定: `manifests/platform/argocd-config/`
 - 現行ユーザーアプリ定義: `manifests/bootstrap/applications/user-apps/*.yaml`
 - 現行実アプリ: `manifests/apps/<app>/`

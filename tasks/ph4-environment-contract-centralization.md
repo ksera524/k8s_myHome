@@ -77,8 +77,8 @@
 - `manifests/bootstrap/applications/`
 - `manifests/contracts/`
 - `automation/templates/`
-- `docs/kubernetes-architecture.md`
-- `docs/manifest-layout.md`
+- `docs/architecture.md`
+- `docs/manifests.md`
 - `tasks/environment-contract-inventory.md`
 - `tasks/access-surface-matrix.md`
 - `tasks/external-secret-split-plan.md`
@@ -118,7 +118,7 @@
 - 非機密 cluster contract は `manifests/contracts/home-lab/cluster-contract.yaml` に固定済み
 - 非機密 access contract は `manifests/contracts/home-lab/access-surfaces.yaml` に固定済み
 - `HTTPRoute`, `Gateway`, Cloudflared, CoreDNS, Tailscale Split DNS は contract annotation と `automation/scripts/ci/contract-check.py` で drift 検出済み
-- 値変更手順とハードコード許容例外は `docs/environment-contracts.md` に固定済み
+- 値変更手順とハードコード許容例外は `docs/manifests.md` に固定済み
 - `ExternalSecret` は `manifests/platform/secrets/external-secrets/**` の domain directory に分割済み
 - `platform/argocd-config/**` の top-level `ExternalSecret` は 0 件
 - Grafana Cloud / monitoring legacy secret は target-state secret 正本から除外済み。monitoring stack 本体の削除は PH6 delete scope として維持する
@@ -139,14 +139,14 @@
 | 環境契約の正本が定義済み | Pass | `manifests/contracts/home-lab/cluster-contract.yaml` |
 | access 契約の正本が定義済み | Pass | `manifests/contracts/home-lab/access-surfaces.yaml` |
 | 主要コンポーネントが正本ベースに移行済み | Pass | access annotation と `automation/scripts/ci/contract-check.py` |
-| ハードコード許容例外が文書化済み | Pass | `docs/environment-contracts.md` |
-| 値変更時の作業手順が明記されている | Pass | `docs/environment-contracts.md` |
+| ハードコード許容例外が文書化済み | Pass | `docs/manifests.md` |
+| 値変更時の作業手順が明記されている | Pass | `docs/manifests.md` |
 | `settings.toml` は secret/local 設定の責務に限定 | Pass | contract と secret 正本を分離し、secret は ESO 参照元 / local settings に限定 |
 | hostname ごとの owner / contract entry が追跡可能 | Pass | `access-surfaces.yaml`, access annotation, `access-surface-matrix.md` |
 | Grafana Cloud endpoint / token / ExternalSecret が target-state から除外済み | Pass | Grafana Cloud ExternalSecret を root `kustomization.yaml` から除外し削除対象化 |
-| 派生値と runtime-local endpoint の境界が整理済み | Pass | `environment-contract-inventory.md`, `docs/environment-contracts.md` |
+| 派生値と runtime-local endpoint の境界が整理済み | Pass | `environment-contract-inventory.md`, `docs/manifests.md` |
 | app 固有の非機密設定が owner-local として整理済み | Pass | `environment-contract-inventory.md` |
-| shared app config の境界が明文化済み | Pass | `docs/manifest-layout.md`, `docs/environment-contracts.md` |
+| shared app config の境界が明文化済み | Pass | `docs/manifests.md` |
 | Secret inventory が domain 単位で分類済み | Pass | `external-secret-split-plan.md` と domain split 実装 |
 | pre-ESO path に top-level `ExternalSecret` が残っていない | Pass | `automation/scripts/ci/consistency-check.sh` |
 | 旧 automation 互換 Secret / stale template の扱いが後続 PH に接続済み | Pass | `external-secret-split-plan.md`, PH6 delete scope |

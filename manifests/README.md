@@ -41,3 +41,5 @@ kubectl apply -f manifests/platform/argocd-config/
 - 手動変更は一時対応に留め、対応する Git へのコミットを必ず行ってください
 - ExternalSecret 定義は manifests/platform/secrets/external-secrets/ に集約しています
 - External Secrets は Pulumi ESC から動的に取得します
+
+詳細な配置規約は `docs/manifests.md` を参照してください。

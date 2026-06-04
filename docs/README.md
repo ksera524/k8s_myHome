@@ -1,99 +1,37 @@
-# k8s_myHome ドキュメント
+# k8s_myHome Docs
 
-## 📚 ドキュメント一覧
+このディレクトリは current main / live repo の実用手順を正とします。将来計画、構造改革の履歴、未実装の target-state は `tasks/` を参照してください。
 
-### 🏗️ アーキテクチャ
-- [Kubernetesアーキテクチャ](kubernetes-architecture.md) - クラスター構成とネットワーク設計
-- [GitOps設計](gitops-design.md) - ArgoCD App-of-Appsパターン実装
+## 読む順番
 
-### 📖 セットアップガイド
-- [クイックスタート](quickstart.md) - 初回セットアップ手順
-- [詳細セットアップガイド](setup-guide.md) - ステップバイステップの構築手順
+1. 初回構築は [bootstrap](bootstrap.md)
+2. 全体像は [architecture](architecture.md)
+3. GitOps 運用は [gitops](gitops.md)
+4. マニフェスト配置は [manifests](manifests.md)
+5. 日常運用は [operations](operations.md)
+6. 障害時は [troubleshooting](troubleshooting.md)
 
-### 🔧 運用ガイド
-- [運用ガイド](operations-guide.md) - 日常運用とメンテナンス
-- [トラブルシューティング](troubleshooting.md) - 問題解決ガイド
-- [外部公開ガイド](external-access-guide.md) - Cloudflared/Gateway/TLS 運用手順
+## ドキュメント一覧
 
-### 🚀 アプリケーション
-- [アプリケーション管理](applications.md) - デプロイされているアプリケーション
+| 文書 | 用途 |
+|---|---|
+| [bootstrap](bootstrap.md) | 初期設定、`make all`、`make bootstrap`、`make phase5` |
+| [architecture](architecture.md) | クラスタ構成、主要コンポーネント、owner 分離 |
+| [gitops](gitops.md) | ArgoCD App-of-Apps、Application、Sync Wave |
+| [manifests](manifests.md) | `manifests/` 配置規約、runtime/access 分離 |
+| [app-delivery](app-delivery.md) | 新規アプリ追加、image tag 更新、access 追加 |
+| [access](access.md) | Gateway、HTTPRoute、DNS、Cloudflared、access surface |
+| [secrets](secrets.md) | External Secrets Operator、Pulumi ESC、Secret 配置 |
+| [observability](observability.md) | VictoriaMetrics、kube-state-metrics、CRD metrics |
+| [operations](operations.md) | 日常確認、保守、CronJob/Job 調査 |
+| [troubleshooting](troubleshooting.md) | 一次切り分け、復旧観点、ログ収集 |
+| [upgrade](upgrade.md) | Kubernetes / containerd upgrade、rollback |
+| [reference](reference.md) | 重要パス、検証コマンド、kubectl コマンド集 |
+| [App-of-Apps / Sync Wave 図](diagrams/app-of-apps-sync-wave.md) | ArgoCD 適用順序の図 |
 
-### 📋 リファレンス
-- [Kubernetesアップグレード](kubernetes-upgrade-guide.md) - 自動/手動のバージョン更新手順
-- [マニフェスト配置ルール](manifest-layout.md) - manifests/ 配下の配置規約
+## 運用原則
 
-## 🧭 ドキュメントの役割
-
-このリポジトリでは、用途ごとにドキュメントを分けて運用します。探す場所の迷いを減らすための目安です。
-
-- セットアップ: [クイックスタート](quickstart.md) / [詳細セットアップガイド](setup-guide.md)
-- 運用（日常作業・保守）: [運用ガイド](operations-guide.md)
-- 障害対応（原因切り分け）: [トラブルシューティング](troubleshooting.md)
-- 復旧（バックアップ/リストア）: [運用ガイド](operations-guide.md)
-- バージョンアップ/ロールバック方針: [Kubernetesアップグレード](kubernetes-upgrade-guide.md)
-- 設計/構成: [Kubernetesアーキテクチャ](kubernetes-architecture.md) / [GitOps設計](gitops-design.md)
-
-## 🎯 プロジェクト概要
-
-**k8s_myHome**は、ホームラボ向けのKubernetesインフラストラクチャをGitOpsで管理するためのプロジェクトです。仮想化基盤上の3ノード構成と自動化デプロイを提供します。
-
-### 主な特徴
-
-- ✅ **フェーズ実行**: `make all`でPhase 1〜5を順番に実行
-- ✅ **GitOps駆動**: ArgoCD App-of-Appsパターン
-- ✅ **プライベートレジストリ**: Harbor統合
-- ✅ **CI/CD統合**: GitHub Actions Runner Controller
-- ✅ **Secret管理**: External Secrets Operator + Pulumi ESC
-- ✅ **ロードバランサー**: MetalLB
-- ✅ **Gateway API/TLS**: NGINX Gateway Fabric + cert-manager
-
-### アーキテクチャ概要
-
-```
-┌─────────────────────────────────────────────────┐
-│                  ホストマシン                     │
-│             Ubuntu 24.04 LTS                    │
-├─────────────────────────────────────────────────┤
-│              QEMU/KVM + libvirt                 │
-├─────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │Control   │  │ Worker1  │  │ Worker2  │    │
-│  │Plane     │  │          │  │          │    │
-│  │.122.10   │  │ .122.11  │  │ .122.12  │    │
-│  └──────────┘  └──────────┘  └──────────┘    │
-├─────────────────────────────────────────────────┤
-│     Kubernetes (automation/settings.toml) + Flannel │
-├─────────────────────────────────────────────────┤
-│  MetalLB | NGINX | cert-manager | ArgoCD       │
-│  Harbor | External Secrets | GitHub Actions     │
-└─────────────────────────────────────────────────┘
-```
-
-### クイックスタート
-
-```bash
-# 1. リポジトリクローン
-git clone https://github.com/ksera524/k8s_myHome.git
-cd k8s_myHome
-
-# 2. 設定ファイル準備
-cp automation/settings.toml.example automation/settings.toml
-# settings.tomlを編集して必要な値を設定
-
-# 3. 完全自動デプロイ
-make all
-
-# 4. 状態確認
-make phase5
-```
-
-詳細は[クイックスタートガイド](quickstart.md)を参照してください。
-
-## 📞 サポート
-
-- **Issues**: [GitHub Issues](https://github.com/ksera524/k8s_myHome/issues)
-- **Documentation**: このディレクトリ内のドキュメント
-
-## 📝 ライセンス
-
-このプロジェクトはMITライセンスの下で公開されています。
+- GitOps が正です。Kubernetes リソースの最終状態は `manifests/` に置きます。
+- `automation/` はローカル bootstrap / 運用スクリプト用です。
+- `docs/` は current-state のみを書きます。計画や履歴は `tasks/` に分離します。
+- `Makefile` と `automation/scripts/run.sh` が実行フローの正です。

@@ -79,7 +79,7 @@
 
 #### PH6 repo candidate re-validated
 
-- `docs/external-access-guide.md` の Cloudflare ExternalSecret 参照を domain split 後の `manifests/platform/secrets/external-secrets/networking/cloudflare-api-token.yaml` に更新した
+- `docs/access.md` の Cloudflare ExternalSecret 参照を domain split 後の `manifests/platform/secrets/external-secrets/networking/cloudflare-api-token.yaml` に更新した
 - 新規 HTTPRoute 追加手順を `manifests/access/<app>/` と `access-surfaces.yaml` の contract annotation 前提へ修正した
 - `policy-rule-spec.md` の monitoring legacy allowlist 説明を PH6 cutover 後の fail-closed 仕様へ更新した
 - live inventory で以下の旧 live resource 残存を確認した: `Application/monitoring`, `Application/user-applications`, `Application/user-application-definitions`, `Application/harbor-patch`, `monitoring` namespace, monitoring ExternalSecret, legacy ARC credential ExternalSecret
@@ -135,7 +135,7 @@
 - `Makefile` から runner 自動生成ターゲットを削除し、runner 定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` の Git 管理へ一本化した
 - `automation/scripts/github-actions/` の旧生成スクリプトと generated workflow、`automation/templates/github-actions-workflow.yml`、legacy secret template、`common-k8s-utils.sh` を削除した
 - `github-actions-rbac.yaml` を Runner ServiceAccount のみへ縮小し、shared Secret 読み取りと sandbox Deployment patch 権限を削除した
-- `docs/applications.md`, `docs/operations-guide.md`, `docs/setup-guide.md`, `docs/quickstart.md`, `docs/gitops-design.md`, `AGENTS.md`, `automation/settings.toml.example` を app delivery 契約へ更新した
+- `docs/app-delivery.md`, `docs/operations.md`, `docs/bootstrap.md`, `docs/gitops.md`, `AGENTS.md`, `automation/settings.toml.example` を app delivery 契約へ更新した
 - `R-005` を Closed にした
 - 次フェーズを PH5 Safety Policy and Validation に更新した
 
@@ -147,7 +147,7 @@
 - bootstrap 経路から Harbor EXT_ENDPOINT patch、`harbor-auth` Secret 作成、containerd node mutation、ARC runner 自動追加、Grafana k8s-monitoring 自動デプロイを除去した
 - `flake.nix` を追加し、`nix develop .#default` / `nix develop .#bootstrap` の役割を固定した。現在の実行環境には `nix` がないため `flake.lock` は未生成で、PH5 の toolchain pinning 実装時に生成する
 - `automation/host-setup/setup-host.sh` に Nix-aware mode を追加し、Nix shell 内では Terraform / Ansible / kubectl / Helm の apt 導入をスキップする
-- `README.md`, `docs/quickstart.md`, `docs/setup-guide.md`, `docs/operations-guide.md`, `AGENTS.md` を `make bootstrap` 前提へ更新した
+- `README.md`, `docs/bootstrap.md`, `docs/operations.md`, `AGENTS.md` を `make bootstrap` 前提へ更新した
 - `automation/scripts/verify.sh` と `automation/scripts/generate-cluster-diagram.sh` から monitoring namespace 必須前提を除去した
 - 検証コマンド `automation/scripts/ci/validate.sh` は green
 - 次フェーズを PH3 Delivery Separation に更新した
@@ -172,7 +172,7 @@
 - `.github/workflows/ci-deploy-validate.yml` に `pyyaml` を追加し、CI でも contract-aware check を実行できるようにした
 - `ExternalSecret` を domain 単位に分割し、`external-secret-resources.yaml` monolith と `platform/argocd-config/harbor-unified-registry-secrets.yaml` を削除した
 - target-state secret 正本から Grafana Cloud / monitoring legacy ExternalSecret を除外した
-- `docs/environment-contracts.md` を追加し、contract 変更手順、ハードコード許容例外、secret 配置ルールを current-state docs として固定した
+- `docs/manifests.md` / `docs/secrets.md` を追加し、contract 変更手順、ハードコード許容例外、secret 配置ルールを current-state docs として固定した
 - PH4 の再流入防止 gate を `automation/scripts/ci/consistency-check.sh` に追加した
 - PH4 完了状態で `automation/scripts/ci/validate.sh` は green
 

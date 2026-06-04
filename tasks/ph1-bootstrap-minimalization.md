@@ -47,7 +47,7 @@
 12. `flake.nix` / `flake.lock` を追加し、fresh host で使う `devShells.bootstrap` と validate 用 `devShells.default` を定義する
 13. Linux 前提のため、ローカル toolchain shell 名は `bootstrap`、wrapper を置く場合も `bootstrap.sh` に固定する
 14. `automation/host-setup/setup-host.sh` を Nix-aware にし、`K8S_MYHOME_USE_NIX_TOOLCHAIN=true` の場合は Terraform / Ansible / kubectl / Helm / 汎用 CLI の重複 install を skip しつつ、libvirt / KVM / Docker / systemd は host 側で維持する
-15. `README.md` / `docs/quickstart.md` / `docs/setup-guide.md` を `nix develop .#bootstrap` 前提の fresh cluster 導線へ更新し、`make bootstrap` との役割差分を明記する
+15. `README.md` / `docs/bootstrap.md` を `nix develop .#bootstrap` 前提の fresh cluster 導線へ更新し、`make bootstrap` との役割差分を明記する
 16. `app-deploy.sh` の責務変更に合わせて `automation/scripts/run.sh` と `Makefile` の phase mapping を同時更新する
 17. 公式 bootstrap 入口は既存 `phase3` を流用せず、新設 alias `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`、PH1 完了までは未実装）として固定する
 18. `make bootstrap` は GitOps bootstrap 専用入口とし、fresh cluster と PH6 cutover での前提差分（前者は `phase1`/`phase2` 後かつ `phase5` で検証、後者は既存 cluster 前提で `make bootstrap` 実行後に cutover 検証）を明文化する
@@ -67,8 +67,7 @@
 - `flake.nix`
 - `flake.lock`
 - `README.md`
-- `docs/quickstart.md`
-- `docs/setup-guide.md`
+- `docs/bootstrap.md`
 
 ## 検証
 

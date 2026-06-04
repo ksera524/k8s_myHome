@@ -28,11 +28,11 @@
 - `automation/platform/deploy-grafana-monitoring-simple.sh`
 - `automation/settings.toml.example` の `enable_monitoring`
 - `.github/workflows/weekly-version-audit.yml` の Grafana k8s-monitoring 監査ロジック
-- `docs/gitops-design.md` の monitoring stack 前提記述
+- `docs/gitops.md` の monitoring stack 前提記述
 - `docs/diagrams/app-of-apps-sync-wave.md` の Monitoring wave 記述
-- `docs/applications.md` の monitoring stack 記述
-- `docs/operations-guide.md` の monitoring 前提記述
-- `docs/kubernetes-architecture.md` の Grafana Cloud 送信先記述
+- `docs/app-delivery.md` の monitoring stack 記述
+- `docs/operations.md` の monitoring 前提記述
+- `docs/architecture.md` の Grafana Cloud 送信先記述
 - `automation/scripts/verify.sh` の `monitoring` namespace 必須前提
 - `automation/scripts/generate-cluster-diagram.sh` の `monitoring` namespace 前提
 
@@ -50,8 +50,8 @@
 - `automation/settings.toml*` の `arc_repositories` 運用
 - `manifests/platform/ci-cd/github-actions/kustomization.yaml` の `add-runner.sh` 前提コメント
 - `AGENTS.md` の runner 追加手順
-- `docs/quickstart.md` の runner 追加手順
-- `docs/gitops-design.md` / `docs/operations-guide.md` / `docs/setup-guide.md` / `docs/quickstart.md` の該当手順
+- `docs/bootstrap.md` の runner 追加手順
+- `docs/gitops.md` / `docs/operations.md` / `docs/bootstrap.md` の該当手順
 
 ### 3) legacy / duplicate credential Secret と stale template
 
