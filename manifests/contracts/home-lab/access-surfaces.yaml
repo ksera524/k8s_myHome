@@ -115,3 +115,15 @@ spec:
         cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
+    observability-internal:
+      hostname: observability.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: victoria-metrics
+        namespace: observability
+      gatewayListener: https-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true

@@ -10,6 +10,7 @@ resources:
   - cooklog-access.yaml
   - api-hub-access.yaml
   - hitomi-upload-viewer-access.yaml
+  - observability-access.yaml
   - cloudflared.yaml
   - dns-core.yaml
   - dns-tailscale.yaml

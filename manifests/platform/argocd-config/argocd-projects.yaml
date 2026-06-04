@@ -121,6 +121,8 @@ spec:
       namespace: nginx-gateway
     - server: https://kubernetes.default.svc
       namespace: tailscale
+    - server: https://kubernetes.default.svc
+      namespace: observability
   clusterResourceWhitelist: []
 ---
 apiVersion: argoproj.io/v1alpha1

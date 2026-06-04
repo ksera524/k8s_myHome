@@ -88,7 +88,7 @@
 
 | Surface ID | Hostname | Exposure | Backend | Publish |
 |---|---|---|---|---|
-| `observability-internal` | `observability.internal.qroksera.com` | internal | `grafana` / `observability` namespace | CoreDNS + Tailscale Split DNS |
+| `observability-internal` | `observability.internal.qroksera.com` | internal | `victoria-metrics` / `observability` namespace | CoreDNS + Tailscale Split DNS |
 
 external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めてから `observability-external` を追加する。
 
@@ -112,7 +112,7 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 3. `access-surface-matrix.md` に access 候補を追加する
 4. `manifests/platform/observability/` の repo-local wrapper を作る（完了）
 5. `manifests/bootstrap/applications/platform/observability.yaml` を追加する（完了）
-6. internal access が必要なら `access-surfaces.yaml` と `manifests/access/observability/` を追加する
+6. internal access が必要なら `access-surfaces.yaml` と `manifests/access/observability/` を追加する（完了）
 7. `make validate` を green にする
 8. live cluster で `observability` Application が `Synced/Healthy` になることを確認する
 
@@ -128,5 +128,5 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 ## Backlog 連携
 
 - 対応 backlog: `B-001`
-- 現状態: 設計着手
-- 次の実装候補: `observability` runtime owner の repo-local wrapper 作成
+- 現状態: repo-side runtime / internal access 実装済み。live cluster 収束確認待ち
+- 次の実装候補: `observability` Application / `observability-access` Application の live `Synced/Healthy` 確認
