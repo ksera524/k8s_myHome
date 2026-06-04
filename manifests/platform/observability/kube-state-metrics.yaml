@@ -1,4 +1,133 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-state-metrics-custom-resource-state
+  namespace: observability
+data:
+  config.yaml: |
+    kind: CustomResourceStateMetrics
+    spec:
+      resources:
+        - groupVersionKind:
+            group: argoproj.io
+            version: v1alpha1
+            kind: Application
+          metricNamePrefix: kube_argocd_application
+          labelsFromPath:
+            namespace: [metadata, namespace]
+            application: [metadata, name]
+          metrics:
+            - name: info
+              help: ArgoCD Application metadata.
+              each:
+                type: Info
+                info:
+                  labelsFromPath:
+                    project: [spec, project]
+                    destination_namespace: [spec, destination, namespace]
+                    source_path: [spec, source, path]
+            - name: sync_status
+              help: ArgoCD Application sync status.
+              each:
+                type: StateSet
+                stateSet:
+                  labelName: status
+                  path: [status, sync, status]
+                  list: [Synced, OutOfSync, Unknown]
+            - name: health_status
+              help: ArgoCD Application health status.
+              each:
+                type: StateSet
+                stateSet:
+                  labelName: status
+                  path: [status, health, status]
+                  list: [Healthy, Progressing, Degraded, Suspended, Missing, Unknown]
+            - name: operation_phase
+              help: ArgoCD Application operation phase.
+              errorLogV: 10
+              each:
+                type: StateSet
+                stateSet:
+                  labelName: phase
+                  path: [status, operationState, phase]
+                  list: [Running, Succeeded, Failed, Error, Terminating]
+        - groupVersionKind:
+            group: external-secrets.io
+            version: v1
+            kind: ExternalSecret
+          metricNamePrefix: kube_externalsecret
+          labelsFromPath:
+            namespace: [metadata, namespace]
+            externalsecret: [metadata, name]
+          metrics:
+            - name: status_condition
+              help: ExternalSecret status condition.
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, conditions]
+                  labelsFromPath:
+                    type: [type]
+                    reason: [reason]
+                  valueFrom: [status]
+        - groupVersionKind:
+            group: gateway.networking.k8s.io
+            version: v1
+            kind: Gateway
+          metricNamePrefix: kube_gateway
+          labelsFromPath:
+            namespace: [metadata, namespace]
+            gateway: [metadata, name]
+          metrics:
+            - name: status_condition
+              help: Gateway status condition.
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, conditions]
+                  labelsFromPath:
+                    type: [type]
+                    reason: [reason]
+                  valueFrom: [status]
+        - groupVersionKind:
+            group: gateway.networking.k8s.io
+            version: v1
+            kind: HTTPRoute
+          metricNamePrefix: kube_httproute
+          labelsFromPath:
+            namespace: [metadata, namespace]
+            httproute: [metadata, name]
+          metrics:
+            - name: parent_status_condition
+              help: HTTPRoute parent status condition.
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, parents]
+                  labelsFromPath:
+                    controller: [controllerName]
+                  valueFrom: [conditions, "0", status]
+        - groupVersionKind:
+            group: cert-manager.io
+            version: v1
+            kind: Certificate
+          metricNamePrefix: kube_certificate
+          labelsFromPath:
+            namespace: [metadata, namespace]
+            certificate: [metadata, name]
+          metrics:
+            - name: status_condition
+              help: Certificate status condition.
+              each:
+                type: Gauge
+                gauge:
+                  path: [status, conditions]
+                  labelsFromPath:
+                    type: [type]
+                    reason: [reason]
+                  valueFrom: [status]
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kube-state-metrics
@@ -50,6 +179,27 @@ rules:
   - apiGroups: ["policy"]
     resources:
       - poddisruptionbudgets
+    verbs: ["list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources:
+      - customresourcedefinitions
+    verbs: ["list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+    verbs: ["list", "watch"]
+  - apiGroups: ["external-secrets.io"]
+    resources:
+      - externalsecrets
+    verbs: ["list", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gateways
+      - httproutes
+    verbs: ["list", "watch"]
+  - apiGroups: ["cert-manager.io"]
+    resources:
+      - certificates
     verbs: ["list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -104,6 +254,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --resources=cronjobs,deployments,jobs,namespaces,nodes,persistentvolumeclaims,persistentvolumes,pods,replicasets,statefulsets,storageclasses
+            - --custom-resource-state-config-file=/etc/kube-state-metrics/custom-resource-state/config.yaml
           ports:
             - name: http
               containerPort: 8080
@@ -126,3 +277,11 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
+          volumeMounts:
+            - name: custom-resource-state-config
+              mountPath: /etc/kube-state-metrics/custom-resource-state
+              readOnly: true
+      volumes:
+        - name: custom-resource-state-config
+          configMap:
+            name: kube-state-metrics-custom-resource-state

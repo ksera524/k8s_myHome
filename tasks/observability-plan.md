@@ -125,6 +125,15 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 - O1 の監視対象を dashboard または health view で確認できる
 - `make validate` が green
 
+## 完了記録
+
+- 2026-06-04: `observability` runtime owner と `observability-access` internal access owner を main に反映した
+- 2026-06-04: `observability` / `observability-access` は live cluster で `Synced/Healthy` 到達
+- 2026-06-04: `kube-state-metrics` / `victoria-metrics` は `1/1 Running` 到達
+- 2026-06-04: `observability.internal.qroksera.com/vmui/` は Gateway 経由で `HTTP/2 200` を確認
+- 2026-06-04: Dockerized Nix 上の `automation/scripts/ci/validate.sh` と `make phase5` は green
+- B-001 は完了。CRD metrics 追加は B-002 として継続する
+
 ## Backlog 連携
 
 - 対応 backlog: `B-001`
