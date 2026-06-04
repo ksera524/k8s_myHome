@@ -16,4 +16,4 @@
 | ID | 内容 | 優先度 | Owner | 期限 | 状態 |
 |---|---|---|---|---|---|
 | B-001 | 代替監視基盤（self-hosted もしくは別 SaaS）の要件整理、配置先、導入順序を設計する。設計正本は `tasks/observability-plan.md`。runtime / internal access の初期実装は VictoriaMetrics + kube-state-metrics | Medium | platform | TBD | Closed |
-| B-002 | kube-state-metrics custom-resource-state で ArgoCD Application / ExternalSecret / Gateway / Certificate の CRD metrics を追加する | Medium | platform | TBD | Implementing |
+| B-002 | kube-state-metrics custom-resource-state で ArgoCD Application / ExternalSecret / Gateway / Certificate の CRD metrics を追加する | Medium | platform | TBD | Closed |

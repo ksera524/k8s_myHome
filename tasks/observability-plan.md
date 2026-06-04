@@ -133,6 +133,7 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 - 2026-06-04: `observability.internal.qroksera.com/vmui/` は Gateway 経由で `HTTP/2 200` を確認
 - 2026-06-04: Dockerized Nix 上の `automation/scripts/ci/validate.sh` と `make phase5` は green
 - B-001 は完了。CRD metrics 追加は B-002 として継続する
+- 2026-06-04: B-002 として kube-state-metrics custom-resource-state を追加し、ArgoCD Application / ExternalSecret / Gateway / HTTPRoute / Certificate の CRD metrics が VictoriaMetrics に取り込まれたことを確認した
 
 ## Backlog 連携
 
