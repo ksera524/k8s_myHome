@@ -44,6 +44,7 @@ make phase5
 ## GitOps Bootstrap
 
 `make bootstrap` は `automation/scripts/run.sh bootstrap` を経由し、`automation/platform/platform-deploy.sh` を実行します。
+ArgoCD install manifest と ApplicationSet CRD は `automation/platform/platform-deploy.sh` の `ARGOCD_BOOTSTRAP_VERSION` で同じ tag に固定します。更新時は `make validate` と live cluster の `make phase5` で確認します。
 
 root `Application` は次です。
 
@@ -73,7 +74,7 @@ nix develop .#default --command automation/scripts/ci/validate.sh
 make validate-local
 ```
 
-`automation/scripts/ci/validate.sh` は shellcheck、yamllint、全 `manifests/**/kustomization.yaml` の `kustomize build`、整合性チェックを実行します。
+`automation/scripts/ci/validate.sh` は shellcheck、yamllint、全 `manifests/**/kustomization.yaml` の `kustomize build`、policy check、CRD catalog schema を含む kubeconform、整合性チェックを実行します。
 
 ## ログ
 

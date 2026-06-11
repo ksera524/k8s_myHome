@@ -57,8 +57,8 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
-    - name: https-internal
-      hostname: "*.internal.qroksera.com"
+    - name: https-argocd-internal
+      hostname: argocd.internal.qroksera.com
       port: 443
       protocol: HTTPS
       tls:
@@ -66,7 +66,77 @@ spec:
         certificateRefs:
           - kind: Secret
             group: ""
-            name: wildcard-internal-tls
+            name: argocd-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-harbor-internal
+      hostname: harbor.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: harbor-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-cooklog-internal
+      hostname: cooklog.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: cooklog-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-api-hub-internal
+      hostname: api-hub.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: api-hub-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-hitomi-upload-viewer-internal
+      hostname: hitomi-upload-viewer.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: hitomi-upload-viewer-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-observability-internal
+      hostname: observability.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: observability-internal-tls
             namespace: nginx-gateway
       allowedRoutes:
         namespaces:

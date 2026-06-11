@@ -22,6 +22,7 @@ K8S_USER="${K8S_USER:-k8suser}"
 REMOTE_TMP="/tmp/k8s-myhome-bootstrap"
 APP_OF_APPS_SRC="$ROOT_DIR/manifests/bootstrap/app-of-apps.yaml"
 ARGOCD_INGRESS_SRC="$AUTOMATION_DIR/templates/platform/argocd-ingress.yaml"
+ARGOCD_BOOTSTRAP_VERSION="v3.3.0"
 
 ssh_cmd=(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR "${K8S_USER}@${CONTROL_PLANE_IP}")
 scp_cmd=(scp -o StrictHostKeyChecking=no -o LogLevel=ERROR)
@@ -42,6 +43,7 @@ copy_manifest() {
 
 log_status "=== GitOps bootstrap 開始 ==="
 log_status "対象 control-plane: ${K8S_USER}@${CONTROL_PLANE_IP}"
+log_status "ArgoCD bootstrap version: ${ARGOCD_BOOTSTRAP_VERSION}"
 
 require_file "$APP_OF_APPS_SRC"
 require_file "$ARGOCD_INGRESS_SRC"
@@ -66,12 +68,12 @@ copy_manifest "$APP_OF_APPS_SRC" "app-of-apps.yaml"
 copy_manifest "$ARGOCD_INGRESS_SRC" "argocd-ingress.yaml"
 
 log_status "ArgoCD を初期導入中..."
-"${ssh_cmd[@]}" <<'REMOTE'
+"${ssh_cmd[@]}" "ARGOCD_BOOTSTRAP_VERSION=${ARGOCD_BOOTSTRAP_VERSION} bash -s" <<'REMOTE'
 set -euo pipefail
 
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.0/manifests/crds/applicationset-crd.yaml
+kubectl apply --server-side --force-conflicts -n argocd -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_BOOTSTRAP_VERSION}/manifests/install.yaml"
+kubectl apply --server-side -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_BOOTSTRAP_VERSION}/manifests/crds/applicationset-crd.yaml"
 kubectl get crd applicationsets.argoproj.io >/dev/null
 kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
 kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":{"server.insecure":"true"}}'

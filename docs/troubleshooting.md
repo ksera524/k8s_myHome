@@ -102,7 +102,7 @@ kubectl get certificate -A
 
 - Cloudflared origin が `nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443` を指しているか
 - `originServerName` と hostname が一致しているか
-- `wildcard-external-tls` / `wildcard-internal-tls` が Ready か
+- `wildcard-external-tls` と対象 hostname の internal 個別 TLS Secret が Ready か
 - HTTPRoute の parentRefs と sectionName が正しいか
 
 ## Harbor へ push / pull できない

@@ -40,7 +40,7 @@ spec:
       kind: Gateway
       name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-internal
+      sectionName: https-cooklog-internal
   hostnames:
     - cooklog.internal.qroksera.com
   rules:

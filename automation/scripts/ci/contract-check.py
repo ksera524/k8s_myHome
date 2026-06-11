@@ -110,12 +110,8 @@ def main() -> int:
     for surface_id, surface in surfaces.items():
         listener = surface["gatewayListener"]
         hostname = surface["hostname"]
-        if listener == "https-internal":
-            expected = "*.internal.qroksera.com"
-        else:
-            expected = hostname
-        if listener_hosts.get(listener) != expected:
-            fail(issues, f"gateway listener {listener} hostname {listener_hosts.get(listener)} != {expected} ({surface_id})")
+        if listener_hosts.get(listener) != hostname:
+            fail(issues, f"gateway listener {listener} hostname {listener_hosts.get(listener)} != {hostname} ({surface_id})")
 
     cloudflared_docs = load_docs(ACCESS_DIR / "cloudflared/cloudflared-config.yaml")
     cloudflared = cloudflared_docs[0]

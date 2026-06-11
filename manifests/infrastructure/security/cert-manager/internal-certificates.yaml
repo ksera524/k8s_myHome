@@ -1,0 +1,114 @@
+# 内部公開用個別証明書
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-internal
+  namespace: nginx-gateway
+spec:
+  secretName: argocd-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - argocd.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: harbor-internal
+  namespace: nginx-gateway
+spec:
+  secretName: harbor-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - harbor.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cooklog-internal
+  namespace: nginx-gateway
+spec:
+  secretName: cooklog-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - cooklog.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: api-hub-internal
+  namespace: nginx-gateway
+spec:
+  secretName: api-hub-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - api-hub.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hitomi-upload-viewer-internal
+  namespace: nginx-gateway
+spec:
+  secretName: hitomi-upload-viewer-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - hitomi-upload-viewer.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: observability-internal
+  namespace: nginx-gateway
+spec:
+  secretName: observability-internal-tls
+  duration: 8760h # 1年
+  renewBefore: 720h # 30日前から更新
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - observability.internal.qroksera.com
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth

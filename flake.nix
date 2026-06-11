@@ -25,6 +25,7 @@
           kubernetes-helm
           openssh
           python3
+          python3Packages.packaging
           python3Packages.pyyaml
           shellcheck
           yamllint

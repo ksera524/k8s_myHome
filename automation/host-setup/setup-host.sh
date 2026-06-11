@@ -187,7 +187,7 @@ echo "Groups for user $USER: $(groups $USER)"
 
 log_status "Phase 1 setup completed successfully!"
 log_warning "Please log out and log back in (or run 'newgrp libvirt && newgrp docker') to refresh group membership."
-log_status "After re-login, run: ./setup-storage.sh to continue with storage setup"
+log_status "After re-login, run storage setup only if needed: automation/host-setup/setup-storage.sh"
 
 # Create next step reminder
 cat > /tmp/next-steps.txt << EOF
@@ -195,21 +195,10 @@ Phase 1 completed successfully!
 
 Next steps:
 1. Log out and log back in to refresh group membership
-2. Run: ./automation/scripts/setup-storage.sh
-3. Run: ./automation/scripts/verify-setup.sh
+2. Optional storage setup: ./automation/host-setup/setup-storage.sh
+3. Optional host verification: ./automation/host-setup/verify-setup.sh
+4. Continue with: make phase2
 
 EOF
 
 log_status "Next steps saved to /tmp/next-steps.txt"
-
-if [[ "$USE_NIX_TOOLCHAIN" != "true" ]]; then
-    # Helm セットアップを実行
-    log_status "Helmセットアップを実行中..."
-    if [[ -f "$(dirname "$0")/setup-helm.sh" ]]; then
-        "$(dirname "$0")/setup-helm.sh"
-    else
-        log_warning "setup-helm.sh が見つかりません。Helmの手動セットアップが必要です。"
-    fi
-else
-    log_status "HelmセットアップはNix toolchainに委譲します"
-fi

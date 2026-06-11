@@ -7,7 +7,7 @@ ExternalSecret の正本は GitOps 管理の `manifests/platform/secrets/externa
 
 ## 配置ルール
 
-- ESO 本体: `manifests/platform/secrets/external-secrets/operator/`
+- ESO 本体: `manifests/bootstrap/applications/platform/external-secrets-operator.yaml`
 - SecretStore: `manifests/platform/secrets/external-secrets/stores/`
 - ArgoCD 用 Secret: `manifests/platform/secrets/external-secrets/argocd/`
 - Harbor 用 Secret: `manifests/platform/secrets/external-secrets/harbor/`
@@ -19,7 +19,7 @@ ExternalSecret の正本は GitOps 管理の `manifests/platform/secrets/externa
 
 1. Secret 本文は Pulumi ESC などの参照元で更新する。
 2. Git 側は `manifests/platform/secrets/external-secrets/**` の ExternalSecret 定義だけを変更する。
-3. `automation/scripts/ci/validate.sh` を実行する。
+3. `make validate` または `automation/scripts/ci/validate.sh` を実行する。
 4. merge 後は ArgoCD の `config-secrets` Application で同期状態を確認する。
 
 ## 確認コマンド

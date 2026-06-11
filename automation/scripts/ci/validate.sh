@@ -64,6 +64,11 @@ if ! command -v kubeconform >/dev/null 2>&1; then
   exit 1
 fi
 
+kubeconform_schema_locations=(
+  -schema-location default
+  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json'
+)
+
 while IFS= read -r kfile; do
   kdir="$(dirname "$kfile")"
   echo "kustomize build --enable-helm $kdir | kubeconform"
@@ -71,7 +76,7 @@ while IFS= read -r kfile; do
     | kubeconform \
       -strict \
       -ignore-missing-schemas \
-      -skip Application,ApplicationSet,ExternalSecret,SecretStore,ClusterSecretStore,HTTPRoute,Gateway,GatewayClass,GRPCRoute,ReferenceGrant,TLSRoute,TCPRoute,UDPRoute,ClientSettingsPolicy,BackendTLSPolicy,IPAddressPool,L2Advertisement,Certificate,Issuer,ClusterIssuer
+      "${kubeconform_schema_locations[@]}"
 done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
 
 log_section "Consistency checks"

@@ -26,7 +26,7 @@ spec:
       backend:
         service: argocd-server
         namespace: argocd
-      gatewayListener: https-internal
+      gatewayListener: https-argocd-internal
       publish:
         cloudflared: false
         coreDNS: true
@@ -50,7 +50,7 @@ spec:
       backend:
         service: harbor-core
         namespace: harbor
-      gatewayListener: https-internal
+      gatewayListener: https-harbor-internal
       publish:
         cloudflared: false
         coreDNS: true
@@ -86,7 +86,7 @@ spec:
       backend:
         service: cooklog
         namespace: sandbox
-      gatewayListener: https-internal
+      gatewayListener: https-cooklog-internal
       publish:
         cloudflared: false
         coreDNS: true
@@ -98,7 +98,7 @@ spec:
       backend:
         service: api-hub
         namespace: sandbox
-      gatewayListener: https-internal
+      gatewayListener: https-api-hub-internal
       publish:
         cloudflared: false
         coreDNS: true
@@ -110,7 +110,7 @@ spec:
       backend:
         service: hitomi-upload-viewer
         namespace: sandbox
-      gatewayListener: https-internal
+      gatewayListener: https-hitomi-upload-viewer-internal
       publish:
         cloudflared: false
         coreDNS: true
@@ -122,7 +122,7 @@ spec:
       backend:
         service: victoria-metrics
         namespace: observability
-      gatewayListener: https-internal
+      gatewayListener: https-observability-internal
       publish:
         cloudflared: false
         coreDNS: true

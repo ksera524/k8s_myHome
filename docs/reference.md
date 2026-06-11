@@ -36,6 +36,8 @@ make containerd-safe
 automation/scripts/ci/validate.sh
 ```
 
+`validate.sh` は CRD catalog schema を kubeconform に追加し、schema が取得できる ArgoCD / ExternalSecret / Gateway API / cert-manager / MetalLB なども検証対象にします。
+
 ## 個別検証
 
 ```bash

@@ -5,4 +5,4 @@ resources:
   - cert-manager-letsencrypt-cloudflare-issuer.yaml
   - cert-manager-letsencrypt-cloudflare-staging-issuer.yaml
   - wildcard-external-cert.yaml
-  - wildcard-internal-cert.yaml
+  - internal-certificates.yaml

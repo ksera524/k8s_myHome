@@ -45,4 +45,4 @@
 - `manifests/core/kustomization.yaml` には `storage-classes/local-storage-class.yaml` と `storage-classes/local-ssd-storage-class.yaml` の両方が必要。
 - `manifests/infrastructure/gitops/harbor/kustomization.yaml` に `node-mutations/` を含めない。`node-mutations` は `/etc/hosts` と `/etc/containerd/config.toml` を変更するオプトイン。
 - ARC controller の正本は `manifests/platform/ci-cd/github-actions/arc-controller.yaml`。手動 Helm 適用に寄せない。
-- `.github/workflows/weekly-version-audit.yml` は bootstrap Application 名と一部マニフェストパスをハードコードしている。名前変更や移動時は同時に更新する。
+- `.github/workflows/weekly-version-audit.yml` と `automation/scripts/ci/version-audit.py` は bootstrap Application 名と一部マニフェストパスをハードコードしている。名前変更や移動時は同時に更新する。

@@ -25,6 +25,7 @@ automation/scripts/ci/validate.sh
 shellcheck -S error -x automation/scripts/<file>.sh
 yamllint -f parsable -c .yamllint.yml manifests/<dir-or-file>
 kustomize build manifests/<kustomize-dir>
+kustomize build manifests/<kustomize-dir> | kubeconform -strict -ignore-missing-schemas
 ```
 
 ## ArgoCD

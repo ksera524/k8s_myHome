@@ -49,12 +49,18 @@ originRequest:
 
 ## TLS
 
-ワイルドカード証明書は `nginx-gateway` namespace に置きます。
+Gateway が参照する証明書は `nginx-gateway` namespace に置きます。
+外部公開はワイルドカード証明書、内部公開は hostname ごとの個別証明書を使います。
 
 | Certificate | Hostname |
 |---|---|
 | `wildcard-external` | `*.qroksera.com` |
-| `wildcard-internal` | `*.internal.qroksera.com` |
+| `argocd-internal` | `argocd.internal.qroksera.com` |
+| `harbor-internal` | `harbor.internal.qroksera.com` |
+| `cooklog-internal` | `cooklog.internal.qroksera.com` |
+| `api-hub-internal` | `api-hub.internal.qroksera.com` |
+| `hitomi-upload-viewer-internal` | `hitomi-upload-viewer.internal.qroksera.com` |
+| `observability-internal` | `observability.internal.qroksera.com` |
 
 cert-manager 系リソースは `manifests/infrastructure/security/cert-manager/` に集約します。
 
