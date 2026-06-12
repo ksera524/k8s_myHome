@@ -174,10 +174,10 @@
 
 - 日付: 2026-05-30
 - 状態: accepted
-- 背景: 既存 `phase3` は GitOps Prep を指しており、そのまま bootstrap 完結入口として再解釈すると fresh cluster 手順と PH6 cutover 手順が混同されやすい
+- 背景: GitOps bootstrap 専用入口が明確でないと fresh cluster 手順と PH6 cutover 手順が混同されやすい
 - 判断: PH1 で `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`）を新設し、GitOps bootstrap 専用入口とする。fresh cluster では `make phase1 -> make phase2 -> make bootstrap -> make phase5`、PH6 cutover / rehearsal では既存 cluster に対して `make bootstrap` のみを使う
 - 影響: PH1 は `run.sh` / `Makefile` / docs の実行境界を同時更新し、PH6 checklist は `phase1` / `phase2` 再実行を含まない cutover 手順として固定できる
-- 代替案: `make phase3` を bootstrap 完結入口として流用（不採用: 現行意味と衝突し誤実行を招く）
+- 代替案: 旧 GitOps Prep 入口を bootstrap 完結入口として流用（不採用: 意味の衝突により誤実行を招く）
 
 ### DEC-0020: Grafana Cloud と現行 monitoring stack は構造改革で完全削除する
 

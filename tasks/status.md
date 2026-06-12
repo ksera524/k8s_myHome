@@ -142,7 +142,7 @@
 #### PH1 complete
 
 - Gate PH1 passed と判定した
-- `Makefile` と `automation/scripts/run.sh` に公式 `bootstrap` 入口を追加し、`phase3` は bootstrap 互換入口、`phase4` は root Application 再適用入口として残した
+- `Makefile` と `automation/scripts/run.sh` に公式 `bootstrap` 入口を追加し、root Application 適用経路を `make bootstrap` に一本化した
 - `automation/platform/platform-deploy.sh` を GitOps bootstrap 専用へ置換し、ArgoCD 初期導入、`pulumi-esc-token` / ESO RBAC、root Application 適用のみを行うようにした
 - bootstrap 経路から Harbor EXT_ENDPOINT patch、`harbor-auth` Secret 作成、containerd node mutation、ARC runner 自動追加、Grafana k8s-monitoring 自動デプロイを除去した
 - `flake.nix` を追加し、`nix develop .#default` / `nix develop .#bootstrap` の役割を固定した。現在の実行環境には `nix` がないため `flake.lock` は未生成で、PH5 の toolchain pinning 実装時に生成する

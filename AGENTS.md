@@ -29,7 +29,7 @@
 
 ## 実行コマンド
 - 初期設定: `cp automation/settings.toml.example automation/settings.toml`
-- 全体/個別: `make all`, `make phase1`, `make phase2`, `make bootstrap`, `make phase5`。`make phase3` は bootstrap 互換入口、`make phase4` は root Application 再適用。
+- 全体/個別: `make all`, `make phase1`, `make phase2`, `make bootstrap`, `make phase5`。
 - 保守: `make recover`, `make upgrade-safe`, `make containerd-safe`
 - Runner 定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` を Git で更新する。旧Runner自動生成運用は廃止済み。
 - `make all` と `make phase1` は `sudo` 前提。`make all` は `phase1 -> phase2 -> bootstrap -> phase5` の順に実行する。実行ログは `automation/run.log`。

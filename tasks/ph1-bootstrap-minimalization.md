@@ -13,8 +13,8 @@
 
 ## 用語注記
 
-- 現行 live repo の公式実行入口は `make phase1` 〜 `make phase5` と `automation/scripts/run.sh phase1|phase2|phase3|phase4|phase5` を正とする
-- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は PH1 完了後の現行 live repo の公式導線である
+- 現行 live repo の公式実行入口は `make phase1`, `make phase2`, `make bootstrap`, `make phase5` と `automation/scripts/run.sh phase1|phase2|bootstrap|phase5` を正とする
+- `make bootstrap` / `automation/scripts/run.sh bootstrap` / `nix develop .#bootstrap` は現行 live repo の公式導線である
 
 ## スコープ
 
@@ -41,15 +41,15 @@
 6. `automation/platform/platform-deploy.sh` の steady-state 処理（patch / restart / sync 強制）を切り出す
 7. bootstrap 経路から Grafana k8s-monitoring 自動デプロイ導線と `deploy-grafana-*` スクリプト群を除去する
 8. bootstrap 経路から access plane の個別収束ロジックを外し、child owner 判断を持たせない
-9. `automation/scripts/app-deploy.sh` の責務を bootstrap 境界に合わせて整理し、現行 `make phase4` / `run.sh phase4` の app-deploy 役割と将来の `make bootstrap` を混同しないよう、必要なら bootstrap 専用名への改称も含めて検討する
+9. root Application 適用経路を `make bootstrap` に一本化する
 10. bootstrap と steady-state のディレクトリ境界を定義する
 11. 初回構築向け smoke test 項目を定義する
 12. `flake.nix` / `flake.lock` を追加し、fresh host で使う `devShells.bootstrap` と validate 用 `devShells.default` を定義する
 13. Linux 前提のため、ローカル toolchain shell 名は `bootstrap`、wrapper を置く場合も `bootstrap.sh` に固定する
 14. `automation/host-setup/setup-host.sh` を Nix-aware にし、`K8S_MYHOME_USE_NIX_TOOLCHAIN=true` の場合は Terraform / Ansible / kubectl / Helm / 汎用 CLI の重複 install を skip しつつ、libvirt / KVM / Docker / systemd は host 側で維持する
 15. `README.md` / `docs/bootstrap.md` を `nix develop .#bootstrap` 前提の fresh cluster 導線へ更新し、`make bootstrap` との役割差分を明記する
-16. `app-deploy.sh` の責務変更に合わせて `automation/scripts/run.sh` と `Makefile` の phase mapping を同時更新する
-17. 公式 bootstrap 入口は既存 `phase3` を流用せず、新設 alias `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`、PH1 完了までは未実装）として固定する
+16. `automation/scripts/run.sh` と `Makefile` の bootstrap mapping を同時更新する
+17. 公式 bootstrap 入口は `make bootstrap`（実体: `automation/scripts/run.sh bootstrap`）として固定する
 18. `make bootstrap` は GitOps bootstrap 専用入口とし、fresh cluster と PH6 cutover での前提差分（前者は `phase1`/`phase2` 後かつ `phase5` で検証、後者は既存 cluster 前提で `make bootstrap` 実行後に cutover 検証）を明文化する
 19. bootstrap 完了条件から現行 `monitoring` stack を外し、初回 bootstrap が Grafana Cloud / `monitoring` namespace 非依存で完了する前提に揃える
 
@@ -61,7 +61,6 @@
 - `automation/platform/`
 - `automation/host-setup/setup-host.sh`
 - `automation/scripts/setup-eso-prerequisites.sh`
-- `automation/scripts/app-deploy.sh`
 - `automation/scripts/run.sh`
 - `Makefile`
 - `flake.nix`

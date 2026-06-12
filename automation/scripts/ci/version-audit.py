@@ -275,7 +275,7 @@ def build_issue(updates: list[dict[str, str]], guard_issues: list[dict[str, str]
             "",
             "### Next actions",
             "- 1) バージョン更新PRを作成",
-            "- 2) `make phase4` と `make phase5` で検証",
+            "- 2) `make bootstrap` と `make phase5` で検証",
             "- 3) ArgoCDが `Synced/Healthy` であることを確認",
         ])
     else:

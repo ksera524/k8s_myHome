@@ -84,8 +84,6 @@ Phases:
   phase1|vm           - VMの構成（host-setup）
   phase2|k8s          - k8sの構成（infrastructure）
   bootstrap           - GitOps bootstrap（ArgoCD + root Application）
-  phase3|gitops-prep  - bootstrap互換入口
-  phase4|gitops-apps  - root Application再適用（app-deploy）
   phase5|verify       - 確認（verify）
   upgrade             - k8sアップグレード（完全自動）
   upgrade-safe        - ゲートチェック付きアップグレード
@@ -122,11 +120,8 @@ main() {
     phase2|k8s)
       run_step "Phase 2: k8s" with_settings bash -c "cd \"$AUTOMATION_DIR/infrastructure\" && ./clean-and-deploy.sh"
       ;;
-    bootstrap|phase3|gitops-prep)
+    bootstrap)
       run_step "Bootstrap: GitOps" with_settings bash -c "cd \"$AUTOMATION_DIR/platform\" && ./platform-deploy.sh"
-      ;;
-    phase4|gitops-apps)
-      run_step "Phase 4: GitOps Apps" with_settings "$SCRIPT_DIR/app-deploy.sh"
       ;;
     phase5|verify)
       run_step "Phase 5: Verify" with_settings "$SCRIPT_DIR/verify.sh"

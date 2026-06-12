@@ -39,8 +39,6 @@ make bootstrap
 make phase5
 ```
 
-`make phase3` は bootstrap 互換入口、`make phase4` は root Application 再適用です。通常は `make bootstrap` を使います。
-
 ## GitOps Bootstrap
 
 `make bootstrap` は `automation/scripts/run.sh bootstrap` を経由し、`automation/platform/platform-deploy.sh` を実行します。
