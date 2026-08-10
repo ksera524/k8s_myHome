@@ -31,7 +31,7 @@
 - 初期設定: `cp automation/settings.toml.example automation/settings.toml`
 - 全体/個別: `make all`, `make phase1`, `make phase2`, `make bootstrap`, `make phase5`。
 - 保守: `make recover`, `make upgrade-safe`, `make containerd-safe`
-- Runner 定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` を Git で更新する。旧Runner自動生成運用は廃止済み。
+- Runner 定義は `make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest`（一括は `make add-runners-all`）で `manifests/platform/ci-cd/github-actions/runners-appset.yaml` と `.github/workflows/build-and-push-<repo>.yml` を生成する（DEC-0043 で復活。生成 workflow は git 非追跡でアプリリポジトリへ反映する）。Runner 定義のみ手動更新する場合は同ファイルを直接 Git 更新してよい。
 - `make all` と `make phase1` は `sudo` 前提。`make all` は `phase1 -> phase2 -> bootstrap -> phase5` の順に実行する。実行ログは `automation/run.log`。
 
 ## 検証

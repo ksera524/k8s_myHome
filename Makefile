@@ -5,6 +5,7 @@
 .PHONY: help all phase1 phase2 bootstrap phase5 vm k8s verify recover diagrams validate validate-local
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: containerd-precheck containerd-safe
+.PHONY: add-runner add-runners-all
 
 help:
 	@echo "k8s_myHome task runner"
@@ -19,6 +20,10 @@ help:
 	@echo "  make validate-local             - ローカル導入済みtoolchainで検証"
 	@echo "  make recover                    - Ubuntu再起動後のk8s復旧"
 	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
+	@echo ""
+	@echo "Runners:"
+	@echo "  make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest - GitHub Actions Runner追加（workflow生成）"
+	@echo "  make add-runners-all            - settings.tomlから一括Runner追加"
 
 all:
 	@./automation/scripts/run.sh all
@@ -70,3 +75,17 @@ containerd-precheck:
 
 containerd-safe:
 	@./automation/scripts/run.sh containerd-safe
+
+add-runner:
+	@if [ -z "$(REPO)" ]; then \
+		echo "REPO変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
+		exit 1; \
+	fi
+	@if [ -z "$(MIN)" ] || [ -z "$(MAX)" ] || [ -z "$(STRATEGY)" ]; then \
+		echo "MIN/MAX/STRATEGY変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
+		exit 1; \
+	fi
+	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)" "$(MIN)" "$(MAX)" "$(STRATEGY)"'
+
+add-runners-all:
+	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runners-bulk.sh'

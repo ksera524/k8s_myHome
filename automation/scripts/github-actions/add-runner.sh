@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+
+# GitHub Actions Runner Controller (ARC) - 新しいリポジトリ用Runner追加スクリプト
+
+set -euo pipefail
+
+# 共通ライブラリを読み込み
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPTS_ROOT/common-logging.sh"
+
+# 引数確認
+if [[ $# -ne 4 ]]; then
+    log_error "使用方法: $0 <repository-name> <min-runners> <max-runners> <strategy>"
+    log_error "例: $0 my-awesome-project 1 3 latest"
+    log_error "strategy は latest のみ指定可能です"
+    exit 1
+fi
+
+REPOSITORY_NAME="$1"
+MIN_RUNNERS="$2"
+MAX_RUNNERS="$3"
+WORKFLOW_STRATEGY="$4"
+
+# Runner名生成（小文字変換、ドット・アンダースコアをハイフンに変換）
+RUNNER_SLUG="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')"
+RUNNER_NAME="${RUNNER_SLUG}-runners"
+DEPLOYMENT_NAME="$RUNNER_SLUG"
+LEGACY_DEPLOYMENT_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[._].*$//')"
+
+if [[ "$WORKFLOW_STRATEGY" != "latest" ]]; then
+    log_error "strategy は latest のみ指定可能です: $WORKFLOW_STRATEGY"
+    exit 1
+fi
+
+log_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
+log_debug "対象リポジトリ: $REPOSITORY_NAME"
+log_debug "Runner名: $RUNNER_NAME"
+log_debug "Min Runners: $MIN_RUNNERS"
+log_debug "Max Runners: $MAX_RUNNERS"
+log_debug "Workflow Strategy: $WORKFLOW_STRATEGY"
+log_debug "Deployment名: $DEPLOYMENT_NAME"
+log_debug "Legacy Deployment名: $LEGACY_DEPLOYMENT_NAME"
+
+# GitHubユーザー名を取得（settings.tomlから）
+SETTINGS_FILE="$SCRIPTS_ROOT/../settings.toml"
+if [[ ! -f "$SETTINGS_FILE" ]]; then
+    SETTINGS_FILE="$SCRIPTS_ROOT/../../settings.toml"
+    if [[ ! -f "$SETTINGS_FILE" ]]; then
+        SETTINGS_FILE="$(dirname "$SCRIPTS_ROOT")/settings.toml"
+        if [[ ! -f "$SETTINGS_FILE" ]]; then
+            log_error "settings.tomlが見つかりません"
+            log_error "automation/settings.tomlを作成してください"
+            exit 1
+        fi
+    fi
+fi
+
+log_debug "settings.tomlファイル: $SETTINGS_FILE"
+GITHUB_USERNAME=$(grep '^username = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2)
+if [[ -z "$GITHUB_USERNAME" ]]; then
+    # 後方互換: repository = "owner/repo" からownerを導出
+    GITHUB_USERNAME=$(grep '^repository = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2 | cut -d'/' -f1)
+fi
+if [[ -z "$GITHUB_USERNAME" ]]; then
+    log_error "settings.tomlのgithub.usernameが設定されていません"
+    log_error "ファイル: $SETTINGS_FILE"
+    exit 1
+fi
+log_debug "GitHub Username: $GITHUB_USERNAME"
+
+PROJECT_ROOT="$(cd "$SCRIPTS_ROOT/../.." && pwd)"
+APPSET_FILE="$PROJECT_ROOT/manifests/platform/ci-cd/github-actions/runners-appset.yaml"
+
+if [[ ! -f "$APPSET_FILE" ]]; then
+    log_error "ApplicationSet定義が見つかりません: $APPSET_FILE"
+    exit 1
+fi
+
+log_status "=== Runner定義をGitOps管理へ登録 ==="
+UPSERT_RESULT=$(python3 - <<PY
+import re
+from pathlib import Path
+import yaml
+import sys
+
+appset_path = Path(r"$APPSET_FILE")
+repo_name = r"$REPOSITORY_NAME"
+min_runners = str(r"$MIN_RUNNERS")
+max_runners = str(r"$MAX_RUNNERS")
+github_owner = r"$GITHUB_USERNAME"
+
+text = appset_path.read_text(encoding="utf-8")
+doc = yaml.safe_load(text)
+elements = doc["spec"]["generators"][0]["list"]["elements"]
+
+slug = re.sub(r"[._]", "-", repo_name.lower())
+entry = {
+    "name": slug,
+    "githubOwner": github_owner,
+    "githubRepo": repo_name,
+    "runnerName": f"{slug}-runners",
+    "minRunners": min_runners,
+    "maxRunners": max_runners,
+    "workflowStrategy": "latest",
+}
+
+updated = False
+result = "unchanged"
+for i, e in enumerate(elements):
+    if e.get("runnerName") == entry["runnerName"] or e.get("githubRepo") == repo_name:
+        if e != entry:
+            elements[i] = entry
+            updated = True
+        result = "updated" if updated else "unchanged"
+        break
+else:
+    elements.append(entry)
+    updated = True
+    result = "added"
+
+if updated:
+    lines = text.splitlines(keepends=True)
+    elem_idx = None
+    elem_indent = 6
+    for i, line in enumerate(lines):
+        match = re.match(r"^(\s*)elements:\s*$", line)
+        if match:
+            elem_idx = i
+            elem_indent = len(match.group(1))
+            break
+    if elem_idx is None:
+        print("runners-appset.yaml に elements: が見つかりません", file=sys.stderr)
+        sys.exit(1)
+
+    end_idx = len(lines)
+    for i in range(elem_idx + 1, len(lines)):
+        stripped = lines[i].lstrip()
+        if stripped.startswith("#") or not stripped.strip():
+            continue
+        indent = len(lines[i]) - len(stripped)
+        if indent < elem_indent:
+            end_idx = i
+            break
+
+    # elements領域のみを再シリアライズする（ファイル全体は safe_dump しない:
+    # values: | ブロックスカラー等が壊れるため）
+    prefix = " " * elem_indent
+    if elements:
+        region = f"{prefix}elements:\n"
+        dumped = yaml.safe_dump(elements, sort_keys=False, allow_unicode=False).splitlines()
+        for line in dumped:
+            if line.startswith("elements:"):
+                continue
+            region += prefix + line + "\n"
+    else:
+        region = f"{prefix}elements: []\n"
+
+    new_lines = lines[:elem_idx] + [region] + lines[end_idx:]
+    appset_path.write_text("".join(new_lines), encoding="utf-8")
+
+print(result)
+PY
+)
+
+case "$UPSERT_RESULT" in
+    added)
+        log_status "✓ Runner定義を追加しました: $REPOSITORY_NAME"
+        ;;
+    updated)
+        log_status "✓ Runner定義を更新しました: $REPOSITORY_NAME"
+        ;;
+    unchanged)
+        log_status "✓ Runner定義は最新です: $REPOSITORY_NAME"
+        ;;
+    *)
+        log_error "Runner定義の更新に失敗しました"
+        exit 1
+        ;;
+esac
+
+log_status "ℹ️ Runner本体はArgoCD(ApplicationSet)経由でデプロイされます"
+log_status "ℹ️ 反映にはこのリポジトリのcommit/pushが必要です"
+
+# GitHub Actions workflow作成
+log_status "=== GitHub Actions workflow作成 ==="
+
+WORKFLOW_DIR=".github/workflows"
+WORKFLOW_FILE="$WORKFLOW_DIR/build-and-push-$REPOSITORY_NAME.yml"
+
+mkdir -p "$WORKFLOW_DIR"
+log_debug "Workflowディレクトリ作成: $WORKFLOW_DIR"
+
+cat > "$WORKFLOW_FILE" << WORKFLOW_EOF
+# GitHub Actions workflow for $REPOSITORY_NAME
+# Auto-generated by add-runner.sh (公式ARC対応版) - latest運用
+
+name: Build and Push to Harbor - $REPOSITORY_NAME
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Build Docker image
+      run: |
+        echo "=== Build image on GitHub-hosted runner ==="
+        docker build -t $REPOSITORY_NAME:ci .
+
+    - name: Export Docker image tar
+      run: |
+        docker save $REPOSITORY_NAME:ci | gzip > /tmp/$REPOSITORY_NAME-image.tar.gz
+
+    - name: Upload image artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: $REPOSITORY_NAME-image
+        path: /tmp/$REPOSITORY_NAME-image.tar.gz
+        retention-days: 1
+
+  push-image:
+    if: github.event_name == 'push'
+    needs: build-image
+    runs-on: $RUNNER_NAME
+
+    steps:
+    - name: Download image artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: $REPOSITORY_NAME-image
+        path: /tmp
+
+    - name: Load Docker image
+      run: |
+        echo "=== Load image on self-hosted runner ==="
+        gunzip -c /tmp/$REPOSITORY_NAME-image.tar.gz | docker load
+
+    - name: Setup kubectl and Harbor credentials
+      run: |
+        echo "=== Setup kubectl and Harbor credentials ==="
+
+        echo "Installing kubectl..."
+        curl -LO "https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+
+        echo "Configuring kubectl..."
+        export KUBECONFIG=/tmp/kubeconfig
+        kubectl config set-cluster default \
+            --server=https://kubernetes.default.svc \
+            --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+            --kubeconfig=\$KUBECONFIG
+        kubectl config set-credentials default \
+            --token=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \
+            --kubeconfig=\$KUBECONFIG
+        kubectl config set-context default \
+            --cluster=default --user=default \
+            --kubeconfig=\$KUBECONFIG
+        kubectl config use-context default --kubeconfig=\$KUBECONFIG
+
+        echo "Getting Harbor credentials..."
+        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_USERNAME}' | base64 -d > /tmp/harbor_username
+        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PASSWORD}' | base64 -d > /tmp/harbor_password
+        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PROJECT}' | base64 -d > /tmp/harbor_project
+
+        chmod 600 /tmp/harbor_*
+        echo "✅ Harbor credentials retrieved successfully"
+
+    - name: Tag and push latest image
+      run: |
+        echo "=== Tag and push latest image on self-hosted runner ==="
+
+        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
+        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
+        HARBOR_URL="harbor.internal.qroksera.com"
+        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
+
+        docker tag $REPOSITORY_NAME:ci \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+
+        echo "192.168.122.100 harbor.internal.qroksera.com" | sudo tee -a /etc/hosts
+
+        echo "Logging in to Harbor..."
+        docker login \$HARBOR_URL -u "\$HARBOR_USERNAME" -p "\$HARBOR_PASSWORD"
+
+        echo "Pushing to Harbor..."
+        docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
+
+        echo "✅ Image pushed successfully to Harbor"
+        echo "📦 Pushed tag: latest"
+
+    - name: Restart sandbox workload
+      run: |
+        echo "=== Restart sandbox workload ==="
+        if kubectl get deployment $DEPLOYMENT_NAME -n sandbox >/dev/null 2>&1; then
+          kubectl rollout restart deployment/$DEPLOYMENT_NAME -n sandbox
+          kubectl rollout status deployment/$DEPLOYMENT_NAME -n sandbox --timeout=180s
+          echo "✅ Restarted deployment/$DEPLOYMENT_NAME"
+        elif [[ "$LEGACY_DEPLOYMENT_NAME" != "$DEPLOYMENT_NAME" ]] && kubectl get deployment $LEGACY_DEPLOYMENT_NAME -n sandbox >/dev/null 2>&1; then
+          kubectl rollout restart deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox
+          kubectl rollout status deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox --timeout=180s
+          echo "✅ Restarted deployment/$LEGACY_DEPLOYMENT_NAME (legacy fallback)"
+        else
+          echo "ℹ️ deployment/$DEPLOYMENT_NAME および deployment/$LEGACY_DEPLOYMENT_NAME は存在しないため再起動をスキップします"
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "=== Cleanup ==="
+        rm -f /tmp/harbor_* /tmp/kubeconfig /tmp/$REPOSITORY_NAME-image.tar.gz
+        echo "✅ Cleanup completed"
+WORKFLOW_EOF
+
+log_status "=== セットアップ完了 ==="
+log_status ""
+log_status "✅ Runner定義登録:"
+log_status "   - $RUNNER_NAME (minRunners=$MIN_RUNNERS, maxRunners=$MAX_RUNNERS)"
+log_status "   - strategy: latest"
+log_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
+log_status ""
+log_status "✅ GitHub Actions workflow作成:"
+log_status "   - $WORKFLOW_FILE"
+log_status ""
+log_status "📝 次のステップ:"
+log_status "1. アプリリポジトリに workflow を反映して Commit & Push"
+log_status "2. ArgoCD同期を確認（${RUNNER_SLUG}-runner等がSynced/Healthy）"
+log_status "3. GitHub ActionsでCI/CDテスト実行"
+log_status ""
+log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"

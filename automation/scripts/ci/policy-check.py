@@ -129,7 +129,6 @@ def collect_images(doc: dict[str, Any]) -> list[str]:
 def check_text_rules(issues: list[str]) -> None:
     patterns = {
         "R-001": re.compile(r"user-applications|user-application-definitions"),
-        "R-002": re.compile(r"add-runner\.sh|add-runners-bulk\.sh|add-runners-all|arc_repositories"),
     }
     monitoring_pattern = re.compile(
         r"k8s-monitoring|grafana-cloud-monitoring|grafana-cloud-credentials|"
@@ -149,7 +148,7 @@ def check_text_rules(issues: list[str]) -> None:
         if monitoring_pattern.search(text) and path_rel not in MONITORING_LEGACY_ALLOWLIST:
             fail(issues, "R-012", f"monitoring legacy identifier appears outside PH6 allowlist: {path_rel}")
 
-    rollout_targets = [ROOT / ".github/workflows", ROOT / "automation/scripts/github-actions", ROOT / "automation/platform/.github/workflows"]
+    rollout_targets = [ROOT / ".github/workflows", ROOT / "automation/platform/.github/workflows"]
     for target in rollout_targets:
         for path in text_files_under(target):
             if "kubectl rollout restart" in path.read_text(encoding="utf-8", errors="ignore"):

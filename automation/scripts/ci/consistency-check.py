@@ -43,6 +43,7 @@ EXPECTED_EXTERNAL_SECRET_FILES = {
     "harbor-admin-secret.yaml",
     "harbor-registry-sandbox.yaml",
     "github-multi-repo-secret.yaml",
+    "harbor-auth-secret.yaml",
     "cloudflared-secret.yaml",
     "cloudflare-api-token.yaml",
     "tailscale-oauth.yaml",
@@ -52,7 +53,6 @@ EXPECTED_EXTERNAL_SECRET_FILES = {
 }
 
 LEGACY_SECRET_IDENTIFIERS = {
-    "harbor-auth-secret",
     "github-auth-secret",
     "harbor-registry-secret",
     "grafana-cloud-credentials",

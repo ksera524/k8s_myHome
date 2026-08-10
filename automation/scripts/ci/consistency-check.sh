@@ -15,18 +15,21 @@ check_ng() {
   check_failed=1
 }
 
-if command -v python3 >/dev/null 2>&1; then
-  if python3 -c 'import yaml' >/dev/null 2>&1; then
-    if python3 "$ROOT_DIR/automation/scripts/ci/consistency-check.py"; then
-      check_ok "YAML 構造ベースの整合性を確認しました"
-    else
-      check_ng "YAML 構造ベースの整合性チェックに失敗しました"
-    fi
-  else
-    check_ng "python3 の PyYAML が見つかりません"
-  fi
-else
+python_ready=0
+if ! command -v python3 >/dev/null 2>&1; then
   check_ng "python3 が見つかりません"
+elif ! python3 -c 'import yaml' >/dev/null 2>&1; then
+  check_ng "python3 の PyYAML が見つかりません"
+else
+  python_ready=1
+fi
+
+if [[ "$python_ready" -eq 1 ]]; then
+  if python3 "$ROOT_DIR/automation/scripts/ci/consistency-check.py"; then
+    check_ok "YAML 構造ベースの整合性を確認しました"
+  else
+    check_ng "YAML 構造ベースの整合性チェックに失敗しました"
+  fi
 fi
 
 if [[ -f "$ROOT_DIR/docs/diagrams/app-of-apps-sync-wave.md" ]] \
@@ -36,18 +39,12 @@ else
   check_ng "README の構成図リンクが不正です"
 fi
 
-if command -v python3 >/dev/null 2>&1; then
-  if python3 -c 'import yaml' >/dev/null 2>&1; then
-    if "$ROOT_DIR/automation/scripts/ci/contract-check.py"; then
-      check_ok "contract と access manifests の整合性を確認しました"
-    else
-      check_ng "contract と access manifests の整合性チェックに失敗しました"
-    fi
+if [[ "$python_ready" -eq 1 ]]; then
+  if "$ROOT_DIR/automation/scripts/ci/contract-check.py"; then
+    check_ok "contract と access manifests の整合性を確認しました"
   else
-    check_ng "python3 の PyYAML が見つかりません"
+    check_ng "contract と access manifests の整合性チェックに失敗しました"
   fi
-else
-  check_ng "python3 が見つかりません"
 fi
 
 if [[ "$check_failed" -ne 0 ]]; then

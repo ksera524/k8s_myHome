@@ -26,7 +26,7 @@
 - `automation/platform/deploy-grafana-monitoring.sh`
 - `automation/platform/deploy-grafana-with-secret.sh`
 - `automation/platform/deploy-grafana-monitoring-simple.sh`
-- `automation/settings.toml.example` の `enable_monitoring`
+- `automation/settings.toml.example` の `enable_monitoring`（削除済み）
 - `.github/workflows/weekly-version-audit.yml` の Grafana k8s-monitoring 監査ロジック
 - `docs/gitops.md` の monitoring stack 前提記述
 - `docs/diagrams/app-of-apps-sync-wave.md` の Monitoring wave 記述
@@ -36,20 +36,21 @@
 - `automation/scripts/verify.sh` の `monitoring` namespace 必須前提
 - `automation/scripts/generate-cluster-diagram.sh` の `monitoring` namespace 前提
 
-### 2) `add-runner` 自動生成系
+### 2) `add-runner` 自動生成系（DEC-0043 で復活済み）
 
-- `automation/scripts/github-actions/add-runner.sh`
-- `automation/scripts/github-actions/add-runners-bulk.sh`
-- `automation/scripts/github-actions/.github/workflows/`
-- `automation/platform/.github/workflows/`
-- `automation/templates/github-actions-workflow.yml`
-- `automation/scripts/github-actions/setup-arc.sh`
-- `automation/scripts/common-k8s-utils.sh`
-- `automation/platform/platform-deploy.sh` の `arc_repositories` 解析と `add-runner.sh` 呼び出し
-- `Makefile` の `add-runner` / `add-runners-all` ターゲット
-- `automation/settings.toml*` の `arc_repositories` 運用
-- `manifests/platform/ci-cd/github-actions/kustomization.yaml` の `add-runner.sh` 前提コメント
-- `AGENTS.md` の runner 追加手順
+> 2026-08-10 の DEC-0043 で復活したため、本節は削除対象から除外する。
+
+- `automation/scripts/github-actions/add-runner.sh`（復活済み）
+- `automation/scripts/github-actions/add-runners-bulk.sh`（復活済み）
+- `automation/scripts/github-actions/.github/workflows/`（生成物・git 非追跡で継続）
+- `automation/templates/github-actions-workflow.yml`（削除済み・復活しない）
+- `automation/scripts/github-actions/setup-arc.sh`（削除済み・復活しない）
+- `automation/scripts/common-k8s-utils.sh`（削除済み・復活しない）
+- `automation/platform/platform-deploy.sh` の `arc_repositories` 解析と `add-runner.sh` 呼び出し（削除済み・復活しない）
+- `Makefile` の `add-runner` / `add-runners-all` ターゲット（復活済み）
+- `automation/settings.toml*` の `arc_repositories` 運用（復活済み）
+- `manifests/platform/ci-cd/github-actions/kustomization.yaml` の `add-runner.sh` 前提コメント（復活済み）
+- `AGENTS.md` の runner 追加手順（復活済み）
 - `docs/bootstrap.md` の runner 追加手順
 - `docs/gitops.md` / `docs/operations.md` / `docs/bootstrap.md` の該当手順
 

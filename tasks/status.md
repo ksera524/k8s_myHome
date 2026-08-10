@@ -1,10 +1,11 @@
 # 構造改革ステータス
 
-最終更新日: 2026-06-02
+最終更新日: 2026-08-10
 
 ## Current Phase
 
 - PH6: Complete（構造改革完了）
+- 2026-08-10: DEC-0043 により `make add-runner` / `make add-runners-all` の runner / workflow 自動生成運用を復活した（sandbox `:latest` の再デプロイ経路回復のため）。以下に「削除済み」とある runner 自動生成・generated workflow・harbor-auth secret・sandbox Deployment patch 権限は復活済み current-state に変更する。
 
 ## Summary
 

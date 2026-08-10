@@ -35,7 +35,7 @@
 ## 導入段階
 
 - PH5 の完了判定は current main ではなく、branch / rehearsal 上の target-state もしくは single cutover candidate commit を対象に行う
-- `R-001`, `R-002`, `R-003`, `R-007`, `R-008`, `R-009`, `R-010`, `R-011` は target-state branch / candidate commit では fail-closed とする
+- `R-001`, `R-003`, `R-007`, `R-008`, `R-009`, `R-010`, `R-011` は target-state branch / candidate commit では fail-closed とする
 - PH6 cutover 前の current main では、legacy が残る間は上記ルールを advisory 扱いとしてよく、required status への昇格は legacy 削除差分を含む candidate commit の反映と同時に行う
 
 ## 用語定義
@@ -74,14 +74,14 @@
 - `user-applications`
 - `user-application-definitions`
 
-### runner automation legacy identifiers
+### runner automation 運用（復活済み）
 
 - `add-runner.sh`
 - `add-runners-bulk.sh`
 - `add-runners-all`
 - `arc_repositories`
-- generated workflow artifact: `automation/platform/.github/workflows/**`
-- generated workflow artifact: `automation/scripts/github-actions/.github/workflows/**`
+- generated workflow artifact: `automation/scripts/github-actions/.github/workflows/**`（git 非追跡）
+- Runner 自動生成運用は 2026-06 の PH6 cutover で一度廃止されたが、旧方式（`kubectl rollout restart` を含む workflow 生成）の復活判断により再導入されている。generated workflow artifact は git 非追跡のため CI 判定対象外
 
 ### Grafana / monitoring legacy identifiers
 
@@ -97,11 +97,11 @@
 
 ### fixed-delete credential identifiers
 
-- `harbor-auth`
-- `harbor-auth-secret`
 - `github-auth`
 - `github-auth-secret`
 - `harbor-registry-secret`
+
+（`harbor-auth` / `harbor-auth-secret` は DEC-0043 で runner 用に復活したため除外）
 
 ### PH6 grep path set
 
@@ -112,7 +112,7 @@
 - `AGENTS.md`
 - `README.md`
 - `Makefile`
-- `kubectl rollout restart` の grep は `automation/platform/.github/workflows/` と `automation/scripts/github-actions/.github/workflows/` も明示対象に含める
+- `kubectl rollout restart` の grep は `automation/platform/.github/workflows/` と `.github/workflows/` を明示対象に含める
 
 ## ルール定義
 
@@ -122,19 +122,20 @@
 - 期待: 0 件
 - 例外可否: 不可
 
-### R-002: runner 自動生成運用と generated workflow legacy の禁止
+### R-002: （廃止）runner 自動生成運用と generated workflow legacy の禁止
 
-- パターン: `add-runner\.sh|add-runners-bulk\.sh|add-runners-all|arc_repositories`
-- 対象追加制約: `automation/platform/.github/workflows/` と `automation/scripts/github-actions/.github/workflows/` に add-runner 由来 artifact を残さない
-- 期待: 0 件
-- 例外可否: 不可
+- `make add-runner` / `make add-runners-all` 運用の復活に伴い廃止した
+- 対応する CI 実装（`policy-check.py` のパターン）も削除済み
+- 再発防止の代わりに、generated workflow artifact は git 非追跡を維持する
 
 ### R-003: app delivery 経路での直接 rollout 禁止
 
 - パターン: `kubectl rollout restart`
-- 対象追加制約: `.github/workflows/`, `automation/scripts/github-actions/`, `automation/platform/.github/workflows/`, `automation/scripts/github-actions/.github/workflows/` 配下
+- 対象追加制約: `.github/workflows/`, `automation/platform/.github/workflows/` 配下
 - 期待: 0 件
 - 例外可否: 不可
+- 実装メモ:
+  - `automation/scripts/github-actions/add-runner.sh` は生成元スクリプトであり、生成物は git 非追跡のため本ルールの対象外とする
 
 ### R-004: first-party workload の `:latest` 制御
 

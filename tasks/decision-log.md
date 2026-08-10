@@ -388,3 +388,15 @@
 - 判断: app repo workflow / release bot は image build / push と infra repo PR 作成までを担当する。runtime 変更は `manifests/apps/<app>/` の `1 app / 1 image update / 1 PR`、access 変更は `manifests/access/<service>/` と `access-surfaces.yaml` の別 PR とする。Runner 定義は `runners-appset.yaml` を Git 正本とし、Runner ServiceAccount には cluster 変更権限や shared Secret 読み取り権限を付与しない
 - 影響: `Makefile` の runner 自動生成ターゲット、旧生成スクリプト、generated workflow、legacy secret template、sandbox Deployment patch RBAC は削除対象ではなく削除済み current-state となる。PH5 はこの前提を policy / validate で fail-closed にする
 - 代替案: 旧生成スクリプトを deprecated として残す（不採用: 誤実行と旧 credential 再流入のリスクが残る）
+
+### DEC-0043: add-runner 自動生成運用を復活し sandbox rollout 権限を再付与する
+
+- 日付: 2026-08-10
+- 状態: accepted
+- 背景: DEC-0042 / PH6 cutover（22488fb）で `make add-runner` / `make add-runners-all` と生成 workflow を廃止したが、sandbox の `:latest` 運用では image push 後の再デプロイ経路が失われ、app repo 側の release フローが成立しなくなった
+- 判断: 旧方式（image push 後に ARC runner から `kubectl rollout restart` する workflow を生成）で復活させる。`make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest` / `make add-runners-all` と `automation/scripts/github-actions/` の生成スクリプトを復元し、以下を合わせて再導入する
+  - `harbor-auth` ExternalSecret（arc-systems）: `github-actions-secret-reader` Role 経由で runner が読み取り
+  - `github-actions-sandbox-deployment-manager` Role（sandbox）: `rollout restart` 用の deployment patch 権限
+  - 権限は arc-systems の `harbor-auth` 読み取りと sandbox deployment の patch に限定し、それ以外の cluster 変更権限は付与しない
+- 影響: DEC-0042 の「Runner ServiceAccount には cluster 変更権限や shared Secret 読み取り権限を付与しない」は、sandbox rollout と Harbor 認証読み取りに限定した最小権限の再付与へ見直す。`policy-rule-spec.md` の R-002 は廃止し、R-003 の対象から `automation/scripts/github-actions/` を除外する。generated workflow は従来どおり git 非追跡とし、生成物が repo に commit されないことを維持する
+- 代替案: 生成 workflow から rollout を外し ArgoCD 追従に一本化する（不採用: `:latest` の再取得手段が現行構成に存在しないため）

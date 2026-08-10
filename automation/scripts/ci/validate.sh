@@ -9,11 +9,16 @@ log_section() {
   echo "== $1 =="
 }
 
+require_command() {
+  local command_name="$1"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "${command_name} not found" >&2
+    exit 1
+  fi
+}
+
 log_section "Shellcheck"
-if ! command -v shellcheck >/dev/null 2>&1; then
-  echo "shellcheck not found" >&2
-  exit 1
-fi
+require_command shellcheck
 
 mapfile -t sh_files < <(find "$ROOT_DIR/automation" -name '*.sh' -print)
 if ((${#sh_files[@]})); then
@@ -23,10 +28,7 @@ else
 fi
 
 log_section "Yamllint"
-if ! command -v yamllint >/dev/null 2>&1; then
-  echo "yamllint not found" >&2
-  exit 1
-fi
+require_command yamllint
 
 mapfile -t yaml_files < <(
   find \
@@ -42,27 +44,18 @@ else
   echo "No YAML files found for yamllint"
 fi
 
-log_section "Kustomize build"
-if ! command -v kustomize >/dev/null 2>&1; then
-  echo "kustomize not found" >&2
+require_command kustomize
+require_command python3
+if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+  echo "python3 PyYAML not found" >&2
   exit 1
 fi
-
-while IFS= read -r kfile; do
-  kdir="$(dirname "$kfile")"
-  echo "kustomize build --enable-helm $kdir"
-  kustomize build --enable-helm "$kdir" >/dev/null
-
-done < <(find "$ROOT_DIR/manifests" -name kustomization.yaml -print)
 
 log_section "Policy checks"
 "$ROOT_DIR/automation/scripts/ci/policy-check.sh"
 
 log_section "Kubeconform"
-if ! command -v kubeconform >/dev/null 2>&1; then
-  echo "kubeconform not found" >&2
-  exit 1
-fi
+require_command kubeconform
 
 kubeconform_schema_locations=(
   -schema-location default
