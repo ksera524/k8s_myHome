@@ -1,0 +1,117 @@
+# upstream: kubernetes-sigs/kube-network-policies v1.1.2 install.yaml
+# NRI 未提供のため API informer を利用。fail-open は停止時の通信断を避ける。
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-network-policies
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - list
+  - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-network-policies
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-network-policies
+subjects:
+- kind: ServiceAccount
+  name: kube-network-policies
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-network-policies
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-network-policies
+  namespace: kube-system
+  labels:
+    tier: node
+    app: kube-network-policies
+    k8s-app: kube-network-policies
+spec:
+  selector:
+    matchLabels:
+      app: kube-network-policies
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: kube-network-policies
+        k8s-app: kube-network-policies
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9080'
+        prometheus.io/path: /metrics
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/hostname: k8s-worker2
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      serviceAccountName: kube-network-policies
+      containers:
+      - name: kube-network-policies
+        image: registry.k8s.io/networking/kube-network-policies:v1.1.2
+        args:
+        - /bin/netpol
+        - --hostname-override=$(MY_NODE_NAME)
+        - --v=0
+        - --nfqueue-id=98
+        - --disable-nri=true
+        - --fail-open=true
+        - --strict-mode=true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 50Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+        env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - name: metrics
+          containerPort: 9080
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      priorityClassName: system-node-critical
+      dnsPolicy: ClusterFirstWithHostNet
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1

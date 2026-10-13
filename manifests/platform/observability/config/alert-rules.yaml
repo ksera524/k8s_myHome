@@ -2,6 +2,25 @@ groups:
   - name: home-lab-state
     interval: 30s
     rules:
+      - alert: NetworkPolicyControllerUnavailable
+        expr: >-
+          (kube_daemonset_status_desired_number_scheduled{namespace="kube-system",daemonset="kube-network-policies"}
+          > kube_daemonset_status_number_available{namespace="kube-system",daemonset="kube-network-policies"})
+          or absent(kube_daemonset_status_desired_number_scheduled{namespace="kube-system",daemonset="kube-network-policies"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NetworkPolicy controller が不足しています（fail-open により通信制限が解除される可能性）"
+      - alert: NetworkPolicyControllerMetricsUnavailable
+        expr: >-
+          up{job="kubernetes-pods-annotated",namespace="kube-system",pod=~"kube-network-policies-.*"} == 0
+          or absent(up{job="kubernetes-pods-annotated",namespace="kube-system",pod=~"kube-network-policies-.*"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NetworkPolicy controller の metrics を収集できません"
       - alert: KubeStateMetricsUnavailable
         expr: >-
           up{job="kube-state-metrics"} == 0 or absent(up{job="kube-state-metrics"})

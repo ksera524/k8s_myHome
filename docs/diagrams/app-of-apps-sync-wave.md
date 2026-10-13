@@ -15,6 +15,7 @@ flowchart TD
   wave1c["nfs-subdir-external-provisioner\nwave 1"]:::wave1
   wave2["core\nwave 2"]:::wave2
   wave3["metallb\nwave 3"]:::wave3
+  wave3netpol["kube-network-policies\nwave 3"]:::wave3
   wave4["metallb-config\nwave 4"]:::wave4
   wave5["gateway-api\nwave 5"]:::wave5
   wave6["nginx-gateway-fabric\nwave 6"]:::wave6
@@ -39,6 +40,7 @@ flowchart TD
   root --> wave1c
   root --> wave2
   root --> wave3
+  root --> wave3netpol
   root --> wave4
   root --> wave5
   root --> wave6
@@ -62,6 +64,7 @@ flowchart TD
   wave0 --> wave1c
   wave0 --> wave2
   wave2 --> wave3
+  wave2 --> wave3netpol
   wave3 --> wave4
   wave4 --> wave5
   wave5 --> wave6
@@ -133,7 +136,7 @@ flowchart TD
 | 0 | `argocd-projects` | AppProject を先行適用 |
 | 1 | `argocd-core` / storage provisioners | GitOps 基盤とストレージ基盤 |
 | 2 | `core` | Namespace / StorageClass / RBAC の土台 |
-| 3-7 | infra controllers | MetalLB / Gateway API / NGF / cert-manager / ESO |
+| 3-7 | infra controllers | NetworkPolicy controller / MetalLB / Gateway API / NGF / cert-manager / ESO |
 | 8 | `gateway-shared` | Gateway / listener 基盤 |
 | 9 | `config-secrets` | ExternalSecret 定義 |
 | 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator |
