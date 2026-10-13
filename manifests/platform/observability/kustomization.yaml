@@ -4,3 +4,16 @@ kind: Kustomization
 resources:
   - kube-state-metrics.yaml
   - victoria-metrics.yaml
+  - vmalert.yaml
+  - alertmanager.yaml
+
+# 内容変更時に Pod を更新し、新しいルールと通知設定を確実に読み込む。
+configMapGenerator:
+  - name: observability-alert-rules
+    namespace: observability
+    files:
+      - config/alert-rules.yaml
+  - name: observability-alertmanager-config
+    namespace: observability
+    files:
+      - config/alertmanager.yaml

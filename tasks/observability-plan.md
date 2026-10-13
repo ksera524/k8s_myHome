@@ -96,7 +96,7 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 
 - Grafana admin password は ExternalSecret で管理する
 - datasource / dashboard の非機密設定は runtime owner path の ConfigMap として管理する
-- Slack / webhook / SaaS token は初期導入では使わない
+- metrics 基盤の初期導入では Slack / webhook / SaaS token を使わない。B-003 のアラート導入では Slack Incoming Webhook を追加する
 - 旧 Grafana Cloud token 名は再利用しない
 
 ## Namespace
@@ -137,6 +137,14 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 
 ## Backlog 連携
 
-- 対応 backlog: `B-001`
-- 現状態: repo-side runtime / internal access 実装済み。live cluster 収束確認待ち
-- 次の実装候補: `observability` Application / `observability-access` Application の live `Synced/Healthy` 確認
+- 対応 backlog: `B-001` / `B-002` は完了、アラート導入は `B-003`、追加観測面は `B-004`
+- 現状態: runtime / internal access / CRD metrics は live 確認済み。アラートは repo-side 実装済み
+- 次の確認: アラートの live 発火・復旧確認
+
+## アラート初期実装（B-003）
+
+- 既存 `observability` owner に vmalert / Alertmanager を追加した。配置と確認手順は `docs/observability.md`。
+- 通知先は Slack Incoming Webhook。URL は observability domain の ExternalSecret で管理し、公開面は追加しない。
+- Node / Pod / restart / Deployment / PVC / ArgoCD / ExternalSecret / Gateway / Certificate の状態を評価する。
+- repo-side 実装済み。live cluster への反映、発火・復旧確認は未完了。
+- 残る観測面と通知先の拡張は B-004 として追跡する。

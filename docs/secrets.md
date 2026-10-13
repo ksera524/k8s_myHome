@@ -19,6 +19,7 @@
 | Harbor | `manifests/platform/secrets/external-secrets/harbor/` |
 | GitHub Actions / ARC | `manifests/platform/secrets/external-secrets/github-actions/` |
 | networking | `manifests/platform/secrets/external-secrets/networking/` |
+| observability | `manifests/platform/secrets/external-secrets/observability/` |
 | app runtime | `manifests/platform/secrets/external-secrets/app-runtime/` |
 
 `platform/argocd-config/**` など pre-ESO path に top-level `ExternalSecret` を置きません。

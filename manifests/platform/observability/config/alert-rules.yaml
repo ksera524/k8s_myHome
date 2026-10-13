@@ -1,0 +1,92 @@
+groups:
+  - name: home-lab-state
+    interval: 30s
+    rules:
+      - alert: KubeStateMetricsUnavailable
+        expr: >-
+          up{job="kube-state-metrics"} == 0 or absent(up{job="kube-state-metrics"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kubernetes の状態メトリクスを収集できません"
+      - alert: KubernetesNodeNotReady
+        expr: >-
+          kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} が Ready ではありません"
+      - alert: KubernetesPodNotReady
+        expr: >-
+          (kube_pod_status_ready{condition="true"} == 0) and on(namespace,pod,uid) (kube_pod_status_phase{phase=~"Pending|Running|Unknown"} == 1)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} が Ready ではありません"
+      - alert: KubernetesPodRestarting
+        expr: >-
+          increase(kube_pod_container_status_restarts_total[15m]) >= 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} のコンテナが再起動を繰り返しています"
+      - alert: KubernetesDeploymentUnavailable
+        expr: >-
+          kube_deployment_spec_replicas > kube_deployment_status_replicas_available
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} の必要 replica が不足しています"
+      - alert: KubernetesPVCNotBound
+        expr: >-
+          kube_persistentvolumeclaim_status_phase{phase=~"Pending|Lost"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} が Bound ではありません"
+      - alert: ArgoCDApplicationOutOfSync
+        expr: >-
+          kube_argocd_application_sync_status{status=~"OutOfSync|Unknown"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Application {{ $labels.application }} が同期できていません"
+      - alert: ArgoCDApplicationUnhealthy
+        expr: >-
+          kube_argocd_application_health_status{status=~"Degraded|Missing|Unknown"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Application {{ $labels.application }} が異常状態です"
+      - alert: ExternalSecretNotReady
+        expr: >-
+          kube_externalsecret_status_condition{type="Ready"} == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.externalsecret }} が Ready ではありません"
+      - alert: GatewayNotProgrammed
+        expr: >-
+          kube_gateway_status_condition{type="Programmed"} == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gateway {{ $labels.namespace }}/{{ $labels.gateway }} が Programmed ではありません"
+      - alert: CertificateNotReady
+        expr: >-
+          kube_certificate_status_condition{type="Ready"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Certificate {{ $labels.namespace }}/{{ $labels.certificate }} が Ready ではありません"

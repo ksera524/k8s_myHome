@@ -1,0 +1,92 @@
+rule_files:
+- ../../../manifests/platform/observability/config/alert-rules.yaml
+evaluation_interval: 30s
+tests:
+- name: Node の待機時間と復旧
+  interval: 1m
+  input_series:
+  - series: kube_node_status_condition{node="worker-1",condition="Ready",status="true"}
+    values: 0+0x10 1+0x10
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KubernetesNodeNotReady
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: KubernetesNodeNotReady
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        condition: Ready
+        status: 'true'
+        severity: critical
+      exp_annotations:
+        summary: Node worker-1 が Ready ではありません
+  - eval_time: 12m
+    alertname: KubernetesNodeNotReady
+    exp_alerts: []
+- name: 完了済み Job Pod と正常 Pod を除外
+  interval: 1m
+  input_series:
+  - series: kube_pod_status_ready{namespace="apps",pod="running",uid="running",condition="true"}
+    values: 0+0x30
+  - series: kube_pod_status_phase{namespace="apps",pod="running",uid="running",phase="Running"}
+    values: 1+0x30
+  - series: kube_pod_status_ready{namespace="apps",pod="completed",uid="completed",condition="true"}
+    values: 0+0x30
+  - series: kube_pod_status_phase{namespace="apps",pod="completed",uid="completed",phase="Succeeded"}
+    values: 1+0x30
+  - series: kube_pod_status_ready{namespace="apps",pod="failed",uid="failed",condition="true"}
+    values: 0+0x30
+  - series: kube_pod_status_phase{namespace="apps",pod="failed",uid="failed",phase="Failed"}
+    values: 1+0x30
+  - series: kube_pod_status_ready{namespace="apps",pod="healthy",uid="healthy",condition="true"}
+    values: 1+0x30
+  - series: kube_pod_status_phase{namespace="apps",pod="healthy",uid="healthy",phase="Running"}
+    values: 1+0x30
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: KubernetesPodNotReady
+    exp_alerts:
+    - exp_labels:
+        namespace: apps
+        pod: running
+        uid: running
+        condition: 'true'
+        severity: warning
+      exp_annotations:
+        summary: Pod apps/running が Ready ではありません
+- name: 収集状態 欠損
+  interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeStateMetricsUnavailable
+    exp_alerts:
+    - exp_labels:
+        job: kube-state-metrics
+        severity: critical
+      exp_annotations:
+        summary: Kubernetes の状態メトリクスを収集できません
+- name: 収集状態 scrape 失敗
+  interval: 1m
+  input_series:
+  - series: up{job="kube-state-metrics"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeStateMetricsUnavailable
+    exp_alerts:
+    - exp_labels:
+        job: kube-state-metrics
+        severity: critical
+      exp_annotations:
+        summary: Kubernetes の状態メトリクスを収集できません
+- name: 収集状態 正常
+  interval: 1m
+  input_series:
+  - series: up{job="kube-state-metrics"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeStateMetricsUnavailable
+    exp_alerts: []

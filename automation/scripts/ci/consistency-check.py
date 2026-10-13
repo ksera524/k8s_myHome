@@ -37,6 +37,7 @@ EXPECTED_EXTERNAL_SECRET_DOMAINS = {
     "github-actions",
     "networking",
     "app-runtime",
+    "observability",
 }
 
 EXPECTED_EXTERNAL_SECRET_FILES = {
@@ -48,6 +49,7 @@ EXPECTED_EXTERNAL_SECRET_FILES = {
     "cloudflare-api-token.yaml",
     "tailscale-oauth.yaml",
     "slack-secret.yaml",
+    "alertmanager-slack.yaml",
     "rustfs-auth-rustfs.yaml",
     "rustfs-auth-sandbox.yaml",
 }

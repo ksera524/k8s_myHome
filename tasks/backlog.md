@@ -17,3 +17,5 @@
 |---|---|---|---|---|---|
 | B-001 | 代替監視基盤（self-hosted もしくは別 SaaS）の要件整理、配置先、導入順序を設計する。設計正本は `tasks/observability-plan.md`。runtime / internal access の初期実装は VictoriaMetrics + kube-state-metrics | Medium | platform | TBD | Closed |
 | B-002 | kube-state-metrics custom-resource-state で ArgoCD Application / ExternalSecret / Gateway / Certificate の CRD metrics を追加する | Medium | platform | TBD | Closed |
+| B-003 | vmalert + Alertmanager と Kubernetes / CRD 状態アラートを追加する。Slack 通知を含め repo 実装済み、ESC 登録・live 発火・復旧確認待ち。運用手順は `docs/observability.md` | Medium | platform | TBD | In Progress |
+| B-004 | アラート拡張: CRD condition 欠損 / HTTPRoute、Gateway IP、CronJob 直近結果、ARC 専用 health、外形監視を整備する | Medium | platform | TBD | Open |

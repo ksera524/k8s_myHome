@@ -8,6 +8,8 @@
 |---|---|---|
 | VictoriaMetrics | `manifests/platform/observability/victoria-metrics.yaml` | metrics storage / UI |
 | kube-state-metrics | `manifests/platform/observability/kube-state-metrics.yaml` | Kubernetes / CRD state metrics |
+| vmalert | `manifests/platform/observability/vmalert.yaml` | アラート評価 / 状態保存 |
+| Alertmanager | `manifests/platform/observability/alertmanager.yaml` | 発火中アラートの集約 / UI |
 | observability access | `manifests/access/observability/` | internal HTTPRoute |
 
 ## Access
@@ -51,3 +53,88 @@ Gateway 経由の確認例です。
 ```bash
 curl -k -I https://observability.internal.qroksera.com/vmui/
 ```
+
+## アラート
+
+`observability` Application が vmalert と Alertmanager も管理します。
+vmalert は既存 VictoriaMetrics を 30 秒間隔で評価し、Alertmanager に発火・復旧を送信します。
+ルールと通知設定は `manifests/platform/observability/config/` に置き、
+Kustomize の ConfigMap hash により変更時に Pod を更新します。
+
+| 対象 | 発火条件 | 継続時間 |
+|---|---|---|
+| kube-state-metrics | scrape 失敗または up 欠損 | 5 分 |
+| Node | Ready でない | 5 分 |
+| Pod | Pending / Running / Unknown の Pod が Ready でない | 15 分 |
+| コンテナ | 15 分間で 3 回以上の再起動 | 5 分 |
+| Deployment | available replicas が desired replicas 未満 | 10 分 |
+| PVC | Pending / Lost | 15 分 |
+| ArgoCD Application | OutOfSync / Unknown | 15 分 |
+| ArgoCD Application | Degraded / Missing / Unknown | 10 分 |
+| ExternalSecret | Ready condition が false / unknown | 10 分 |
+| Gateway | Programmed condition が false / unknown | 10 分 |
+| Certificate | Ready condition が false / unknown | 15 分 |
+
+`slack` receiver で全アラートの発火・復旧を Slack Incoming Webhook に通知します。
+画面は port-forward で確認します。ターミナルを分けて実行してください。
+
+```bash
+kubectl -n observability port-forward svc/alertmanager 9093:9093
+kubectl -n observability port-forward svc/vmalert 8880:8880
+```
+
+- Alertmanager: `http://localhost:9093/`（発火中アラート・silence）
+- vmalert: `http://localhost:8880/vmalert/`（ルール・pending・評価エラー）
+
+Alertmanager の silence / 通知履歴は emptyDir に保存するため Pod 再作成で消えます。
+発火状態は vmalert から再送され、vmalert 自身の状態は VictoriaMetrics に保存・復元します。
+Webhook URL は ExternalSecret で管理します（下記参照）。
+
+CRD の condition 自体が欠損している場合は現行メトリクスから検出できません。
+HTTPRoute は現在の exporter が最初の parent condition のみを収集するため、誤判定を避けるためルール対象外です。
+Gateway の LoadBalancer IP、CronJob の直近実行結果、ARC 専用メトリクス、外形監視は後続課題です。
+Cloudflared / Harbor / RustFS は汎用 Pod / PVC ルールで監視しますが、リソース自体の削除は検出しません。
+監視基盤やクラスタ全体の停止は、このクラスタ内構成のみでは通知できません。
+
+### ローカル検証
+
+```bash
+docker run --rm -v "$PWD/manifests/platform/observability/config:/config:ro" \
+  victoriametrics/vmalert:v1.115.0 -rule=/config/alert-rules.yaml -dryRun
+docker run --rm -v "$PWD/manifests/platform/observability/config:/config:ro" \
+  --entrypoint /bin/amtool quay.io/prometheus/alertmanager:v0.28.1 \
+  check-config /config/alertmanager.yaml
+docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint /bin/promtool \
+  prom/prometheus:v3.2.1 test rules automation/tests/observability/alert-rules.test.yaml
+```
+
+デプロイ後は ArgoCD の Synced / Healthy と、vmalert 画面の評価エラーがないことを確認します。
+ルール式を VMUI でも評価し、対象の時系列が存在することを確認してください。
+実機での発火・復旧および Alertmanager への到達確認は別途必要です。
+
+参考: [vmalert](https://docs.victoriametrics.com/victoriametrics/vmalert/)、
+[Alertmanager 設定](https://prometheus.io/docs/alerting/latest/configuration/)。
+
+### Slack 通知の有効化
+
+1. Slack App の Incoming Webhooks を有効にし、通知先チャンネル用の Webhook を作成します。
+2. Pulumi ESC の `ksera / k8s / secret` 環境に、`alertmanager-slack-webhook-url` を **secret 値**として登録します。
+   値は Webhook URL 全体です。Git やチャットに貼り付ける必要はありません。
+3. GitOps 反映後、`config-secrets` により `observability/alertmanager-slack` Secret が作成されたことを確認します。
+4. `observability` Application を同期し、Alertmanager が Ready になったことを確認します。
+
+```bash
+kubectl -n observability wait --for=condition=Ready externalsecret/alertmanager-slack --timeout=120s
+kubectl -n observability rollout status deployment/alertmanager
+```
+
+Secret が未登録の間は Alertmanager の Pod が起動できません。GitOps 反映前に ESC へ登録してください。
+既存の sandbox 用 `slack` Bot token とは別の認証情報です。
+通知先は Webhook に紐づくチャンネルを使うため、マニフェストの channel 指定は不要です。
+Webhook の変更は ESC から Secret volume に反映されます（subPath は使用しません）。
+
+初回通知は集約のため 30 秒待機し、同じグループの変化は 5 分間隔、未復旧時の再通知は 4 時間間隔です。
+実機の受信確認では Alertmanager UI と Slack の両方で発火・復旧を確認してください。
+送信失敗時は Alertmanager のログと `alertmanager_notifications_failed_total` を確認します。
+
+参考: [Slack Incoming Webhooks の作成手順](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/)。
