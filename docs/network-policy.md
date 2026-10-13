@@ -25,6 +25,8 @@ api-hub の presigned URL でクライアントが直接 S3 に接続する用�
 - 現行ノードは NRI socket を提供していないため `--disable-nri=true`。
   Pod 情報は API informer から取得し、Pod 作成直後の情報伝播の競合は NRI で解消していない。
 - `--strict-mode=true` でポリシー変更を既存接続にも反映する。
+  初回有効化時は既存の Cloudflared QUIC 接続が再接続する場合がある。
+  片方の tunnel Pod の接続が復旧してから、もう一方のノードへ展開する。
 - `--fail-open=true` は可用性優先。コントローラ停止・キュー障害時は通信を通すため、
   常時 fail-closed な境界ではない。DaemonSet と metrics の監視を併用する。
 - metrics の readiness は HTTP プロセスの確認であり、遮断の動作保証ではない。
