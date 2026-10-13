@@ -1,5 +1,7 @@
 # NetworkPolicy の運用
 
+新規 API の入口・通信許可・検証の追加は [API 公開手順](access.md#新しく到達可能な-api-を追加する手順) を参照してください。
+
 Flannel の Pod ネットワークは維持し、`kube-network-policies` v1.1.2 を独立した
 DaemonSet として ArgoCD が管理する。Application は wave 3、ポリシーの owner は
 wave 2 の `core`。初回はポリシーだけを先に同期してからコントローラを追加する。

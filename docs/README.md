@@ -20,7 +20,8 @@
 | [gitops](gitops.md) | ArgoCD App-of-Apps、Application、Sync Wave |
 | [manifests](manifests.md) | `manifests/` 配置規約、runtime/access 分離 |
 | [app-delivery](app-delivery.md) | 新規アプリ追加、image tag 更新、access 追加 |
-| [access](access.md) | Gateway、HTTPRoute、DNS、Cloudflared、access surface |
+| [access](access.md) | 新規 API の公開手順、Gateway、DNS、Cloudflared、通信許可と遮断試験 |
+| [network-policy](network-policy.md) | RustFS の通信制限、ポリシー実行基盤、監視と切り戻し |
 | [secrets](secrets.md) | External Secrets Operator、Pulumi ESC、Secret 配置 |
 | [observability](observability.md) | VictoriaMetrics、kube-state-metrics、CRD metrics |
 | [operations](operations.md) | 日常確認、保守、CronJob/Job 調査 |

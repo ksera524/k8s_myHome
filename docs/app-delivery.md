@@ -32,6 +32,8 @@
 
 ## Access 更新
 
+具体的な追加順序と通信制限の例は [新しく到達可能な API を追加する手順](access.md#新しく到達可能な-api-を追加する手順) を参照してください。
+
 - access 変更は `manifests/access/<app>/` と `manifests/contracts/home-lab/access-surfaces.yaml` の PR にします。
 - runtime PR と access PR は分けます。
 - HTTPRoute には `contracts.k8s-myhome.local/access-surface` annotation を付与します。
