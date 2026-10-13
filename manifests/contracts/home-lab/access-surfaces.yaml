@@ -127,3 +127,15 @@ spec:
         cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
+    rsshub-internal:
+      hostname: rsshub.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: rsshub
+        namespace: sandbox
+      gatewayListener: https-rsshub-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true

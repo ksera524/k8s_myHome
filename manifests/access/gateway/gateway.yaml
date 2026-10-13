@@ -155,3 +155,17 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    - name: https-rsshub-internal
+      hostname: rsshub.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: rsshub-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All

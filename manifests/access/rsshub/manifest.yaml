@@ -1,0 +1,57 @@
+# rsshub内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rsshub-internal-redirect
+  namespace: sandbox
+  annotations:
+    contracts.k8s-myhome.local/access-surface: rsshub-internal
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - rsshub.internal.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+---
+# rsshub内部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rsshub-internal
+  namespace: sandbox
+  annotations:
+    contracts.k8s-myhome.local/access-surface: rsshub-internal
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-rsshub-internal
+  hostnames:
+    - rsshub.internal.qroksera.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: rsshub
+          port: 1200
+          weight: 1

@@ -88,6 +88,7 @@ flowchart TD
     hitomiPdf["hitomi-pdf"]:::wave12
     huv["hitomi-upload-viewer"]:::wave12
     camera["home-camera"]:::wave12
+    rsshub["rsshub"]:::wave12
     selenium["selenium"]:::wave12
   end
 
@@ -98,6 +99,7 @@ flowchart TD
     blogAccess["blog-access"]:::wave13
     cooklogAccess["cooklog-access"]:::wave13
     apiHubAccess["api-hub-access"]:::wave13
+    rsshubAccess["rsshub-access"]:::wave13
     huvAccess["hitomi-upload-viewer-access"]:::wave13
   end
 

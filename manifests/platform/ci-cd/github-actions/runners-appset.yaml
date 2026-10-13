@@ -50,6 +50,13 @@ spec:
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
+      - name: rsshub-private
+        githubOwner: ksera524
+        githubRepo: RSSHub-private
+        runnerName: rsshub-private-runners
+        minRunners: '0'
+        maxRunners: '1'
+        workflowStrategy: latest
   template:
     metadata:
       name: '{{ .name }}-runner'

@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rsshub-private
+  namespace: sandbox
+  labels:
+    app: rsshub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rsshub
+  template:
+    metadata:
+      labels:
+        app: rsshub
+    spec:
+      imagePullSecrets:
+        - name: harbor-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rsshub
+          image: harbor.qroksera.com/sandbox/rsshub-private:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 1200
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: TZ
+              value: Asia/Tokyo
+            - name: PORT
+              value: "1200"
+            - name: LISTEN_INADDR_ANY
+              value: "1"
+            - name: CACHE_TYPE
+              value: redis
+            - name: REDIS_URL
+              value: redis://rsshub-redis:6379/
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: chromium-shm
+              mountPath: /dev/shm
+      volumes:
+        - name: chromium-shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rsshub
+  namespace: sandbox
+spec:
+  selector:
+    app: rsshub
+  ports:
+    - name: http
+      port: 1200
+      targetPort: http
