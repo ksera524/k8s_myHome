@@ -54,3 +54,15 @@ Git 修正と同期完了後にその一時ポリシーを削除する。他 Nam
 fail-open のためプロセス終了後の NFQUEUE は bypass するが、nftables の
 `inet kube-network-policies` table は残る。完全撤去時だけ各ノードでその table を確認・削除する。
 他の nftables / iptables ruleset は flush しない。
+
+## 2026-10-13 導入時の検証
+
+- worker2 の先行導入後、全 3 ノードへ展開し DaemonSet 3/3 Ready を確認。
+- api-hub 経由の一時バケット作成・upload・download・内容一致・object/bucket 削除に成功。
+- 全ノード上の無関係な Pod、および別 Namespace の app=api-hub Pod から、
+  Service IP / Pod IP の両方の 9000 / 9001 に対する計 16 接続が timeout で拒否された。
+- 実際の NGINX Pod から 9001 は到達、9000 は timeout で拒否された。
+- ArgoCD / Harbor の外部 URL は HTTP 200。Cloudflared は各 Pod とも 4 接続を確認。
+- console URL は変更前から HTTP 403 / AccessDenied。変更後も Gateway 直結・
+  Cloudflare 経由とも同じ応答で、到達性は維持。認証後の画面操作は未検証。
+- CI 相当の `automation/scripts/ci/validate.sh` と API server の dry-run を実施。
