@@ -57,3 +57,23 @@ kubectl get applications -n argocd config-secrets external-secrets-operator
 kubectl annotate externalsecret <name> -n <namespace> \
   force-sync="$(date +%s)" --overwrite
 ```
+
+## Harbor 内部認証情報
+
+`harbor/harbor-internal-secret` は `config-secrets` の ExternalSecret が管理します。
+Harbor chart のランダム生成を避けるため、現行 Secret の値を ESC の次の secret 値へ移行しています。
+
+| ESC キー（接頭辞 `harbor-internal-`） | Secret キー |
+|---|---|
+| `core-secret` | `secret` |
+| `encryption-key` | `secretKey` |
+| `token-cert` / `token-key` | `tls.crt` / `tls.key` |
+| `xsrf-key` | `CSRF_KEY` |
+| `jobservice-secret` | `JOBSERVICE_SECRET` |
+| `registry-secret` | `REGISTRY_HTTP_SECRET` |
+| `registry-password` / `registry-htpasswd` | `REGISTRY_PASSWD` / `REGISTRY_HTPASSWD` |
+
+Harbor を同期する前に ExternalSecret の Ready を確認します。
+これらは関連する値をセットで管理し、特に暗号化キーを不用意に変更しないでください。
+token 証明書は自動再生成されなくなるため、有効期限を管理し、更新時は対応する秘密鍵も ESC へ登録します。
+変更した内部認証情報をプロセスへ反映する際は core / registry / jobservice の計画的な再起動が必要です。
