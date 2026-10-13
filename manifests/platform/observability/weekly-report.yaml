@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weekly-observability-report
+  namespace: observability
+spec:
+  schedule: "0 9 * * 1"
+  timeZone: Asia/Tokyo
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # Slack 受付後の通信切断などによる自動再送を避ける。
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: report
+              image: python:3.13.7-slim-bookworm
+              command: [python, -B, /scripts/weekly-report.py]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: slack
+                  mountPath: /etc/slack
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: observability-weekly-report
+            - name: slack
+              secret:
+                secretName: alertmanager-slack

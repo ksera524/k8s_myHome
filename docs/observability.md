@@ -140,3 +140,41 @@ Webhook の変更は ESC から Secret volume に反映されます（subPath �
 送信失敗時は Alertmanager のログと `alertmanager_notifications_failed_total` を確認します。
 
 参考: [Slack Incoming Webhooks の作成手順](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/)。
+
+## 週次 Slack レポート
+
+`weekly-observability-report` CronJob が毎週月曜 09:00（`Asia/Tokyo`）に実行されます。
+VictoriaMetrics の直近 7 日間を集計し、既存の `alertmanager-slack` Secret を使って同じ Slack チャンネルへ送信します。
+Alertmanager の通知間隔・silence とは独立した定期レポートです。
+
+- Node / Pod Ready、Deployment replica 不足、PVC Pending / Lost
+- ArgoCD sync / health、ExternalSecret / Certificate Ready、Gateway Programmed
+- コンテナ再起動回数の上位 5 件
+
+状態は 5 分刻みのサンプルから「一度でも異常だった対象数 / 期間中に観測した対象数」を集計します。
+アラートの `for` は適用せず、短時間のデプロイ中の状態も集計対象です。
+同じ namespace・名前のリソースは再作成されてもまとめます。再起動は counter の `increase` による推定値です。
+欠損データは正常とは判定せず「データなし」、API エラーは「取得失敗」と表示します。
+部分的な収集停止や 5 分未満の異常は見落とし得るため、稼働率・障害件数を示すものではありません。
+CPU / メモリ / ディスク使用量はこのレポートの対象外です。
+
+処理時間の上限は 5 分、遅延実行の猶予は 1 時間、同時実行は禁止します。
+取得失敗時は不完全なレポートを送った上で Job を失敗させます。
+重複通知を減らすため Job の自動リトライは無効ですが、CronJob / Slack は厳密な一度だけの配信を保証しません。
+失敗 Job は最大 3 件保持します。必要に応じてログを確認して手動実行してください。
+
+```bash
+kubectl -n observability get cronjob weekly-observability-report
+# 手動実行も実際に Slack へ送信します。
+kubectl -n observability create job --from=cronjob/weekly-observability-report weekly-report-manual-$(date +%s)
+```
+
+ローカルで本文だけ確認する場合（Slack へは送信しません）:
+
+```bash
+kubectl -n observability port-forward svc/victoria-metrics 18428:8428
+# 別ターミナルで実行
+VICTORIA_METRICS_URL=http://localhost:18428 \
+  python3 -B manifests/platform/observability/scripts/weekly-report.py --dry-run
+python3 -B -m unittest discover -s automation/tests/observability -p 'test_*.py'
+```
