@@ -38,23 +38,44 @@ def pvc_report(fetch):
     for kind, expr in PVC_STATS.items():
         stats[kind] = {(r['metric']['namespace'], r['metric']['persistentvolumeclaim']):
                        float(r['value'][1]) for r in fetch(expr)}
-    lines = ['*PVC のファイルシステム容量（現在・空き割合の少ない順）*']
+    lines = ['*ストレージ容量（現在・空き割合の少ない順）*']
+    shared = []
+    shared_total = 0
     entries = []
     for row in info:
         labels = row['metric']
         key = (labels['namespace'], labels['persistentvolumeclaim'])
+        is_shared = labels.get('storageclass') == 'nfs-external'
+        if is_shared:
+            shared_total += 1
         name = html.escape('/'.join(key))
         available = stats['available'].get(key)
         capacity = stats['capacity'].get(key)
         used = stats['used'].get(key)
         if available is None or capacity is None or capacity <= 0 or used is None:
+            if is_shared:
+                continue
             entries.append((2, f'• {name}: 容量取得不可（未マウント／未対応／収集停止の可能性）'))
+            continue
+        if is_shared:
+            shared.append((available, capacity, used))
             continue
         ratio = available / capacity
         badge = '🔴' if ratio < .1 else '⚠' if ratio < .2 else '•'
         entries.append((ratio, f'{badge} {name}: 空き {available / 2**30:.1f} GiB ({ratio:.1%})'
                         f' / 総容量 {capacity / 2**30:.1f} GiB / 使用 {used / 2**30:.1f} GiB'
                         f' ({used / capacity:.1%})'))
+    if shared_total:
+        if shared:
+            # nfs-external は同一共有 FS。空き容量が最小の観測を代表に使い、合算しない。
+            available, capacity, used = min(shared, key=lambda values: values[0])
+            ratio = available / capacity
+            badge = '🔴' if ratio < .1 else '⚠' if ratio < .2 else '•'
+            entries.append((ratio, f'{badge} 共有 NFS (nfs-external): 空き {available / 2**30:.1f} GiB ({ratio:.1%})'
+                            f' / 総容量 {capacity / 2**30:.1f} GiB / 使用 {used / 2**30:.1f} GiB ({used / capacity:.1%})'
+                            f' — 容量取得 {len(shared)}/{shared_total} PVC'))
+        else:
+            entries.append((2, f'• 共有 NFS (nfs-external): 容量取得不可 — 容量取得 0/{shared_total} PVC'))
     lines += [text for _, text in sorted(entries)] if entries else ['• PVC 一覧データなし']
     lines.append('NFS は共有ファイルシステムの容量です。PVC ごとの使用量・上限ではなく、合算できません。'
                  '予約領域等により使用量＋空き容量は総容量と一致しない場合があります。')

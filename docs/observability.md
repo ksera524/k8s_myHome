@@ -183,7 +183,10 @@ python3 -B -m unittest discover -s automation/tests/observability -p 'test_*.py'
 
 kubelet `/metrics` を API server proxy 経由で 30 秒ごとに収集します。
 ServiceAccount とクラスタ CA を使用し、容量 3 種のメトリクスのみ保存します。
-週次レポートには現在の空き容量（GiB / %）、総容量、使用量（GiB / %）を全 PVC 分表示します。
+週次レポートには現在の空き容量（GiB / %）、総容量、使用量（GiB / %）を表示します。
+`nfs-external` は同一共有ファイルシステムのため 1 行にまとめ、空き容量が最小の観測を代表値にします。
+容量取得済み PVC 数 / 全 PVC 数も併記し、すべて欠損していれば「容量取得不可」と表示します。
+他の StorageClass は PVC ごとに表示します。複数の共有ファイルシステムを扱うようになった場合はこのグループ定義を見直します。
 同じ PVC が複数ノードにある場合は空き容量の最小値を採用し、重複を合算しません。
 
 現在の `nfs-external` は共有ファイルシステムの統計を返します。

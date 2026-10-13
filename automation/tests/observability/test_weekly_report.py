@@ -50,6 +50,26 @@ class ReportTests(unittest.TestCase):
         self.assertIn('apps/unknown: 容量取得不可', text)
         self.assertIn('🔴', text)
 
+    def test_shared_nfs_is_one_line_without_summing(self):
+        def row(name, value):
+            return {'metric': {'namespace': 'apps', 'persistentvolumeclaim': name,
+                               'storageclass': 'nfs-external'}, 'value': [0, str(value)]}
+        def fetch(expr):
+            if expr == module.PVC_INFO:
+                return [row('a', 1), row('b', 1), row('missing', 1)]
+            kind = next(k for k, v in module.PVC_STATS.items() if v == expr)
+            return [row(name, values[kind] * 2**30) for name, values in
+                    [('a', {'available': 40, 'capacity': 100, 'used': 50}),
+                     ('b', {'available': 30, 'capacity': 100, 'used': 60})]]
+        text = '\n'.join(module.pvc_report(fetch))
+        self.assertEqual(text.count('共有 NFS (nfs-external)'), 1)
+        self.assertIn('空き 30.0 GiB', text)
+        self.assertIn('総容量 100.0 GiB', text)
+        self.assertIn('容量取得 2/3 PVC', text)
+        self.assertNotIn('apps/', text)
+        missing = '\n'.join(module.pvc_report(lambda expr: fetch(expr) if expr == module.PVC_INFO else []))
+        self.assertIn('容量取得不可 — 容量取得 0/3 PVC', missing)
+
 
 if __name__ == '__main__':
     unittest.main()
