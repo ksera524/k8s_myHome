@@ -210,3 +210,6 @@ checksum による core / registry / jobservice の不要な更新と新旧キ�
 内部認証情報を ESC / ExternalSecret に固定します。
 同じ入力で 2 回 `kustomize build --enable-helm manifests/platform/harbor` した出力が一致することを確認します。
 修正前の再起動は過去 7 日のレポートに残り、期間外になると表示されなくなります。
+
+実機確認: 新 jobservice は再起動 0 回で起動し、Harbor health API の全 8 コンポーネントが healthy。
+ArgoCD の hard refresh 後も Pod が維持されることを確認します。
