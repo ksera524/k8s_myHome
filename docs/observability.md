@@ -110,7 +110,9 @@ docker run --rm -v "$PWD:/work:ro" -w /work --entrypoint /bin/promtool \
 
 デプロイ後は ArgoCD の Synced / Healthy と、vmalert 画面の評価エラーがないことを確認します。
 ルール式を VMUI でも評価し、対象の時系列が存在することを確認してください。
-実機での発火・復旧および Alertmanager への到達確認は別途必要です。
+2026-10-13 に live ルール評価と参照メトリクスの存在を確認済みです。
+Alertmanager API から投入した `SlackNotificationTest` の発火・復旧通知は Slack で受信確認済みです。
+実障害を発生させる試験は実施していません。
 
 参考: [vmalert](https://docs.victoriametrics.com/victoriametrics/vmalert/)、
 [Alertmanager 設定](https://prometheus.io/docs/alerting/latest/configuration/)。

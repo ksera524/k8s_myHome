@@ -138,13 +138,14 @@ external 公開を行う場合は、MFA / SSO / IP 制限の方針を決めて�
 ## Backlog 連携
 
 - 対応 backlog: `B-001` / `B-002` は完了、アラート導入は `B-003`、追加観測面は `B-004`
-- 現状態: runtime / internal access / CRD metrics は live 確認済み。アラートは repo-side 実装済み
-- 次の確認: アラートの live 発火・復旧確認
+- 現状態: runtime / internal access / CRD metrics は live 確認済み。アラートは live 評価・Slack 疎通確認済み
+- 次の実装候補: B-004 の追加観測面
 
 ## アラート初期実装（B-003）
 
 - 既存 `observability` owner に vmalert / Alertmanager を追加した。配置と確認手順は `docs/observability.md`。
 - 通知先は Slack Incoming Webhook。URL は observability domain の ExternalSecret で管理し、公開面は追加しない。
 - Node / Pod / restart / Deployment / PVC / ArgoCD / ExternalSecret / Gateway / Certificate の状態を評価する。
-- repo-side 実装済み。live cluster への反映、発火・復旧確認は未完了。
+- 2026-10-13: `config-secrets` / `observability` は Synced / Healthy。ExternalSecret は Ready。11 ルールの評価エラーなし、参照メトリクスの収集を確認。
+- 2026-10-13: `SlackNotificationTest` を Alertmanager API に投入し、発火・復旧通知の Slack 受信をユーザーが確認。実障害を発生させる試験は実施していない。B-003 を完了。
 - 残る観測面と通知先の拡張は B-004 として追跡する。
