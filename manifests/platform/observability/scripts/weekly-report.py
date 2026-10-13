@@ -24,6 +24,42 @@ CHECKS = [
 ]
 RESTARTS = 'topk(5, sum by(namespace,pod,container) (increase(kube_pod_container_status_restarts_total[7d])))'
 
+PVC_INFO = 'max by(namespace,persistentvolumeclaim,storageclass) (kube_persistentvolumeclaim_info)'
+PVC_STATS = {
+    'available': 'min by(namespace,persistentvolumeclaim) (kubelet_volume_stats_available_bytes)',
+    'capacity': 'min by(namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes)',
+    'used': 'max by(namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes)',
+}
+
+
+def pvc_report(fetch):
+    info = fetch(PVC_INFO)
+    stats = {}
+    for kind, expr in PVC_STATS.items():
+        stats[kind] = {(r['metric']['namespace'], r['metric']['persistentvolumeclaim']):
+                       float(r['value'][1]) for r in fetch(expr)}
+    lines = ['*PVC のファイルシステム容量（現在・空き割合の少ない順）*']
+    entries = []
+    for row in info:
+        labels = row['metric']
+        key = (labels['namespace'], labels['persistentvolumeclaim'])
+        name = html.escape('/'.join(key))
+        available = stats['available'].get(key)
+        capacity = stats['capacity'].get(key)
+        used = stats['used'].get(key)
+        if available is None or capacity is None or capacity <= 0 or used is None:
+            entries.append((2, f'• {name}: 容量取得不可（未マウント／未対応／収集停止の可能性）'))
+            continue
+        ratio = available / capacity
+        badge = '🔴' if ratio < .1 else '⚠' if ratio < .2 else '•'
+        entries.append((ratio, f'{badge} {name}: 空き {available / 2**30:.1f} GiB ({ratio:.1%})'
+                        f' / 総容量 {capacity / 2**30:.1f} GiB / 使用 {used / 2**30:.1f} GiB'
+                        f' ({used / capacity:.1%})'))
+    lines += [text for _, text in sorted(entries)] if entries else ['• PVC 一覧データなし']
+    lines.append('NFS は共有ファイルシステムの容量です。PVC ごとの使用量・上限ではなく、合算できません。'
+                 '予約領域等により使用量＋空き容量は総容量と一致しない場合があります。')
+    return lines
+
 
 def query(base, expression, end):
     params = urllib.parse.urlencode({'query': expression, 'time': end.timestamp()})
@@ -72,6 +108,11 @@ def report(fetch, end):
     except Exception:
         errors.append('再起動ランキング')
         lines.append('• 取得失敗')
+    try:
+        lines.extend(pvc_report(fetch))
+    except Exception:
+        errors.append('PVC 容量')
+        lines.append('⚠ PVC 容量: 取得失敗')
     lines.append('状態は 5 分間隔の観測です。短い異常・収集停止中の異常・欠損 condition は検出できません。'
                  '対象数は期間中に観測できたリソース数で、同名 Pod の再作成はまとめます。')
     if errors:

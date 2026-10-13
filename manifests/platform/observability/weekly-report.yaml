@@ -14,7 +14,7 @@ spec:
     spec:
       # Slack 受付後の通信切断などによる自動再送を避ける。
       backoffLimit: 0
-      activeDeadlineSeconds: 300
+      activeDeadlineSeconds: 420
       template:
         spec:
           restartPolicy: Never

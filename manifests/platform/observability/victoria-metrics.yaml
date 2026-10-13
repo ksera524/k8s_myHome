@@ -14,6 +14,27 @@ data:
           - targets:
               - kube-state-metrics.observability.svc.cluster.local:8080
 
+      # API server proxy 経由で CA / ServiceAccount 認証を使用する。
+      - job_name: kubelet-volume-stats
+        scheme: https
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            action: keep
+            regex: kubelet_volume_stats_(available|capacity|used)_bytes
+
       - job_name: kubernetes-pods-annotated
         kubernetes_sd_configs:
           - role: pod
@@ -126,6 +147,7 @@ spec:
             - -storageDataPath=/storage
             - -retentionPeriod=30d
             - -promscrape.config=/etc/victoria-metrics/scrape.yaml
+            - -promscrape.configCheckInterval=30s
           ports:
             - name: http
               containerPort: 8428

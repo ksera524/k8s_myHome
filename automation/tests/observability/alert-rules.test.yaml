@@ -90,3 +90,53 @@ tests:
   - eval_time: 6m
     alertname: KubeStateMetricsUnavailable
     exp_alerts: []
+- name: PVC 容量しきい値・待機時間・容量ゼロ除外
+  interval: 1m
+  input_series:
+  - series: kubelet_volume_stats_available_bytes{namespace="apps",persistentvolumeclaim="critical"}
+    values: 5+0x30
+  - series: kubelet_volume_stats_capacity_bytes{namespace="apps",persistentvolumeclaim="critical"}
+    values: 100+0x30
+  - series: kubelet_volume_stats_available_bytes{namespace="apps",persistentvolumeclaim="warning"}
+    values: 15+0x30
+  - series: kubelet_volume_stats_capacity_bytes{namespace="apps",persistentvolumeclaim="warning"}
+    values: 100+0x30
+  - series: kubelet_volume_stats_available_bytes{namespace="apps",persistentvolumeclaim="healthy"}
+    values: 30+0x30
+  - series: kubelet_volume_stats_capacity_bytes{namespace="apps",persistentvolumeclaim="healthy"}
+    values: 100+0x30
+  - series: kubelet_volume_stats_available_bytes{namespace="apps",persistentvolumeclaim="zero"}
+    values: 0+0x30
+  - series: kubelet_volume_stats_capacity_bytes{namespace="apps",persistentvolumeclaim="zero"}
+    values: 0+0x30
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: KubernetesVolumeSpaceLow
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubernetesVolumeSpaceLow
+    exp_alerts:
+    - exp_labels:
+        namespace: apps
+        persistentvolumeclaim: critical
+        severity: warning
+      exp_annotations:
+        summary: PVC apps/critical のファイルシステム空き容量が 20% 未満です（NFS は共有容量）
+    - exp_labels:
+        namespace: apps
+        persistentvolumeclaim: warning
+        severity: warning
+      exp_annotations:
+        summary: PVC apps/warning のファイルシステム空き容量が 20% 未満です（NFS は共有容量）
+  - eval_time: 14m
+    alertname: KubernetesVolumeSpaceCritical
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: KubernetesVolumeSpaceCritical
+    exp_alerts:
+    - exp_labels:
+        namespace: apps
+        persistentvolumeclaim: critical
+        severity: critical
+      exp_annotations:
+        summary: PVC apps/critical のファイルシステム空き容量が 10% 未満です（NFS は共有容量）

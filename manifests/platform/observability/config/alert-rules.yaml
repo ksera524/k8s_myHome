@@ -90,3 +90,29 @@ groups:
           severity: warning
         annotations:
           summary: "Certificate {{ $labels.namespace }}/{{ $labels.certificate }} が Ready ではありません"
+      - alert: KubernetesVolumeSpaceLow
+        expr: >-
+          min by(namespace,persistentvolumeclaim)
+          (kubelet_volume_stats_available_bytes / (kubelet_volume_stats_capacity_bytes > 0)) < 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} のファイルシステム空き容量が 20% 未満です（NFS は共有容量）"
+      - alert: KubernetesVolumeSpaceCritical
+        expr: >-
+          min by(namespace,persistentvolumeclaim)
+          (kubelet_volume_stats_available_bytes / (kubelet_volume_stats_capacity_bytes > 0)) < 0.1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} のファイルシステム空き容量が 10% 未満です（NFS は共有容量）"
+      - alert: KubeletVolumeScrapeUnavailable
+        expr: >-
+          up{job="kubelet-volume-stats"} == 0 or absent(up{job="kubelet-volume-stats"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kubelet の容量メトリクスを収集できません"
