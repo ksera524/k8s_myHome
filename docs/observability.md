@@ -200,3 +200,13 @@ PVC 間の容量の合算はできません。予約領域等があるため、�
 容量のない PVC は「容量取得不可」と表示し、容量不足アラートは評価できません。
 未マウント・ストレージ側の未対応なども原因となり得ます。
 容量取得開始前の履歴はないため、容量欄は送信時点の値です。
+
+## Harbor jobservice の起動時再起動（2026-10-13）
+
+jobservice が core の `/api/v2.0/internalconfig` で 401 を受けて panic することを確認しました。
+Helm のランダム生成キー・token 証明書・htpasswd salt が GitOps の再描画で変わり、
+checksum による core / registry / jobservice の不要な更新と新旧キーの不一致を起こしていました。
+`manifests/platform/harbor/values.yaml` で `harbor-internal-secret` を参照し、
+内部認証情報を ESC / ExternalSecret に固定します。
+同じ入力で 2 回 `kustomize build --enable-helm manifests/platform/harbor` した出力が一致することを確認します。
+修正前の再起動は過去 7 日のレポートに残り、期間外になると表示されなくなります。

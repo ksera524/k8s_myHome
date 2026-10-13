@@ -5,6 +5,8 @@ expose:
 
 externalURL: https://harbor.qroksera.com
 
+existingSecretSecretKey: harbor-internal-secret
+
 existingSecretAdminPassword: harbor-admin-secret
 existingSecretAdminPasswordKey: password
 
@@ -58,6 +60,10 @@ trivy:
       memory: 512Mi
 
 core:
+  existingSecret: harbor-internal-secret
+  secretName: harbor-internal-secret
+  existingXsrfSecret: harbor-internal-secret
+  existingXsrfSecretKey: CSRF_KEY
   resources:
     requests:
       cpu: 50m
@@ -76,6 +82,9 @@ portal:
       memory: 128Mi
 
 registry:
+  existingSecret: harbor-internal-secret
+  credentials:
+    existingSecret: harbor-internal-secret
   resources:
     requests:
       cpu: 50m
@@ -94,6 +103,7 @@ chartmuseum:
       memory: 128Mi
 
 jobservice:
+  existingSecret: harbor-internal-secret
   resources:
     requests:
       cpu: 50m
