@@ -79,3 +79,9 @@ variable "ssh_private_key_path" {
   type        = string
   default     = "~/.ssh/id_rsa"
 }
+
+variable "enable_nfs_mount" {
+  description = "ホスト上のNFS共有をマウントする（使い捨てCIでは無効）"
+  type        = bool
+  default     = true
+}

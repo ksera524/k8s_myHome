@@ -19,6 +19,11 @@ terraform {
   }
 }
 
+locals {
+  kubernetes_minor   = regex("^v[0-9]+\\.[0-9]+", var.kubernetes_version)
+  kubernetes_package = "${trimprefix(var.kubernetes_version, "v")}-1.1"
+}
+
 # ランダムIDでユニークなリソース名を生成
 resource "random_id" "cluster" {
   byte_length = 4
@@ -59,9 +64,10 @@ data "template_file" "user_data" {
   count    = 3
   template = file("${path.module}/cloud-init/user-data.yaml")
   vars = {
-    vm_hostname = count.index == 0 ? "k8s-control-plane" : "k8s-worker${count.index}"
-    username    = var.vm_user
-    ssh_key     = var.ssh_public_key
+    vm_hostname      = count.index == 0 ? "k8s-control-plane" : "k8s-worker${count.index}"
+    username         = var.vm_user
+    ssh_key          = var.ssh_public_key
+    enable_nfs_mount = var.enable_nfs_mount
   }
 }
 
@@ -180,19 +186,21 @@ resource "null_resource" "k8s_control_plane_setup" {
   # cloud-init完了を待機
   provisioner "remote-exec" {
     inline = [
-      "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
+      "set -eu",
+      "sudo timeout 600 cloud-init status --wait"
     ]
   }
 
   # Kubernetesパッケージインストール
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo apt update",
       "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd",
-      "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
-      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
+      "curl -fsSL https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
+      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
       "sudo apt update",
-      "sudo apt install -y kubelet=1.29.0-1.1 kubeadm=1.29.0-1.1 kubectl=1.29.0-1.1",
+      "sudo apt install -y kubelet=${local.kubernetes_package} kubeadm=${local.kubernetes_package} kubectl=${local.kubernetes_package}",
       "sudo apt-mark hold kubelet kubeadm kubectl"
     ]
   }
@@ -200,6 +208,7 @@ resource "null_resource" "k8s_control_plane_setup" {
   # カーネルモジュールとネットワーク設定
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo modprobe br_netfilter",
       "sudo modprobe overlay",
       "echo 'br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf",
@@ -214,6 +223,7 @@ resource "null_resource" "k8s_control_plane_setup" {
   # containerd設定
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo mkdir -p /etc/containerd",
       "sudo containerd config default | sudo tee /etc/containerd/config.toml",
       "sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml",
@@ -225,15 +235,16 @@ resource "null_resource" "k8s_control_plane_setup" {
   # kubeadm設定ファイル作成
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       <<-EOF
         sudo tee /tmp/kubeadm-config.yaml > /dev/null <<EOL
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: ${var.control_plane_ip}
   bindPort: 6443
 ---
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 kubernetesVersion: ${var.kubernetes_version}
 controlPlaneEndpoint: "${var.control_plane_ip}:6443"
@@ -252,6 +263,7 @@ EOL
   # kubeadmクラスター初期化
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs",
       "mkdir -p /home/${var.vm_user}/.kube",
       "sudo cp -i /etc/kubernetes/admin.conf /home/${var.vm_user}/.kube/config",
@@ -263,6 +275,7 @@ EOL
   # Harbor用ストレージディレクトリ作成
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo mkdir -p /tmp/harbor-registry /tmp/harbor-database /tmp/harbor-redis /tmp/harbor-trivy /tmp/harbor-jobservice",
       "sudo chmod 777 /tmp/harbor-*"
     ]
@@ -284,19 +297,21 @@ resource "null_resource" "k8s_worker_setup" {
   # cloud-init完了を待機
   provisioner "remote-exec" {
     inline = [
-      "timeout 300 bash -c 'until [ -f /var/log/cloud-init-complete ]; do sleep 5; done'"
+      "set -eu",
+      "sudo timeout 600 cloud-init status --wait"
     ]
   }
 
   # Kubernetesパッケージインストール
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo apt update",
       "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd",
-      "curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
-      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
+      "curl -fsSL https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
+      "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
       "sudo apt update",
-      "sudo apt install -y kubelet=1.29.0-1.1 kubeadm=1.29.0-1.1 kubectl=1.29.0-1.1",
+      "sudo apt install -y kubelet=${local.kubernetes_package} kubeadm=${local.kubernetes_package} kubectl=${local.kubernetes_package}",
       "sudo apt-mark hold kubelet kubeadm kubectl"
     ]
   }
@@ -304,6 +319,7 @@ resource "null_resource" "k8s_worker_setup" {
   # カーネルモジュールとネットワーク設定
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo modprobe br_netfilter",
       "sudo modprobe overlay",
       "echo 'br_netfilter' | sudo tee /etc/modules-load.d/k8s.conf",
@@ -318,6 +334,7 @@ resource "null_resource" "k8s_worker_setup" {
   # containerd設定
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo mkdir -p /etc/containerd",
       "sudo containerd config default | sudo tee /etc/containerd/config.toml",
       "sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml",
@@ -329,6 +346,7 @@ resource "null_resource" "k8s_worker_setup" {
   # Harbor用ストレージディレクトリ作成
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "sudo mkdir -p /tmp/harbor-registry /tmp/harbor-database /tmp/harbor-redis /tmp/harbor-trivy /tmp/harbor-jobservice",
       "sudo chmod 777 /tmp/harbor-*"
     ]
@@ -342,7 +360,7 @@ resource "null_resource" "worker_join" {
 
   # joinコマンドをControl Planeから取得してローカルに保存
   provisioner "local-exec" {
-    command = "ssh -o StrictHostKeyChecking=no -i ${var.ssh_private_key_path} ${var.vm_user}@${var.control_plane_ip} 'cat /tmp/worker-join-command.txt' > /tmp/worker-join-command.sh && chmod +x /tmp/worker-join-command.sh"
+    command = "ssh -o StrictHostKeyChecking=no -i ${var.ssh_private_key_path} ${var.vm_user}@${var.control_plane_ip} 'cat /tmp/worker-join-command.txt' > /tmp/worker-join-${random_id.cluster.hex}-${count.index}.sh && chmod 600 /tmp/worker-join-${random_id.cluster.hex}-${count.index}.sh"
   }
 
   # joinコマンドをWorker Nodeにコピー
@@ -354,7 +372,7 @@ resource "null_resource" "worker_join" {
       private_key = file(var.ssh_private_key_path)
     }
 
-    source      = "/tmp/worker-join-command.sh"
+    source      = "/tmp/worker-join-${random_id.cluster.hex}-${count.index}.sh"
     destination = "/tmp/worker-join-command.sh"
   }
 
@@ -368,6 +386,7 @@ resource "null_resource" "worker_join" {
     }
 
     inline = [
+      "set -eu",
       "chmod +x /tmp/worker-join-command.sh",
       "sudo bash /tmp/worker-join-command.sh"
     ]
@@ -387,6 +406,7 @@ resource "null_resource" "helm_install" {
 
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "# Helm 3 インストール",
       "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash",
       "helm version",
@@ -408,6 +428,7 @@ resource "null_resource" "flannel_install" {
 
   provisioner "remote-exec" {
     inline = [
+      "set -eu",
       "timeout 300 bash -c 'until kubectl get nodes; do sleep 10; done'",
       "kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml",
       "sleep 30",

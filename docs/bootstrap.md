@@ -96,9 +96,38 @@ phase1 / phase2 の本体は置き換えているため、APT・libvirt・Terraf
 bootstrap も Kubernetes API、ArgoCD の起動・同期、外部サービスとの接続を模擬しています。
 特に `CI=true make phase5` の成功はライブ検証のスキップであり、クラスタ正常性を示しません。
 
-実構築の確度をさらに上げる次の段階は、本番のネットワーク・ストレージ・認証情報を持たない
-使い捨て Ubuntu 24.04 / KVM 環境で phase1 → phase2 を実行することです。
-kind だけでは libvirt / cloud-init 経路の検証にはなりません。
+## GitHub Actions での実構築テスト
+
+Actions の **Setup Integration (disposable VMs)** → **Run workflow** で手動実行します。
+CLI では `gh workflow run setup-integration.yml --ref main` です。
+PR ごとの自動実行は行いません。
+
+`ubuntu-24.04` の GitHub-hosted runner 内で libvirt を準備し、共通の
+`automation/infrastructure/*.tf` と cloud-init を変更せず一時ディレクトリへコピーして適用します。
+設定はCI専用に生成し、VMは control-plane 3GiB + worker 2GiB × 2、各2 vCPUです。
+SSH鍵とTerraform状態も一時領域に置き、NFSマウントは `enable_nfs_mount=false` で無効にします。
+本番の設定・Secret・kubeconfig は不要です。
+
+成功条件は次のすべてです。
+
+- Terraform apply（VM作成・cloud-init・kubeadm init/join・CNI導入）が成功する。
+- 3ノードすべてがReadyになり、CoreDNSが起動する。
+- worker2のPodからDNSを解決し、Service経由でworker1のHTTP Podにアクセスできる。
+
+成功・失敗にかかわらず診断情報の収集と `terraform destroy` を試みます。
+`setup-integration-diagnostics` artifactにはVM一覧、各VMのcloud-init状態、サービス状態、
+ノード・Pod・イベント・通信テスト結果を7日間保存します。
+秘密鍵、joinコマンド、Terraform状態、認証情報を含みうる全ログはartifactに含めません。
+destroy失敗時もGitHub-hosted runner自体が破棄されます。
+
+GitHubのネスト仮想化は[公式サポート対象外](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners)です。
+冒頭でKVM APIによるVM作成、メモリ12GiB以上、空き容量10GiB以上を確認し、不足なら失敗させます。
+KVMを利用できない場合をテスト成功として扱いません。
+
+このテストは共通Terraformからの構築を検証します。phase1のホストセットアップ、
+`clean-and-deploy.sh` の既存環境削除・権限修復、NFS、ArgoCD以降のGitOps収束は対象外です。
+UbuntuイメージとFlannelは現行Terraformの可変URLを使うため、外部配布物の変更でも結果が変わります。
+`make all` 全体や本番の再構築成功を保証するものではありません。
 `clean-and-deploy.sh` は既存 VM と Terraform 状態を削除するため、既存クラスタのホストで試験しないでください。
 
 ## ログ

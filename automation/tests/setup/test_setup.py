@@ -27,6 +27,7 @@ class SetupTests(unittest.TestCase):
             'TRACE': str(self.trace), 'LC_ALL': 'C',
         }
         for path in ('automation/scripts/run.sh',
+                     'automation/scripts/ci/setup-integration.sh',
                      'automation/scripts/common-logging.sh',
                      'automation/scripts/verify.sh',
                      'automation/platform/platform-deploy.sh',
@@ -172,6 +173,15 @@ fi
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(self.events(), [])
             self.assertFalse((self.root / '.kube/config').exists())
+
+    def test_integration_rejects_non_disposable_environment(self):
+        for env in ({}, {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'self-hosted'},
+                    {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
+                     'RUNNER_TEMP': str(self.root), 'SETUP_CI_DIR': '/unexpected'}):
+            with self.subTest(env=env):
+                result = self.run_script('automation/scripts/ci/setup-integration.sh', 'prepare', **env)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertEqual(self.events(), [])
 
 
 if __name__ == '__main__':
