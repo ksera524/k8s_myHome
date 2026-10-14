@@ -10,6 +10,17 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  setup-behavior:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Test setup control flow without infrastructure access
+        run: python3 -m unittest discover -s automation/tests/setup -v
+
   validate:
     runs-on: ubuntu-latest
     env:

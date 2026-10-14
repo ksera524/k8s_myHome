@@ -74,6 +74,33 @@ make validate-local
 
 `automation/scripts/ci/validate.sh` は shellcheck、yamllint、全 `manifests/**/kustomization.yaml` の `kustomize build`、policy check、CRD catalog schema を含む kubeconform、整合性チェックを実行します。
 
+## 再構築せずに行うセットアップの振る舞い検証
+
+```bash
+python3 -m unittest discover -s automation/tests/setup -v
+```
+
+Deploy Process Validation の `setup-behavior` job と `validate.sh` で実行します。
+Python 標準ライブラリと Bash・基本コマンドのみを使用し、クラスタや認証情報は不要です。
+一時ディレクトリに必要な実スクリプトだけをコピーし、外部コマンドは許可リスト形式の PATH 内のテスト用 stub に置き換えます。
+ローカルの `settings.toml` は読み込まず、実際の SSH・sudo・kubectl は実行しません。
+
+| 検証対象 | CI で確認する内容 |
+| --- | --- |
+| `run.sh` | all の実行順序、個別入口と別名、sudo 失敗、途中失敗時の終了コードと後続停止、ログ記録 |
+| `platform-deploy.sh` | リモート Bash 本文の実行、ArgoCD → Secret → root Application の順序、接続・転送・導入・Secret 作成失敗時の停止 |
+| `verify.sh` | CI / VERIFY_SKIP_SSH 時に SSH と kubeconfig 書き込みを行わないこと |
+
+これらの成功は **セットアップ全体の実構築成功の証明ではありません**。
+phase1 / phase2 の本体は置き換えているため、APT・libvirt・Terraform・cloud-init・kubeadm の動作は未検証です。
+bootstrap も Kubernetes API、ArgoCD の起動・同期、外部サービスとの接続を模擬しています。
+特に `CI=true make phase5` の成功はライブ検証のスキップであり、クラスタ正常性を示しません。
+
+実構築の確度をさらに上げる次の段階は、本番のネットワーク・ストレージ・認証情報を持たない
+使い捨て Ubuntu 24.04 / KVM 環境で phase1 → phase2 を実行することです。
+kind だけでは libvirt / cloud-init 経路の検証にはなりません。
+`clean-and-deploy.sh` は既存 VM と Terraform 状態を削除するため、既存クラスタのホストで試験しないでください。
+
 ## ログ
 
 実行ログは次に出力されます。

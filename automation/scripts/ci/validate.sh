@@ -17,6 +17,10 @@ require_command() {
   fi
 }
 
+log_section "Setup behavior tests (isolated stubs)"
+require_command python3
+python3 -m unittest discover -s "$ROOT_DIR/automation/tests/setup" -v
+
 log_section "Shellcheck"
 require_command shellcheck
 
