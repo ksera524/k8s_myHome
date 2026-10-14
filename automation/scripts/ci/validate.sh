@@ -17,6 +17,11 @@ require_command() {
   fi
 }
 
+log_section "GitHub Actions workflow validation"
+require_command actionlint
+# シェル/Pythonの検証とは分け、workflow構文とcontextの利用可能範囲を検証する。
+actionlint -shellcheck= -pyflakes= "$ROOT_DIR"/.github/workflows/*.yml
+
 log_section "Setup behavior tests (isolated stubs)"
 require_command python3
 python3 -m unittest discover -s "$ROOT_DIR/automation/tests/setup" -v

@@ -11,6 +11,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         validateTools = with pkgs; [
+          actionlint
           bash
           coreutils
           findutils

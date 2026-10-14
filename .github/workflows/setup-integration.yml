@@ -17,9 +17,10 @@ jobs:
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      SETUP_CI_DIR: ${{ runner.temp }}/setup-integration
     steps:
       - uses: actions/checkout@v6
+      - name: Set disposable working directory
+        run: echo "SETUP_CI_DIR=$RUNNER_TEMP/setup-integration" >> "$GITHUB_ENV"
       - name: Check disposable runner capacity
         run: bash automation/scripts/ci/setup-integration.sh preflight
       - uses: hashicorp/setup-terraform@v3
