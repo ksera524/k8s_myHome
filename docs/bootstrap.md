@@ -107,6 +107,9 @@ PR ごとの自動実行は行いません。
 設定はCI専用に生成し、VMは control-plane 3GiB + worker 2GiB × 2、各2 vCPUです。
 SSH鍵とTerraform状態も一時領域に置き、NFSマウントは `enable_nfs_mount=false` で無効にします。
 本番の設定・Secret・kubeconfig は不要です。
+Ubuntu 24.04 の libvirt / AppArmor によるイメージの読み取り拒否を回避するため、
+使い捨てrunner内だけでCI用イメージ名に限定したAppArmorルールを追加します。
+AppArmorは有効のままです。
 
 成功条件は次のすべてです。
 
@@ -117,6 +120,7 @@ SSH鍵とTerraform状態も一時領域に置き、NFSマウントは `enable_nf
 成功・失敗にかかわらず診断情報の収集と `terraform destroy` を試みます。
 `setup-integration-diagnostics` artifactにはVM一覧、各VMのcloud-init状態、サービス状態、
 ノード・Pod・イベント・通信テスト結果を7日間保存します。
+イメージのファイル権限と、そのパスに対するlibvirtのAppArmor拒否も保存します。
 秘密鍵、joinコマンド、Terraform状態、認証情報を含みうる全ログはartifactに含めません。
 destroy失敗時もGitHub-hosted runner自体が破棄されます。
 
