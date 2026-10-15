@@ -87,13 +87,53 @@ config = {
 (base / 'infrastructure/ci.auto.tfvars.json').write_text(json.dumps(config))
 PY
     ;;
+  reapply)
+    # 差分がある場合（終了コード2）も失敗。意図しない再作成をapplyで隠さない。
+    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
+    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" apply -auto-approve -input=false -no-color'
+    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
+    ;;
+  reboot)
+    for ip in 192.168.122.11 192.168.122.12 192.168.122.10; do
+      before="$(ssh_vm "$ip" 'cat /proc/sys/kernel/random/boot_id')"
+      [[ "$before" =~ ^[0-9a-f-]{36}$ ]] || { echo "Invalid boot ID: $ip" >&2; exit 1; }
+      # SSH切断を成功扱いせず、予約が成功した後にboot IDの変化を待つ。
+      ssh_vm "$ip" 'sudo shutdown -r +1'
+      deadline=$((SECONDS + 300))
+      recovered=false
+      while (( SECONDS < deadline )); do
+        after="$(ssh_vm "$ip" 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null)" || after=''
+        if [[ "$after" =~ ^[0-9a-f-]{36}$ && "$after" != "$before" ]]; then
+          recovered=true
+          break
+        fi
+        sleep 5
+      done
+      [[ "$recovered" == true ]] || { echo "Reboot timed out: $ip" >&2; exit 1; }
+      echo "$ip rebooted: $before -> $after"
+      ssh_vm "$ip" 'bash -se' <<'REMOTE'
+set -euo pipefail
+timeout 120 bash -c 'until systemctl is-active --quiet containerd && systemctl is-active --quiet kubelet; do sleep 3; done'
+test "$(sysctl -n net.ipv4.ip_forward)" = 1
+test "$(sysctl -n net.bridge.bridge-nf-call-iptables)" = 1
+test -z "$(swapon --noheadings --show)"
+REMOTE
+    done
+    # SSH復旧とAPI Server復旧は別に待つ。
+    ssh_vm 192.168.122.10 'bash -se' <<'REMOTE'
+set -euo pipefail
+timeout 120 bash -c 'until kubectl get --raw=/readyz; do sleep 3; done'
+REMOTE
+    ;;
   verify)
     ssh_vm 192.168.122.10 'bash -se' <<'REMOTE'
 set -euo pipefail
 kubectl wait --for=condition=Ready nodes --all --timeout=240s
 test "$(kubectl get nodes --no-headers | wc -l)" -eq 3
 kubectl -n kube-system rollout status deployment/coredns --timeout=120s
-kubectl create namespace setup-smoke
+kubectl create namespace setup-smoke --dry-run=client -o yaml | kubectl apply -f -
+# 前回SucceededのPodを見て誤って成功しないよう、毎回新規に通信を実行する。
+kubectl delete pod -n setup-smoke client --ignore-not-found --wait=true --timeout=60s
 kubectl apply -f - <<'YAML'
 apiVersion: v1
 kind: Pod
@@ -169,5 +209,5 @@ REMOTE
       'kubectl get nodes -o wide; kubectl get pods -A -o wide; kubectl get events -A --sort-by=.lastTimestamp; kubectl logs -n setup-smoke client' \
       > "$SETUP_CI_DIR/diagnostics/kubernetes.txt" 2>&1 || true
     ;;
-  *) echo 'Usage: setup-integration.sh preflight|prepare|verify|collect' >&2; exit 1 ;;
+  *) echo 'Usage: setup-integration.sh preflight|prepare|verify|reapply|reboot|collect' >&2; exit 1 ;;
 esac

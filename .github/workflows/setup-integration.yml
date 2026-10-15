@@ -13,7 +13,7 @@ concurrency:
 jobs:
   kubeadm:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 90
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
@@ -40,6 +40,18 @@ jobs:
       - name: Verify nodes, cross-node traffic and DNS
         timeout-minutes: 8
         run: bash automation/scripts/ci/setup-integration.sh verify
+      - name: Verify Terraform reapply without changes
+        timeout-minutes: 5
+        run: bash automation/scripts/ci/setup-integration.sh reapply
+      - name: Reboot every VM and verify persistent host settings
+        timeout-minutes: 25
+        run: bash automation/scripts/ci/setup-integration.sh reboot
+      - name: Verify cluster and fresh cross-node traffic after reboot
+        timeout-minutes: 8
+        run: bash automation/scripts/ci/setup-integration.sh verify
+      - name: Verify Terraform has no drift after reboot
+        timeout-minutes: 5
+        run: bash automation/scripts/ci/setup-integration.sh reapply
       - name: Collect diagnostics (no keys or Terraform state)
         if: always()
         timeout-minutes: 3
