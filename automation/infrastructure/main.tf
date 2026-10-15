@@ -108,7 +108,7 @@ resource "libvirt_domain" "control_plane" {
   network_interface {
     network_name   = "default"
     wait_for_lease = false
-    addresses      = [var.control_plane_ip]
+    # 静的IPはcloud-initで設定する。DHCP lease由来のaddressesには重複指定しない。
   }
 
   disk {
@@ -140,7 +140,7 @@ resource "libvirt_domain" "worker" {
   network_interface {
     network_name   = "default"
     wait_for_lease = false
-    addresses      = [var.worker_ips[count.index]]
+    # 静的IPはcloud-initで設定する。DHCP lease由来のaddressesには重複指定しない。
   }
 
   disk {

@@ -4,7 +4,7 @@ metadata:
   name: home-camera-recorder
   namespace: sandbox
 spec:
-  schedule: "0 8-20 * * *"
+  schedule: "0 19-23,0-8 * * *"
   timeZone: "Asia/Tokyo"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
@@ -22,23 +22,12 @@ spec:
             - name: recorder
               image: harbor.qroksera.com/sandbox/home-camera:latest
               imagePullPolicy: Always
-              envFrom:
-                - configMapRef:
-                    name: sandbox-connection-info
               env:
                 # RTSP URL は app 固有の非機密設定として runtime owner 配下に置く。
                 - name: RTSP_URL
                   value: "rtsp://s5kVuizVreFu2SxK:0FnaKGTm2bGgqxK2@192.168.10.15/live0"
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: rustfs-auth
-                      key: RUSTFS_ACCESS_KEY
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: rustfs-auth
-                      key: RUSTFS_SECRET_KEY
+                - name: API_HUB_BASE_URL
+                  value: http://api-hub.sandbox.svc:3000
                 - name: S3_BUCKET
                   value: home-camera-recordings
                 - name: CAMERA_ID

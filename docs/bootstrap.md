@@ -116,6 +116,17 @@ AppArmorは有効のままです。
 - Terraform apply（VM作成・cloud-init・kubeadm init/join・CNI導入）が成功する。
 - 3ノードすべてがReadyになり、CoreDNSが起動する。
 - worker2のPodからDNSを解決し、Service経由でworker1のHTTP Podにアクセスできる。
+- Terraformの再適用前後で `plan -detailed-exitcode` が0（差分なし）になる。
+  差分がある場合は再適用せず失敗させる。
+- worker1、worker2、control-planeを順に再起動し、各VMのboot IDが変わる。
+  containerd/kubelet、IP転送、bridge設定、swap無効化が再起動後も維持される。
+- 再起動後に3ノードReadyとCoreDNS復旧を確認し、新しいclient PodでDNS・ノード間HTTP通信を再検証する。
+- 再起動後もTerraformの再適用前後に差分がない。
+
+再適用の確認はTerraform管理リソースが対象です。作成時のprovisionerを再実行する検証ではありません。
+VMの静的IPはcloud-initで設定し、libvirt domainの `network_interface.addresses` には重複指定しません。
+DHCP leaseのない静的IPを同属性に指定すると、状態の再取得で恒常的な差分が生じます。
+再起動検証は復旧を確認するもので、単一control-planeの無停止性や障害時のPod再配置は保証しません。
 
 成功・失敗にかかわらず診断情報の収集と `terraform destroy` を試みます。
 `setup-integration-diagnostics` artifactにはVM一覧、各VMのcloud-init状態、サービス状態、
