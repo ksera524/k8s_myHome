@@ -25,7 +25,7 @@ spec:
               env:
                 # RTSP URL は app 固有の非機密設定として runtime owner 配下に置く。
                 - name: RTSP_URL
-                  value: "rtsp://s5kVuizVreFu2SxK:0FnaKGTm2bGgqxK2@192.168.10.15/live0"
+                  value: "rtsp://3Q8WkPUqnlyPGeMr:1diXu8m3HbAM68hf@192.168.10.4/live0"
                 - name: API_HUB_BASE_URL
                   value: http://api-hub.sandbox.svc:3000
                 - name: S3_BUCKET
