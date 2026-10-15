@@ -4,7 +4,7 @@ metadata:
   name: home-camera-recorder
   namespace: sandbox
 spec:
-  schedule: "0 8-20 * * *"
+  schedule: "0 19-23,0-8 * * *"
   timeZone: "Asia/Tokyo"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
