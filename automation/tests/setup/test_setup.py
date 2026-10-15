@@ -18,7 +18,7 @@ class SetupTests(unittest.TestCase):
         self.bin.mkdir()
         self.trace = self.root / 'trace'
         # 許可したコマンドだけを PATH に置く。実 SSH / sudo / kubectl は到達不能。
-        for command in ('bash', 'dirname', 'date', 'tee', 'awk'):
+        for command in ('bash', 'dirname', 'date', 'tee', 'awk', 'timeout'):
             source = shutil.which(command)
             self.assertIsNotNone(source, command)
             (self.bin / command).symlink_to(source)

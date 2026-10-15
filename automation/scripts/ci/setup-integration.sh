@@ -89,9 +89,10 @@ PY
     ;;
   reapply)
     # 差分がある場合（終了コード2）も失敗。意図しない再作成をapplyで隠さない。
-    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
-    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" apply -auto-approve -input=false -no-color'
-    sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
+    # stepの強制終了より先にプロセス群を停止し、stateロックをdestroyへ持ち越さない。
+    sg libvirt -c 'exec timeout --kill-after=10s 80s terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
+    sg libvirt -c 'exec timeout --kill-after=10s 80s terraform -chdir="$SETUP_CI_DIR/infrastructure" apply -auto-approve -input=false -no-color'
+    sg libvirt -c 'exec timeout --kill-after=10s 80s terraform -chdir="$SETUP_CI_DIR/infrastructure" plan -detailed-exitcode -input=false -no-color'
     ;;
   reboot)
     for ip in 192.168.122.11 192.168.122.12 192.168.122.10; do
