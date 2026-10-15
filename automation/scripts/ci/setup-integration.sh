@@ -50,9 +50,9 @@ PY
     # 使い捨てCIのイメージ名だけを許可し、AppArmor自体は有効のままにする。
     sudo mkdir -p /etc/apparmor.d/abstractions/libvirt-qemu.d
     sudo tee /etc/apparmor.d/abstractions/libvirt-qemu.d/setup-integration >/dev/null <<'APPARMOR'
-/var/lib/libvirt/images/ubuntu-base-*.img r,
+/var/lib/libvirt/images/ubuntu-base-*.img rk,
 /var/lib/libvirt/images/k8s-*.qcow2 rwk,
-/var/lib/libvirt/images/k8s-*-init-*.iso r,
+/var/lib/libvirt/images/k8s-*-init-*.iso rk,
 APPARMOR
     sudo systemctl start libvirtd
     # 後続のTerraformはsgで新しい補助グループを反映して実行する。
@@ -153,7 +153,7 @@ REMOTE
     mkdir -p "$SETUP_CI_DIR/diagnostics"
     sudo virsh list --all > "$SETUP_CI_DIR/diagnostics/vms.txt" 2>&1 || true
     # DAC権限とAppArmor拒否を区別できる最小限のホスト情報を残す。
-    sudo ls -ld /var/lib/libvirt/images /var/lib/libvirt/images/* \
+    sudo bash -c 'ls -ld /var/lib/libvirt/images /var/lib/libvirt/images/*' \
       > "$SETUP_CI_DIR/diagnostics/image-permissions.txt" 2>&1 || true
     sudo journalctl -k --no-pager | awk '/apparmor="DENIED"/ && /libvirt/ && /\/var\/lib\/libvirt\/images\//' \
       > "$SETUP_CI_DIR/diagnostics/apparmor-denials.txt" || true
