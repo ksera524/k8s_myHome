@@ -124,6 +124,8 @@ AppArmorは有効のままです。
 - 再起動後もTerraformの再適用前後に差分がない。
 
 再適用の確認はTerraform管理リソースが対象です。作成時のprovisionerを再実行する検証ではありません。
+VMの静的IPはcloud-initで設定し、libvirt domainの `network_interface.addresses` には重複指定しません。
+DHCP leaseのない静的IPを同属性に指定すると、状態の再取得で恒常的な差分が生じます。
 再起動検証は復旧を確認するもので、単一control-planeの無停止性や障害時のPod再配置は保証しません。
 
 成功・失敗にかかわらず診断情報の収集と `terraform destroy` を試みます。
