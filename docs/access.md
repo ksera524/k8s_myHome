@@ -8,7 +8,37 @@
 - hostname / listener / backend / publish は `manifests/contracts/home-lab/access-surfaces.yaml` を正本にします。
 - 外部公開は Cloudflared から NGINX Gateway へ集約します。
 - TLS は cert-manager の証明書を Gateway に配置します（外部はワイルドカード、内部は個別証明書）。
-- RustFS は console のみ外部公開し、API は外部公開しません。
+- Cloudflared の公開対象は Harbor のみです。ArgoCD・RustFS console・Blog は Tunnel から公開しません。
+- ArgoCD・RustFS console・Blog は内部 hostname を CoreDNS / Tailscale Split DNS で公開します。
+- Cloudflared の設定変更時は Pod template も更新して再起動し、新設定を読み込ませます。公開対象は template の access-surfaces annotation にも記載します。
+
+## Tailscale からの管理・閲覧
+
+| アプリ | URL |
+|---|---|
+| ArgoCD | `https://argocd.internal.qroksera.com` |
+| RustFS console | `https://rustfs.internal.qroksera.com` |
+| Blog | `https://blog.internal.qroksera.com` |
+
+既存の `k8s-subnet-router` が広告する `192.168.122.0/24` を利用し、
+Split DNS は各 hostname を Gateway `192.168.122.100` に解決します。
+RustFS は console (9001) のみを Gateway に接続し、S3 API (9000) は公開しません。
+
+Tailnet 側では以下の設定が必要です（このリポジトリからは管理しません）。
+
+- サブネットルート `192.168.122.0/24` を承認し、利用端末で受け入れる。
+- `internal.qroksera.com` の Split DNS を `192.168.122.101` に向ける。
+- 利用者から DNS `192.168.122.101:53` (UDP/TCP) と Gateway `192.168.122.100:443` を許可する。
+  HTTP からのリダイレクトも利用する場合は Gateway の TCP 80 も許可する。
+- 端末で Tailscale DNS を利用する。
+
+ArgoCD の GitHub OAuth App (client ID `Ov23li8T6IFuiuLcoSJa`) の Authorization callback URL は
+`https://argocd.internal.qroksera.com/api/dex/callback` に更新します。
+GitHub 側の変更はマニフェスト同期では反映されません。切替時は内部証明書と DNS の準備後に
+ArgoCD URL / Dex 設定と OAuth App の callback を合わせ、Tailscale 接続端末からログインを確認します。
+
+反映後は証明書の Ready、HTTPRoute の Accepted / ResolvedRefs を確認し、Tailscale 接続端末で
+3つの hostname が `192.168.122.100` に解決されることと、HTTPS の応答・ログイン後の操作を確認します。
 
 ## 主要 path
 

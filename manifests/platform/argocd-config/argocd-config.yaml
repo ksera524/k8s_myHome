@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/part-of: argocd
 data:
   # ArgoCD URL設定
-  url: https://argocd.qroksera.com
+  url: https://argocd.internal.qroksera.com
 
   # admin アカウントで API トークン発行を許可
   accounts.admin: apiKey, login
@@ -28,7 +28,7 @@ data:
       config:
         clientId: Ov23li8T6IFuiuLcoSJa
         clientSecret: $dex.github.clientSecret
-        redirectURI: https://argocd.qroksera.com/api/dex/callback
+        redirectURI: https://argocd.internal.qroksera.com/api/dex/callback
 
   # 既存のリソース除外設定
   resource.exclusions: |

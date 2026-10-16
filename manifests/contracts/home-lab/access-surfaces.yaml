@@ -16,7 +16,7 @@ spec:
         namespace: argocd
       gatewayListener: https-argocd-external
       publish:
-        cloudflared: true
+        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     argocd-internal:
@@ -30,7 +30,7 @@ spec:
       publish:
         cloudflared: false
         coreDNS: true
-        tailscaleSplitDNS: false
+        tailscaleSplitDNS: true
     harbor-external:
       hostname: harbor.qroksera.com
       scheme: https
@@ -64,7 +64,7 @@ spec:
         namespace: rustfs
       gatewayListener: https-rustfs
       publish:
-        cloudflared: true
+        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     blog-external:
@@ -76,7 +76,7 @@ spec:
         namespace: sandbox
       gatewayListener: https-blog-external
       publish:
-        cloudflared: true
+        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     cooklog-internal:
@@ -135,6 +135,30 @@ spec:
         service: rsshub
         namespace: sandbox
       gatewayListener: https-rsshub-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true
+    blog-internal:
+      hostname: blog.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: blog
+        namespace: sandbox
+      gatewayListener: https-blog-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true
+    rustfs-console-internal:
+      hostname: rustfs.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: rustfs-svc
+        namespace: rustfs
+      gatewayListener: https-rustfs-internal
       publish:
         cloudflared: false
         coreDNS: true

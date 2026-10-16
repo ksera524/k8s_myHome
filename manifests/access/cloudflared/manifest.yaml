@@ -17,6 +17,8 @@ spec:
       app: cloudflared
   template:
     metadata:
+      annotations:
+        contracts.k8s-myhome.local/access-surfaces: harbor-external
       labels:
         app: cloudflared
     spec:

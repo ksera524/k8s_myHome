@@ -14,7 +14,9 @@ wave 2 の `core`。初回はポリシーだけを先に同期してからコン
 | sandbox の app=api-hub | RustFS S3 API | TCP 9000 |
 | nginx-gateway の nginx-gateway-nginx / gateway-name=nginx-gateway | RustFS console | TCP 9001 |
 
-管理経路は Cloudflare Tunnel → cloudflared → NGINX Gateway:443 → RustFS:9001。
+RustFS console への許可経路は NGINX Gateway:443 → RustFS:9001。
+console は `https://rustfs.internal.qroksera.com` を Tailscale Split DNS で解決し、
+Tailscale サブネットルータ経由で Gateway に接続する。Cloudflared からは公開しない。
 Namespace と Pod の selector は同一 peer 内で AND 指定する。
 RustFS Namespace 内全体への許可や、未使用の home-camera-recorder の例外は設けない。
 共有 Gateway の入口制限と egress 制限は今回追加しない。
@@ -39,7 +41,8 @@ api-hub の presigned URL でクライアントが直接 S3 に接続する用�
 1. `core` を同期し、RustFS の既存の広い許可が残っていないことを確認する。
 2. 初回は RustFS が稼働する worker2 に nodeSelector で限定して導入する。
 3. api-hub 経由で専用の一時バケットに upload / download し、一致確認後に削除する。
-4. Cloudflare 経由の console、ArgoCD、Harbor と Gateway 経由の console の応答を比較する。
+4. Cloudflare 経由の Harbor と、プライベート経路で Gateway に接続した console の応答を確認する。
+   Cloudflare Tunnel 経由の console・ArgoCD・Blog は 404 になることを確認する。
 5. 無関係な Pod から Service IP / Pod IP の 9000 / 9001 が拒否されることを確認する。
 6. hostname の nodeSelector を除去し、全ノードで稼働・監視・疎通を確認する。
 

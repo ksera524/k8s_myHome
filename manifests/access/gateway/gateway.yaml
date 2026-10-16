@@ -169,3 +169,31 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    - name: https-rustfs-internal
+      hostname: rustfs.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: rustfs-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-blog-internal
+      hostname: blog.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: blog-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All
