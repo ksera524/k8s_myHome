@@ -22,7 +22,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: cleanup
-              image: python:3.12-slim
+              image: python:3.15.0-slim-bookworm
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false

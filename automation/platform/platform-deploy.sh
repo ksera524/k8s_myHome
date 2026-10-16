@@ -22,7 +22,7 @@ K8S_USER="${K8S_USER:-k8suser}"
 REMOTE_TMP="/tmp/k8s-myhome-bootstrap"
 APP_OF_APPS_SRC="$ROOT_DIR/manifests/bootstrap/app-of-apps.yaml"
 ARGOCD_INGRESS_SRC="$AUTOMATION_DIR/templates/platform/argocd-ingress.yaml"
-ARGOCD_BOOTSTRAP_VERSION="v3.3.0"
+ARGOCD_BOOTSTRAP_VERSION="v3.5.5"
 
 ssh_cmd=(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR "${K8S_USER}@${CONTROL_PLANE_IP}")
 scp_cmd=(scp -o StrictHostKeyChecking=no -o LogLevel=ERROR)

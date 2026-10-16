@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: redis
-          image: redis:7-alpine
+          image: redis:8.10.2-alpine
           args: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
           securityContext:
             allowPrivilegeEscalation: false

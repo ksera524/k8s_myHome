@@ -16,7 +16,7 @@ configMapGenerator:
 helmCharts:
   - name: rustfs
     repo: https://charts.rustfs.com
-    version: 0.0.83
+    version: 1.0.2
     releaseName: rustfs
     namespace: rustfs
     valuesFile: values.yaml
