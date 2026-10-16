@@ -44,6 +44,23 @@ spec:
   hostnames:
     - rustfs.qroksera.com
   rules:
+    # コンソールは専用パスで配信されるため、ルートへのアクセスを転送する。
+    - matches:
+        - method: GET
+          path:
+            type: Exact
+            value: /
+        - method: HEAD
+          path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /rustfs/console/
+            statusCode: 302
     - matches:
         - path:
             type: PathPrefix
@@ -101,6 +118,23 @@ spec:
   hostnames:
     - rustfs.internal.qroksera.com
   rules:
+    # コンソールは専用パスで配信されるため、ルートへのアクセスを転送する。
+    - matches:
+        - method: GET
+          path:
+            type: Exact
+            value: /
+        - method: HEAD
+          path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /rustfs/console/
+            statusCode: 302
     - matches:
         - path:
             type: PathPrefix
