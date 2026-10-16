@@ -3,4 +3,4 @@ kind: Kustomization
 
 resources:
   # Gateway API CRD（git fetch依存を避けるためリリース配布yamlを使用）
-  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml
