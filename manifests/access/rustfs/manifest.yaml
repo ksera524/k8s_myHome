@@ -62,6 +62,19 @@ spec:
               replaceFullPath: /rustfs/console/
             statusCode: 302
     - matches:
+        # Exact の GET / HEAD と同じパスで認証リクエストも明示する。
+        - method: POST
+          path:
+            type: Exact
+            value: /
+        - method: GET
+          path:
+            type: Exact
+            value: /
+          headers:
+            - name: Authorization
+              type: RegularExpression
+              value: .+
         - path:
             type: PathPrefix
             value: /
@@ -136,6 +149,19 @@ spec:
               replaceFullPath: /rustfs/console/
             statusCode: 302
     - matches:
+        # Exact の GET / HEAD と同じパスで認証リクエストも明示する。
+        - method: POST
+          path:
+            type: Exact
+            value: /
+        - method: GET
+          path:
+            type: Exact
+            value: /
+          headers:
+            - name: Authorization
+              type: RegularExpression
+              value: .+
         - path:
             type: PathPrefix
             value: /

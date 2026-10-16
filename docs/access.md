@@ -23,8 +23,8 @@
 既存の `k8s-subnet-router` が広告する `192.168.122.0/24` を利用し、
 Split DNS は各 hostname を Gateway `192.168.122.100` に解決します。
 RustFS は console (9001) のみを Gateway に接続し、S3 API (9000) は公開しません。
-RustFS の `/` への GET / HEAD は HTTPRoute で `/rustfs/console/` に 302 リダイレクトします。
-認証に使う POST `/` と、それ以外のパスはそのまま転送し、ログイン画面・静的ファイル・コンソール API のパスを維持します。
+RustFS の `/` への未認証 GET / HEAD は HTTPRoute で `/rustfs/console/` に 302 リダイレクトします。
+認証に使う POST `/`、署名付き GET `/` と、それ以外のパスはそのまま転送し、ログイン画面・静的ファイル・コンソール API のパスを維持します。
 
 Tailnet 側では以下の設定が必要です（このリポジトリからは管理しません）。
 
