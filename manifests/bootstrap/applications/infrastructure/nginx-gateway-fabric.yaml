@@ -11,7 +11,8 @@ spec:
   project: infrastructure
   source:
     repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
-    targetRevision: 2.3.0
+    # 無関係な Route のパス重複で Policy が拒否される不具合（NGF #4890）の修正版。
+    targetRevision: 2.8.0
     chart: nginx-gateway-fabric
     helm:
       values: |
