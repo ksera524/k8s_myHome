@@ -75,7 +75,26 @@ nix develop .#default --command automation/scripts/ci/validate.sh
 make validate-local
 ```
 
-`automation/scripts/ci/validate.sh` は shellcheck、yamllint、全 `manifests/**/kustomization.yaml` の `kustomize build`、policy check、CRD catalog schema を含む kubeconform、整合性チェックを実行します。
+`automation/scripts/ci/validate.sh` は actionlint、setup / version update / 監視レポート / GitOps 検証の回帰テスト、shellcheck、yamllint、GitOps 参照・登録チェック、policy check、全 `manifests/**/kustomization.yaml` の `kustomize build` と CRD catalog schema を含む kubeconform、整合性チェックを実行します。
+
+PR の `Deploy Process Validation` で同じ入口を実行します。GitOps チェックは次を検出します。
+
+- このリポジトリを参照する bootstrap Application の `targetRevision` が `HEAD` 以外（multi-source も対象）。
+- source path の参照切れ・リポジトリ外への参照・Kustomization / Chart.yaml の欠落。
+- `directory.include` のファイル欠落。現行構成に合わせて単一ファイル指定のみ対応し、glob は検証エラーにします。
+- `manifests/apps/<app>/` に実体があるのに bootstrap Application が存在しない。
+- Application YAML が存在しても、`manifests/bootstrap/applications` の Kustomize 出力に含まれない登録漏れ。
+
+チェック自身は一時リポジトリと実際の Kustomize を使って正常系・異常系をテストします。
+
+```bash
+nix develop .#default --command python3 -m unittest discover -s automation/tests/ci -v
+nix develop .#default --command python3 automation/scripts/ci/gitops-check.py
+```
+
+外部 Helm chart の実際の同期、クラスタ上の admission、外部接続はこの静的検証の対象外です。
+kubeconform は引き続き schema のないリソースをスキップします。
+マージの強制ブロックには、GitHub 側の ruleset / branch protection で `validate` を必須チェックに設定する必要があります。
 
 ## 再構築せずに行うセットアップの振る舞い検証
 

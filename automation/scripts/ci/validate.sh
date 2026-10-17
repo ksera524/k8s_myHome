@@ -29,6 +29,12 @@ python3 -m unittest discover -s "$ROOT_DIR/automation/tests/setup" -v
 log_section "Version update tests (no network)"
 python3 -m unittest discover -s "$ROOT_DIR/automation/tests/version_updates" -v
 
+log_section "Observability report tests (no network)"
+python3 -m unittest discover -s "$ROOT_DIR/automation/tests/observability" -v
+
+log_section "GitOps validation regression tests"
+python3 -m unittest discover -s "$ROOT_DIR/automation/tests/ci" -v
+
 log_section "Shellcheck"
 require_command shellcheck
 
@@ -62,6 +68,9 @@ if ! python3 -c 'import yaml' >/dev/null 2>&1; then
   echo "python3 PyYAML not found" >&2
   exit 1
 fi
+
+log_section "GitOps references and registration"
+python3 "$ROOT_DIR/automation/scripts/ci/gitops-check.py"
 
 log_section "Policy checks"
 "$ROOT_DIR/automation/scripts/ci/policy-check.sh"
