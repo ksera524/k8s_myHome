@@ -22,7 +22,13 @@ K8S_USER="${K8S_USER:-k8suser}"
 REMOTE_TMP="/tmp/k8s-myhome-bootstrap"
 APP_OF_APPS_SRC="$ROOT_DIR/manifests/bootstrap/app-of-apps.yaml"
 ARGOCD_INGRESS_SRC="$AUTOMATION_DIR/templates/platform/argocd-ingress.yaml"
-ARGOCD_BOOTSTRAP_VERSION="v3.3.0"
+ARGOCD_UPSTREAM_KUSTOMIZATION="$ROOT_DIR/manifests/platform/argocd-config/upstream/kustomization.yaml"
+# 初回導入も GitOps と同じ固定版を使い、再 bootstrap での巻き戻しを防ぐ。
+ARGOCD_BOOTSTRAP_VERSION="$(awk -F/ '/https:\/\/raw.githubusercontent.com\/argoproj\/argo-cd\// { print $(NF-2) }' "$ARGOCD_UPSTREAM_KUSTOMIZATION")"
+if [[ ! "$ARGOCD_BOOTSTRAP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  log_error "ArgoCD の固定バージョンを取得できません: $ARGOCD_UPSTREAM_KUSTOMIZATION"
+  exit 1
+fi
 
 ssh_cmd=(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=ERROR "${K8S_USER}@${CONTROL_PLANE_IP}")
 scp_cmd=(scp -o StrictHostKeyChecking=no -o LogLevel=ERROR)

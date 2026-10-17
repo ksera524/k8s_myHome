@@ -1,314 +1,297 @@
 #!/usr/bin/env python3
-
+"""宣言済みの固定版を安定版と比較し、--apply 時に更新候補を生成する。"""
 from __future__ import annotations
 
+import argparse
+from functools import lru_cache
+import io
 import json
 import os
-import re
-import subprocess
 from pathlib import Path
-from typing import Any
+import re
+import shutil
+import subprocess
+import tarfile
+import tempfile
+from urllib.parse import quote, urljoin
 
 import yaml
-from packaging.version import InvalidVersion, Version
-
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[3]
-SUMMARY_PATH = ROOT / "weekly-version-audit-summary.md"
-ISSUE_PATH = ROOT / "weekly-version-audit-issue.md"
+STABLE = re.compile(r"v?\d+\.\d+\.\d+")
+ARGO_BASE = "manifests/platform/argocd-config/upstream/kustomization.yaml"
+ARC_DIR = "manifests/platform/ci-cd/github-actions"
 
 
-def run(cmd: list[str]) -> str:
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(f"command failed: {' '.join(cmd)}\n{proc.stderr}")
-    return proc.stdout.strip()
-
-
-def maybe_run(cmd: list[str]) -> tuple[bool, str, str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    return proc.returncode == 0, proc.stdout.strip() if proc.stdout else "", proc.stderr.strip() if proc.stderr else ""
-
-
-def norm(version: str) -> str:
-    return version.strip().strip('"').strip("'")
-
-
-def semver_key(version: str) -> Version:
-    value = norm(version)
-    if value.startswith("v"):
-        value = value[1:]
-    return Version(value)
-
-
-def is_semver(version: str) -> bool:
-    return bool(re.match(r"^v?\d+\.\d+\.\d+$", norm(version)))
-
-
-def compare(current: str, latest: str) -> str:
-    if not latest:
-        return "unknown"
+def fetch(url: str, headers: tuple[str, ...] = ()) -> bytes:
+    # curl の失敗時は更新処理全体を止め、不完全な調査結果を公開しない。
+    args = ["curl", "--fail", "--silent", "--show-error", "--location",
+            "--retry", "2", "--max-time", "90"]
+    for header in headers:
+        args.extend(["--header", header])
     try:
-        current_version = semver_key(current)
-        latest_version = semver_key(latest)
-    except InvalidVersion:
-        return "unknown"
-    if current_version < latest_version:
-        return "update-available"
-    if current_version == latest_version:
-        return "up-to-date"
-    return "ahead"
+        result = subprocess.run([*args, url], capture_output=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"取得タイムアウト: {url}") from None
+    if result.returncode:
+        # Authorization ヘッダーを含むコマンド全体はログに出さない。
+        raise RuntimeError(f"取得失敗: {url}: {result.stderr.decode()}")
+    return result.stdout
 
 
-def helm_latest(repo_chart: str) -> str:
-    data = json.loads(run(["helm", "search", "repo", repo_chart, "--versions", "-o", "json"]))
-    versions = [item["version"] for item in data if "version" in item]
-    stable = [version for version in versions if is_semver(version) and "-" not in norm(version)]
-    if stable:
-        return str(max(stable, key=semver_key))
-    if versions:
-        return versions[0]
-    return ""
+@lru_cache(maxsize=None)
+def json_url(url: str, headers: tuple[str, ...] = ()):
+    return json.loads(fetch(url, headers))
 
 
-def crane_latest(repo: str) -> str:
-    tags = [tag for tag in run(["crane", "ls", repo]).splitlines() if tag]
-    stable = [tag for tag in tags if is_semver(tag)]
-    if stable:
-        return str(max(stable, key=semver_key))
-    return ""
+def stable_latest(versions) -> str:
+    stable = [str(v) for v in versions if STABLE.fullmatch(str(v))]
+    if not stable:
+        raise ValueError("安定版が見つかりません")
+    return max(stable, key=lambda v: Version(v.lstrip("v")))
 
 
-def load_yaml(path: Path) -> Any:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-def load_child_apps() -> dict[str, dict[str, Any]]:
-    apps: dict[str, dict[str, Any]] = {}
-    app_root = ROOT / "manifests/bootstrap/applications"
-    for path in sorted(app_root.rglob("*.yaml")):
-        if path.name == "kustomization.yaml":
-            continue
-        with path.open(encoding="utf-8") as f:
-            docs = [doc for doc in yaml.safe_load_all(f) if isinstance(doc, dict)]
-        for doc in docs:
-            if doc.get("kind") != "Application":
-                continue
-            name = doc.get("metadata", {}).get("name")
-            if name:
-                apps[name] = {
-                    "doc": doc,
-                    "path": path.relative_to(ROOT).as_posix(),
-                }
-    return apps
-
-
-def find_app(apps: dict[str, dict[str, Any]], name: str) -> tuple[dict[str, Any], str]:
-    app = apps.get(name)
-    if app is None:
-        raise RuntimeError(f"Application not found: {name}")
-    return app["doc"], app["path"]
-
-
-def load_kustomization(path_str: str) -> dict[str, Any]:
-    return load_yaml(ROOT / path_str / "kustomization.yaml")
-
-
-def first_helm_chart(kustomization: dict[str, Any]) -> dict[str, Any]:
-    charts = kustomization.get("helmCharts") or []
-    if not charts:
-        raise RuntimeError("helmCharts entry not found")
-    return charts[0]
-
-
-def add_helm_repos() -> None:
-    repos = {
-        "nfs-subdir": "https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner",
-        "metallb": "https://metallb.github.io/metallb",
-        "jetstack": "https://charts.jetstack.io",
-        "external-secrets": "https://charts.external-secrets.io",
-        "tailscale": "https://pkgs.tailscale.com/helmcharts",
-        "harbor": "https://helm.goharbor.io",
-        "rustfs": "https://charts.rustfs.com",
-    }
-    for alias, url in repos.items():
-        maybe_run(["helm", "repo", "add", alias, url])
-    run(["helm", "repo", "update"])
-
-
-def collect_checks() -> list[dict[str, str]]:
-    child_apps = load_child_apps()
-    add_helm_repos()
-    checks: list[dict[str, str]] = []
-
-    chart_targets = [
-        ("nfs-subdir-external-provisioner", "NFS Subdir External Provisioner", "nfs-subdir/nfs-subdir-external-provisioner"),
-        ("metallb", "MetalLB", "metallb/metallb"),
-        ("cert-manager", "cert-manager", "jetstack/cert-manager"),
-        ("external-secrets-operator", "external-secrets", "external-secrets/external-secrets"),
-        ("tailscale-operator", "tailscale-operator", "tailscale/tailscale-operator"),
-    ]
-    for app_name, label, repo_chart in chart_targets:
-        app, app_path = find_app(child_apps, app_name)
-        current = str(app["spec"]["source"]["targetRevision"])
-        latest = helm_latest(repo_chart)
-        checks.append({
-            "component": label,
-            "kind": "helm-chart",
-            "current": current,
-            "latest": latest,
-            "status": compare(current, latest),
-            "ref": repo_chart,
-            "path": app_path,
-        })
-
-    wrapper_targets = [
-        ("harbor", "Harbor", "harbor/harbor"),
-        ("rustfs", "RustFS", "rustfs/rustfs"),
-    ]
-    for app_name, label, repo_chart in wrapper_targets:
-        app, _ = find_app(child_apps, app_name)
-        source_path = app["spec"]["source"]["path"]
-        chart = first_helm_chart(load_kustomization(source_path))
-        current = str(chart["version"])
-        latest = helm_latest(repo_chart)
-        checks.append({
-            "component": label,
-            "kind": "helm-chart",
-            "current": current,
-            "latest": latest,
-            "status": compare(current, latest),
-            "ref": repo_chart,
-            "path": f"{source_path}/kustomization.yaml",
-        })
-
-    arc_doc = load_yaml(ROOT / "manifests/platform/ci-cd/github-actions/arc-controller.yaml")
-    arc_current = str(arc_doc["spec"]["source"]["targetRevision"])
-    arc_latest = crane_latest("ghcr.io/actions/gha-runner-scale-set-controller")
-    checks.append({
-        "component": "ARC Controller",
-        "kind": "oci-chart",
-        "current": arc_current,
-        "latest": arc_latest,
-        "status": compare(arc_current, arc_latest),
-        "ref": "ghcr.io/actions/gha-runner-scale-set-controller",
-        "path": "manifests/platform/ci-cd/github-actions/arc-controller.yaml",
-    })
-
-    appset_doc = load_yaml(ROOT / "manifests/platform/ci-cd/github-actions/runners-appset.yaml")
-    runner_current = str(appset_doc["spec"]["template"]["spec"]["source"]["targetRevision"])
-    consistency_status = "up-to-date" if norm(runner_current) == norm(arc_current) else "mismatch"
-    checks.append({
-        "component": "ARC Controller/Runner consistency",
-        "kind": "consistency",
-        "current": f"controller={arc_current}, runner={runner_current}",
-        "latest": "-",
-        "status": consistency_status,
-        "ref": "arc-controller.yaml / runners-appset.yaml",
-        "path": "manifests/platform/ci-cd/github-actions/",
-    })
-
-    lpp_text = (ROOT / "manifests/infrastructure/storage/local-path/local-path-provisioner.yaml").read_text(encoding="utf-8")
-    match = re.search(r"image:\s*rancher/local-path-provisioner:([^\s]+)", lpp_text)
-    lpp_current = match.group(1) if match else ""
-    lpp_latest = crane_latest("rancher/local-path-provisioner") if lpp_current else ""
-    checks.append({
-        "component": "local-path-provisioner image",
-        "kind": "container-image",
-        "current": lpp_current,
-        "latest": lpp_latest,
-        "status": compare(lpp_current, lpp_latest) if lpp_current else "unknown",
-        "ref": "rancher/local-path-provisioner",
-        "path": "manifests/infrastructure/storage/local-path/local-path-provisioner.yaml",
-    })
-
-    cloudflared_text = (ROOT / "manifests/access/cloudflared/manifest.yaml").read_text(encoding="utf-8")
-    cloud_match = re.search(r"image:\s*cloudflare/cloudflared:([^\s]+)", cloudflared_text)
-    cloud_tag = cloud_match.group(1) if cloud_match else ""
-    cloud_digest = ""
-    if cloud_tag:
-        ok, out, _ = maybe_run(["crane", "digest", f"cloudflare/cloudflared:{cloud_tag}"])
-        cloud_digest = out if ok else ""
-    checks.append({
-        "component": "cloudflared image",
-        "kind": "container-image",
-        "current": cloud_tag,
-        "latest": cloud_tag,
-        "status": "tracked-by-digest",
-        "ref": "cloudflare/cloudflared",
-        "path": "manifests/access/cloudflared/manifest.yaml",
-        "note": f"digest={cloud_digest}" if cloud_digest else "digest unavailable",
-    })
-
-    return checks
-
-
-def build_summary(checks: list[dict[str, str]], updates: list[dict[str, str]], guard_issues: list[dict[str, str]]) -> list[str]:
-    lines = [
-        "## Weekly Version Audit",
-        "",
-        "| Component | Type | Current | Latest | Status | Reference |",
-        "|---|---|---|---|---|---|",
-    ]
-    for check in checks:
-        ref = check["ref"].replace("|", "\\|")
-        lines.append(f"| {check['component']} | {check['kind']} | `{check['current']}` | `{check['latest']}` | `{check['status']}` | `{ref}` |")
-    lines.append("")
-    lines.append(f"- updates found: **{len(updates)}**")
-    lines.append(f"- consistency issues found: **{len(guard_issues)}**")
-    for check in checks:
-        if check.get("note"):
-            lines.append(f"- note `{check['component']}`: {check['note']}")
-    return lines
-
-
-def build_issue(updates: list[dict[str, str]], guard_issues: list[dict[str, str]]) -> list[str]:
-    lines = ["## Weekly Version Audit: updates available", ""]
-    if updates or guard_issues:
-        lines.extend([
-            "| Component | Current | Latest | Type | Path |",
-            "|---|---|---|---|---|",
-        ])
-        for check in updates + guard_issues:
-            lines.append(f"| {check['component']} | `{check['current']}` | `{check['latest']}` | {check['kind']} | `{check['path']}` |")
-        lines.extend([
-            "",
-            "### Next actions",
-            "- 1) バージョン更新PRを作成",
-            "- 2) `make bootstrap` と `make phase5` で検証",
-            "- 3) ArgoCDが `Synced/Healthy` であることを確認",
-        ])
+@lru_cache(maxsize=None)
+def registry(repo: str) -> tuple[str, str, tuple[str, ...]]:
+    first = repo.split("/")[0]
+    if "." not in first and ":" not in first:
+        host, name = "registry-1.docker.io", repo if "/" in repo else "library/" + repo
+        auth = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{name}:pull"
     else:
-        lines.append("No updates found in this run.")
-    return lines
+        host, name = repo.split("/", 1)
+        auth = {
+            "ghcr.io": f"https://ghcr.io/token?service=ghcr.io&scope=repository:{name}:pull",
+            "public.ecr.aws": f"https://public.ecr.aws/token/?service=public.ecr.aws&scope=repository:{name}:pull",
+        }.get(host)
+    headers = ()
+    if auth:
+        data = json_url(auth)
+        headers = ("Authorization: Bearer " + (data.get("token") or data["access_token"]),)
+    return host, name, headers
 
 
-def write_outputs(summary_lines: list[str], issue_lines: list[str], updates_found: str) -> None:
-    SUMMARY_PATH.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
-    ISSUE_PATH.write_text("\n".join(issue_lines) + "\n", encoding="utf-8")
-
-    github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if github_summary:
-        with open(github_summary, "a", encoding="utf-8") as f:
-            f.write("\n".join(summary_lines) + "\n")
-
-    github_output = os.environ.get("GITHUB_OUTPUT")
-    if github_output:
-        with open(github_output, "a", encoding="utf-8") as f:
-            f.write(f"updates_found={updates_found}\n")
+@lru_cache(maxsize=None)
+def registry_tags(repo: str) -> list[str]:
+    host, name, headers = registry(repo)
+    # AWS CLI は ECR Public が tag listing を提供しないため公式Git tagsを使用。
+    if repo == "public.ecr.aws/aws-cli/aws-cli":
+        return [x["name"] for x in github("repos/aws/aws-cli/tags?per_page=100")]
+    data = json_url(f"https://{host}/v2/{name}/tags/list", headers)
+    if not data.get("tags"):
+        raise ValueError(f"タグがありません: {repo}")
+    return data["tags"]
 
 
-def main() -> int:
-    checks = collect_checks()
-    updates = [check for check in checks if check["status"] == "update-available"]
-    guard_issues = [check for check in checks if check["status"] == "mismatch"]
-    updates_found = "true" if updates or guard_issues else "false"
+def verify_image(repo: str, tag: str) -> None:
+    host, name, headers = registry(repo)
+    accept = "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json"
+    data = json_url(f"https://{host}/v2/{name}/manifests/{quote(tag, safe='')}", (*headers, accept))
+    if data.get("schemaVersion") != 2:
+        raise ValueError(f"イメージmanifestを確認できません: {repo}:{tag}")
 
-    summary_lines = build_summary(checks, updates, guard_issues)
-    issue_lines = build_issue(updates, guard_issues)
-    write_outputs(summary_lines, issue_lines, updates_found)
-    return 0
+
+@lru_cache(maxsize=None)
+def github(path: str):
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    headers = ("Authorization: Bearer " + token,) if token else ()
+    return json_url("https://api.github.com/" + path, headers)
+
+
+def image_latest(current: str, tags: list[str]) -> str:
+    # OS variantを保持。Seleniumはブラウザ版とビルド日を数値比較する。
+    selenium = re.fullmatch(r"(\d+)\.(\d+)-(\d{8})", current)
+    if selenium:
+        candidates = [t for t in tags if re.fullmatch(r"\d+\.\d+-\d{8}", t)]
+        return max([current, *candidates], key=lambda t: tuple(map(int, re.findall(r"\d+", t))))
+    match = re.fullmatch(r"(v?)(\d+\.\d+\.\d+)([-a-z0-9.]*)", current)
+    if not match:
+        raise ValueError(f"比較形式が未定義です: {current}")
+    prefix, _, suffix = match.groups()
+    pattern = re.compile(re.escape(prefix) + r"(\d+\.\d+\.\d+)" + re.escape(suffix))
+    candidates = [(Version(m[1]), tag) for tag in tags if (m := pattern.fullmatch(tag))]
+    return max([(Version(match[2]), current), *candidates])[1]
+
+
+def replace_once(path: Path, old: str, new: str) -> None:
+    text = path.read_text()
+    if text.count(old) != 1:
+        raise ValueError(f"置換位置が一意ではありません: {path}: {old}")
+    path.write_text(text.replace(old, new, 1))
+
+
+class Audit:
+    def __init__(self, root: Path, apply: bool = False):
+        self.root, self.apply = root, apply
+        self.rows: list[dict] = []
+        self.images: dict[tuple[str, str], str] = {}
+
+    def record(self, name: str, current: str, latest: str, path: Path, source: str) -> bool:
+        changed = current != latest
+        self.rows.append(dict(name=name, current=current, latest=latest,
+                              path=path.relative_to(self.root).as_posix(), source=source, changed=changed))
+        return changed
+
+    def image(self, path: Path, repo: str, tag: str, literal: str) -> None:
+        # privateアプリ・可変タグ・digest固定は別の配信経路で管理する。
+        if repo.startswith("harbor.qroksera.com/") or "@" in repo or "@" in tag:
+            return
+        if tag in {"latest", "stable", "dind"}:
+            return
+        if not re.match(r"v?\d", tag):
+            raise ValueError(f"未対応の固定タグ: {repo}:{tag}")
+        key = (repo, tag)
+        if key not in self.images:
+            latest = image_latest(tag, registry_tags(repo))
+            if latest != tag:
+                verify_image(repo, latest)
+            self.images[key] = latest
+        latest = self.images[key]
+        if self.record(repo, tag, latest, path, f"https://{registry(repo)[0]}/v2/{registry(repo)[1]}/tags/list") and self.apply:
+            replace_once(path, literal, literal.replace(tag, latest))
+
+    def chart(self, path: Path, source: dict, wrapper: bool) -> None:
+        name = source["name"] if wrapper else source["chart"]
+        repo = source["repo"] if wrapper else source["repoURL"]
+        current = str(source["version"] if wrapper else source["targetRevision"])
+        download = None
+        reference = repo
+        if repo.startswith("https://"):
+            index = yaml.load(fetch(repo.rstrip("/") + "/index.yaml"), Loader=yaml.CSafeLoader)
+            entries = index["entries"][name]
+            latest = stable_latest(x["version"] for x in entries)
+            entry = next(x for x in entries if x["version"] == latest)
+            download = urljoin(repo.rstrip("/") + "/", entry["urls"][0])
+        else:
+            oci = repo.removeprefix("oci://").rstrip("/")
+            if not oci.endswith("/" + name):
+                oci += "/" + name
+            latest = stable_latest(registry_tags(oci))
+            host, repository = oci.split("/", 1)
+            reference = f"https://{host}/v2/{repository}/tags/list"
+        if Version(latest.lstrip("v")) <= Version(current.lstrip("v")):
+            latest = current
+        if not self.record(name, current, latest, path, reference) or not self.apply:
+            return
+        if wrapper:
+            self.vendor_chart(path.parent, name, current, latest, download)
+        field = "version" if wrapper else "targetRevision"
+        replace_once(path, f"{field}: {current}", f"{field}: {latest}")
+        if name == "gha-runner-scale-set-controller":
+            for filename, old, new in [
+                ("runners-appset.yaml", f"targetRevision: {current}", f"targetRevision: {latest}"),
+                ("arc-version-configmap.yaml", f'controllerChartVersion: "{current}"', f'controllerChartVersion: "{latest}"'),
+            ]:
+                replace_once(self.root / ARC_DIR / filename, old, new)
+
+    def vendor_chart(self, parent: Path, name: str, current: str, latest: str, url: str) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            with tarfile.open(fileobj=io.BytesIO(fetch(url)), mode="r:gz") as archive:
+                # 配布物でもパストラバーサルとリンクは許可しない。
+                for member in archive.getmembers():
+                    parts = Path(member.name).parts
+                    if not parts or parts[0] != name or ".." in parts or member.issym() or member.islnk():
+                        raise ValueError(f"不正なchartエントリ: {member.name}")
+                archive.extractall(temp_path, filter="data")
+            chart = yaml.safe_load((temp_path / name / "Chart.yaml").read_text())
+            if chart["name"] != name or str(chart["version"]) != latest:
+                raise ValueError(f"chart metadata不一致: {url}")
+            destination = parent / "charts" / f"{name}-{latest}"
+            if destination.exists():
+                raise ValueError(f"更新先chartが既に存在します: {destination}")
+            shutil.copytree(temp_path, destination)
+        old = parent / "charts" / f"{name}-{current}"
+        if old.exists():
+            shutil.rmtree(old)
+
+    def remote(self, path: Path, url: str) -> None:
+        match = re.fullmatch(r"https://raw.githubusercontent.com/([^/]+/[^/]+)/(v?\d+\.\d+\.\d+)/(.*)", url)
+        release = re.fullmatch(r"https://github.com/([^/]+/[^/]+)/releases/download/(v?\d+\.\d+\.\d+)/(.*)", url)
+        if not (match or release):
+            return
+        repo, current, _ = (match or release).groups()
+        latest = github(f"repos/{repo}/releases/latest")["tag_name"]
+        if not STABLE.fullmatch(latest):
+            raise ValueError(f"公式latest releaseが安定版ではありません: {repo}: {latest}")
+        if Version(latest.lstrip("v")) <= Version(current.lstrip("v")):
+            latest = current
+        if self.record(repo, current, latest, path, f"https://github.com/{repo}/releases") and self.apply:
+            updated = url.replace(f"/{current}/", f"/{latest}/")
+            fetch(updated)  # リリース資産が公開済みであることも確認する。
+            replace_once(path, url, updated)
+
+    def collect(self) -> None:
+        # ARCの3つの宣言がずれている状態を更新で隠さない。
+        arc = self.root / ARC_DIR
+        controller = yaml.safe_load((arc / "arc-controller.yaml").read_text())["spec"]["source"]["targetRevision"]
+        runner = yaml.safe_load((arc / "runners-appset.yaml").read_text())["spec"]["template"]["spec"]["source"]["targetRevision"]
+        config = yaml.safe_load((arc / "arc-version-configmap.yaml").read_text())["data"]["controllerChartVersion"]
+        if len({str(controller), str(runner), str(config)}) != 1:
+            raise ValueError("ARC Controller/Runner/ConfigMapのバージョンが一致しません")
+        for path in sorted((self.root / "manifests").rglob("*.yaml")):
+            if "charts" in path.relative_to(self.root).parts:
+                continue
+            for doc in yaml.safe_load_all(path.read_text()):
+                if not isinstance(doc, dict):
+                    continue
+                source = doc.get("spec", {}).get("source", {})
+                if source.get("chart"):
+                    self.chart(path, source, wrapper=False)
+                for chart in doc.get("helmCharts", []):
+                    self.chart(path, chart, wrapper=True)
+                for resource in doc.get("resources", []):
+                    if isinstance(resource, str) and resource.startswith("https://"):
+                        self.remote(path, resource)
+                for image in doc.get("images", []):
+                    if image.get("newTag"):
+                        self.image(path, image.get("newName", image["name"]), str(image["newTag"]), f"newTag: {image['newTag']}")
+                self.scan_images(path, doc)
+
+    def scan_images(self, path: Path, value) -> None:
+        if isinstance(value, dict):
+            image = value.get("image")
+            if isinstance(image, str) and ":" in image.rsplit("/", 1)[-1]:
+                repo, tag = image.rsplit(":", 1)
+                self.image(path, repo, tag, image)
+            for child in value.values():
+                self.scan_images(path, child)
+        elif isinstance(value, list):
+            for child in value:
+                self.scan_images(path, child)
+
+    def report(self) -> str:
+        lines = ["## Kubernetes アプリ安定版の定期更新", "", "| 対象 | 現在 | 最新 | ファイル |", "| --- | --- | --- | --- |"]
+        updates = [r for r in self.rows if r["changed"]]
+        for row in updates:
+            lines.append(f"| [{row['name']}]({row['source']}) | `{row['current']}` | `{row['latest']}` | `{row['path']}` |")
+        if not updates:
+            lines.append("\n更新はありません。")
+        lines += ["", "安定版のみを対象とし、OS variantを維持します。メジャー更新も候補に含みます。",
+                  "マージは手動です。リリースノート、データ移行、バックアップを確認してください。",
+                  "マージ後はArgo CD本体を含めてGitOpsで同期されます。",
+                  "private Harborのアプリ、可変タグ、digest固定はこの監査の対象外です。",
+                  f"\n調査した固定版宣言: {len(self.rows)} 件（ARC Runner/ConfigMapはControllerと連動）。"]
+        return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    audit = Audit(ROOT, args.apply)
+    audit.collect()
+    report = audit.report()
+    (ROOT / "weekly-version-audit-summary.md").write_text(report)
+    (ROOT / "weekly-version-audit-issue.md").write_text(report)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+            out.write(report)
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+            out.write(f"updates_found={str(any(r['changed'] for r in audit.rows)).lower()}\n")
+    print(report)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

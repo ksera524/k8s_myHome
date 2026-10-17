@@ -32,6 +32,7 @@ class SetupTests(unittest.TestCase):
                      'automation/scripts/verify.sh',
                      'automation/platform/platform-deploy.sh',
                      'manifests/bootstrap/app-of-apps.yaml',
+                     'manifests/platform/argocd-config/upstream/kustomization.yaml',
                      'automation/templates/platform/argocd-ingress.yaml'):
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -165,6 +166,21 @@ fi
                                          **{'PULUMI_ACCESS_TOKEN': 'fake', **case})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn('kubectl apply -f /tmp/k8s-myhome-bootstrap/app-of-apps.yaml', self.events())
+
+    def test_bootstrap_uses_gitops_version(self):
+        self.prepare_bootstrap()
+        upstream = self.root / 'manifests/platform/argocd-config/upstream/kustomization.yaml'
+        upstream.write_text('resources:\n  - https://raw.githubusercontent.com/argoproj/argo-cd/v9.8.7/manifests/install.yaml\n')
+        result = self.run_script('automation/scripts/run.sh', 'bootstrap', PULUMI_ACCESS_TOKEN='fake')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(any('/v9.8.7/manifests/install.yaml' in event for event in self.events()))
+
+    def test_bootstrap_rejects_unpinned_version_before_ssh(self):
+        upstream = self.root / 'manifests/platform/argocd-config/upstream/kustomization.yaml'
+        upstream.write_text('resources:\n  - https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml\n')
+        result = self.run_script('automation/scripts/run.sh', 'bootstrap', PULUMI_ACCESS_TOKEN='fake')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.events(), [])
 
     def test_verify_ci_skip_never_connects(self):
         self.stub('ssh', 'echo unexpected-ssh >> "$TRACE"\nexit 99')

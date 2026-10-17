@@ -102,6 +102,8 @@ log/
 make-all.log
 
 # Temporary files
+weekly-version-audit-summary.md
+weekly-version-audit-issue.md
 temp/
 tmp/
 *.temp
@@ -115,6 +117,10 @@ values-prod.yaml
 values-production.yaml
 *-secret.yaml
 *-secrets.yaml
+
+# 同梱 Harbor chart の Secret 定義は値を埋め込まない Helm テンプレート。
+!manifests/platform/harbor/charts/harbor-*/harbor/templates/**/*-secret.yaml
+!manifests/platform/harbor/charts/harbor-*/harbor/templates/**/*-secrets.yaml
 
 # External Secrets definitions are safe to commit
 !manifests/platform/secrets/external-secrets/*-secret.yaml

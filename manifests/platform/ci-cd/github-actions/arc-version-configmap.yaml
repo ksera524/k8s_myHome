@@ -4,4 +4,4 @@ metadata:
   name: arc-version
   namespace: argocd
 data:
-  controllerChartVersion: "0.13.1"
+  controllerChartVersion: "0.15.0"

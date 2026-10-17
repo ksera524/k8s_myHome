@@ -1,10 +1,11 @@
-# ArgoCD設定用Kustomization
-# ConfigMapとExternal Secretを管理
+# ArgoCD 本体と設定を同じ Application で管理する。
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: argocd
 
 resources:
-  # ApplicationSet CRD（ArgoCD ApplicationSet Controller の依存CRD）
-  - applicationset-crd.yaml
-  # ArgoCD ConfigMap (argocd-cm, argocd-rbac-cm)
-  - argocd-config.yaml
+  - upstream
+
+patches:
+  - path: argocd-config.yaml
+  - path: argocd-server-params.yaml

@@ -6,5 +6,5 @@ resources:
 
 images:
   - name: selenium/standalone-chrome
-    newTag: 145.0-20260222
+    newTag: 155.0-20261010
     newName: selenium/standalone-chrome

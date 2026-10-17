@@ -42,7 +42,10 @@ make phase5
 ## GitOps Bootstrap
 
 `make bootstrap` は `automation/scripts/run.sh bootstrap` を経由し、`automation/platform/platform-deploy.sh` を実行します。
-ArgoCD install manifest と ApplicationSet CRD は `automation/platform/platform-deploy.sh` の `ARGOCD_BOOTSTRAP_VERSION` で同じ tag に固定します。更新時は `make validate` と live cluster の `make phase5` で確認します。
+ArgoCD の固定版は `manifests/platform/argocd-config/upstream/kustomization.yaml` を正本とし、
+bootstrap も同じ tag を読み取ります。初回導入後は `argocd-core` Application が本体・CRD・設定を管理するため、
+通常のバージョン更新に `make bootstrap` の再実行は不要です。
+更新PRの作成は[定期更新](application-auto-updates.md)で自動化します。
 
 root `Application` は次です。
 

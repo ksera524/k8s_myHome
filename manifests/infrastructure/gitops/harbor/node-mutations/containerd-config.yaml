@@ -94,7 +94,7 @@ spec:
           privileged: true
       containers:
       - name: pause
-        image: gcr.io/google_containers/pause:3.2
+        image: registry.k8s.io/pause:3.10.2
       volumes:
       - name: host-etc
         hostPath:

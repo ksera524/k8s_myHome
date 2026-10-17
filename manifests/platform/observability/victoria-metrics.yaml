@@ -141,7 +141,7 @@ spec:
       serviceAccountName: victoria-metrics
       containers:
         - name: victoria-metrics
-          image: victoriametrics/victoria-metrics:v1.115.0
+          image: victoriametrics/victoria-metrics:v1.154.0
           imagePullPolicy: IfNotPresent
           args:
             - -storageDataPath=/storage

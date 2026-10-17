@@ -7,7 +7,12 @@
 - GitOps 管理対象: `manifests/`
 - bootstrap root: `manifests/bootstrap/app-of-apps.yaml`
 - child `Application`: `manifests/bootstrap/applications/**`
-- ArgoCD 設定: `manifests/platform/argocd-config/`
+- ArgoCD 本体・CRD・設定: `manifests/platform/argocd-config/`
+
+## アプリの安定版追従
+
+毎日、固定版の更新候補を検出して検証済みPRを作成します。マージ後はArgoCD本体も自動同期されます。
+対象範囲、可変タグの扱い、手動マージの運用は[アプリの定期更新](application-auto-updates.md)を参照してください。
 
 ## Application 配置
 
