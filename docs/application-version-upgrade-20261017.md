@@ -39,7 +39,7 @@ Harbor / RustFS はリポジトリ内の同梱チャートも公式配布物に�
 
 ## 互換性と適用時の確認
 
-- **Argo CD:** 本体は `automation/platform/platform-deploy.sh` 管理。PRの同期だけでは本体は更新されない。既存の `make bootstrap` 実行時に v3.5.5 を適用する。GitOps管理のApplicationSet CRDも同版に揃えた。[3.3→3.4](https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/3.3-3.4/) と [3.4→3.5](https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/3.4-3.5/) の変更を確認。利用するchart配布先はHTTPS/OCI TLS。Helm 4同梱への変更に留意する。
+- **Argo CD:** 本体・全CRDを `argocd-core` のGitOps管理に移行し、同期で v3.5.5 を適用する。bootstrapも同じ固定版を読む。以降は[定期更新PR](application-auto-updates.md)で追従する。[3.3→3.4](https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/3.3-3.4/) と [3.4→3.5](https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/3.4-3.5/) の変更を確認。利用するchart配布先はHTTPS/OCI TLS。Helm 4同梱への変更に留意する。
 - **ARC:** Controller、Runner chart、生成スクリプトが読むConfigMapを0.15.0で統一。chartに存在しない `crds.install` 設定を除去し、`skipCrds: false` で同版CRDをArgo CDのServerSideApplyに含める。更新後はRunner登録とジョブ実行を確認する。
 - **MetalLB:** L2Advertisementのみの構成に合わせて `frrk8s.enabled: false` を明示。[0.16で既定化したFRR-K8s](https://metallb.universe.tf/release-notes/#version-0-16-0)を追加起動しない。metricsはHTTPS化したが、本構成はMetalLBのscrapeAnnotations/ServiceMonitorを有効化していない。
 - **Harbor / RustFS:** 新旧chartの生成結果で、リソース名、Deployment/StatefulSetのselector、PVC spec、StatefulSetのvolumeClaimTemplatesの一致を確認。既存Secret参照も維持。適用前にHarbor DBとregistry、RustFSのデータ・メタデータをバックアップする。データ移行後は単純なタグ巻き戻しで復旧できると仮定せず、旧版への復帰にはバックアップ復元を準備する。RustFSはalpha.83から1.0.2への更新なので、S3 PUT/GET、既存オブジェクト、認証、署名付きURL、lifecycleを実環境で確認する。

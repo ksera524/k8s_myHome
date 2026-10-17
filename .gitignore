@@ -102,6 +102,8 @@ log/
 make-all.log
 
 # Temporary files
+weekly-version-audit-summary.md
+weekly-version-audit-issue.md
 temp/
 tmp/
 *.temp

@@ -1,106 +1,73 @@
-name: Weekly Version Audit
+name: Application Version Updates
 
 on:
   schedule:
-    - cron: "0 0 * * 1"
+    # 毎日 JST 09:00。更新PRのマージは手動。
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: application-version-updates
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  version-audit:
+  update:
     runs-on: ubuntu-latest
-    outputs:
-      updates_found: ${{ steps.audit.outputs.updates_found }}
-
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout default branch
         uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          ref: ${{ github.event.repository.default_branch }}
 
-      - name: Install tools
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Find and apply stable updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix develop --command python3 automation/scripts/ci/version-audit.py --apply
+
+      - name: Validate the tracked candidate tree
+        env:
+          CI: "true"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          python -m pip install --upgrade pip
-          python -m pip install pyyaml packaging
+          # ignoreされた同梱chartの漏れをローカルファイルで隠さない。
+          git add --all manifests
+          candidate_dir="$(mktemp -d)"
+          git checkout-index --all --prefix="$candidate_dir/"
+          nix develop --command bash "$candidate_dir/automation/scripts/ci/validate.sh"
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - name: Create or update version PR
+        id: pr
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
-          version: v3.16.4
+          branch: automation/update-applications
+          title: 'chore: Kubernetesアプリを最新安定版へ更新'
+          commit-message: 'chore: update Kubernetes applications to stable releases'
+          body-path: weekly-version-audit-summary.md
+          add-paths: manifests/
+          delete-branch: true
 
-      - name: Set up Crane
-        uses: imjasonh/setup-crane@v0.4
+      - name: Run PR checks explicitly
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # GITHUB_TOKEN のpush/PRイベントではCIが起動しないため明示的にdispatchする。
+        run: gh workflow run ci-deploy-validate.yml --ref automation/update-applications
 
-      - name: Audit pinned versions
-        id: audit
-        run: python automation/scripts/ci/version-audit.py
-
-      - name: Upload audit artifacts
+      - name: Upload audit report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: weekly-version-audit
-          path: |
-            weekly-version-audit-summary.md
-            weekly-version-audit-issue.md
-
-  create-or-update-issue:
-    runs-on: ubuntu-latest
-    needs: version-audit
-    if: needs.version-audit.outputs.updates_found == 'true'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download issue body artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: weekly-version-audit
-
-      - name: Create or update tracking issue
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const fs = require('fs')
-            const title = 'Weekly Version Audit: updates available'
-            const body = fs.readFileSync('weekly-version-audit-issue.md', 'utf8')
-            const { owner, repo } = context.repo
-
-            const issues = await github.paginate(github.rest.issues.listForRepo, {
-              owner,
-              repo,
-              state: 'open',
-              labels: 'weekly-audit',
-              per_page: 100,
-            })
-
-            const existing = issues.find(i => i.title === title)
-            if (existing) {
-              await github.rest.issues.update({
-                owner,
-                repo,
-                issue_number: existing.number,
-                body,
-              })
-              core.info(`Updated issue #${existing.number}`)
-            } else {
-              const created = await github.rest.issues.create({
-                owner,
-                repo,
-                title,
-                body,
-                labels: ['weekly-audit', 'maintenance', 'dependencies'],
-              })
-              core.info(`Created issue #${created.data.number}`)
-            }
+          name: application-version-audit
+          path: weekly-version-audit-summary.md
+          if-no-files-found: ignore

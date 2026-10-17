@@ -14,6 +14,7 @@
           actionlint
           bash
           coreutils
+          curl
           findutils
           git
           gnugrep

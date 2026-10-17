@@ -10,7 +10,7 @@ flowchart TD
   root["bootstrap-root\nbootstrap/app-of-apps.yaml"]:::root
 
   wave0["argocd-projects\nwave 0"]:::wave0
-  wave1a["argocd-core\nwave 1"]:::wave1
+  wave1a["argocd-core\n本体・CRD・設定\nwave 1"]:::wave1
   wave1b["local-path-provisioner\nwave 1"]:::wave1
   wave1c["nfs-subdir-external-provisioner\nwave 1"]:::wave1
   wave2["core\nwave 2"]:::wave2
@@ -136,7 +136,7 @@ flowchart TD
 | Wave | コンポーネント | 意味 |
 |---|---|---|
 | 0 | `argocd-projects` | AppProject を先行適用 |
-| 1 | `argocd-core` / storage provisioners | GitOps 基盤とストレージ基盤 |
+| 1 | `argocd-core` / storage provisioners | ArgoCD 本体・CRD・設定の自己管理とストレージ基盤 |
 | 2 | `core` | Namespace / StorageClass / RBAC の土台 |
 | 3-7 | infra controllers | NetworkPolicy controller / MetalLB / Gateway API / NGF / cert-manager / ESO |
 | 8 | `gateway-shared` | Gateway / listener 基盤 |
