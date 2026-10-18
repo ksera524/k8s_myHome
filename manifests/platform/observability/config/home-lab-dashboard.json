@@ -1,9 +1,11 @@
 {
   "uid": "home-lab-overview",
-  "title": "Home Lab Overview",
+  "title": "01 全体概要",
+  "description": "GitOps 管理。メトリクスは30秒間隔で収集。上部リンクから詳細へ移動できます。",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
+  "timezone": "browser",
   "time": {
     "from": "now-6h",
     "to": "now"
@@ -11,20 +13,49 @@
   "tags": [
     "home-lab"
   ],
+  "links": [
+    {
+      "title": "01 全体概要",
+      "type": "link",
+      "url": "/d/home-lab-overview",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "02 アプリ・ログ",
+      "type": "link",
+      "url": "/d/home-lab-workloads",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "03 ストレージ",
+      "type": "link",
+      "url": "/d/home-lab-storage",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
   "templating": {
     "list": [
       {
-        "name": "namespace",
+        "name": "node",
+        "label": "ノード",
         "type": "query",
         "datasource": {
-          "type": "loki",
-          "uid": "loki"
+          "type": "prometheus",
+          "uid": "victoriametrics"
         },
-        "query": "label_values(namespace)",
-        "refresh": 1,
+        "query": {
+          "query": "label_values(kube_node_info, node)",
+          "refId": "var-node"
+        },
+        "definition": "label_values(kube_node_info, node)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
         "includeAll": true,
         "allValue": ".+",
-        "multi": true,
         "current": {
           "text": "All",
           "value": "$__all"
@@ -35,8 +66,9 @@
   "panels": [
     {
       "id": 1,
-      "title": "Ready ノード数",
-      "type": "timeseries",
+      "title": "Ready ノード（全体）",
+      "description": "",
+      "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -44,21 +76,181 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 12,
-        "h": 8
+        "w": 4,
+        "h": 4
       },
       "targets": [
         {
           "refId": "A",
           "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
-          "legendFormat": "{{namespace}} {{deployment}} {{pod}} {{persistentvolumeclaim}}"
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
     },
     {
       "id": 2,
-      "title": "利用可能な Deployment replica",
-      "type": "timeseries",
+      "title": "Running Pod（全体）",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_pod_status_phase{phase=\"Running\"})",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "title": "未準備 Pod（全体）",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum((kube_pod_status_ready{condition=\"true\"} == 0) and on(namespace,pod,uid) (kube_pod_status_phase{phase=~\"Pending|Running|Unknown\"} == 1)) or vector(0)",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "発火中アラート",
+      "description": "",
+      "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -66,20 +258,209 @@
       "gridPos": {
         "x": 12,
         "y": 0,
-        "w": 12,
-        "h": 8
+        "w": 4,
+        "h": 4
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by(namespace,deployment) (kube_deployment_status_replicas_available)",
-          "legendFormat": "{{namespace}} {{deployment}} {{pod}} {{persistentvolumeclaim}}"
+          "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
     },
     {
-      "id": 3,
-      "title": "コンテナ再起動（1時間）",
+      "id": 5,
+      "title": "Argo CD 未同期",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_argocd_application_sync_status{status=~\"OutOfSync|Unknown\"}) or vector(0)",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 6,
+      "title": "監視取得失敗",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(up == bool 0)",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "ノードの実使用量（上のノード選択に連動）",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "title": "CPU 使用率",
+      "description": "ノード全体のCPU使用量 ÷ CPU capacity。新規収集開始前の履歴はありません。",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -87,21 +468,76 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 5,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by(namespace,pod) (increase(kube_pod_container_status_restarts_total[1h]))",
-          "legendFormat": "{{namespace}} {{deployment}} {{pod}} {{persistentvolumeclaim}}"
+          "expr": "100 * sum by(node) (rate(node_cpu_usage_seconds_total{job=\"kubelet-resources\",node=~\"$node\"}[$__rate_interval])) / on(node) max by(node) (kube_node_status_capacity{resource=\"cpu\",node=~\"$node\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     },
     {
-      "id": 4,
-      "title": "PVC 使用率",
+      "id": 9,
+      "title": "メモリ使用率（working set）",
+      "description": "working set ÷ ノード物理メモリ capacity。回収可能なキャッシュの一部も含みます。",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -109,36 +545,386 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 5,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - min by(namespace,persistentvolumeclaim) (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes))",
-          "legendFormat": "{{namespace}} {{deployment}} {{pod}} {{persistentvolumeclaim}}"
+          "expr": "100 * max by(node) (node_memory_working_set_bytes{job=\"kubelet-resources\",node=~\"$node\"}) / on(node) max by(node) (kube_node_status_capacity{resource=\"memory\",node=~\"$node\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     },
     {
-      "id": 5,
-      "title": "Pod ログ（namespace を選択）",
-      "type": "logs",
+      "id": 10,
+      "type": "row",
+      "title": "スケジューリング上の予約量（実使用量とは別）",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "CPU requests / allocatable",
+      "description": "Pending / Running Pod の通常コンテナの requests 合計。init container・Pod overhead は含まず、スケジューラーの厳密な予約量とは異なります。",
+      "type": "timeseries",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "victoriametrics"
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
-        "w": 24,
-        "h": 10
+        "y": 14,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"$namespace\"}"
+          "expr": "100 * sum by(node) (kube_pod_container_resource_requests{resource=\"cpu\",unit=\"core\",node=~\"$node\"} and on(namespace,pod) (kube_pod_status_phase{phase=~\"Pending|Running\"} == 1)) / on(node) max by(node) (kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "メモリ requests / allocatable",
+      "description": "Pending / Running Pod の通常コンテナの requests 合計。init container・Pod overhead は含まず、スケジューラーの厳密な予約量とは異なります。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum by(node) (kube_pod_container_resource_requests{resource=\"memory\",unit=\"byte\",node=~\"$node\"} and on(namespace,pod) (kube_pod_status_phase{phase=~\"Pending|Running\"} == 1)) / on(node) max by(node) (kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "状態を確認",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "title": "発火中アラート（空欄なら発火なし）",
+      "description": "",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "alertname": true,
+              "severity": true,
+              "namespace": true,
+              "node": true,
+              "pod": true
+            },
+            "indexByName": {
+              "alertname": 0,
+              "severity": 1,
+              "namespace": 2,
+              "node": 3,
+              "pod": 4
+            },
+            "renameByName": {
+              "alertname": "アラート",
+              "severity": "重要度"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "監視ターゲット",
+      "description": "",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "job": true,
+              "instance": true,
+              "node": true,
+              "Value": true
+            },
+            "indexByName": {
+              "job": 0,
+              "instance": 1,
+              "node": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "取得成功 (1=成功 / 0=失敗)"
+            }
+          }
         }
       ]
     }

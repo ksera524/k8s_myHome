@@ -218,8 +218,26 @@ ArgoCD の hard refresh 後も Pod が維持されることを確認します。
 ## Grafana / Loki / Alloy
 
 Grafana は `https://grafana.internal.qroksera.com` で内部公開します。Cloudflared には公開しません。
-VictoriaMetrics の既存 URL は維持します。Grafana の `Home Lab / Home Lab Overview` に
-ノード Ready 数・Deployment replica・再起動数・PVC 使用率・Pod ログを用意しています。
+VictoriaMetrics の既存 URL は維持します。Grafana の `Home Lab` フォルダーを次の3枚に整理しています。
+
+| ダッシュボード | 内容 | 絞り込み |
+|---|---|---|
+| `01 全体概要` | Ready / Running / 未準備 / アラート / Argo CD、CPU・メモリ実使用率、requests | ノード（全体の状態カードは対象外） |
+| `02 アプリ・ログ` | Pod 状態、CPU・メモリ上位10件、再起動、CronJob 最終成功、ログ | Namespace / Pod（Deployment と CronJob は Namespace のみ） |
+| `03 ストレージ` | PVC 状態、使用率・空き容量、要求容量、容量メトリクス未取得の一覧 | Namespace / PVC |
+
+既定ホームは `01 全体概要` です。上部リンクから期間・変数を引き継いで移動できます。
+個人設定でホームを指定済みの場合は個人設定が優先されます。
+CPU は cores / 使用率、メモリ・容量は bytes の自動換算で表示します。
+使用率80%以上を警告、90%以上を危険の目安にしています。
+
+CPU・メモリ実使用量は `kubelet-resources` job が既存の API server proxy / ServiceAccount で
+各ノードの `/metrics/resource` を30秒ごとに収集します。追加の exporter は不要です。
+新規収集開始以前の履歴はなく、CPU の rate は複数回の収集後に表示されます。
+メモリは working set、予約率は Pending / Running Pod の通常コンテナ requests です。
+node exporter のホストディスク・ネットワーク IO は収集対象にしていません。
+NFS の容量は共有ファイルシステム単位のため合算しません。local-path の3つの PVC など、
+容量値を報告しないストレージは未取得一覧に表示し、使用率0%には置き換えません。
 データソースとダッシュボードの正本は `manifests/platform/observability/config/` です。
 
 ### 初回ログイン
