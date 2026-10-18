@@ -130,6 +130,9 @@ kind: AppProject
 metadata:
   name: apps
   namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-deployed.slack-webhook: ""
+    notifications.argoproj.io/subscribe.on-sync-failed.slack-webhook: ""
 spec:
   description: ユーザーアプリ
   sourceRepos:

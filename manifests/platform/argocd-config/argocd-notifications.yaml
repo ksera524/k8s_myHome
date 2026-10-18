@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  context: |
+    argocdUrl: https://argocd.internal.qroksera.com
+  service.webhook.slack-webhook: |
+    url: $slack-webhook-url
+    headers:
+      - name: Content-Type
+        value: application/json
+  # monorepo の無関係なコミットでは再通知しない。
+  trigger.on-deployed: |
+    - when: >-
+        app.status?.operationState.phase == 'Succeeded' and
+        app.status.sync.status == 'Synced' and app.status.health.status == 'Healthy'
+      oncePer: app.status.operationState.syncResult.revision
+      send: [app-deployed]
+  # 同じ SHA の再実行で失敗した場合は、新しい操作として通知する。
+  trigger.on-sync-failed: |
+    - when: app.status?.operationState.phase in ['Error', 'Failed']
+      oncePer: app.status.operationState.startedAt
+      send: [app-sync-failed]
+  template.app-deployed: |
+    webhook:
+      slack-webhook:
+        method: POST
+        body: |
+          {"text": {{ printf "[Argo CD] %s: デプロイ完了 (Synced / Healthy)\nGit revision: %s\n%s/applications/%s"
+            .app.metadata.name .app.status.operationState.syncResult.revision .context.argocdUrl .app.metadata.name | toJson }},
+           "unfurl_links": false, "unfurl_media": false}
+  template.app-sync-failed: |
+    webhook:
+      slack-webhook:
+        method: POST
+        body: |
+          {{- $revision := "未解決" -}}
+          {{- with .app.status.operationState.syncResult -}}
+            {{- with .revision -}}{{- $revision = . -}}{{- end -}}
+          {{- end -}}
+          {"text": {{ printf "[Argo CD] %s: 同期失敗 (%s)\nGit revision: %s\n%s/applications/%s"
+            .app.metadata.name .app.status.operationState.phase $revision .context.argocdUrl .app.metadata.name | toJson }},
+           "unfurl_links": false, "unfurl_media": false}
