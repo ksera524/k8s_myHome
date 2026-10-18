@@ -1,11 +1,16 @@
 # アプリの安定版追従
 
-毎日 JST 09:00 に `.github/workflows/weekly-version-audit.yml`（Application Version Updates）を実行し、
-更新候補があれば `automation/update-applications` ブランチのPRを作成・更新する。
-**PRの作成と検証は自動、マージは手動**。マージ後は Argo CD が本体も含めて同期する。
-メジャー版も候補に含めるため、リリースノート・データ移行・バックアップを確認してからマージする。
+定期更新は `.github/workflows/renovate.yml` に移行しました。
+毎日 JST 09:00 に公開イメージ・外部 Helm Application の更新 PR を作成し、
+PR の HEAD に検証 workflow を起動します。**マージは手動**です。
+Renovate の対象・除外・権限は[プラットフォーム拡張](platform-extensions.md#renovate)を参照してください。
 
-## 追従対象
+以下は `.github/workflows/weekly-version-audit.yml`（Application Version Updates）を
+**手動実行する場合**の手順です。同梱 chart の再取得、ARC の複数定義の一括更新、
+Argo CD / Gateway API の配布 URL 更新を含む保守用に残しています。
+メジャー版も候補に含めるため、リリースノート・データ移行・バックアップを確認してからマージします。
+
+## 手動 updater の対象
 
 `automation/scripts/ci/version-audit.py` が `manifests/` の宣言を読み取る。
 
@@ -47,7 +52,7 @@ bootstrapは同じupstream URLからtagを読み取る。初回導入後の版�
 [GITHUB_TOKENによる通常のpush/PRは後続workflowを起動しない](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
 そのため、更新ブランチを指定して `Deploy Process Validation` の `workflow_dispatch` を明示的に起動し、
 PRのhead commitに対する `validate` / `setup-behavior` を確認する。
-定期処理はdefault branchにマージ後に有効になる。
+Renovate の定期処理は default branch にマージ後に有効になる。
 
 ## 手動実行
 

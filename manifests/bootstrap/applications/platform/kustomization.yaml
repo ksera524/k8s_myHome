@@ -10,3 +10,4 @@ resources:
   - rustfs.yaml
   - sandbox-config.yaml
   - observability.yaml
+  - reloader.yaml

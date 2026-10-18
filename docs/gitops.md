@@ -11,7 +11,8 @@
 
 ## アプリの安定版追従
 
-毎日、固定版の更新候補を検出して検証済みPRを作成します。マージ後はArgoCD本体も自動同期されます。
+Renovate が毎日、公開イメージ・外部 Helm Chart の更新 PR を作成し、PR の HEAD を検証します。
+ArgoCD 本体・同梱 chart・ARC の連動更新は手動 updater を使い、マージ後は ArgoCD が同期します。
 対象範囲、可変タグの扱い、手動マージの運用は[アプリの定期更新](application-auto-updates.md)を参照してください。
 
 ## Application 配置

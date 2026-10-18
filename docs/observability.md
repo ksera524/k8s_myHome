@@ -213,3 +213,63 @@ checksum による core / registry / jobservice の不要な更新と新旧キ�
 
 実機確認: 新 jobservice は再起動 0 回で起動し、Harbor health API の全 8 コンポーネントが healthy。
 ArgoCD の hard refresh 後も Pod が維持されることを確認します。
+
+
+## Grafana / Loki / Alloy
+
+Grafana は `https://grafana.internal.qroksera.com` で内部公開します。Cloudflared には公開しません。
+VictoriaMetrics の既存 URL は維持します。Grafana の `Home Lab / Home Lab Overview` に
+ノード Ready 数・Deployment replica・再起動数・PVC 使用率・Pod ログを用意しています。
+データソースとダッシュボードの正本は `manifests/platform/observability/config/` です。
+
+### 初回ログイン
+
+ESO の Password generator が `grafana-admin` Secret を初回に生成します。
+`CreatedOnce` のため周期的なパスワード変更はしません。ユーザー名は `admin` です。
+パスワードは管理端末でのみ取得し、ログや Git に保存しないでください。
+
+```bash
+kubectl -n observability get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d
+```
+
+この Secret は Grafana DB 初期化時の資格情報です。UI でパスワードを変更した後は
+Secret と一致するとは限りません。ESO リソースや Secret の削除をパスワードリセットに
+使わず、Grafana の管理 CLI によるリセット手順を使います。
+
+### ログ収集と保存
+
+Alloy の単一 Deployment が Kubernetes API 経由で全 namespace の Pod ログを収集します。
+`namespace` / `pod` / `container` / `node` / `cluster` ラベルで検索できます。
+ノードの journald、監査ログ、収集開始前に消えた Pod のログは対象外です。
+API 経由の収集は kubelet/API server に負荷を追加するため、負荷が増えた場合は収集 namespace の絞り込みを検討します。
+
+Grafana Explore で Loki を選択し、例えば以下を実行します。
+
+```logql
+{namespace="sandbox", container="api-hub"}
+```
+
+Loki は単一プロセス・TSDB v13・filesystem 保存、保持期間は7日です。
+Compactor が期限切れを削除し、実削除には遅延があります。Loki は外部公開せず、
+NetworkPolicy で Grafana と Alloy からの TCP 3100 のみに制限しています。
+Alloy の送信 WAL は PVC に保存します。ただし長時間の停止・Pod ログローテーションを含む
+完全な無欠損収集や exactly-once は保証しません。
+
+Grafana 2Gi / Loki 20Gi / Alloy 1Gi の PVC は `local-path` です。
+ノード固定の単一コピーであり、ノード障害に対する可用性・バックアップは提供しません。
+local-path の要求サイズはディスクのハード上限ではないため、実容量とノード空き容量も監視します。
+Loki の7日保持は容量上限ではありません。ログ量が多い場合は保持期間や収集対象を調整します。
+
+### 同期後の確認
+
+```bash
+kubectl -n observability get externalsecret grafana-admin
+kubectl -n observability get pvc
+kubectl -n observability rollout status deployment/grafana
+kubectl -n observability rollout status deployment/loki
+kubectl -n observability rollout status deployment/alloy
+kubectl -n observability logs deployment/alloy --tail=50
+```
+
+Grafana にログインして両データソースの接続、ダッシュボード、直近の Pod ログを確認します。
+履歴の保持は対象 Pod の通常の再作成後にも検索できることを確認します。

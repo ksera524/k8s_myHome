@@ -16,9 +16,15 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: sandbox
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/metadata/annotations/reloader.stakater.com~1last-reloaded-from
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
+      - RespectIgnoreDifferences=true
       - CreateNamespace=true

@@ -7,6 +7,10 @@ resources:
   - vmalert.yaml
   - alertmanager.yaml
   - weekly-report.yaml
+  - grafana.yaml
+  - loki.yaml
+  - alloy.yaml
+  - logging-networkpolicy.yaml
 
 # 内容変更時に Pod を更新し、新しいルールと通知設定を確実に読み込む。
 configMapGenerator:
@@ -22,3 +26,27 @@ configMapGenerator:
     namespace: observability
     files:
       - scripts/weekly-report.py
+  - name: grafana-config
+    namespace: observability
+    files:
+      - grafana.ini=config/grafana.ini
+  - name: grafana-datasources
+    namespace: observability
+    files:
+      - datasources.yaml=config/grafana-datasources.yaml
+  - name: grafana-dashboard-provider
+    namespace: observability
+    files:
+      - provider.yaml=config/grafana-dashboard-provider.yaml
+  - name: grafana-dashboards
+    namespace: observability
+    files:
+      - home-lab.json=config/home-lab-dashboard.json
+  - name: loki-config
+    namespace: observability
+    files:
+      - loki.yaml=config/loki.yaml
+  - name: alloy-config
+    namespace: observability
+    files:
+      - config.alloy=config/config.alloy

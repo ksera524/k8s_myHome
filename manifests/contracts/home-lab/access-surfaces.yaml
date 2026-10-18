@@ -163,3 +163,15 @@ spec:
         cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
+    grafana-internal:
+      hostname: grafana.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: grafana
+        namespace: observability
+      gatewayListener: https-grafana-internal
+      publish:
+        cloudflared: false
+        coreDNS: true
+        tailscaleSplitDNS: true

@@ -197,3 +197,17 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    - name: https-grafana-internal
+      hostname: grafana.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: grafana-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All

@@ -1,0 +1,9 @@
+{
+  "platform": "github",
+  "onboarding": false,
+  "requireConfig": "required",
+  "autodiscover": false,
+  "gitAuthor": "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>",
+  "username": "github-actions[bot]",
+  "allowedCommands": []
+}

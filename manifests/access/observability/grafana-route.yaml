@@ -1,0 +1,56 @@
+# Grafana内部公開用HTTPRoute（HTTP→HTTPSリダイレクト）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-internal-redirect
+  namespace: observability
+  annotations:
+    contracts.k8s-myhome.local/access-surface: grafana-internal
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - grafana.internal.qroksera.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+---
+# Grafana内部公開用HTTPRoute（HTTPS）
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-internal
+  namespace: observability
+  annotations:
+    contracts.k8s-myhome.local/access-surface: grafana-internal
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-grafana-internal
+  hostnames:
+    - grafana.internal.qroksera.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: grafana
+          port: 3000
+          weight: 1

@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: api-hub
   namespace: sandbox
+  annotations:
+    reloader.stakater.com/auto: "true"
   labels:
     app: api-hub
 spec:

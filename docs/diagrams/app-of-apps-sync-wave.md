@@ -28,6 +28,8 @@ flowchart TD
   wave10b["harbor\nwave 10"]:::wave10
   wave10c["rustfs\nwave 10"]:::wave10
   wave10d["tailscale-operator\nwave 10"]:::wave10
+  reloader["reloader\nwave 10"]:::wave10
+  observability["observability\nVictoriaMetrics / Grafana / Loki / Alloy\nwave 11"]:::wave11
   wave11a["sandbox-config\nwave 11"]:::wave11
   wave11b["tailscale-connector\nwave 11"]:::wave11
   wave12["runtime apps\nwave 12"]:::wave12
@@ -53,6 +55,11 @@ flowchart TD
   root --> wave10b
   root --> wave10c
   root --> wave10d
+  root --> reloader
+  root --> observability
+  wave9 --> observability
+  reloader --> observability
+  observability --> wave13
   root --> wave11a
   root --> wave11b
   root --> wave12
@@ -93,6 +100,7 @@ flowchart TD
   end
 
   subgraph service_access["Service Access (wave 13)"]
+    observabilityAccess["observability-access\nVictoriaMetrics / Grafana"]:::wave13
     argocdAccess["argocd-access"]:::wave13
     harborAccess["harbor-access"]:::wave13
     rustfsAccess["rustfs-access"]:::wave13
@@ -141,8 +149,8 @@ flowchart TD
 | 3-7 | infra controllers | NetworkPolicy controller / MetalLB / Gateway API / NGF / cert-manager / ESO |
 | 8 | `gateway-shared` | Gateway / listener 基盤 |
 | 9 | `config-secrets` | ExternalSecret 定義 |
-| 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator |
-| 11 | 補助 runtime | shared config / tailscale connector |
+| 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator / Reloader |
+| 11 | 補助 runtime | shared config / tailscale connector / observability |
 | 12 | runtime apps | workload-only アプリ |
 | 13 | service access | app ごとの HTTPRoute / Harbor / RustFS / ArgoCD 公開 |
 | 14 | shared publishers | Cloudflared / CoreDNS / Tailnet DNS |

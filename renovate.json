@@ -1,0 +1,72 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "Asia/Tokyo",
+  "automerge": false,
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "minimumReleaseAge": "3 days",
+  "enabledManagers": [
+    "kubernetes",
+    "argocd"
+  ],
+  "ignorePaths": [
+    "**/charts/**",
+    "**/upstream/**",
+    "tasks/**",
+    "automation/**"
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^manifests/.+\\.yaml$/"
+    ]
+  },
+  "argocd": {
+    "managerFilePatterns": [
+      "/^manifests/bootstrap/applications/.+\\.yaml$/"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "ローカル GitOps HEAD と自作 latest は固定する",
+      "matchCurrentValue": "/^(HEAD|latest)$/",
+      "enabled": false
+    },
+    {
+      "description": "private Harbor のアプリ配布はアプリ側 workflow が管理",
+      "matchPackageNames": [
+        "/^harbor\\.qroksera\\.com\\//"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "major 更新は個別 PR で確認",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "ログ基盤の更新を同じ PR で検証",
+      "matchPackageNames": [
+        "grafana/loki",
+        "grafana/alloy"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "logging stack"
+    },
+    {
+      "description": "VictoriaMetrics と vmalert の版を揃える",
+      "matchPackageNames": [
+        "victoriametrics/victoria-metrics",
+        "victoriametrics/vmalert"
+      ],
+      "groupName": "VictoriaMetrics"
+    }
+  ]
+}

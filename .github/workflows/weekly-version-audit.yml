@@ -1,9 +1,7 @@
 name: Application Version Updates
 
 on:
-  schedule:
-    # 毎日 JST 09:00。更新PRのマージは手動。
-    - cron: "0 0 * * *"
+  # 同梱 chart の再取得を含む従来 updater は手動保守用。定期更新は Renovate。
   workflow_dispatch:
 
 permissions:
