@@ -11,3 +11,4 @@ resources:
   - sandbox-config.yaml
   - observability.yaml
   - reloader.yaml
+  - pgo.yaml

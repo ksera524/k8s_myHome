@@ -82,3 +82,9 @@ Harbor の ESC 値はすべて `harbor.*` に統一します。`harbor.admin_pas
 管理者 Secret、各 namespace の image pull Secret、ARC の認証 Secret が共通で参照します。
 旧スカラー `harbor` とトップレベルの `harbor-internal-*` は使用しません。
 各 leaf は暗号化した secret 値のまま保持し、Kubernetes Secret の名前・キー・値は変更しません。
+
+## 共通 PostgreSQL（移行準備）
+
+パスワードは ESC の `postgresql.admin_password` と `postgresql.harbor_password` を正本とする。
+`config-secrets` が `database/postgresql-input` と `harbor/harbor-database-secret` に配布する。
+入力 Secret は PGO の生成 Secret と分離する。Harbor の接続切り替えは復元検証後に行う。
