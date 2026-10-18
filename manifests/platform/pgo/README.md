@@ -10,6 +10,9 @@ chart の RBAC はクラスタ範囲であり、監視範囲の限定と RBAC �
 CRD の prune / delete は確認必須とし、DB の連鎖削除を防ぐ。
 
 この段階では PostgresCluster は追加しない。Harbor は既存 DB を使用する。
+現行 VM は QEMU の既定 CPU で x86-64-v2 を満たさず、UBI 9 の起動が失敗したため、
+Operator は `replicas: 0` で停止している。ホスト CPU の対応を確認し、VM の CPU mode を
+修正・再起動して必要な命令が公開された後に `replicas: 1` に戻す。
 移行先の追加・復元・資格情報反映・Harbor 切り替えは
 [移行計画](../../../tasks/shared-postgresql.md)に従って実施する。
 

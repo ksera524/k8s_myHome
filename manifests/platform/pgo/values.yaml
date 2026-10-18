@@ -1,5 +1,6 @@
 debug: false
-replicas: 1
+# VM の CPU 設定を修正するまで停止。UBI 9 は x86-64-v2 が必要。
+replicas: 0
 
 # Operator は専用 Namespace に置き、DB Namespace だけを監視する。
 extraEnv:

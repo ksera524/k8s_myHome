@@ -305,3 +305,10 @@ PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な m
 - ESC に管理用・Harbor 用パスワードを追加済み。秘密値は Git に保存しない。
 - 稼働中 registry DB の事前ダンプを操作端末の権限 0600 のファイルに保存。最終切り替え用ではない。
 - 独立したバックアップ先は確認中。指定・復元検証が済むまで Harbor の接続先を変更しない。
+- `f762cee` で PGO / CRD / ESO 定義を GitOps 反映。CI 相当の全検証は成功。
+- PGO イメージ取得は成功したが worker2 で `Fatal glibc error: CPU does not support x86-64-v2`。
+  worker1 も `QEMU Virtual CPU version 2.5+` で必要な命令が不足している。
+  Operator は replicas 0 にして再起動ループを停止し、VM CPU 設定の修正待ちとする。
+  PostgresCluster は未作成、Harbor は内部 DB のまま正常稼働。
+- 再開条件: KVM ホスト CPU 対応確認 → VM CPU 設定と安全な順次再起動 → PGO 起動確認、
+  および独立バックアップ先の確定。ノード再起動には既存 workload の退避・復帰確認も含める。
