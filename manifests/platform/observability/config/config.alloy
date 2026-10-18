@@ -33,7 +33,16 @@ discovery.relabel "pod_logs" {
 
 loki.source.kubernetes "pods" {
   targets = discovery.relabel.pod_logs.output
+  forward_to = [loki.process.retention.receiver]
+}
+
+// Loki の168時間制限に対し、転送遅延分の余裕を確保する。
+loki.process "retention" {
   forward_to = [loki.write.local.receiver]
+  stage.drop {
+    older_than = "167h"
+    drop_counter_reason = "older_than_retention"
+  }
 }
 
 loki.write "local" {

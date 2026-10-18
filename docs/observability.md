@@ -250,7 +250,9 @@ Grafana Explore で Loki を選択し、例えば以下を実行します。
 ```
 
 Loki は単一プロセス・TSDB v13・filesystem 保存、保持期間は7日です。
-Compactor が期限切れを削除し、実削除には遅延があります。Loki は外部公開せず、
+Compactor が期限切れを削除し、実削除には遅延があります。
+Alloy は転送遅延の余裕を含め167時間より古いログを送信前に除外し、
+長期稼働 Pod の過去ログによる Loki のバッチ拒否を避けます。Loki は外部公開せず、
 NetworkPolicy で Grafana と Alloy からの TCP 3100 のみに制限しています。
 Alloy の送信 WAL は PVC に保存します。ただし長時間の停止・Pod ログローテーションを含む
 完全な無欠損収集や exactly-once は保証しません。
