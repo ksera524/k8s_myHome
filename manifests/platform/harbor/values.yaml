@@ -32,25 +32,21 @@ persistence:
       storageClass: nfs-external
 
 database:
-  type: internal
-  internal:
-    livenessProbe:
-      timeoutSeconds: 5
-    readinessProbe:
-      timeoutSeconds: 5
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 300m
-        memory: 512Mi
+  type: external
+  external:
+    host: shared-postgresql-primary.database.svc
+    port: "5432"
+    username: harbor
+    coreDatabase: registry
+    existingSecret: harbor-database-secret
+    sslmode: verify-full
+  maxOpenConns: 20
+  maxIdleConns: 5
 
 redis:
   type: internal
 
 trivy:
-  replicas: 0
   enabled: true
   resources:
     requests:
@@ -61,7 +57,6 @@ trivy:
       memory: 512Mi
 
 core:
-  replicas: 0
   existingSecret: harbor-internal-secret
   secretName: harbor-internal-secret
   existingXsrfSecret: harbor-internal-secret
@@ -84,7 +79,6 @@ portal:
       memory: 128Mi
 
 registry:
-  replicas: 0
   existingSecret: harbor-internal-secret
   credentials:
     existingSecret: harbor-internal-secret
@@ -106,7 +100,6 @@ chartmuseum:
       memory: 128Mi
 
 jobservice:
-  replicas: 0
   existingSecret: harbor-internal-secret
   resources:
     requests:
@@ -115,7 +108,3 @@ jobservice:
     limits:
       cpu: 150m
       memory: 256Mi
-
-# 最終 dump の間だけ入口と書き込み元を停止する。
-nginx:
-  replicas: 0

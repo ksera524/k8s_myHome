@@ -13,6 +13,7 @@ helmCharts:
     valuesFile: values.yaml
 
 patches:
+  - path: harbor-database-patch.yaml
   - path: harbor-core-configmap-patch.yaml
     target:
       kind: ConfigMap

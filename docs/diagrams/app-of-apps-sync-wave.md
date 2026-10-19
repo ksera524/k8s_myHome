@@ -27,7 +27,7 @@ flowchart TD
   postgres["shared-postgresql\nwave 10"]:::wave10
   wave9["config-secrets\nwave 9"]:::wave9
   wave10a["platform\nwave 10"]:::wave10
-  wave10b["harbor\nwave 10"]:::wave10
+  wave10b["harbor\nwave 11"]:::wave11
   wave10c["rustfs\nwave 10"]:::wave10
   wave10d["tailscale-operator\nwave 10"]:::wave10
   reloader["reloader\nwave 10"]:::wave10
@@ -55,6 +55,7 @@ flowchart TD
   root --> pgo
   root --> postgres
   pgo --> postgres
+  postgres --> wave10b
   wave9 --> postgres
   wave1c --> postgres
   root --> wave9

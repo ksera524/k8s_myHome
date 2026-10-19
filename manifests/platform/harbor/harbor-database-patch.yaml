@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-core
+  namespace: harbor
+  annotations:
+    secret.reloader.stakater.com/reload: harbor-database-secret
+    configmap.reloader.stakater.com/reload: shared-postgresql-ca
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-database
+          image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi9-18.6-2633
+          command: [/bin/sh, /db-scripts/wait-for-database.sh]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10000
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: PGHOST
+              value: shared-postgresql-primary.database.svc
+            - name: PGDATABASE
+              value: registry
+            - name: PGUSER
+              value: harbor
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-database-secret
+                  key: password
+            - name: PGSSLMODE
+              value: verify-full
+            - name: PGSSLROOTCERT
+              value: /etc/postgresql-ca/ca.crt
+            - name: PGCONNECT_TIMEOUT
+              value: "5"
+            - name: MIGRATION_GENERATION
+              value: harbor-pgo-20261019
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: postgresql-ca
+              mountPath: /etc/postgresql-ca
+              readOnly: true
+            - name: db-scripts
+              mountPath: /db-scripts
+              readOnly: true
+      containers:
+        - name: core
+          env:
+            - name: PGSSLROOTCERT
+              value: /etc/postgresql-ca/ca.crt
+          volumeMounts:
+            - name: postgresql-ca
+              mountPath: /etc/postgresql-ca
+              readOnly: true
+      volumes:
+        - name: postgresql-ca
+          configMap:
+            name: shared-postgresql-ca
+        - name: db-scripts
+          configMap:
+            name: harbor-db-scripts
