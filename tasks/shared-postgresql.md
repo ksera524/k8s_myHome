@@ -347,3 +347,20 @@ PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な m
 - 修正後の CI 相当の全検証が成功。CA 配布漏れ・外部 DB 化・既存 Redis / Trivy ストレージを
   Helm 展開結果で検査する回帰テストを追加し、資格情報テストと合わせて 4 件成功。
 - 起動準備中の失敗 Job は削除し、定期資格情報 Job は成功を継続。Harbor / PGO / 共通 DB は Synced / Healthy。
+
+
+### 2026-10-19 共用ユーザーへの変更
+
+- 個人クラスタの運用方針として、Harbor と他アプリのログインユーザーを `app` に統一した。
+  管理用 `postgres` は別に保持し、アプリ間のロール分離・個別パスワードは採用しない。
+- ESC を `postgresql.password` に統一し、旧 `postgresql.harbor_password` を削除した。
+  暗号化した既存値を引き継ぎ、ESO → PGO / Harbor の同期と TLS 接続を確認した。
+- `registry` と既存オブジェクトの所有権を `app` に移管し、復元マーカーの参照権限を付与した。
+  core / jobservice が `app` 接続へ移行した後、旧 `harbor` ロールを削除した。
+- `app` でテーブル作成・書き込みをトランザクション内で検証し、ROLLBACK した。
+  既存 artifact 15 件、復元マーカー、Harbor 全コンポーネントの healthy を確認した。
+- 他アプリ追加時も `postgresql.password` を配布する。DB / schema、CA 配布、NetworkPolicy と
+  全アプリ合計の接続予算を設定する。ESC パスワードとログインロールは追加しない。
+- 変更後の NFS full backup `20261019-123334F` が 12:34:04 UTC に完了した。
+  CI 相当検証と PostgreSQL 回帰テスト 4 件が成功し、ArgoCD の 3 Application は Synced / Healthy。
+  ESC の `fn::secret` は 22 個のまま。

@@ -18,6 +18,8 @@ pgBackRest を管理する。Namespace は `database`、クラスタ名は `shar
   管理パスワードと TLS 秘密鍵は Harbor に配布しない。
 - ローテーションは共用ユーザーを利用する全アプリを停止してから ESC 更新、ESO 同期、資格情報 Job 成功を確認し再開する。
   単一ロールの新旧パスワードが同時に使えるとは扱わない。
+- 2026-10-19 に旧 `harbor` ロールから `app` へ所有権と復元マーカーの参照権限を移し、旧ロールを削除した。
+  `postgresql.harbor_password` は廃止済み。パスワード値そのものは引き継いでいる。
 
 ## バックアップ
 
@@ -56,6 +58,8 @@ VM の CPU は `host-model` とする。QEMU 既定 CPU は UBI 9 の x86-64-v2 
    pgBackRest の場合は固定版 PGO の restore 設定と対象 backup を指定し、復元 Job 完了を待つ。
    同じ repo を別の空クラスタのバックアップ先として初期化しない。
 5. ESC の資格情報を再反映し、実際のアプリ資格情報・`verify-full` で接続する。
+   共用ユーザーへの切り替え前のバックアップは `harbor` 所有のため、`app` への所有権移管と
+   `platform_bootstrap` の USAGE / `migration` の SELECT 付与を管理接続で行ってから起動する。
    テーブル・行数・シーケンス・復元世代を確認してから Harbor を再開する。
 
 旧 PGDATA と repo が健全で、元の PVC 名で静的 PV に再接続できた場合、固定版 CRD の
