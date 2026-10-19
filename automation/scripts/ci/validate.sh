@@ -35,6 +35,9 @@ python3 -m unittest discover -s "$ROOT_DIR/automation/tests/observability" -v
 log_section "GitOps validation regression tests"
 python3 -m unittest discover -s "$ROOT_DIR/automation/tests/ci" -v
 
+log_section "PostgreSQL credential reconciliation tests"
+python3 -m unittest discover -s "$ROOT_DIR/automation/tests/postgresql" -v
+
 log_section "Shellcheck"
 require_command shellcheck
 
@@ -78,7 +81,23 @@ log_section "Policy checks"
 log_section "Kubeconform"
 require_command kubeconform
 
+pgo_schema_dir="$(mktemp -d)"
+trap 'rm -rf "$pgo_schema_dir"' EXIT
+python3 - "$ROOT_DIR" "$pgo_schema_dir" <<'PY'
+import json
+from pathlib import Path
+import sys
+import yaml
+
+root, output = map(Path, sys.argv[1:])
+crd = yaml.safe_load((root / "manifests/platform/pgo/charts/pgo-6.0.3/pgo/crds/postgres-operator.crunchydata.com_postgresclusters.yaml").read_text())
+for version in crd["spec"]["versions"]:
+    schema = version["schema"]["openAPIV3Schema"]
+    (output / f"postgrescluster_{version['name']}.json").write_text(json.dumps(schema))
+PY
+
 kubeconform_schema_locations=(
+  -schema-location "$pgo_schema_dir/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json"
   -schema-location default
   -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json'
 )

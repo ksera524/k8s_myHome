@@ -9,10 +9,9 @@ Operator は `postgres-operator` に配置し、`PGO_TARGET_NAMESPACE=database` 
 chart の RBAC はクラスタ範囲であり、監視範囲の限定と RBAC の制限は同義ではない。
 CRD の prune / delete は確認必須とし、DB の連鎖削除を防ぐ。
 
-この段階では PostgresCluster は追加しない。Harbor は既存 DB を使用する。
-現行 VM は QEMU の既定 CPU で x86-64-v2 を満たさず、UBI 9 の起動が失敗したため、
-Operator は `replicas: 0` で停止している。ホスト CPU の対応を確認し、VM の CPU mode を
-修正・再起動して必要な命令が公開された後に `replicas: 1` に戻す。
+共有 DB は `manifests/platform/shared-postgresql/` で管理する。Harbor の切り替えまでは既存 DB を使用する。
+UBI 9 の x86-64-v2 要件に対応するため、VM の CPU mode は `host-passthrough` とする。
+両ワーカーでコールド再起動と CPU 命令の公開を確認済み。Operator は `replicas: 1` で運用する。
 移行先の追加・復元・資格情報反映・Harbor 切り替えは
 [移行計画](../../../tasks/shared-postgresql.md)に従って実施する。
 

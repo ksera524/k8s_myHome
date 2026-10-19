@@ -103,6 +103,11 @@ resource "libvirt_domain" "control_plane" {
   memory = var.control_plane_memory
   vcpu   = var.control_plane_vcpu
 
+  # UBI 9 などの x86-64-v2 要件を満たすホスト CPU 命令を VM に公開する。
+  cpu {
+    mode = "host-passthrough"
+  }
+
   cloudinit = libvirt_cloudinit_disk.control_plane_init.id
 
   network_interface {
@@ -134,6 +139,10 @@ resource "libvirt_domain" "worker" {
   name   = "k8s-worker${count.index + 1}-${random_id.cluster.hex}"
   memory = var.worker_memory
   vcpu   = var.worker_vcpu
+
+  cpu {
+    mode = "host-passthrough"
+  }
 
   cloudinit = libvirt_cloudinit_disk.worker_init[count.index].id
 

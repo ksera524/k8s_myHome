@@ -12,3 +12,4 @@ resources:
   - observability.yaml
   - reloader.yaml
   - pgo.yaml
+  - shared-postgresql.yaml

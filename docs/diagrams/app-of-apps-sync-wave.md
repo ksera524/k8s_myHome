@@ -24,6 +24,7 @@ flowchart TD
   wave7c["external-secrets-operator\nwave 7"]:::wave7
   wave8["gateway-shared\nwave 8"]:::wave8
   pgo["pgo\nPostgreSQL Operator / CRD\nwave 8"]:::wave8
+  postgres["shared-postgresql\nwave 10"]:::wave10
   wave9["config-secrets\nwave 9"]:::wave9
   wave10a["platform\nwave 10"]:::wave10
   wave10b["harbor\nwave 10"]:::wave10
@@ -52,6 +53,10 @@ flowchart TD
   root --> wave7c
   root --> wave8
   root --> pgo
+  root --> postgres
+  pgo --> postgres
+  wave9 --> postgres
+  wave1c --> postgres
   root --> wave9
   root --> wave10a
   root --> wave10b

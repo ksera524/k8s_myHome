@@ -262,8 +262,8 @@ Harbor の DB と Registry データ・Secret の復旧点が対応すること�
 - 初回の Harbor 移行は引き続き `pg_dump` / `pg_restore`。移行完了後に pgBackRest 初回 full を取得する。
   pgBackRest の復旧単位は共通 PostgreSQL 全体なので、単一アプリだけ戻す場合は隔離クラスタに復元してから
   対象 DB を論理 export / import する。他アプリを巻き戻さない。
-- DB データと同じ NFS だけにバックアップを置かない。独立した保存先と暗号化・認証・保持を実装前に決める。
-  RustFS を候補にする場合も実ディスク・ホストの障害範囲を確認し、同一基盤なら別媒体への複製が必要。
+- 2026-10-19 のユーザー指定により、外付け SSD 上の NFS に専用 pgBackRest PVC を設ける。
+  DB とバックアップはディレクトリを分離する。同一 SSD / NFS サーバーの障害では両方が失われる制約を記録する。
 - ロール・権限の宣言、ESC の復旧手順、TLS、PostgreSQL 設定も復旧対象。`pg_dump` だけで全体復旧できるとは扱わない。
 - 監視は DB 稼働、接続枯渇、長時間 query / lock、NFS 空き容量・I/O、バックアップ失敗・最終成功時刻を含める。
 - アプリ追加は DB 名・ロール・必要拡張・接続予算・RPO を登録 → Secret / 権限作成 → 通信許可 → 接続・隔離試験 → workload 接続設定の順。
@@ -304,7 +304,7 @@ PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な m
 - Operator は PGO 6.0.3 を固定。同梱 chart の PostgreSQL 18.6 / pgBackRest 2.59.0 に合わせる。
 - ESC に管理用・Harbor 用パスワードを追加済み。秘密値は Git に保存しない。
 - 稼働中 registry DB の事前ダンプを操作端末の権限 0600 のファイルに保存。最終切り替え用ではない。
-- 独立したバックアップ先は確認中。指定・復元検証が済むまで Harbor の接続先を変更しない。
+- バックアップ先は 2026-10-19 にユーザーが既存 NFS を指定。復元検証完了後に切り替える。
 - `f762cee` で PGO / CRD / ESO 定義を GitOps 反映。CI 相当の全検証は成功。
 - PGO イメージ取得は成功したが worker2 で `Fatal glibc error: CPU does not support x86-64-v2`。
   worker1 も `QEMU Virtual CPU version 2.5+` で必要な命令が不足している。
