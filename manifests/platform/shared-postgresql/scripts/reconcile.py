@@ -11,7 +11,7 @@ import urllib.request
 API = 'https://kubernetes.default.svc'
 SA = Path('/var/run/secrets/kubernetes.io/serviceaccount')
 CLUSTER = 'shared-postgresql'
-HOST = f'{CLUSTER}-primary.database.svc.cluster.local'
+HOST = f'{CLUSTER}-primary.database.svc'
 
 
 def request(path, method='GET', body=None):
