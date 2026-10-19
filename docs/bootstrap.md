@@ -17,6 +17,13 @@ cp automation/settings.toml.example automation/settings.toml
 
 `automation/settings.toml` を環境に合わせて編集します。secret 本文は Pulumi ESC などの参照元に置き、Git に直接置きません。
 
+## 既存データがあるクラスタの再構築
+
+PGO の DB と pgBackRest repo は NFS 上の既存データを確認して復旧します。
+[共通 PostgreSQL の再構築手順](shared-postgresql.md#再起動と再構築) に従ってください。
+Harbor core / jobservice は資格情報・TLS・復元済みマーカーを確認するまで起動を待ちます。
+Sync Wave だけではデータの復元完了を保証しません。
+
 ## 全体構築
 
 ```bash

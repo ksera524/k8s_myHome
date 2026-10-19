@@ -1,7 +1,7 @@
 # 共通 PostgreSQL 基盤と Harbor DB 移行計画
 
-作成日: 2026-10-18。採用方式: **PGO（Crunchy Postgres Operator）**。状態: **移行準備中（Harbor は内部 DB を継続）**。
-以下の新規パス、リソース名、数値は提案であり、稼働済みの構成ではない。
+作成日: 2026-10-18。採用方式: **PGO（Crunchy Postgres Operator）**。状態: **本番移行完了（追加の復旧演習は残項目）**。
+以下は当初計画を含む。実装済み構成・復旧手順の正本は [運用手順](../docs/shared-postgresql.md)、実測結果は末尾の移行実施記録を参照。
 
 ## 目的と範囲
 
@@ -16,7 +16,7 @@ Harbor 内蔵 PostgreSQL のデータを、独立して GitOps 管理する共�
 - Application: `manifests/bootstrap/applications/platform/harbor.yaml`、wave 10、自動同期・prune・selfHeal 有効。
 - `database.type: internal`、`redis.type: internal`。永続 PVC はすべて `nfs-external`。
 - DB PVC: `harbor/database-data-harbor-database-0`、要求 1Gi。
-- NFS: `192.168.122.1:/mnt/k8s-storage/nfs-share`。物理ディスクの所在・独立性は未確認。
+- NFS: `192.168.122.1:/mnt/k8s-storage/nfs-share`。外付け SSD `/dev/sda1`（ext4、USB H/W RAID1）上。DB とバックアップは同じ媒体。
 - 読み取り専用 SQL で確認した稼働 DB: PostgreSQL **18.6**、DB `registry` 約 **13 MB**、拡張 `plpgsql 1.0`。
   これは移行時間や将来の容量を保証する値ではなく、実装前に再測定する。
 - chart の `database.external` は host / port / username / coreDatabase / existingSecret / sslmode を提供。
@@ -31,9 +31,9 @@ Harbor 内蔵 PostgreSQL のデータを、独立して GitOps 管理する共�
 |---|---|
 | owner | Operator 用 `pgo` と DB 用 `shared-postgresql` を別 Application とし、project `platform` で管理 |
 | 配置 | Operator は Namespace `postgres-operator`、DB は `database` の PostgresCluster `shared-postgresql`、instance replicas 1 |
-| 接続 | PGO の primary 用 ClusterIP Service（想定 `shared-postgresql-primary.database.svc.cluster.local:5432`、固定版で確認） |
+| 接続 | PGO の primary 用 ClusterIP Service（想定 `shared-postgresql-primary.database.svc:5432`、固定版で確認） |
 | イメージ | PGO 対応の Crunchy PostgreSQL 18 イメージ。Operator / PostgreSQL / pgBackRest の互換組合せ・patch・digest を固定 |
-| ストレージ | 新規専用 PVC、`nfs-external`、初期要求 10Gi。旧 Harbor PVC は流用しない |
+| ストレージ | 新規専用 PVC、`nfs-postgresql`、初期要求 10Gi。旧 Harbor PVC は流用しない |
 | リソース初期案 | requests CPU 250m / memory 512Mi、limits CPU 1 / memory 1Gi |
 | DB 初期案 | `max_connections=100`、管理・バックアップ用の余裕を確保 |
 | Harbor | DB 名 `registry`、専用ログインロール `harbor`、内部 Redis を継続 |
@@ -89,8 +89,8 @@ PGDATA・volume mount・UID/GID は採用する Crunchy イメージと PGO の�
 - PostgreSQL TLS と SCRAM 認証を用意し、Harbor は `sslmode: verify-full` を目標にする。
   Service DNS の SAN・CA 配布・chart の CA mount 方法を検証し、検証無効化を既定にしない。
   Certificate は既存規約に従い `infrastructure/security/cert-manager/` に集約する。
-- Harbor のプール初期案は `maxOpenConns: 20` / `maxIdleConns: 5`。
-  core / exporter の Pod 数と rolling update の一時増加分、他アプリ、管理接続を合計して 100 以下に収める。
+- Harbor のプール初期案は `maxOpenConns: 10` / `maxIdleConns: 3`。
+  core / jobservice と、追加する場合の exporter の Pod 数と rolling update の一時増加分、他アプリ、管理接続を合計して 100 以下に収める。
   ロール接続上限も設定し、追加アプリは接続予算を申告する。負荷試験で確定する。
 
 ### Secret 数の予算（25 個枠）
@@ -271,20 +271,24 @@ Harbor の DB と Registry データ・Secret の復旧点が対応すること�
 
 ## 完了条件と検証
 
-- [ ] `automation/scripts/ci/validate.sh` が成功し、GitOps 参照・policy・Kustomize / kubeconform が通る。
-- [ ] Harbor の内部 PostgreSQL Pod はなく、外部 DB 接続と既存 artifact の利用が成功する。
-- [ ] Redis と既存ストレージの意図しない変更がない。
-- [ ] 別アプリが専用資格情報で自身の DB だけを利用できる。未許可 Pod からの通信が拒否される。
+- [x] `automation/scripts/ci/validate.sh` が成功し、GitOps 参照・policy・Kustomize / kubeconform が通る。
+- [x] Harbor の内部 PostgreSQL Pod はなく、外部 DB 接続と既存 artifact の利用が成功する。
+- [x] Redis と既存ストレージの意図しない変更がない。
+- [x] Harbor ロールの別 DB 接続拒否と、未許可 Pod からの通信拒否を確認する。
+- [ ] 他アプリ追加時に専用 DB / ロールの相互分離を確認する。
 - [ ] DB Pod 再起動後もデータ保持・再接続が成功し、起動が Harbor に依存しない。
-- [ ] pgBackRest から隔離 PostgresCluster への復元・PITR と、単一アプリ DB の取り出しが成功する。
-- [ ] ESC 入力 Secret / PGO 管理 Secret / アプリ Secret に管理競合がなく、PGO へのパスワード反映・ローテーション・再構築が成功する。
+- [x] pgBackRest から隔離 PostgresCluster への復元とデータ一致を確認する。
+- [ ] 時刻指定 PITR と単一アプリ DB の取り出しの演習。
+- [x] ESC 入力 Secret / PGO 管理 Secret / アプリ Secret を分離し、PGO への反映とアプリ認証が成功する。
+- [ ] 運用中のパスワードローテーションと全クラスタ再構築の演習。
 - [ ] PGO / CRD の再構築・更新、PostgresCluster / PVC の削除保護、切り戻しリハーサルが成功する。
-- [ ] CI に固定版 PostgresCluster の schema 検証を追加し、未知 CRD として無条件スキップしない。
-- [ ] 自動同期・監視・定期バックアップが有効になり、移行用の停止設定・一時的な権限が残らない。
+- [x] CI に固定版 PostgresCluster の schema 検証を追加し、未知 CRD として無条件スキップしない。
+- [x] 自動同期・定期バックアップが有効になり、移行用の停止設定を解除する。
+- [ ] 専用 DB / バックアップ監視の拡充。
 
 ## 実装開始時に確定する項目
 
-PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な mount / export、独立バックアップ先、TLS の CA 配布、
+PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な mount / export、指定 NFS バックアップ先、TLS の CA 配布、
 実測した接続・メモリ予算、移行停止枠を確定する。いずれも未確認のまま本番切り替えへ進めない。
 
 ## 参考
@@ -311,4 +315,33 @@ PGO の固定版・CRD schema・互換イメージ、NFS の実体と安全な m
   Operator は replicas 0 にして再起動ループを停止し、VM CPU 設定の修正待ちとする。
   PostgresCluster は未作成、Harbor は内部 DB のまま正常稼働。
 - 再開条件: KVM ホスト CPU 対応確認 → VM CPU 設定と安全な順次再起動 → PGO 起動確認、
-  および独立バックアップ先の確定。ノード再起動には既存 workload の退避・復帰確認も含める。
+  およびユーザー指定 NFS でのバックアップ・復元検証。ノード再起動には既存 workload の退避・復帰確認も含める。
+
+### 2026-10-19 本番切り替え
+
+- 両ワーカーを host-model でコールド起動。x86-64-v2 を満たし、PGO / PostgreSQL は正常起動。
+  当初の host-passthrough で worker1 に libc segfault / 停止を観測したため変更した。
+- NFS は hard / NFSv4.2、サーバー export は sync。新しい StorageClass は nfs-postgresql / Retain。
+- PGO 6.0.3、PostgreSQL 18.6、pgBackRest 2.59.0。新規データ PVC と repo を作成。
+- 管理用・Harbor 用パスワードは ESC が正本。資格情報 Job の TLS / SQL 確認は成功。
+  PGO 証明書の SAN に合わせて接続名を `shared-postgresql-primary.database.svc` とした。
+- 事前 dump の復元後、pgBackRest full backup から独立クローンを作成。
+  全 49 テーブルの内容ハッシュ・件数と 47 シーケンスが一致。検証用クローンは GitOps から削除済み。
+- `b5fa78f` で入口・core・jobservice・registry・trivy・cleanup を停止し、旧 registry 接続数 0 を確認。
+- 最終 dump と globals、比較結果、PV inventory をローカル権限 0600 と NFS に保管。
+  NFS: `/mnt/k8s-storage/nfs-share/harbor-pgo-migration-20261019/`。
+  最終 dump SHA256: `6143994d840d04d9a622cae16426a658a8dddfc09f3b5c87094d4404e0fc5d74`。
+- 最終復元の全テーブル・シーケンス比較が一致した後、管理者所有の復元マーカーを記録。
+  `final-migration-20261019` full backup は 2026-10-19 07:21:41 UTC に成功。
+- `0533ee8` で外部 DB へ切り替え。jobservice も DB を使用するため `3c35222` で CA / 起動ゲートを追加。
+  core と jobservice の両方で起動ゲート通過を確認し、API health は全コンポーネント healthy。
+- 旧内蔵 DB Pod は削除済み。旧 PVC は保持し PV は Retain。Redis と既存データ PVC は継続使用。
+- 再構築時の空 DB による初期化を起動ゲートで防ぐ。全クラスタ破棄を伴う復旧演習、PITR、
+  ローテーション演習、専用 DB 監視の拡充は別途残る。未実施の演習を完了扱いにはしない。
+
+- 最終機能試験: Pulumi 管理の管理者資格情報で API 認証、既存 hitomi-upload-viewer イメージの pull、
+  一時リポジトリへの push、Trivy scan Success、検証用リポジトリ削除がすべて成功。
+- 許可外ラベルの Harbor Pod から PostgreSQL への TCP 接続拒否を実測。
+- 修正後の CI 相当の全検証が成功。CA 配布漏れ・外部 DB 化・既存 Redis / Trivy ストレージを
+  Helm 展開結果で検査する回帰テストを追加し、資格情報テストと合わせて 4 件成功。
+- 起動準備中の失敗 Job は削除し、定期資格情報 Job は成功を継続。Harbor / PGO / 共通 DB は Synced / Healthy。

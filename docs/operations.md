@@ -63,6 +63,9 @@ kubectl get storageclass
 
 ## Harbor
 
+DB は PGO の共通 PostgreSQL を利用します。バックアップ、資格情報、クラスタ再構築時の手順は
+[共通 PostgreSQL の運用](shared-postgresql.md) を参照してください。
+
 ```bash
 kubectl get pods -n harbor
 kubectl logs -n harbor deployment/harbor-core --since=10m

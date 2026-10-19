@@ -28,6 +28,13 @@
 - remote chart を含む owner は `platform/<component>/` の repo-local wrapper を正本にします。
 - 複数 workload が共有する非機密設定は `platform/shared-config/` に置きます。
 
+## 共通 PostgreSQL
+
+- `platform/pgo/`: Operator / CRD。
+- `platform/shared-postgresql/`: PostgresCluster、NFS バックアップ、資格情報反映 Job。
+- `platform/secrets/external-secrets/postgresql/`: Pulumi ESC の入力とアプリ用 Secret。
+- [運用・復旧手順](shared-postgresql.md) を参照。
+
 ## cert-manager
 
 - Issuer / Certificate / SecretStore など cert-manager 系リソースは `infrastructure/security/cert-manager/` に集約します。

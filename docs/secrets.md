@@ -78,13 +78,16 @@ Harbor を同期する前に ExternalSecret の Ready を確認します。
 token 証明書は自動再生成されなくなるため、有効期限を管理し、更新時は対応する秘密鍵も ESC へ登録します。
 変更した内部認証情報をプロセスへ反映する際は core / registry / jobservice の計画的な再起動が必要です。
 
-Harbor の ESC 値はすべて `harbor.*` に統一します。`harbor.admin_password` は管理者パスワードで、
+Harbor 本体の管理・内部認証用 ESC 値は `harbor.*` に統一します。`harbor.admin_password` は管理者パスワードで、
 管理者 Secret、各 namespace の image pull Secret、ARC の認証 Secret が共通で参照します。
 旧スカラー `harbor` とトップレベルの `harbor-internal-*` は使用しません。
 各 leaf は暗号化した secret 値のまま保持し、Kubernetes Secret の名前・キー・値は変更しません。
 
-## 共通 PostgreSQL（移行準備）
+## 共通 PostgreSQL
 
 パスワードは ESC の `postgresql.admin_password` と `postgresql.harbor_password` を正本とする。
 `config-secrets` が `database/postgresql-input` と `harbor/harbor-database-secret` に配布する。
-入力 Secret は PGO の生成 Secret と分離する。Harbor の接続切り替えは復元検証後に行う。
+入力 Secret は PGO の生成 Secret と分離し、2 分ごとの資格情報 Job が変更時だけ PGO に反映する。
+Harbor core / jobservice は専用ロールと TLS 検証を使用する。運用・復旧は [共通 PostgreSQL](shared-postgresql.md) を参照。
+この environment の `fn::secret` は追加後 22 個。DB 用は管理用・Harbor 用の 2 個で、
+同じ値を複数 Namespace に配布するための重複登録は行わない。
