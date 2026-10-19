@@ -17,3 +17,9 @@ patches:
     target:
       kind: ConfigMap
       name: harbor-core
+
+configMapGenerator:
+  - name: harbor-db-scripts
+    namespace: harbor
+    files:
+      - scripts/wait-for-database.sh
