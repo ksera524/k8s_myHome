@@ -5,6 +5,7 @@ metadata:
   name: harbor-sandbox-image-cleanup
   namespace: harbor
 spec:
+  suspend: true
   schedule: "30 3 * * *"
   timeZone: "Asia/Tokyo"
   concurrencyPolicy: Forbid

@@ -28,7 +28,7 @@ spec:
     - name: postgres
     - name: harbor
       databases: [registry]
-      options: "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 30"
+      options: "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 50"
   patroni:
     dynamicConfiguration:
       postgresql:

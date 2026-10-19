@@ -2,8 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - postgrescluster.yaml
-  # 移行時だけ配置する独立クローン。検証後に削除する。
-  - restore-test.yaml
   - credentials.yaml
   - harbor-trust.yaml
 configMapGenerator:
