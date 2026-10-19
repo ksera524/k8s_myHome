@@ -5,4 +5,4 @@
 
 | 計画 | 状態 | 範囲 |
 |---|---|---|
-| [共通 PostgreSQL と Harbor DB 移行](shared-postgresql.md) | 本番移行済み・追加復旧演習あり | PGO による共通 DB 基盤、Harbor 移行、他アプリの利用手順 |
+| [共通 PostgreSQL と Harbor DB 移行](shared-postgresql.md) | 完了（追加演習・監視拡充は保留） | PGO による共通 DB 基盤、Harbor 移行、他アプリの利用手順 |
