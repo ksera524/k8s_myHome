@@ -40,6 +40,7 @@ def main():
     harbor = Path('/input/harbor-password').read_text()
     reconcile_password('postgres', admin)
     reconcile_password('harbor', harbor)
+    reconcile_password('app', harbor)
     cert = request(f'/api/v1/namespaces/database/secrets/{CLUSTER}-cluster-cert')
     ca = base64.b64decode(cert['data']['ca.crt']).decode()
     # 公開 CA のみを配布。秘密鍵や管理用資格情報をコピーしない。
