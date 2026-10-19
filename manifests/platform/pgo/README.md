@@ -10,8 +10,8 @@ chart の RBAC はクラスタ範囲であり、監視範囲の限定と RBAC �
 CRD の prune / delete は確認必須とし、DB の連鎖削除を防ぐ。
 
 共有 DB は `manifests/platform/shared-postgresql/` で管理する。Harbor の切り替えまでは既存 DB を使用する。
-UBI 9 の x86-64-v2 要件に対応するため、VM の CPU mode は `host-passthrough` とする。
-両ワーカーでコールド再起動と CPU 命令の公開を確認済み。Operator は `replicas: 1` で運用する。
+UBI 9 の x86-64-v2 要件に対応するため、VM の CPU mode は `host-model` とする。
+`host-passthrough` では worker1 の libc segfault と停止を観測したため、互換 CPU モデルへ変更する。Operator は `replicas: 1` で運用する。
 移行先の追加・復元・資格情報反映・Harbor 切り替えは
 [移行計画](../../../tasks/shared-postgresql.md)に従って実施する。
 
