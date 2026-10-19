@@ -85,9 +85,9 @@ Harbor 本体の管理・内部認証用 ESC 値は `harbor.*` に統一しま�
 
 ## 共通 PostgreSQL
 
-パスワードは ESC の `postgresql.admin_password` と `postgresql.harbor_password` を正本とする。
+パスワードは ESC の `postgresql.admin_password` と `postgresql.password` を正本とする。
 `config-secrets` が `database/postgresql-input` と `harbor/harbor-database-secret` に配布する。
 入力 Secret は PGO の生成 Secret と分離し、2 分ごとの資格情報 Job が変更時だけ PGO に反映する。
-Harbor core / jobservice は専用ロールと TLS 検証を使用する。運用・復旧は [共通 PostgreSQL](shared-postgresql.md) を参照。
-この environment の `fn::secret` は追加後 22 個。DB 用は管理用・Harbor 用の 2 個で、
+Harbor と他アプリは共用ロール `app`・共通パスワードを使用し、TLS 検証を行う。運用・復旧は [共通 PostgreSQL](shared-postgresql.md) を参照。
+この environment の `fn::secret` は追加後 22 個。DB 用は管理用・アプリ共用の 2 個で、
 同じ値を複数 Namespace に配布するための重複登録は行わない。

@@ -27,7 +27,7 @@ spec:
             - name: PGDATABASE
               value: registry
             - name: PGUSER
-              value: harbor
+              value: app
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:

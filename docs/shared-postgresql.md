@@ -7,15 +7,16 @@ pgBackRest を管理する。Namespace は `database`、クラスタ名は `shar
 ## 接続と資格情報
 
 - primary: `shared-postgresql-primary.database.svc:5432`
-- Harbor: DB `registry`、ロール `harbor`。他アプリは別 DB・別ロールを追加する。
-- パスワードの正本は Pulumi ESC の `postgresql.admin_password` と `postgresql.harbor_password`。
+- Harbor: DB `registry`。Harbor と他アプリは共用ログインロール `app` を使う。
+  DB / schema はアプリの要件に合わせて追加し、共用ロールに所有権を与える。
+- パスワードの正本は Pulumi ESC の `postgresql.admin_password` と `postgresql.password`。
   ESO は入力 Secret `database/postgresql-input` と `harbor/harbor-database-secret` に配布する。
 - `postgresql-credentials` CronJob は 2 分ごとに入力と PGO の Secret を比較する。
   変更時だけ password と verifier を更新し、TLS 検証付き SQL 接続で反映を確認する。
   PGO の Secret を ESO の所有物に変更しない。
 - PGO の公開 CA だけを `harbor/shared-postgresql-ca` に配布する。
   管理パスワードと TLS 秘密鍵は Harbor に配布しない。
-- ローテーションは Harbor を停止してから ESC 更新、ESO 同期、資格情報 Job 成功を確認し再開する。
+- ローテーションは共用ユーザーを利用する全アプリを停止してから ESC 更新、ESO 同期、資格情報 Job 成功を確認し再開する。
   単一ロールの新旧パスワードが同時に使えるとは扱わない。
 
 ## バックアップ
@@ -94,10 +95,13 @@ Harbor core / jobservice の起動ゲートは、DB が接続可能なだけで�
 ## 接続数とアプリ追加
 
 Harbor core / jobservice は各 Pod の maxOpenConns 10 / maxIdleConns 3。
-各 1 Pod、rolling update 時に各 2 Pod として計 40 接続を見込み、Harbor ロールの上限を 50、
+各 1 Pod、rolling update 時に各 2 Pod として計 40 接続を見込み、共用 app ロールの合計上限を 50、
 DB 全体を 100 とする。exporter は無効。exporter を追加する場合も CA と接続予算を追加する。
-他アプリは専用 DB / ロール / ESC パスワード / ESO 定義 / NetworkPolicy の許可を追加し、
-PUBLIC の CONNECT / TEMP を取り消して、管理接続分を残した接続予算を設定する。
+他アプリは DB / schema と ESO 定義 / CA 配布 / NetworkPolicy の許可を追加する。
+ESO は同じ `postgresql.password` を参照し、ロールと ESC パスワードは追加しない。
+共用ユーザーは各アプリのデータにアクセスできる構成とする。
+
+PUBLIC の CONNECT / TEMP を取り消して共用 app に必要な権限を与え、管理接続分を残した接続予算を設定する。
 
 ## 検証範囲
 

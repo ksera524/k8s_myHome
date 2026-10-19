@@ -32,6 +32,8 @@ class HarborDatabaseTest(unittest.TestCase):
                 gate = next(c for c in pod['initContainers'] if c['name'] == 'wait-for-database')
                 env = {v['name']: v for v in gate['env']}
                 self.assertEqual(env['PGHOST']['value'], config['POSTGRESQL_HOST'])
+                self.assertEqual(env['PGUSER']['value'], config['POSTGRESQL_USERNAME'])
+                self.assertEqual(env['PGUSER']['value'], 'app')
                 self.assertEqual(env['PGSSLMODE']['value'], 'verify-full')
                 self.assertEqual(env['PGPASSWORD']['valueFrom']['secretKeyRef']['name'], 'harbor-database-secret')
                 for container in [gate, *pod['containers']]:

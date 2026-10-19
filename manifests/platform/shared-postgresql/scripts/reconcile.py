@@ -37,10 +37,9 @@ def reconcile_password(user, password):
 
 def main():
     admin = Path('/input/admin-password').read_text()
-    harbor = Path('/input/harbor-password').read_text()
+    password = Path('/input/password').read_text()
     reconcile_password('postgres', admin)
-    reconcile_password('harbor', harbor)
-    reconcile_password('app', harbor)
+    reconcile_password('app', password)
     cert = request(f'/api/v1/namespaces/database/secrets/{CLUSTER}-cluster-cert')
     ca = base64.b64decode(cert['data']['ca.crt']).decode()
     # 公開 CA のみを配布。秘密鍵や管理用資格情報をコピーしない。
@@ -59,8 +58,8 @@ def main():
         root.flush()
         env = {**os.environ, 'PGHOST': HOST, 'PGUSER': 'postgres', 'PGDATABASE': 'postgres', 'PGPASSWORD': admin, 'PGSSLMODE': 'verify-full', 'PGSSLROOTCERT': root.name, 'PGCONNECT_TIMEOUT': '10'}
         # PGO の password 反映前なら失敗し、Job の再試行に委ねる。
-        subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'ALTER DATABASE registry OWNER TO harbor; REVOKE CONNECT, TEMPORARY ON DATABASE registry FROM PUBLIC; GRANT CONNECT ON DATABASE registry TO harbor; REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;'], env=env, check=True, stdout=subprocess.DEVNULL)
-        env.update(PGUSER='harbor', PGDATABASE='registry', PGPASSWORD=harbor)
+        subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'ALTER DATABASE registry OWNER TO app; REVOKE CONNECT, TEMPORARY ON DATABASE registry FROM PUBLIC; GRANT CONNECT ON DATABASE registry TO app; REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;'], env=env, check=True, stdout=subprocess.DEVNULL)
+        env.update(PGUSER='app', PGDATABASE='registry', PGPASSWORD=password)
         subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'SELECT 1'], env=env, check=True, stdout=subprocess.DEVNULL)
     print('Credentials and TLS verified; migration gate is not modified')
 

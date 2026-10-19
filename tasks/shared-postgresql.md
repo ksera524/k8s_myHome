@@ -6,7 +6,7 @@
 ## 目的と範囲
 
 Harbor 内蔵 PostgreSQL のデータを、独立して GitOps 管理する共通 PostgreSQL に移す。
-他アプリは同じ PostgreSQL サーバー上に専用 DB・専用ロールを持つ。
+Harbor と他アプリは同じ PostgreSQL サーバーの共用ロール `app`・共通パスワードを使う。
 永続データは外部ストレージに置く。Redis、Registry、Trivy、Jobservice のストレージは変更しない。
 初期段階では HA、PgBouncer、既存の他アプリ DB の一括移行、PostgreSQL のメジャー更新を含めない。
 
@@ -36,7 +36,7 @@ Harbor 内蔵 PostgreSQL のデータを、独立して GitOps 管理する共�
 | ストレージ | 新規専用 PVC、`nfs-postgresql`、初期要求 10Gi。旧 Harbor PVC は流用しない |
 | リソース初期案 | requests CPU 250m / memory 512Mi、limits CPU 1 / memory 1Gi |
 | DB 初期案 | `max_connections=100`、管理・バックアップ用の余裕を確保 |
-| Harbor | DB 名 `registry`、専用ログインロール `harbor`、内部 Redis を継続 |
+| Harbor | DB 名 `registry`、共用ログインロール `app`、内部 Redis を継続 |
 | 公開範囲 | クラスタ内のみ。NodePort / LoadBalancer / HTTPRoute は追加しない |
 
 PGO と PostgresCluster CR を GitOps 管理する。生成される StatefulSet / Service / PVC を別の manifest で二重管理しない。
@@ -59,12 +59,13 @@ PGDATA・volume mount・UID/GID は採用する Crunchy イメージと PGO の�
 - `resourcePolicy: keep` だけで ArgoCD の削除保護を保証しない。PostgresCluster / Application / CRD の削除から PGO 生成 PVC への連鎖を検証し、削除確認ポリシーを設計する。
 - 同じ PGDATA を複数 Pod で同時利用しない。ノード障害時の強制削除・再配置は旧プロセス停止を確認して行う。
 
-### アプリごとの分離と接続契約
+### 共用ユーザーと接続契約
 
-- 1 アプリ 1 DB・1 専用ログインロール。Harbor には `registry` の DDL / migration に必要な所有権を与える。
+- アプリ共用のログインロール `app` を使う。DB / schema はアプリの要件に合わせ、
+  共用ロールに DDL / migration に必要な所有権を与える。
   アプリに SUPERUSER / CREATEDB / CREATEROLE / REPLICATION を与えない。
-- `PUBLIC` の DB CONNECT / TEMP、schema CREATE を整理し、専用ロールだけに必要な権限を付与する。
-  管理ロールを別にし、アプリ間で接続・参照できないことを実測する。
+- `PUBLIC` の DB CONNECT / TEMP、schema CREATE を整理し、共用ロールに必要な権限を付与する。
+  管理ロールを別にする。アプリ間でのデータ参照は許容する。
 - DB / ロールは `PostgresCluster.spec.users` に宣言し、作成とパスワード反映を PGO に委ねる。
   PUBLIC 権限の制限・所有権など追加 SQL が必要な部分だけ、再実行可能な管理 Job で補う。
   補助 SQL Job は PGO 管理ロールの属性・パスワードを直接 ALTER しない。DB / ロールを Git から消すだけで DROP しない。
@@ -102,7 +103,8 @@ Grafana は ESO Password generator を使い、ESC を参照しない。
 参照キー数と一致するとは限らない。[Pulumi 公式 FAQ](https://www.pulumi.com/docs/support/faq/secrets-config/)
 
 - 実装前に ESC 側の実消費数を確認し、未参照の secret や他 environment も含めて 25 個枠を評価する。
-- DB 管理用と Harbor 専用パスワードを各1個 ESC に保存する。他アプリも原則1個ずつ追加する。
+- DB 管理用 `postgresql.admin_password` とアプリ共用 `postgresql.password` の各1個を ESC に保存する。
+  他アプリは同じ値を参照し、パスワードを追加しない。
   同じ値を database とアプリ Namespace に配布しても、ESC に二重登録しない。
 - 実消費が20個の場合、初期追加後22個で残り3個。バックアップ保存先資格情報・暗号化鍵などは別途計上する。
   ユーザー名・DB 名・host は非機密設定、SCRAM verifier は PGO が生成するため ESC に別保存しない。
@@ -229,7 +231,7 @@ Harbor の DB と Registry データ・Secret の復旧点が対応すること�
 3. 最終ダンプを採取し、checksum と保管先を記録する。
    Registry データ・必要な Redis 状態・Harbor Secret も復旧できる保全点を確保し、DB と画像の整合性を保つ。
 4. 新 DB `registry` へ最終ダンプを復元し、件数・所有権・sequence・接続権限を検証。
-5. `database.type: external`、接続先・専用ロール・Secret・TLS・プール設定を同期。
+5. `database.type: external`、接続先・共用ロール・Secret・TLS・プール設定を同期。
    内蔵 StatefulSet が削除される差分と旧 PVC が残ることを確認してから適用する。
 6. 外部書き込みを閉じたまま Harbor を起動し、DB migration、ログイン、プロジェクト・artifact 一覧、既存 image pull を確認。
 7. 確認後に入口とジョブを再開し、専用テスト project で push / pull / scan を実施する。
@@ -275,7 +277,7 @@ Harbor の DB と Registry データ・Secret の復旧点が対応すること�
 - [x] Harbor の内部 PostgreSQL Pod はなく、外部 DB 接続と既存 artifact の利用が成功する。
 - [x] Redis と既存ストレージの意図しない変更がない。
 - [x] Harbor ロールの別 DB 接続拒否と、未許可 Pod からの通信拒否を確認する。
-- [ ] 他アプリ追加時に専用 DB / ロールの相互分離を確認する。
+- [ ] 他アプリ追加時に共用 app ロールでの接続・DB / schema 権限・接続予算を確認する。
 - [ ] DB Pod 再起動後もデータ保持・再接続が成功し、起動が Harbor に依存しない。
 - [x] pgBackRest から隔離 PostgresCluster への復元とデータ一致を確認する。
 - [ ] 時刻指定 PITR と単一アプリ DB の取り出しの演習。

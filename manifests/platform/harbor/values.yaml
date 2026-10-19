@@ -36,7 +36,7 @@ database:
   external:
     host: shared-postgresql-primary.database.svc
     port: "5432"
-    username: harbor
+    username: app
     coreDatabase: registry
     existingSecret: harbor-database-secret
     sslmode: verify-full
