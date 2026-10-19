@@ -34,6 +34,11 @@
       "url": "/d/home-lab-storage",
       "keepTime": true,
       "includeVars": true
+    },
+    {
+      "title": "04 PostgreSQL / SQL",
+      "type": "link",
+      "url": "/d/home-lab-postgresql"
     }
   ],
   "templating": {

@@ -10,11 +10,12 @@ pgBackRest を管理する。Namespace は `database`、クラスタ名は `shar
 - Harbor: DB `registry`。Harbor と他アプリは共用ログインロール `app` を使う。
   DB / schema はアプリの要件に合わせて追加し、共用ロールに所有権を与える。
 - パスワードの正本は Pulumi ESC の `postgresql.admin_password` と `postgresql.password`。
-  ESO は入力 Secret `database/postgresql-input` と `harbor/harbor-database-secret` に配布する。
+  ESO は入力 Secret `database/postgresql-input`、`harbor/harbor-database-secret`、
+  `observability/grafana-postgresql` に配布する。
 - `postgresql-credentials` CronJob は 2 分ごとに入力と PGO の Secret を比較する。
   変更時だけ password と verifier を更新し、TLS 検証付き SQL 接続で反映を確認する。
   PGO の Secret を ESO の所有物に変更しない。
-- PGO の公開 CA だけを `harbor/shared-postgresql-ca` に配布する。
+- PGO の公開 CA だけを Harbor / observability の `shared-postgresql-ca` に配布する。
   管理パスワードと TLS 秘密鍵は Harbor に配布しない。
 - ローテーションは共用ユーザーを利用する全アプリを停止してから ESC 更新、ESO 同期、資格情報 Job 成功を確認し再開する。
   単一ロールの新旧パスワードが同時に使えるとは扱わない。
@@ -121,3 +122,28 @@ control-plane VM の永続 CPU 定義も host-model に変更済みだが、稼�
 
 Harbor の最終機能試験では管理者 API 認証、既存イメージ pull、一時リポジトリへの push、
 Trivy scan Success、テストリポジトリ削除まで成功した。未許可 Pod の TCP 接続拒否も確認済み。
+
+## Grafana から SQL を実行する
+
+[PostgreSQL / SQL ダッシュボード](https://grafana.internal.qroksera.com/d/home-lab-postgresql) を開く。
+接続・TLS 情報、DB 容量、接続数、テーブル容量・推定行数、実行中 SQL を表示する。
+これらは現在の DB 統計を SQL で取得するもので、過去の監視メトリクスの蓄積ではない。
+
+上部の「SQL を実行する（Explore）」から **Code** モードで SQL を編集し、**Run query** で実行する。
+データソースは `PostgreSQL / registry`、接続ユーザーは共用の `app`。例:
+
+```sql
+SELECT current_database(), current_user, now();
+SELECT repository_id, count(*) FROM artifact GROUP BY repository_id LIMIT 20;
+```
+
+Grafana も ESC `postgresql.password` を ESO で受け取り、PGO の公開 CA で `verify-full` 接続する。
+資格情報 Job が公開 CA を Harbor と observability に配布し、変更時は reloader が Grafana を再起動する。
+Grafana の接続上限は 5、idle は 1。Harbor の rolling update 時 40 と合わせて 45 接続を見込む。
+共用 app の上限 50 に収まるよう、他アプリ追加時には全体の接続予算を再調整する。
+
+他 DB を追加する場合は、その DB 名を指定したデータソースを Git に追加し、Explore で選択する。
+同じ `app` と ESC キーを使い、DB の所有権・接続権限も設定する。
+ダッシュボードは GitOps 管理のため、定型 SQL の変更は
+`manifests/platform/observability/config/postgresql-dashboard.json` に反映する。
+SQL 編集の使い方は [Grafana PostgreSQL query editor](https://grafana.com/docs/grafana/latest/datasources/postgres/query-editor/) を参照。

@@ -29,6 +29,9 @@ kind: Deployment
 metadata:
   name: grafana
   namespace: observability
+  annotations:
+    secret.reloader.stakater.com/reload: grafana-postgresql
+    configmap.reloader.stakater.com/reload: shared-postgresql-ca
 spec:
   replicas: 1
   strategy:
@@ -69,6 +72,11 @@ spec:
             cpu: 500m
             memory: 512Mi
         env:
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-postgresql
+              key: password
         - name: GF_SECURITY_ADMIN_USER
           valueFrom:
             secretKeyRef:
@@ -99,6 +107,9 @@ spec:
           periodSeconds: 10
           failureThreshold: 60
         volumeMounts:
+        - name: postgresql-ca
+          mountPath: /etc/postgresql-ca
+          readOnly: true
         - name: data
           mountPath: /var/lib/grafana
         - name: config
@@ -117,6 +128,9 @@ spec:
         - name: tmp
           mountPath: /tmp
       volumes:
+      - name: postgresql-ca
+        configMap:
+          name: shared-postgresql-ca
       - name: data
         persistentVolumeClaim:
           claimName: grafana-data

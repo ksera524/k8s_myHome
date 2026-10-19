@@ -44,6 +44,7 @@ configMapGenerator:
       - home-lab.json=config/home-lab-dashboard.json
       - workloads.json=config/workloads-dashboard.json
       - storage.json=config/storage-dashboard.json
+      - postgresql.json=config/postgresql-dashboard.json
   - name: loki-config
     namespace: observability
     files:

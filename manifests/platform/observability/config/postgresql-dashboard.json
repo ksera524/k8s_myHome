@@ -1,0 +1,214 @@
+{
+  "uid": "home-lab-postgresql",
+  "title": "04 PostgreSQL / SQL",
+  "description": "共用ユーザー app で registry に接続。SQL の編集・実行は上部の Explore リンクから。",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "timezone": "browser",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "home-lab",
+    "postgresql"
+  ],
+  "links": [
+    {
+      "title": "SQL を実行する（Explore）",
+      "type": "link",
+      "url": "/explore?schemaVersion=1&panes=%7B%22sql%22%3A%7B%22datasource%22%3A%22postgresql-registry%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22grafana-postgresql-datasource%22%2C%22uid%22%3A%22postgresql-registry%22%7D%2C%22editorMode%22%3A%22code%22%2C%22format%22%3A%22table%22%2C%22rawQuery%22%3Atrue%2C%22rawSql%22%3A%22SELECT%20now%28%29%20AS%20observed_at%2C%20current_database%28%29%20AS%20database%2C%20current_user%20AS%20username%3B%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D"
+    },
+    {
+      "title": "01 全体概要",
+      "type": "link",
+      "url": "/d/home-lab-overview"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "SQL の実行",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "[SQL を実行する（Explore）](/explore?schemaVersion=1&panes=%7B%22sql%22%3A%7B%22datasource%22%3A%22postgresql-registry%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22grafana-postgresql-datasource%22%2C%22uid%22%3A%22postgresql-registry%22%7D%2C%22editorMode%22%3A%22code%22%2C%22format%22%3A%22table%22%2C%22rawQuery%22%3Atrue%2C%22rawSql%22%3A%22SELECT%20now%28%29%20AS%20observed_at%2C%20current_database%28%29%20AS%20database%2C%20current_user%20AS%20username%3B%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D) → **Code** で SQL を編集 → **Run query**。結果は Table で表示します。\n\n接続先：`registry` / ユーザー：`app`。共用ユーザーの権限で実行します。ほかの DB は接続用データソースを追加して選択します。"
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "接続・TLS",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgresql-registry"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgresql-registry"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT current_database() AS database, current_user AS username, version() AS version, ssl, s.version AS tls_version FROM pg_stat_ssl s WHERE pid = pg_backend_pid();"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "DB 容量・接続数",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgresql-registry"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgresql-registry"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT datname AS database, pg_database_size(datname) AS size_bytes, numbackends AS connections, xact_commit, xact_rollback, deadlocks FROM pg_stat_database WHERE datname = current_database();"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "テーブル容量・推定行数",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgresql-registry"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgresql-registry"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT schemaname, relname AS table_name, n_live_tup AS estimated_rows, pg_total_relation_size(relid) AS total_bytes, n_dead_tup AS dead_rows, last_autovacuum FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 100;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "接続・実行中 SQL",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgresql-registry"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgresql-registry"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT pid, usename, application_name, client_addr::text, state, wait_event_type, wait_event, EXTRACT(EPOCH FROM (now() - query_start)) AS query_age_seconds, left(query, 500) AS query FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY query_start NULLS LAST LIMIT 50;"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

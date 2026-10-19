@@ -19,3 +19,23 @@ datasources:
     editable: false
     jsonData:
       maxLines: 1000
+  - name: PostgreSQL / registry
+    uid: postgresql-registry
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: shared-postgresql-primary.database.svc:5432
+    user: app
+    editable: false
+    jsonData:
+      database: registry
+      sslmode: verify-full
+      tlsConfigurationMethod: file-path
+      sslRootCertFile: /etc/postgresql-ca/ca.crt
+      postgresVersion: 1800
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 1
+      maxIdleConnsAuto: false
+      connMaxLifetime: 300
+    secureJsonData:
+      password: $POSTGRESQL_PASSWORD

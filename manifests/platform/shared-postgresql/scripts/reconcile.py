@@ -1,4 +1,4 @@
-"""ESC の入力資格情報を PGO に反映し、公開 CA だけを Harbor に配布する。"""
+"""ESC の入力資格情報を PGO に反映し、公開 CA だけを Harbor / Grafana に配布する。"""
 import base64
 import json
 import os
@@ -43,16 +43,17 @@ def main():
     cert = request(f'/api/v1/namespaces/database/secrets/{CLUSTER}-cluster-cert')
     ca = base64.b64decode(cert['data']['ca.crt']).decode()
     # 公開 CA のみを配布。秘密鍵や管理用資格情報をコピーしない。
-    cm_path = '/api/v1/namespaces/harbor/configmaps/shared-postgresql-ca'
-    try:
-        current = request(cm_path)
-    except urllib.error.HTTPError as exc:
-        if exc.code != 404:
-            raise
-        request('/api/v1/namespaces/harbor/configmaps', 'POST', {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'shared-postgresql-ca', 'namespace': 'harbor', 'labels': {'app.kubernetes.io/managed-by': 'postgresql-credentials'}}, 'data': {'ca.crt': ca}})
-    else:
-        if current.get('data', {}).get('ca.crt') != ca:
-            request(cm_path, 'PATCH', {'metadata': {'resourceVersion': current['metadata']['resourceVersion']}, 'data': {'ca.crt': ca}})
+    for namespace in ('harbor', 'observability'):
+        cm_path = f'/api/v1/namespaces/{namespace}/configmaps/shared-postgresql-ca'
+        try:
+            current = request(cm_path)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            request(f'/api/v1/namespaces/{namespace}/configmaps', 'POST', {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'shared-postgresql-ca', 'namespace': namespace, 'labels': {'app.kubernetes.io/managed-by': 'postgresql-credentials'}}, 'data': {'ca.crt': ca}})
+        else:
+            if current.get('data', {}).get('ca.crt') != ca:
+                request(cm_path, 'PATCH', {'metadata': {'resourceVersion': current['metadata']['resourceVersion']}, 'data': {'ca.crt': ca}})
     with tempfile.NamedTemporaryFile(mode='w') as root:
         root.write(ca)
         root.flush()

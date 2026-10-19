@@ -4,6 +4,7 @@ resources:
   - postgrescluster.yaml
   - credentials.yaml
   - harbor-trust.yaml
+  - grafana-trust.yaml
 configMapGenerator:
   - name: postgresql-credentials-scripts
     namespace: database
