@@ -40,8 +40,8 @@ database:
     coreDatabase: registry
     existingSecret: harbor-database-secret
     sslmode: verify-full
-  maxOpenConns: 20
-  maxIdleConns: 5
+  maxOpenConns: 10
+  maxIdleConns: 3
 
 redis:
   type: internal
