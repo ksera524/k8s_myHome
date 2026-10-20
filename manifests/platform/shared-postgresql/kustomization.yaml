@@ -10,3 +10,4 @@ configMapGenerator:
     namespace: database
     files:
       - scripts/reconcile.py
+      - scripts/bootstrap.sql

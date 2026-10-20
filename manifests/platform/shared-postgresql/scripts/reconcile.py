@@ -59,7 +59,7 @@ def main():
         root.flush()
         env = {**os.environ, 'PGHOST': HOST, 'PGUSER': 'postgres', 'PGDATABASE': 'postgres', 'PGPASSWORD': admin, 'PGSSLMODE': 'verify-full', 'PGSSLROOTCERT': root.name, 'PGCONNECT_TIMEOUT': '10'}
         # PGO の password 反映前なら失敗し、Job の再試行に委ねる。
-        subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'ALTER DATABASE registry OWNER TO app; REVOKE CONNECT, TEMPORARY ON DATABASE registry FROM PUBLIC; GRANT CONNECT ON DATABASE registry TO app; REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;'], env=env, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', Path(__file__).with_name('bootstrap.sql').read_text()], env=env, check=True, stdout=subprocess.DEVNULL)
         env.update(PGUSER='app', PGDATABASE='registry', PGPASSWORD=password)
         subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'SELECT 1'], env=env, check=True, stdout=subprocess.DEVNULL)
     print('Credentials and TLS verified; migration gate is not modified')

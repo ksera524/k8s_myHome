@@ -147,3 +147,8 @@ Grafana の接続上限は 5、idle は 1。Harbor の rolling update 時 40 と
 ダッシュボードは GitOps 管理のため、定型 SQL の変更は
 `manifests/platform/observability/config/postgresql-dashboard.json` に反映する。
 SQL 編集の使い方は [Grafana PostgreSQL query editor](https://grafana.com/docs/grafana/latest/datasources/postgres/query-editor/) を参照。
+
+## バージョン更新
+
+PGO chart を起点にした一括更新と、整合性・更新・バックアップ・復元の CI は
+[PostgreSQL の更新と CI](postgresql-updates.md) を参照。
