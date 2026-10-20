@@ -22,6 +22,83 @@ pgBackRest を管理する。Namespace は `database`、クラスタ名は `shar
 - 2026-10-19 に旧 `harbor` ロールから `app` へ所有権と復元マーカーの参照権限を移し、旧ロールを削除した。
   `postgresql.harbor_password` は廃止済み。パスワード値そのものは引き継いでいる。
 
+## ローカル PC から psql で接続する
+
+この PC では Nix のユーザープロファイルに psql 18.6 をインストールし、
+`registry` / `app` への TLS 1.3 接続と既存データの読み取りを確認済み。
+クラスタへ接続できる `kubectl` と、Pulumi ESC の `postgresql.password` を使用する。
+
+### 初回設定
+
+Nix が導入されている PC では次でクライアントをインストールする。
+
+```sh
+nix profile install 'nixpkgs#postgresql_18'
+psql --version
+```
+
+公開 CA を保存する。CA が更新された場合も、この取得操作を再実行する。
+
+```sh
+mkdir -p "$HOME/.postgresql"
+chmod 700 "$HOME/.postgresql"
+kubectl -n harbor get configmap shared-postgresql-ca \
+  -o jsonpath='{.data.ca\.crt}' > "$HOME/.postgresql/shared-postgresql-ca.crt"
+chmod 600 "$HOME/.postgresql/shared-postgresql-ca.crt"
+```
+
+次を `~/.pg_service.conf` に初回のみ追記する。この PC では設定済み。
+既存の `[shared-postgresql]` がある場合は、その設定を使うか同じセクションを編集し、重複追加しない。
+パスワードは設定ファイルに保存せず、接続時に入力する。
+
+```sh
+cat >> "$HOME/.pg_service.conf" <<EOF
+
+[shared-postgresql]
+host=shared-postgresql-primary.database.svc
+hostaddr=127.0.0.1
+port=15432
+dbname=registry
+user=app
+sslmode=verify-full
+sslrootcert=$HOME/.postgresql/shared-postgresql-ca.crt
+connect_timeout=10
+EOF
+chmod 600 "$HOME/.pg_service.conf"
+```
+
+`hostaddr` はポート転送先、`host` は証明書の検証に使う Service DNS 名。
+`host=localhost` への変更や証明書検証の無効化は不要。
+
+### 接続するたびに行う操作
+
+ターミナル1で現在の primary Pod を選び、ローカルの 15432 番ポートへ転送する。
+primary Service は selector を持たないため、`port-forward svc/...` ではなく Pod を指定する。
+
+```sh
+postgresql_primary_pod="$(kubectl -n database get pods \
+  -l 'postgres-operator.crunchydata.com/cluster=shared-postgresql,postgres-operator.crunchydata.com/role=master' \
+  -o jsonpath='{.items[0].metadata.name}')"
+kubectl -n database port-forward "pod/$postgresql_primary_pod" 15432:5432 --address 127.0.0.1
+```
+
+転送を動かしたまま、ターミナル2で接続する。パスワードには Pulumi ESC の
+`postgresql.password` を入力する。
+
+```sh
+psql service=shared-postgresql -W
+```
+
+接続後の確認例:
+
+```sql
+SELECT current_database(), current_user;
+SELECT ssl, version FROM pg_stat_ssl WHERE pid = pg_backend_pid();
+```
+
+終了は psql で `\q`、ポート転送のターミナルで `Ctrl-C`。
+Pod の再起動や primary の変更で転送が切れた場合は、primary の選択からやり直す。
+
 ## バックアップ
 
 データ PVC は 10Gi、pgBackRest repo1 は 20Gi を要求し、`nfs-postgresql` の `Retain` を使う。
