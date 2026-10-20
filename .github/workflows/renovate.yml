@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          persist-credentials: true
       - name: Run Renovate
         env:
           RENOVATE_TOKEN: ${{ github.token }}
@@ -35,6 +35,13 @@ jobs:
             -e RENOVATE_CONFIG_FILE=/config/runner.json \
             -v "$PWD/.github/renovate-runner.json:/config/runner.json:ro" \
             ghcr.io/renovatebot/renovate:44.166.0
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Sync PostgreSQL images and vendored chart in Renovate PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: nix develop --command python3 automation/scripts/ci/sync-renovate-postgresql.py
       - name: Dispatch validation for Renovate PRs
         # GITHUB_TOKEN で作った PR のイベントは CI を起動しない。
         if: always()

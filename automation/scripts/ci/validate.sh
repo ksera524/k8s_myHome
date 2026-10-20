@@ -78,6 +78,9 @@ python3 "$ROOT_DIR/automation/scripts/ci/gitops-check.py"
 log_section "Policy checks"
 "$ROOT_DIR/automation/scripts/ci/policy-check.sh"
 
+log_section "PostgreSQL version consistency"
+python3 "$ROOT_DIR/automation/scripts/ci/postgresql-versions.py"
+
 log_section "Kubeconform"
 require_command kubeconform
 
@@ -90,7 +93,8 @@ import sys
 import yaml
 
 root, output = map(Path, sys.argv[1:])
-crd = yaml.safe_load((root / "manifests/platform/pgo/charts/pgo-6.0.3/pgo/crds/postgres-operator.crunchydata.com_postgresclusters.yaml").read_text())
+version = yaml.safe_load((root / "manifests/platform/pgo/kustomization.yaml").read_text())["helmCharts"][0]["version"]
+crd = yaml.safe_load((root / f"manifests/platform/pgo/charts/pgo-{version}/pgo/crds/postgres-operator.crunchydata.com_postgresclusters.yaml").read_text())
 for version in crd["spec"]["versions"]:
     schema = version["schema"]["openAPIV3Schema"]
     (output / f"postgrescluster_{version['name']}.json").write_text(json.dumps(schema))

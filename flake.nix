@@ -22,6 +22,7 @@
           gawk
           jq
           kubeconform
+          kind
           kustomize
           kubectl
           kubernetes-helm
