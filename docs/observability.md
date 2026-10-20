@@ -49,7 +49,9 @@ Secret の削除・再生成を既存ユーザーのパスワードリセット�
 
 [VictoriaMetrics](../manifests/platform/observability/victoria-metrics.yaml) は kube-state-metrics、
 kubelet volume stats、kubelet `/metrics/resource`、annotation 付き Pod の metrics を収集します。
-kubelet は API server proxy と ServiceAccount / CA を使います。
+kubelet は各ノードの InternalIP:10250 に直接接続し、ServiceAccount とクラスタ CA で認証・検証します。
+権限は `nodes/metrics` の `get` と探索用の Node / Pod 読み取りだけで、`nodes/proxy` は付与しません。
+初回導入・既存クラスタの切り替えには [kubelet 証明書の準備と検証](kubelet-metrics.md) が必要です。
 CPU / memory の metrics と `kubectl top` が使う Metrics API は別で、この構成に metrics-server は含まれていません。
 
 [Alloy](../manifests/platform/observability/config/config.alloy) は Pod ログに
