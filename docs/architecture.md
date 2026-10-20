@@ -1,52 +1,55 @@
-# Architecture
+# 全体構成
 
-この文書は current main のクラスタ全体像をまとめます。
+Ubuntu ホスト上の libvirt VM に kubeadm クラスタを構築し、ArgoCD が基盤とアプリを管理します。
+VM・OS 準備はローカルスクリプトと Terraform、Kubernetes リソースの継続管理は GitOps が担当します。
 
-## 構成
+```mermaid
+flowchart TD
+  Host[Ubuntu / KVM / libvirt] --> TF[Terraform / cloud-init / kubeadm]
+  TF --> K8s[control-plane 1台 + worker 2台 / Flannel]
+  K8s --> Boot[bootstrap: ArgoCD / ESC token / root Application]
+  Boot --> Argo[ArgoCD child Applications]
+  Argo --> Infra[Storage / MetalLB / Gateway API / cert-manager]
+  Argo --> Platform[ESO / ARC / Harbor / RustFS / PostgreSQL / 監視]
+  Argo --> Access[Gateway / HTTPRoute / DNS / Cloudflared]
+  Argo --> Apps[ユーザーアプリ]
+```
 
-ホームラボ向けの 3 node Kubernetes クラスタです。
+## ノード・ネットワーク
 
-| Node | Role | 既定 IP |
-|---|---|---|
-| `k8s-control-plane` | control plane | `192.168.122.10` |
-| `k8s-worker1` | worker | `192.168.122.11` |
-| `k8s-worker2` | worker | `192.168.122.12` |
+[Terraform 変数](../automation/infrastructure/variables.tf) と
+[cluster contract](../manifests/contracts/home-lab/cluster-contract.yaml) の宣言値です。
 
-主な基盤コンポーネントは次です。
-
-| 領域 | コンポーネント |
+| 対象 | 宣言 |
 |---|---|
-| GitOps | ArgoCD App-of-Apps |
-| Network | Flannel, MetalLB, NGINX Gateway Fabric, Gateway API |
-| TLS | cert-manager, Cloudflare DNS-01 |
-| Secrets | External Secrets Operator, Pulumi ESC |
-| Registry | Harbor |
-| Storage | local-path, local storage classes, RustFS |
-| CI/CD | Actions Runner Controller |
-| Observability | VictoriaMetrics, kube-state-metrics |
+| control-plane | `k8s-control-plane` / `192.168.122.10` |
+| workers | `k8s-worker1` / `.11`、`k8s-worker2` / `.12`（同じ `192.168.122.0/24`） |
+| VM 既定リソース | 各 4 vCPU / 6144 MiB、CPU mode は `host-model` |
+| Pod / Service CIDR | `10.244.0.0/16` / `10.96.0.0/12` |
+| MetalLB | `192.168.122.100-192.168.122.150`、L2 |
+| Gateway / Split DNS | `192.168.122.100` / `192.168.122.101` |
+| NFS | `192.168.122.1:/mnt/k8s-storage/nfs-share` |
 
-## Owner 分離
+Flannel は [Terraform](../automation/infrastructure/main.tf) が導入します。
+NetworkPolicy の実行は別の [kube-network-policies DaemonSet](../manifests/infrastructure/networking/kube-network-policies/manifest.yaml) が担当します。
+control-plane、NFS、単一 replica のサービスを含むため、構成全体が冗長化されているとは扱いません。
 
-`manifests/` は責務ごとに分割します。
+## 基盤と依存先
 
-| Path | 責務 |
+| 領域 | 実装と用途 |
 |---|---|
-| `bootstrap/` | root/child ArgoCD `Application` |
-| `core/` | Namespace / StorageClass / cluster-wide 基本設定 |
-| `infrastructure/` | networking / security / storage などクラスタ基盤 |
-| `platform/` | ArgoCD 設定、CI/CD、Secrets、Harbor、RustFS、observability |
-| `access/` | Gateway / HTTPRoute / DNS / Cloudflared |
-| `contracts/` | 非機密 environment / access contract |
-| `apps/` | ユーザーアプリ workload |
+| GitOps | ArgoCD 本体・設定の自己管理、AppProject、ApplicationSet |
+| 認証情報 | ESO → Pulumi ESC。初回の ESC token は bootstrap が投入 |
+| 公開 | NGINX Gateway Fabric + cert-manager。外部 Tunnel は Harbor、内部接続は Tailscale 経路 |
+| レジストリ・CI | Harbor、ARC。アプリの build workflow はアプリ側リポジトリに配置 |
+| データ | RustFS（S3）、PGO 管理の共通 PostgreSQL（Harbor DB と Grafana の SQL 接続先） |
+| 監視 | VictoriaMetrics / kube-state-metrics / vmalert / Alertmanager / Grafana / Loki / Alloy |
 
-## Runtime / Access 分離
+Grafana 自体の永続データは local-path PVC に保存します。PostgreSQL は Grafana の SQL データソースです。
+ストレージの保持方針は [配置規約](manifests.md)、通信経路は [アクセス経路](access.md)、
+適用定義は [Application 一覧](diagrams/app-of-apps-sync-wave.md) を参照してください。
 
-- `apps/` には Deployment / Service / CronJob など workload 本体だけを置きます。
-- `access/` には HTTPRoute / Gateway / Cloudflared / DNS publish など接続系を置きます。
-- 複数 workload が共有する非機密設定は `platform/shared-config/` に置きます。
+## リポジトリ外の設定
 
-## App-of-Apps
-
-root `Application` は `manifests/bootstrap/app-of-apps.yaml` です。
-
-適用順序と依存関係は [App-of-Apps / Sync Wave 図](diagrams/app-of-apps-sync-wave.md) を参照してください。
+Pulumi ESC の値、Cloudflare の DNS / Tunnel、Tailscale の route 承認・DNS・ACL、GitHub OAuth App・GitHub App の設定、
+NFS 上の既存データは Git の YAML だけでは復元できません。初回構築では [bootstrap](bootstrap.md) と [secrets](secrets.md) を併せて確認します。

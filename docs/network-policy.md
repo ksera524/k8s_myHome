@@ -1,73 +1,52 @@
 # NetworkPolicy の運用
 
-新規 API の入口・通信許可・検証の追加は [API 公開手順](access.md#新しく到達可能な-api-を追加する手順) を参照してください。
+[Flannel](../automation/infrastructure/main.tf) に加え、
+[kube-network-policies](../manifests/infrastructure/networking/kube-network-policies/manifest.yaml) が Linux ノード上でポリシーを実行します。
+宣言済みの controller は全 Linux ノードが対象で、初回カナリア導入途中の構成ではありません。
 
-Flannel の Pod ネットワークは維持し、`kube-network-policies` v1.1.2 を独立した
-DaemonSet として ArgoCD が管理する。Application は wave 3、ポリシーの owner は
-wave 2 の `core`。初回はポリシーだけを先に同期してからコントローラを追加する。
-既存クラスタでは wave だけに依存せず、`core` の同期完了を確認する。
+## ポリシーの所有者
 
-## RustFS の許可通信
+| 正本 | 選択する対象と許可 |
+|---|---|
+| [core/networkpolicies.yaml](../manifests/core/networkpolicies.yaml) | cloudflared の受信制限とノード CIDR からの probe、Gateway → RustFS:9001、sandbox の `app=api-hub` → RustFS:9000 |
+| [RustFS lifecycle](../manifests/platform/rustfs/lifecycle-networkpolicy.yaml) | 同 namespace の lifecycle Job → RustFS:9000 |
+| [PostgreSQL](../manifests/platform/shared-postgresql/credentials.yaml) | database 内 Pod、harbor の `app=harbor`、observability の Grafana → DB（namespace 外は TCP 5432） |
+| [Loki](../manifests/platform/observability/logging-networkpolicy.yaml) | Grafana / Alloy → Loki:3100 |
 
-| 接続元 | 接続先 | ポート |
-|---|---|---|
-| sandbox の app=api-hub | RustFS S3 API | TCP 9000 |
-| nginx-gateway の nginx-gateway-nginx / gateway-name=nginx-gateway | RustFS console | TCP 9001 |
+全 namespace 一律の default-deny / egress 制限は宣言されていません。
+RustFS は api-hub と lifecycle Job の両方に S3 の許可があり、「api-hub 以外は一切接続できない」という説明は不正確です。
 
-RustFS console への許可経路は NGINX Gateway:443 → RustFS:9001。
-console は `https://rustfs.internal.qroksera.com` を Tailscale Split DNS で解決し、
-Tailscale サブネットルータ経由で Gateway に接続する。Cloudflared からは公開しない。
-Namespace と Pod の selector は同一 peer 内で AND 指定する。
-RustFS Namespace 内全体への許可や、未使用の home-camera-recorder の例外は設けない。
-共有 Gateway の入口制限と egress 制限は今回追加しない。
-このポリシーだけでは Gateway を経由したアクセスが Cloudflare 経由かは判別できない。
-api-hub の presigned URL でクライアントが直接 S3 に接続する用途は許可しない。
+## controller の設定と限界
 
-## コントローラの前提と制約
+- `--disable-nri=true`：Pod 情報は API informer から取得します。
+- `--strict-mode=true`：既存接続への影響も含めて更新時に確認します。
+- `--fail-open=true`：controller / queue 障害時の可用性を優先します。常時遮断を保証する境界ではありません。
+- nftables / NFQUEUE とホストネットワークを使います。readiness の成功は通信遮断の実測を代替しません。
 
-- Linux の nftables / NFQUEUE と bridge-nf-call-iptables=1 を使用する。
-- 現行ノードは NRI socket を提供していないため `--disable-nri=true`。
-  Pod 情報は API informer から取得し、Pod 作成直後の情報伝播の競合は NRI で解消していない。
-- `--strict-mode=true` でポリシー変更を既存接続にも反映する。
-  初回有効化時は既存の Cloudflared QUIC 接続が再接続する場合がある。
-  片方の tunnel Pod の接続が復旧してから、もう一方のノードへ展開する。
-- `--fail-open=true` は可用性優先。コントローラ停止・キュー障害時は通信を通すため、
-  常時 fail-closed な境界ではない。DaemonSet と metrics の監視を併用する。
-- metrics の readiness は HTTP プロセスの確認であり、遮断の動作保証ではない。
-  導入・更新時は許可通信と拒否通信の両方を実測する。
+実際の引数・権限・マウントは上記 DaemonSet が正本です。controller の利用不能と metrics 欠落は
+[alert-rules.yaml](../manifests/platform/observability/config/alert-rules.yaml) に監視があります。
 
-## 導入・検証
+## 許可を追加するとき
 
-1. `core` を同期し、RustFS の既存の広い許可が残っていないことを確認する。
-2. 初回は RustFS が稼働する worker2 に nodeSelector で限定して導入する。
-3. api-hub 経由で専用の一時バケットに upload / download し、一致確認後に削除する。
-4. Cloudflare 経由の Harbor と、プライベート経路で Gateway に接続した console の応答を確認する。
-   Cloudflare Tunnel 経由の console・ArgoCD・Blog は 404 になることを確認する。
-5. 無関係な Pod から Service IP / Pod IP の 9000 / 9001 が拒否されることを確認する。
-6. hostname の nodeSelector を除去し、全ノードで稼働・監視・疎通を確認する。
+[アクセス追加](access.md#新しく到達可能な-api-を追加する手順) と合わせて、宛先 namespace / Pod selector、
+接続元 namespace / Pod selector、Pod の待受 port を指定します。
+同じ peer に namespaceSelector と podSelector を書くと両方を満たす対象、別の peer に書くとどちらかを満たす対象です。
 
-## 切り戻し
+既存の許可は合算されるため、狭いポリシーを足しても別の広い許可は取り消せません。
+Gateway 経由の backend から見た接続元は NGINX Pod です。NetworkPolicy で HTTP パスや利用者の認可を表現しません。
 
-通常は問題のポリシー変更を Git revert / push し、ArgoCD の同期を確認する。
-通信障害で GitOps の同期自体ができない場合は、緊急措置として
-`rustfs` に一時的な ingress 全許可 NetworkPolicy を作成して復旧し、
-Git 修正と同期完了後にその一時ポリシーを削除する。他 Namespace の障害は対象ごとに扱う。
+## 検証と切り戻し
 
-コントローラ全体を停止する場合は Git 上の DaemonSet の nodeSelector に
-存在しないラベル条件を追加して同期する。緊急時の手動変更では先に当該 Application の
-自動同期・selfHeal を一時停止し、Git に同じ状態を反映してから自動同期を戻す。
-fail-open のためプロセス終了後の NFQUEUE は bypass するが、nftables の
-`inet kube-network-policies` table は残る。完全撤去時だけ各ノードでその table を確認・削除する。
-他の nftables / iptables ruleset は flush しない。
+```bash
+kubectl -n kube-system get ds kube-network-policies
+kubectl get networkpolicy -A
+kubectl -n kube-system logs daemonset/kube-network-policies --tail=100
+```
 
-## 2026-10-13 導入時の検証
+許可された実アプリ経由の操作、無関係な Pod からの Service IP / Pod IP への接続拒否を複数ノードで確認します。
+port-forward やノード発の通信だけでは Pod 間の拒否試験になりません。HTTP 403 はアプリへの到達を意味します。
+検証 Pod に本番 Service と同じラベルを付けて、誤って Service の配信対象にしないでください。
 
-- worker2 の先行導入後、全 3 ノードへ展開し DaemonSet 3/3 Ready を確認。
-- api-hub 経由の一時バケット作成・upload・download・内容一致・object/bucket 削除に成功。
-- 全ノード上の無関係な Pod、および別 Namespace の app=api-hub Pod から、
-  Service IP / Pod IP の両方の 9000 / 9001 に対する計 16 接続が timeout で拒否された。
-- 実際の NGINX Pod から 9001 は到達、9000 は timeout で拒否された。
-- ArgoCD / Harbor の外部 URL は HTTP 200。Cloudflared は各 Pod とも 4 接続を確認。
-- console URL は変更前から HTTP 403 / AccessDenied。変更後も Gateway 直結・
-  Cloudflare 経由とも同じ応答で、到達性は維持。認証後の画面操作は未検証。
-- CI 相当の `automation/scripts/ci/validate.sh` と API server の dry-run を実施。
+通常の切り戻しはポリシー変更の Git revert と同期です。
+GitOps 自体が通信障害で止まった場合は、影響する namespace と port に限定した暫定許可を検討し、
+Git 修正の反映後に撤去します。controller 全停止は全ポリシーへ影響するため、局所修正と分けて判断します。

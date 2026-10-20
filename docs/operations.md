@@ -1,129 +1,70 @@
-# Operations
+# 日常運用
 
-この文書は日常運用と保守の確認手順です。
-
-## 基本確認
+既存 kubeconfig で対象クラスタを確認してから読み取りを始めます。
 
 ```bash
-make phase5
+kubectl config current-context
 kubectl get nodes -o wide
-kubectl get applications -n argocd
+kubectl -n argocd get applications
 kubectl get pods -A
+kubectl get events -A --sort-by='.lastTimestamp'
 ```
 
-`make phase5` は Node Ready、異常 Pod、ArgoCD Application、ExternalSecret、Gateway/LoadBalancer の基本状態を確認します。
+期待する状態は Node Ready、Application Synced / Healthy、必要な workload の Ready です。
+Job の Completed は正常終了として扱い、Pod の Running 表示だけで readiness を判断しません。
+`make phase5` は kubeconfig の上書きと Application refresh を含むため、動作は [bootstrap](bootstrap.md) を確認してください。
 
-## 静的検証
+## 定期的に確認する項目
 
-```bash
-automation/scripts/ci/validate.sh
-```
-
-個別確認です。
-
-```bash
-shellcheck -S error -x automation/scripts/<file>.sh
-yamllint -f parsable -c .yamllint.yml manifests/<dir-or-file>
-kustomize build manifests/<kustomize-dir>
-kustomize build manifests/<kustomize-dir> | kubeconform -strict -ignore-missing-schemas
-```
-
-## ArgoCD
-
-```bash
-kubectl get applications -n argocd
-kubectl describe application <app-name> -n argocd
-kubectl get application <app-name> -n argocd -o jsonpath='{.status.sync.status}'
-```
-
-## ExternalSecret
-
-```bash
-kubectl get clustersecretstore
-kubectl get externalsecrets -A
-kubectl describe externalsecret <name> -n <namespace>
-```
-
-## Gateway / Certificate
-
-```bash
-kubectl get gateway -A
-kubectl get httproute -A
-kubectl get certificate -A
-kubectl describe httproute <route-name> -n <namespace>
-```
-
-## PVC / Storage
-
-```bash
-kubectl get pv
-kubectl get pvc -A
-kubectl get storageclass
-```
-
-## Harbor
-
-DB は PGO の共通 PostgreSQL を利用します。バックアップ、資格情報、クラスタ再構築時の手順は
-[共通 PostgreSQL の運用](shared-postgresql.md) を参照してください。
-
-```bash
-kubectl get pods -n harbor
-kubectl logs -n harbor deployment/harbor-core --since=10m
-```
-
-内部 UI は次です。
-
-```text
-https://harbor.internal.qroksera.com
-```
-
-## GitHub Actions Runner
-
-```bash
-kubectl get autoscalingrunnersets -n arc-systems
-kubectl get pods -n arc-systems
-kubectl get secret github-multi-repo-secret -n arc-systems
-```
-
-Runner 定義は `manifests/platform/ci-cd/github-actions/runners-appset.yaml` を Git で更新します。
+| 項目 | 確認先 |
+|---|---|
+| アラート・ログ・容量 | [Grafana / VMUI と監視](observability.md) |
+| Secret 同期 | `kubectl get externalsecrets -A`、`kubectl get clustersecretstores` |
+| 公開・TLS | `kubectl get gateway,httproute -A`、`kubectl get certificate -A` |
+| データ領域 | `kubectl get pv`、`kubectl get pvc -A`、ホストの NFS / ディスク空き容量 |
+| DB バックアップ | [pgBackRest の成功・復元確認](shared-postgresql.md#バックアップ) |
+| Runner | `kubectl -n arc-systems get autoscalingrunnersets,pods` |
 
 ## CronJob / Job
 
 ```bash
-kubectl get cronjobs -A
-kubectl get jobs -A
-kubectl describe job <job-name> -n <namespace>
-kubectl logs -n <namespace> job/<job-name>
+kubectl get cronjobs,jobs -A
+kubectl -n <namespace> describe job <job-name>
+kubectl -n <namespace> get pods -l job-name=<job-name>
+kubectl -n <namespace> logs job/<job-name>
 ```
 
-Job Pod が削除済みの場合、ログは取得できません。調査が必要な CronJob は次回実行直後に Pod 名または `job-name` label でログを取得します。
+定期処理には PostgreSQL 資格情報反映、監視の週次通知、Harbor のイメージ削除、アプリのバッチがあります。
+RustFS lifecycle は CronJob ではなく PostSync Job です。
+手動再実行は通知・削除・書き込みを再度起こすため、対象の command と入力を確認してから行います。
+Pod 削除後の kubectl ログは取得できません。Alloy が収集済みなら保持期間内の Loki を調べます。
 
-```bash
-kubectl get pods -n <namespace> -l job-name=<job-name>
-kubectl logs -n <namespace> -l job-name=<job-name>
-```
-
-## Node メンテナンス
-
-```bash
-kubectl drain <node-name> --ignore-daemonsets
-kubectl uncordon <node-name>
-```
-
-node へ入る場合です。
-
-```bash
-ssh k8suser@192.168.122.10
-ssh k8suser@192.168.122.11
-ssh k8suser@192.168.122.12
-```
-
-## 復旧
-
-Ubuntu 再起動後に VM / cluster へ接続できない場合は次を使います。
+## ホスト再起動後
 
 ```bash
 make recover
 ```
 
-実体は `automation/scripts/recover-after-reboot.sh` です。
+[recover-after-reboot.sh](../automation/scripts/recover-after-reboot.sh) は、既定で `k8s-` から始まる VM を起動し、
+ローカル kubeconfig で API 応答・Node Ready を待ちます。kubeconfig の取得や VM の再作成は行いません。
+`virsh` / `kubectl` / SSH が利用できるユーザーで実行します。
+
+```bash
+RECOVER_MAX_WAIT_SECONDS=600 RECOVER_CHECK_INTERVAL_SECONDS=15 make recover
+```
+
+Node Ready の待機失敗を許容して後続へ進むため、完了メッセージだけで正常と判断せず、Application とデータサービスを確認します。
+再構築用の `make all` / `make phase2` は復旧の代替ではありません。
+
+## ノード保守
+
+バックアップと workload の配置、local-path PVC、emptyDir、PDB を確認し、1 台ずつ行います。
+
+```bash
+kubectl drain <node-name> --ignore-daemonsets
+# OS / runtime の保守とノード状態の確認
+kubectl uncordon <node-name>
+```
+
+drain が停止した場合は原因を確認します。データを破棄するオプションを機械的に追加しないでください。
+単一 replica やノード固定の volume では停止が発生します。更新入口は [ノード更新](upgrade.md) を参照してください。

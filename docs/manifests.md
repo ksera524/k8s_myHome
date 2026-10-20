@@ -1,61 +1,50 @@
-# Manifests
+# マニフェストの配置と所有
 
-この文書は current main の `manifests/` 配置規約です。
+[bootstrap/applications/kustomization.yaml](../manifests/bootstrap/applications/kustomization.yaml) から
+Application の `source` を辿ったものが通常の GitOps 管理対象です。
+ディレクトリの存在や上位の集約 Kustomization だけで、稼働時の所有者を判断しないでください。
 
-## トップレベル
-
-| Path | 責務 |
+| 配置 | 責務 |
 |---|---|
-| `bootstrap/` | ArgoCD root/child `Application` |
-| `core/` | Namespace / StorageClass / cluster-wide 基本設定 |
-| `infrastructure/` | networking / security / storage などクラスタ基盤 |
-| `platform/` | GitOps 運用基盤、CI/CD、Secrets、shared config、repo-local wrapper |
-| `access/` | Gateway / DNS / Cloudflared / HTTPRoute |
-| `contracts/` | 非機密 environment / access contract |
-| `apps/` | ユーザーアプリ workload-only manifest |
+| [bootstrap/](../manifests/bootstrap/) | root と child Application。core / infrastructure / platform / access / user-apps に分類 |
+| [core/](../manifests/core/) | Namespace、基本 NetworkPolicy、StorageClass |
+| [infrastructure/](../manifests/infrastructure/) | ネットワーク・証明書・ストレージコントローラなど |
+| [platform/](../manifests/platform/) | ArgoCD、ESO、ARC、Harbor、RustFS、PGO、共通 DB、共有設定、監視 |
+| [access/](../manifests/access/) | Gateway、HTTPRoute、DNS、Cloudflared |
+| [apps/](../manifests/apps/) | アプリの Deployment / Service / CronJob など |
+| [contracts/](../manifests/contracts/) | 非機密な環境値と公開経路の照合用定義 |
 
-## ArgoCD Application
+## 追加・変更時の規約
 
-- root `Application` は `bootstrap/app-of-apps.yaml` に 1 件だけ置きます。
-- child `Application` は `bootstrap/applications/` 配下に `1 Application / 1 file` で置きます。
-- child `Application` は `core`, `infrastructure`, `platform`, `access`, `user-apps` に分類します。
-- `core/` 以下に `Application` 定義を置きません。
+- アプリ実体と `bootstrap/applications/user-apps/<app>-app.yaml` をセットで追加し、親の Kustomization に登録します。
+- HTTPRoute など接続系は `access/` に分離し、新しい所有者なら access Application も登録します。
+- ローカル Git source は `targetRevision: HEAD`。外部 chart の revision は chart の固定版です。
+- cert-manager の Issuer / Certificate は [security/cert-manager](../manifests/infrastructure/security/cert-manager/) に集約します。
+  SecretStore / ExternalSecret は [platform/secrets/external-secrets](../manifests/platform/secrets/external-secrets/) に置きます。
+- `core/` に Application を追加しません。同一リソースを別 Application から重複管理しません。
+- Harbor / RustFS / PGO は repo-local Helm wrapper と同梱 chart を持ち、描画に `kustomize build --enable-helm` を使います。
+- `contracts/` は生成器ではありません。値の変更時は参照する YAML / スクリプトも更新し、整合性検証を実行します。
 
-## Runtime / Access
+`argocd-projects` と `argocd-core` は同じ source directory を使いますが、前者は `directory.include` で
+AppProject ファイルのみ、後者は Kustomize で本体・設定のみを描画します。
+`platform` Application の実際の source は `platform/ci-cd/github-actions` で、platform 全体の集約適用ではありません。
 
-- `apps/` は Deployment / Service / CronJob など workload 本体だけを持ちます。
-- `HTTPRoute` / `Gateway` / `Cloudflared` / DNS publish は `access/` に置きます。
-- remote chart を含む owner は `platform/<component>/` の repo-local wrapper を正本にします。
-- 複数 workload が共有する非機密設定は `platform/shared-config/` に置きます。
+## ストレージ
 
-## 共通 PostgreSQL
+| StorageClass | 宣言元 | 注意点 |
+|---|---|---|
+| `local-storage` | [core](../manifests/core/storage-classes/local-storage-class.yaml) | no-provisioner、WaitForFirstConsumer、Retain |
+| `local-ssd-storage` | [core](../manifests/core/storage-classes/local-ssd-storage-class.yaml) | no-provisioner、WaitForFirstConsumer。reclaimPolicy は明示なし |
+| `local-path` | [local-path](../manifests/infrastructure/storage/local-path/) | ノードローカル。Grafana / Loki / Alloy などで使用 |
+| `nfs-external` | [NFS Application](../manifests/bootstrap/applications/infrastructure/nfs-subdir-external-provisioner.yaml) | 動的作成、Delete、archiveOnDelete。共有 NFS を使用 |
+| `nfs-postgresql` | [core](../manifests/core/storage-classes/nfs-postgresql.yaml) | 同じ NFS provisioner、Retain、DB / pgBackRest 用 |
 
-- `platform/pgo/`: Operator / CRD。
-- `platform/shared-postgresql/`: PostgresCluster、NFS バックアップ、資格情報反映 Job。
-- `platform/secrets/external-secrets/postgresql/`: Pulumi ESC の入力とアプリ用 Secret。
-- [運用・復旧手順](shared-postgresql.md) を参照。
+要求容量は NFS ディレクトリごとの上限や予約を保証しません。Retain も別媒体へのバックアップではありません。
+[core/kustomization.yaml](../manifests/core/kustomization.yaml) には両 local StorageClass と `nfs-postgresql` が登録されています。
 
-## cert-manager
+[infrastructure/gitops/harbor/node-mutations](../manifests/infrastructure/gitops/harbor/node-mutations/) は
+ノードの hosts / containerd を変更する補助資産です。通常の Harbor source は `platform/harbor` であり、
+このディレクトリを標準同期へ追加しないでください。
 
-- Issuer / Certificate / SecretStore など cert-manager 系リソースは `infrastructure/security/cert-manager/` に集約します。
-- Gateway 配下は Gateway / HTTPRoute / TLSPolicy など routing 系だけを置きます。
-
-## ExternalSecret
-
-- ESO 本体と `ExternalSecret` 定義は `platform/secrets/external-secrets/` に集約します。
-- domain directory は `stores/`, `argocd/`, `harbor/`, `github-actions/`, `networking/`, `app-runtime/` です。
-- `platform/argocd-config/**` など pre-ESO path に top-level `ExternalSecret` を置きません。
-
-## Contracts
-
-- 非機密 cluster contract: `manifests/contracts/home-lab/cluster-contract.yaml`
-- 非機密 access contract: `manifests/contracts/home-lab/access-surfaces.yaml`
-- secret / local 設定: `automation/settings.toml` と Pulumi ESC など ESO 参照元
-
-hostname / listener / backend / publish を変更する場合は `access-surfaces.yaml` を先に更新します。domain / service IP / NFS / StorageClass を変更する場合は `cluster-contract.yaml` を先に更新します。
-
-## Kustomize
-
-- 同一リソースを複数経路で apply しません。
-- `manifests/**/kustomization.yaml` は同階層内の責務に閉じます。
-- root `Application` は `bootstrap/applications/` の top-level `kustomization.yaml` を参照します。
+配置検証の根拠は [gitops-check.py](../automation/scripts/ci/gitops-check.py)、
+[policy-check.py](../automation/scripts/ci/policy-check.py)、[contract-check.py](../automation/scripts/ci/contract-check.py) です。

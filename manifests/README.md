@@ -1,47 +1,19 @@
-# Kubernetes Manifests
+# Kubernetes マニフェスト
 
-このディレクトリには、k8s_myHomeプロジェクトのKubernetesマニフェストを整理しています。
+配置と所有の正本は [配置規約](../docs/manifests.md)、Application ごとの source は
+[App-of-Apps 一覧](../docs/diagrams/app-of-apps-sync-wave.md) を参照してください。
 
-## ディレクトリ構造
-
-```
-manifests/
-├── bootstrap/                    # ArgoCD App-of-Apps
-├── core/                         # 基本リソース（namespace, storage-class など）
-├── infrastructure/               # インフラ構成（networking, security など）
-├── platform/                     # プラットフォームサービス（ArgoCD, ESO, ARC）
-├── access/                       # 公開/接続系リソース
-├── contracts/                    # 非機密 environment / access contract
-└── apps/                         # ユーザーアプリケーション
-```
-
-## 使用方法
-
-GitOps が正です。通常は repo root から `make bootstrap` を実行し、ArgoCD App-of-Apps に管理を委譲します。
+初回は [bootstrap](../docs/bootstrap.md) で ArgoCD と root Application を導入します。
+通常の変更は Git に反映し、各 child Application が同期します。
+ディレクトリの存在だけで管理対象を判断せず、Application の source と Kustomization の登録を確認します。
 
 ```bash
-make bootstrap
-```
-
-root `Application` は `manifests/bootstrap/app-of-apps.yaml` です。bootstrap 後の core / infrastructure / platform / access / apps は child `Application` が同期します。
-
-### 個別確認
-
-個別コンポーネントは原則 apply せず、build や差分確認に留めます。
-
-```bash
+# リポジトリのルートで、適用せず描画を確認
 kustomize build manifests/core
-kustomize build manifests/access/gateway
+kustomize build --enable-helm manifests/platform/harbor
 ```
 
-緊急時に手動 `kubectl apply` した場合も、一時対応に留め、最終状態は必ず Git に反映してください。
-
-## 注意事項
-
-- GitOpsワークフローでは、このディレクトリのマニフェストがArgoCD経由で自動同期されます
-- `bootstrap/` には Root/Application 定義のみを置きます
-- 手動変更は一時対応に留め、対応する Git へのコミットを必ず行ってください
-- ExternalSecret 定義は `manifests/platform/secrets/external-secrets/` に集約しています
-- External Secrets は Pulumi ESC から動的に取得します
-
-詳細な配置規約は `docs/manifests.md` を参照してください。
+- [アプリ追加](../docs/app-delivery.md)
+- [公開経路](../docs/access.md)
+- [Secret 管理](../docs/secrets.md)
+- [検証](../docs/reference.md)

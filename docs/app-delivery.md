@@ -1,66 +1,66 @@
-# App Delivery
+# アプリの追加と配布
 
-この文書はユーザーアプリの追加、更新、公開変更のルールです。
+アプリ実体は [apps/](../manifests/apps/)、公開経路は [access/](../manifests/access/) に置きます。
+Application の namespace と source は [一覧](diagrams/app-of-apps-sync-wave.md) が参照先です。
+現在のユーザーアプリは api-hub、blog、cooklog、hitomi、hitomi-pdf、hitomi-upload-viewer、home-camera、rsshub、selenium。
+selenium は `tools`、それ以外は `sandbox` に配置します。
 
-## 基本形
+## 新規追加
 
-アプリは runtime と access を分けます。
+1. `manifests/apps/<app>/` に workload / Service と `kustomization.yaml` を作成します。
+2. `bootstrap/applications/user-apps/<app>-app.yaml` を作成し、同ディレクトリの Kustomization に登録します。
+   既存例の Project `apps`、Git revision `HEAD`、wave 12 を基準にします。
+3. 必要な Namespace / AppProject destination、共有設定、ExternalSecret、PVC を用意します。
+4. hostname を公開する場合は [access 手順](access.md#新しく到達可能な-api-を追加する手順) に沿って
+   contract / Route / 証明書 / DNS / access Application を追加します。
+5. [静的検証](reference.md) を実行し、Git 反映後に Application と実際のサービス操作を確認します。
 
-| 領域 | Path |
-|---|---|
-| workload | `manifests/apps/<app>/` |
-| access | `manifests/access/<app>/` |
-| runtime Application | `manifests/bootstrap/applications/user-apps/<app>-app.yaml` |
-| access Application | `manifests/bootstrap/applications/access/<app>-access.yaml` |
+イメージはベース YAML だけでなく、Kustomize の `images` で上書きされる場合があります。
+更新対象は `kustomize build manifests/apps/<app>` の最終出力で確認します。
 
-## 新規アプリ追加
+## 現行の sandbox 配布
 
-1. `manifests/apps/<app>/` に workload-only manifest を追加します。
-2. 外部公開または内部公開が必要なら `manifests/access/<app>/` を追加します。
-3. `manifests/bootstrap/applications/user-apps/` に runtime 側 `Application` を追加します。
-4. access owner が必要なら `manifests/bootstrap/applications/access/` に `Application` を追加します。
-5. `manifests/contracts/home-lab/access-surfaces.yaml` に surface を追加します。
-6. `automation/scripts/ci/validate.sh` を実行します。
-7. merge 後に `kubectl get applications -n argocd` で `Synced/Healthy` を確認します。
+[Runner 生成スクリプト](../automation/scripts/github-actions/add-runner.sh) は `STRATEGY=latest` のみを受け付けます。
+生成 workflow の経路は GitHub-hosted runner で build → artifact → ARC runner で Harbor へ push →
+sandbox の Deployment を `rollout restart` です。PR イベントでは build までです。
 
-## Image 更新
+これは固定 tag をインフラ PR で更新する方式と異なり、**同じ Git revision / `latest` でも稼働イメージが変わります**。
+ArgoCD の Synced は最新 digest の稼働を証明しません。新規 Pod の imageID とアプリの動作も確認します。
+アプリ側リポジトリの workflow の実際の配置・改変内容は、このリポジトリだけでは確認できません。
 
-- runtime 変更は `manifests/apps/<app>/` の image tag 更新 PR にします。
-- `1 app / 1 image update / 1 PR` を基本にします。
-- app repo workflow / release bot は image build / push と infra repo PR 作成までを担当します。
-- app delivery から `kubectl apply` / `kubectl patch` / `kubectl rollout restart` で cluster を直接変更しません。
+CI policy は `apps/`・namespace `sandbox`・`harbor.qroksera.com/sandbox/` の条件下で first-party の `latest` を許容します。
+固定版へ移行する場合は manifest とアプリ側 workflow を一緒に変更します。
 
-## Access 更新
+## Runner を追加する
 
-具体的な追加順序と通信制限の例は [新しく到達可能な API を追加する手順](access.md#新しく到達可能な-api-を追加する手順) を参照してください。
-
-- access 変更は `manifests/access/<app>/` と `manifests/contracts/home-lab/access-surfaces.yaml` の PR にします。
-- runtime PR と access PR は分けます。
-- HTTPRoute には `contracts.k8s-myhome.local/access-surface` annotation を付与します。
-
-## `latest` の扱い
-
-`sandbox` namespace の first-party workload に限り `harbor.qroksera.com/sandbox/*:latest` を条件付きで許容します。それ以外は immutable tag を基本にします。
-
-## 現行アプリ
-
-| Application | Namespace | Workload path |
-|---|---|---|
-| `api-hub` | `sandbox` | `manifests/apps/api-hub/` |
-| `blog` | `sandbox` | `manifests/apps/blog/` |
-| `cooklog` | `sandbox` | `manifests/apps/cooklog/` |
-| `hitomi` | `sandbox` | `manifests/apps/hitomi/` |
-| `hitomi-pdf` | `sandbox` | `manifests/apps/hitomi-pdf/` |
-| `hitomi-upload-viewer` | `sandbox` | `manifests/apps/hitomi-upload-viewer/` |
-| `home-camera` | `sandbox` | `manifests/apps/home-camera/` |
-| `selenium` | `tools` | `manifests/apps/selenium/` |
-
-## 確認コマンド
+設定の `[github].username` を用意し、PyYAML を含む toolchain で実行します。
 
 ```bash
-kubectl get applications -n argocd
-kubectl describe application <app-name> -n argocd
-kubectl get pods -n <namespace>
-kubectl get svc -n <namespace>
-kubectl get httproute -n <namespace>
+nix develop .#default
+make add-runner REPO=my-app MIN=0 MAX=1 STRATEGY=latest
+# settings.toml の arc_repositories から一括生成する場合
+make add-runners-all
+```
+
+変更先は [runners-appset.yaml](../manifests/platform/ci-cd/github-actions/runners-appset.yaml) です。
+**Make 経由の workflow 出力先は `automation/scripts/github-actions/.github/workflows/build-and-push-<repo>.yml`** です。
+Make がスクリプトのディレクトリへ移動し、スクリプトが相対パスで出力するためです。
+生成物は Git 非追跡なので、内容を確認してアプリリポジトリの `.github/workflows/` に配置します。
+
+生成後に確認する点:
+
+- Docker イメージ名は repo 名をそのまま使うため、大文字を含む repo では小文字への調整が必要です。
+- `KUBECONFIG` の export は生成 workflow の 1 step 内だけです。後続 step でも使うには `$GITHUB_ENV` 等への引き継ぎが必要です。
+- Deployment 名は repo の小文字化と `.` / `_` の置換から導出します。CronJob は再起動対象になりません。
+- Harbor の認証処理を確認し、アプリ側では `--password-stdin` で渡す形に整えます。
+
+Runner 定義の Git 反映と ArgoCD 同期後、アプリ側の workflow を実行します。
+[RBAC](../manifests/platform/ci-cd/github-actions/github-actions-rbac.yaml) は `harbor-auth` の読み取りと
+sandbox Deployment の get / list / watch / patch を許可しています。
+controller の手動 Helm 導入は不要です。
+
+```bash
+kubectl -n arc-systems get autoscalingrunnersets,pods
+kubectl -n argocd get applications
+kubectl -n sandbox get pods -o wide
 ```

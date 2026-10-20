@@ -1,38 +1,32 @@
-# k8s_myHome Docs
+# 運用ドキュメント
 
-このディレクトリは current main / live repo の実用手順を正とします。将来計画、構造改革の履歴、未実装の target-state は `tasks/` を参照してください。
+この文書群は **2026-10-20 にリポジトリの実装を確認して再構成した手順書**です。
+記載する構成は Git の宣言であり、稼働クラスタの実測結果ではありません。
+コマンドは特記がなければリポジトリのルートで実行します。`<name>` などは実際の名前に置き換えてください。
 
-## 読む順番
+## 目的から探す
 
-1. 初回構築は [bootstrap](bootstrap.md)
-2. 全体像は [architecture](architecture.md)
-3. GitOps 運用は [gitops](gitops.md)
-4. マニフェスト配置は [manifests](manifests.md)
-5. 日常運用は [operations](operations.md)
-6. 障害時は [troubleshooting](troubleshooting.md)
-
-## ドキュメント一覧
-
-| 文書 | 用途 |
+| 目的 | 文書 |
 |---|---|
-| [bootstrap](bootstrap.md) | 初期設定、`make all`、`make bootstrap`、`make phase5` |
-| [architecture](architecture.md) | クラスタ構成、主要コンポーネント、owner 分離 |
-| [gitops](gitops.md) | ArgoCD App-of-Apps、Application、Sync Wave |
-| [manifests](manifests.md) | `manifests/` 配置規約、runtime/access 分離 |
-| [app-delivery](app-delivery.md) | 新規アプリ追加、image tag 更新、access 追加 |
-| [access](access.md) | 新規 API の公開手順、Gateway、DNS、Cloudflared、通信許可と遮断試験 |
-| [network-policy](network-policy.md) | RustFS の通信制限、ポリシー実行基盤、監視と切り戻し |
-| [secrets](secrets.md) | External Secrets Operator、Pulumi ESC、Secret 配置 |
-| [observability](observability.md) | VictoriaMetrics、kube-state-metrics、CRD metrics |
-| [operations](operations.md) | 日常確認、保守、CronJob/Job 調査 |
-| [troubleshooting](troubleshooting.md) | 一次切り分け、復旧観点、ログ収集 |
-| [upgrade](upgrade.md) | Kubernetes / containerd upgrade、rollback |
-| [reference](reference.md) | 重要パス、検証コマンド、kubectl コマンド集 |
-| [App-of-Apps / Sync Wave 図](diagrams/app-of-apps-sync-wave.md) | ArgoCD 適用順序の図 |
+| 構成と管理境界を知る | [全体構成](architecture.md)、[配置規約](manifests.md) |
+| ホスト・クラスタを構築する | [初期構築](bootstrap.md) |
+| Git の変更を反映する | [GitOps](gitops.md)、[Application と Sync Wave](diagrams/app-of-apps-sync-wave.md) |
+| アプリ・Runner を追加する | [アプリ配布](app-delivery.md)、[RSSHub](rsshub.md) |
+| URL・DNS・通信許可を変更する | [アクセス経路](access.md)、[NetworkPolicy](network-policy.md) |
+| 認証情報を用意・更新する | [Secret 管理](secrets.md) |
+| 状態・ログ・アラートを調べる | [日常運用](operations.md)、[監視](observability.md)、[障害対応](troubleshooting.md) |
+| DB を利用・バックアップ・復旧する | [共通 PostgreSQL](shared-postgresql.md) |
+| バージョンを更新する | [ノード更新](upgrade.md)、[アプリ更新](application-auto-updates.md)、[PostgreSQL 更新](postgresql-updates.md) |
+| Reloader や補助基盤を確認する | [プラットフォーム拡張](platform-extensions.md) |
+| 検証コマンドを調べる | [検証・参照](reference.md) |
 
-## 運用原則
+## 正本と確認範囲
 
-- GitOps が正です。Kubernetes リソースの最終状態は `manifests/` に置きます。
-- `automation/` はローカル bootstrap / 運用スクリプト用です。
-- `docs/` は current-state のみを書きます。計画や履歴は `tasks/` に分離します。
-- `Makefile` と `automation/scripts/run.sh` が実行フローの正です。
+- 実行入口は [Makefile](../Makefile)、フェーズの順序は [run.sh](../automation/scripts/run.sh) です。
+- Kubernetes の宣言は [manifests/](../manifests/)。Application の参照先と Kustomize の登録を辿って管理対象を判断します。
+- ローカル設定は [settings.toml.example](../automation/settings.toml.example) を元に作成します。設定ファイルだけで全マニフェストが生成される構造ではありません。
+- 将来計画・意思決定は [tasks/](../tasks/)、過去の更新記録は [archive/](archive/README.md) に分けます。
+- CLI の終了成功、静的検証、実クラスタの正常性、バックアップの復元成功は別々に確認します。
+
+構成変更時は関連ページと根拠ファイルへのリンクを更新してください。Application の追加・削除・wave 変更では
+[一覧と図](diagrams/app-of-apps-sync-wave.md) も更新します。版番号の正本は manifest / chart / lock file とし、手順に不要な版番号は複製しません。

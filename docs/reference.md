@@ -1,101 +1,89 @@
-# Reference
+# 検証と参照
 
-## 重要パス
+## 静的検証の入口
 
-| Path | 用途 |
-|---|---|
-| `Makefile` | 実行入口 |
-| `automation/scripts/run.sh` | phase / bootstrap runner |
-| `automation/settings.toml` | local 設定 |
-| `automation/run.log` | 実行ログ |
-| `manifests/bootstrap/app-of-apps.yaml` | ArgoCD root `Application` |
-| `manifests/bootstrap/applications/` | child `Application` |
-| `manifests/apps/` | workload-only app manifest |
-| `manifests/access/` | Gateway / HTTPRoute / DNS / Cloudflared |
-| `manifests/contracts/home-lab/` | 非機密 contract |
-| `manifests/platform/secrets/external-secrets/` | ExternalSecret 正本 |
-
-## Make targets
+[flake.nix](../flake.nix) / flake.lock に toolchain を定義し、
+[validate.sh](../automation/scripts/ci/validate.sh) を CI とローカルで共有しています。
 
 ```bash
-make all
-make phase1
-make phase2
-make bootstrap
-make phase5
+# Docker 内の Nix で実行
 make validate
+# ローカル Nix
+nix develop .#default --command automation/scripts/ci/validate.sh
+# 必要な CLI が導入済みの場合
 make validate-local
-make recover
-make upgrade-safe
-make containerd-safe
 ```
 
-## CI 相当検証
+validate は actionlint、setup / version update / observability / CI / PostgreSQL の回帰テスト、
+shellcheck、yamllint、GitOps 参照・登録、policy、PostgreSQL 版整合、
+全 `manifests/**/kustomization.yaml` の `kustomize build --enable-helm` と kubeconform、consistency / contract を確認します。
+リモート配布物や schema の取得にネットワークを使います。
+
+kubeconform は PGO 同梱 CRD・標準 schema・CRD catalog を利用し、schema 不足はスキップします。
+外部 Helm Application の同期そのもの、admission、Secret の実値、URL 疎通、データ復元は保証しません。
+
+## CI の追加検証
+
+[Deploy Process Validation](../.github/workflows/ci-deploy-validate.yml) は validate 以外も実行します。
+`make validate` はこの workflow の全 job と同義ではありません。
+
+| job | 内容・範囲 |
+|---|---|
+| `setup-behavior` | 外部コマンドを stub に置換した順序・失敗時停止・SSH skip の回帰テスト |
+| `validate` | 上記 validate.sh |
+| `platform-configs` | manifest の固定 image を使った Loki / Alloy 設定検証、Renovate 設定検証 |
+| `postgresql-runtime` | 対象 path の変更時などに kind で更新・backup・restore。[詳細](postgresql-updates.md) |
+
+追加設定検証のローカル入口（Docker が必要）:
 
 ```bash
-automation/scripts/ci/validate.sh
+nix develop --command python3 automation/scripts/ci/validate-platform-configs.py
 ```
 
-`validate.sh` は CRD catalog schema を kubeconform に追加し、schema が取得できる ArgoCD / ExternalSecret / Gateway API / cert-manager / MetalLB なども検証対象にします。
+## 使い捨て VM の実構築テスト
+
+[Setup Integration](../.github/workflows/setup-integration.yml) は workflow_dispatch のみです。
+[setup-integration.sh](../automation/scripts/ci/setup-integration.sh) が GitHub-hosted runner 内に隔離した設定を作り、
+共通 Terraform / cloud-init から VM と Kubernetes を構築します。
+
+```bash
+gh workflow run setup-integration.yml --ref main
+```
+
+Node Ready、DNS・ノード間通信、Terraform 再適用の無差分、各 VM 再起動後の復旧を確認します。
+成否にかかわらず診断収集と destroy を試み、artifact は 7 日保持します。
+本番の NFS、phase1 のホスト準備、`clean-and-deploy.sh` の削除処理、ArgoCD 以降の収束は検証範囲外です。
+実行可能性は runner の KVM・メモリ・ディスクの preflight に依存します。
 
 ## 個別検証
 
+Nix shell 内で必要な箇所だけ確認する例です。
+
 ```bash
+git diff --check
 shellcheck -S error -x automation/scripts/<file>.sh
 yamllint -f parsable -c .yamllint.yml manifests/<dir-or-file>
-kustomize build manifests/<kustomize-dir>
+kustomize build --enable-helm manifests/<component>
+python3 automation/scripts/ci/gitops-check.py
+python3 automation/scripts/ci/contract-check.py
+python3 -m unittest discover -s automation/tests/setup -v
 ```
 
-## Cluster health
+GitOps check はローカル source の HEAD、参照先、単一ファイルの directory.include、アプリ所有者と
+bootstrap Kustomization の登録を確認します。policy check は重複所有、配置、許容する可変タグなどを検査します。
+これらは Markdown 内のリンクを検証する仕組みではないため、文書移動時には相対リンクも確認します。
 
-```bash
-kubectl get nodes -o wide
-kubectl get pods -A
-kubectl get applications -n argocd
-kubectl get events -A --sort-by='.lastTimestamp'
-```
+## 入口一覧
 
-## GitOps
-
-```bash
-kubectl get applications -n argocd
-kubectl describe application <app-name> -n argocd
-```
-
-## Secrets
-
-```bash
-kubectl get clustersecretstores
-kubectl get externalsecrets -A
-```
-
-## Access
-
-```bash
-kubectl get gateway -A
-kubectl get httproute -A
-kubectl get certificate -A
-```
-
-## Storage
-
-```bash
-kubectl get storageclass
-kubectl get pv
-kubectl get pvc -A
-```
-
-## Observability
-
-```bash
-kubectl get pods -n observability
-kubectl get application observability observability-access -n argocd
-```
-
-## SSH
-
-```bash
-ssh k8suser@192.168.122.10
-ssh k8suser@192.168.122.11
-ssh k8suser@192.168.122.12
-```
+| 目的 | コマンド・正本 |
+|---|---|
+| ヘルプ | `make help`、[Makefile](../Makefile) |
+| 構築 | `make phase1` → `phase2` → `bootstrap` → `phase5`。[削除範囲](bootstrap.md)を先に確認 |
+| ライブ確認 | `make phase5`。kubeconfig 更新あり、CI / VERIFY_SKIP_SSH 時は全体スキップ |
+| 再起動後 | `make recover`。[運用](operations.md) |
+| ノード更新 | `make upgrade-safe` / `make containerd-safe`。[更新](upgrade.md) |
+| Runner | `make add-runner` / `make add-runners-all`。[配布](app-delivery.md) |
+| 図 | `make diagrams` は cluster-diagram.png の生成スクリプト。下記の文書図とは別 |
+| root / child | [app-of-apps.yaml](../manifests/bootstrap/app-of-apps.yaml)、[一覧と図](diagrams/app-of-apps-sync-wave.md) |
+| ローカル設定 | [settings.toml.example](../automation/settings.toml.example) |
+| 運用状態 | [日常運用](operations.md)、[障害対応](troubleshooting.md) |

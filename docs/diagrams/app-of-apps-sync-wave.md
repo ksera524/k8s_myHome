@@ -1,169 +1,102 @@
-# App-of-Apps 依存関係と Sync Wave
+# Application と Sync Wave
 
-ArgoCD の current main 構成と Sync Wave の関係を 1 枚で把握するための図です。
-`manifests/bootstrap/app-of-apps.yaml` と `manifests/bootstrap/applications/**` を基準にしています。
+2026-10-20 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
+root は [bootstrap-root](../../manifests/bootstrap/app-of-apps.yaml) で、source は `manifests/bootstrap/applications` です。
 
-## 依存関係図
+## 管理構造
 
 ```mermaid
 flowchart TD
-  root["bootstrap-root\nbootstrap/app-of-apps.yaml"]:::root
-
-  wave0["argocd-projects\nwave 0"]:::wave0
-  wave1a["argocd-core\n本体・CRD・設定\nwave 1"]:::wave1
-  wave1b["local-path-provisioner\nwave 1"]:::wave1
-  wave1c["nfs-subdir-external-provisioner\nwave 1"]:::wave1
-  wave2["core\nwave 2"]:::wave2
-  wave3["metallb\nwave 3"]:::wave3
-  wave3netpol["kube-network-policies\nwave 3"]:::wave3
-  wave4["metallb-config\nwave 4"]:::wave4
-  wave5["gateway-api\nwave 5"]:::wave5
-  wave6["nginx-gateway-fabric\nwave 6"]:::wave6
-  wave7a["cert-manager\nwave 7"]:::wave7
-  wave7b["cert-manager-config\nwave 7"]:::wave7
-  wave7c["external-secrets-operator\nwave 7"]:::wave7
-  wave8["gateway-shared\nwave 8"]:::wave8
-  pgo["pgo\nPostgreSQL Operator / CRD\nwave 8"]:::wave8
-  postgres["shared-postgresql\nwave 10"]:::wave10
-  wave9["config-secrets\nwave 9"]:::wave9
-  wave10a["platform\nwave 10"]:::wave10
-  wave10b["harbor\nwave 11"]:::wave11
-  wave10c["rustfs\nwave 10"]:::wave10
-  wave10d["tailscale-operator\nwave 10"]:::wave10
-  reloader["reloader\nwave 10"]:::wave10
-  observability["observability\nVictoriaMetrics / Grafana / Loki / Alloy\nwave 11"]:::wave11
-  wave11a["sandbox-config\nwave 11"]:::wave11
-  wave11b["tailscale-connector\nwave 11"]:::wave11
-  wave12["runtime apps\nwave 12"]:::wave12
-  wave13["service access apps\nwave 13"]:::wave13
-  wave14["shared publishers\nwave 14"]:::wave14
-
-  root --> wave0
-  root --> wave1a
-  root --> wave1b
-  root --> wave1c
-  root --> wave2
-  root --> wave3
-  root --> wave3netpol
-  root --> wave4
-  root --> wave5
-  root --> wave6
-  root --> wave7a
-  root --> wave7b
-  root --> wave7c
-  root --> wave8
-  root --> pgo
-  root --> postgres
-  pgo --> postgres
-  postgres --> wave10b
-  wave9 --> postgres
-  wave1c --> postgres
-  root --> wave9
-  root --> wave10a
-  root --> wave10b
-  root --> wave10c
-  root --> wave10d
-  root --> reloader
-  root --> observability
-  wave9 --> observability
-  reloader --> observability
-  observability --> wave13
-  root --> wave11a
-  root --> wave11b
-  root --> wave12
-  root --> wave13
-  root --> wave14
-
-  wave0 --> wave1a
-  wave0 --> wave1b
-  wave0 --> wave1c
-  wave0 --> wave2
-  wave2 --> wave3
-  wave2 --> wave3netpol
-  wave3 --> wave4
-  wave4 --> wave5
-  wave5 --> wave6
-  wave6 --> wave7a
-  wave6 --> wave8
-  wave7c --> wave9
-  wave8 --> wave13
-  wave9 --> wave10b
-  wave9 --> wave10c
-  wave10d --> wave11b
-  wave10c --> wave11a
-  wave11a --> wave12
-  wave12 --> wave13
-  wave13 --> wave14
-
-  subgraph runtime_apps["Runtime Apps (wave 12)"]
-    apiHub["api-hub"]:::wave12
-    blog["blog"]:::wave12
-    cooklog["cooklog"]:::wave12
-    hitomi["hitomi"]:::wave12
-    hitomiPdf["hitomi-pdf"]:::wave12
-    huv["hitomi-upload-viewer"]:::wave12
-    camera["home-camera"]:::wave12
-    rsshub["rsshub"]:::wave12
-    selenium["selenium"]:::wave12
-  end
-
-  subgraph service_access["Service Access (wave 13)"]
-    observabilityAccess["observability-access\nVictoriaMetrics / Grafana"]:::wave13
-    argocdAccess["argocd-access"]:::wave13
-    harborAccess["harbor-access"]:::wave13
-    rustfsAccess["rustfs-access"]:::wave13
-    blogAccess["blog-access"]:::wave13
-    cooklogAccess["cooklog-access"]:::wave13
-    apiHubAccess["api-hub-access"]:::wave13
-    rsshubAccess["rsshub-access"]:::wave13
-    huvAccess["hitomi-upload-viewer-access"]:::wave13
-  end
-
-  subgraph shared_publishers["Shared Publishers (wave 14)"]
-    cloudflared["cloudflared"]:::wave14
-    dnsCore["dns-core"]:::wave14
-    dnsTs["dns-tailscale"]:::wave14
-  end
-
-  wave12 --> runtime_apps
-  wave13 --> service_access
-  wave14 --> shared_publishers
-
-  classDef root fill:#f2f4f7,stroke:#475467,stroke-width:1px,color:#101828
-  classDef wave0 fill:#f5f3ff,stroke:#6d28d9,stroke-width:1px,color:#3b0764
-  classDef wave1 fill:#ecfdf3,stroke:#027a48,stroke-width:1px,color:#054f31
-  classDef wave2 fill:#eaf2ff,stroke:#175cd3,stroke-width:1px,color:#102a56
-  classDef wave3 fill:#fff6ed,stroke:#c4320a,stroke-width:1px,color:#7a2e0e
-  classDef wave4 fill:#fef3c7,stroke:#b45309,stroke-width:1px,color:#78350f
-  classDef wave5 fill:#fef9c3,stroke:#a16207,stroke-width:1px,color:#713f12
-  classDef wave6 fill:#e0f2fe,stroke:#0369a1,stroke-width:1px,color:#0c4a6e
-  classDef wave7 fill:#ecfeff,stroke:#0e7490,stroke-width:1px,color:#0e3a45
-  classDef wave8 fill:#e5e7eb,stroke:#374151,stroke-width:1px,color:#111827
-  classDef wave9 fill:#eef2ff,stroke:#4338ca,stroke-width:1px,color:#312e81
-  classDef wave10 fill:#f1f5f9,stroke:#334155,stroke-width:1px,color:#0f172a
-  classDef wave11 fill:#f0fdf4,stroke:#166534,stroke-width:1px,color:#14532d
-  classDef wave12 fill:#eff6ff,stroke:#1d4ed8,stroke-width:1px,color:#1e3a8a
-  classDef wave13 fill:#fffbeb,stroke:#92400e,stroke-width:1px,color:#78350f
-  classDef wave14 fill:#fdf2f8,stroke:#be185d,stroke-width:1px,color:#831843
+  Bootstrap[make bootstrap] --> Root[bootstrap-root]
+  Root --> Child[bootstrap 配下の child Applications]
+  Child --> Workload[core / infrastructure / platform / access / apps]
+  Child --> Platform[platform: github-actions ディレクトリ]
+  Platform --> Controller[arc-controller Application]
+  Platform --> AppSet[arc-runners ApplicationSet]
+  AppSet --> Runner[repo ごとの runner Application]
 ```
 
-## Sync Wave 一覧
+## root が同期する Application
 
-| Wave | コンポーネント | 意味 |
-|---|---|---|
-| 0 | `argocd-projects` | AppProject を先行適用 |
-| 1 | `argocd-core` / storage provisioners | ArgoCD 本体・CRD・設定の自己管理とストレージ基盤 |
-| 2 | `core` | Namespace / StorageClass / RBAC の土台 |
-| 3-7 | infra controllers | NetworkPolicy controller / MetalLB / Gateway API / NGF / cert-manager / ESO |
-| 8 | `gateway-shared` | Gateway / listener 基盤 |
-| 9 | `config-secrets` | ExternalSecret 定義 |
-| 10 | platform runtime | ARC / Harbor / RustFS / Tailscale operator / Reloader |
-| 11 | 補助 runtime | shared config / tailscale connector / observability |
-| 12 | runtime apps | workload-only アプリ |
-| 13 | service access | app ごとの HTTPRoute / Harbor / RustFS / ArgoCD 公開 |
-| 14 | shared publishers | Cloudflared / CoreDNS / Tailnet DNS |
+wave は root が作成・更新する Application の annotation です。別 Application の内部リソースまで
+一括した完了順序を保証する値ではありません。同じ wave 内の依存にも Ready / 実動作の確認が必要です。
 
-## 参照
+| Wave | Application（定義） | Project | Source | Destination namespace |
+|---|---|---|---|---|
+| 0 | [argocd-projects](../../manifests/bootstrap/applications/core/argocd-projects.yaml) | `default` | [manifests/platform/argocd-config](../../manifests/platform/argocd-config) (`include: argocd-projects.yaml`) | `argocd` |
+| 1 | [argocd-core](../../manifests/bootstrap/applications/platform/argocd-core.yaml) | `platform` | [manifests/platform/argocd-config](../../manifests/platform/argocd-config) | `argocd` |
+| 1 | [local-path-provisioner](../../manifests/bootstrap/applications/infrastructure/local-path-provisioner.yaml) | `infrastructure` | [manifests/infrastructure/storage/local-path](../../manifests/infrastructure/storage/local-path) | `local-path-storage` |
+| 1 | [nfs-subdir-external-provisioner](../../manifests/bootstrap/applications/infrastructure/nfs-subdir-external-provisioner.yaml) | `infrastructure` | Helm `nfs-subdir-external-provisioner`（版は定義を参照） | `nfs-storage` |
+| 2 | [core](../../manifests/bootstrap/applications/core/core.yaml) | `core` | [manifests/core](../../manifests/core) | `指定なし` |
+| 3 | [kube-network-policies](../../manifests/bootstrap/applications/infrastructure/kube-network-policies.yaml) | `infrastructure` | [manifests/infrastructure/networking/kube-network-policies](../../manifests/infrastructure/networking/kube-network-policies) | `kube-system` |
+| 3 | [metallb](../../manifests/bootstrap/applications/infrastructure/metallb.yaml) | `infrastructure` | Helm `metallb`（版は定義を参照） | `metallb-system` |
+| 4 | [metallb-config](../../manifests/bootstrap/applications/infrastructure/metallb-config.yaml) | `infrastructure` | [manifests/infrastructure/networking/metallb](../../manifests/infrastructure/networking/metallb) (`include: metallb-ipaddress-pool.yaml`) | `metallb-system` |
+| 5 | [gateway-api](../../manifests/bootstrap/applications/infrastructure/gateway-api.yaml) | `infrastructure` | [manifests/infrastructure/networking/nginx-gateway-fabric/gateway-api](../../manifests/infrastructure/networking/nginx-gateway-fabric/gateway-api) | `nginx-gateway` |
+| 6 | [nginx-gateway-fabric](../../manifests/bootstrap/applications/infrastructure/nginx-gateway-fabric.yaml) | `infrastructure` | Helm `nginx-gateway-fabric`（版は定義を参照） | `nginx-gateway` |
+| 7 | [cert-manager](../../manifests/bootstrap/applications/infrastructure/cert-manager.yaml) | `infrastructure` | Helm `cert-manager`（版は定義を参照） | `cert-manager` |
+| 7 | [cert-manager-config](../../manifests/bootstrap/applications/infrastructure/cert-manager-config.yaml) | `infrastructure` | [manifests/infrastructure/security/cert-manager](../../manifests/infrastructure/security/cert-manager) | `cert-manager` |
+| 7 | [external-secrets-operator](../../manifests/bootstrap/applications/platform/external-secrets-operator.yaml) | `platform` | Helm `external-secrets`（版は定義を参照） | `external-secrets-system` |
+| 8 | [gateway-shared](../../manifests/bootstrap/applications/access/gateway-shared.yaml) | `access` | [manifests/access/gateway](../../manifests/access/gateway) | `nginx-gateway` |
+| 8 | [pgo](../../manifests/bootstrap/applications/platform/pgo.yaml) | `platform` | [manifests/platform/pgo](../../manifests/platform/pgo) | `postgres-operator` |
+| 9 | [config-secrets](../../manifests/bootstrap/applications/platform/config-secrets.yaml) | `platform` | [manifests/platform/secrets/external-secrets](../../manifests/platform/secrets/external-secrets) | `external-secrets-system` |
+| 10 | [platform](../../manifests/bootstrap/applications/platform/platform.yaml) | `platform` | [manifests/platform/ci-cd/github-actions](../../manifests/platform/ci-cd/github-actions) | `argocd` |
+| 10 | [reloader](../../manifests/bootstrap/applications/platform/reloader.yaml) | `platform` | [manifests/platform/reloader](../../manifests/platform/reloader) | `kube-system` |
+| 10 | [rustfs](../../manifests/bootstrap/applications/platform/rustfs.yaml) | `platform` | [manifests/platform/rustfs](../../manifests/platform/rustfs) | `rustfs` |
+| 10 | [shared-postgresql](../../manifests/bootstrap/applications/platform/shared-postgresql.yaml) | `platform` | [manifests/platform/shared-postgresql](../../manifests/platform/shared-postgresql) | `database` |
+| 10 | [tailscale-operator](../../manifests/bootstrap/applications/infrastructure/tailscale-operator.yaml) | `infrastructure` | Helm `tailscale-operator`（版は定義を参照） | `tailscale` |
+| 11 | [harbor](../../manifests/bootstrap/applications/platform/harbor.yaml) | `platform` | [manifests/platform/harbor](../../manifests/platform/harbor) | `harbor` |
+| 11 | [observability](../../manifests/bootstrap/applications/platform/observability.yaml) | `platform` | [manifests/platform/observability](../../manifests/platform/observability) | `observability` |
+| 11 | [sandbox-config](../../manifests/bootstrap/applications/platform/sandbox-config.yaml) | `platform` | [manifests/platform/shared-config/sandbox](../../manifests/platform/shared-config/sandbox) | `sandbox` |
+| 11 | [tailscale-connector](../../manifests/bootstrap/applications/infrastructure/tailscale-connector.yaml) | `infrastructure` | [manifests/infrastructure/networking/tailscale-operator](../../manifests/infrastructure/networking/tailscale-operator) | `tailscale` |
+| 12 | [api-hub](../../manifests/bootstrap/applications/user-apps/api-hub-app.yaml) | `apps` | [manifests/apps/api-hub](../../manifests/apps/api-hub) | `sandbox` |
+| 12 | [blog](../../manifests/bootstrap/applications/user-apps/blog-app.yaml) | `apps` | [manifests/apps/blog](../../manifests/apps/blog) | `sandbox` |
+| 12 | [cooklog](../../manifests/bootstrap/applications/user-apps/cooklog-app.yaml) | `apps` | [manifests/apps/cooklog](../../manifests/apps/cooklog) | `sandbox` |
+| 12 | [hitomi](../../manifests/bootstrap/applications/user-apps/hitomi-app.yaml) | `apps` | [manifests/apps/hitomi](../../manifests/apps/hitomi) | `sandbox` |
+| 12 | [hitomi-pdf](../../manifests/bootstrap/applications/user-apps/hitomi-pdf-app.yaml) | `apps` | [manifests/apps/hitomi-pdf](../../manifests/apps/hitomi-pdf) | `sandbox` |
+| 12 | [hitomi-upload-viewer](../../manifests/bootstrap/applications/user-apps/hitomi-upload-viewer-app.yaml) | `apps` | [manifests/apps/hitomi-upload-viewer](../../manifests/apps/hitomi-upload-viewer) | `sandbox` |
+| 12 | [home-camera](../../manifests/bootstrap/applications/user-apps/home-camera-app.yaml) | `apps` | [manifests/apps/home-camera](../../manifests/apps/home-camera) | `sandbox` |
+| 12 | [rsshub](../../manifests/bootstrap/applications/user-apps/rsshub-app.yaml) | `apps` | [manifests/apps/rsshub](../../manifests/apps/rsshub) | `sandbox` |
+| 12 | [selenium](../../manifests/bootstrap/applications/user-apps/selenium-app.yaml) | `apps` | [manifests/apps/selenium](../../manifests/apps/selenium) | `tools` |
+| 13 | [api-hub-access](../../manifests/bootstrap/applications/access/api-hub-access.yaml) | `access` | [manifests/access/api-hub](../../manifests/access/api-hub) | `sandbox` |
+| 13 | [argocd-access](../../manifests/bootstrap/applications/access/argocd-access.yaml) | `access` | [manifests/access/argocd](../../manifests/access/argocd) | `argocd` |
+| 13 | [blog-access](../../manifests/bootstrap/applications/access/blog-access.yaml) | `access` | [manifests/access/blog](../../manifests/access/blog) | `sandbox` |
+| 13 | [cooklog-access](../../manifests/bootstrap/applications/access/cooklog-access.yaml) | `access` | [manifests/access/cooklog](../../manifests/access/cooklog) | `sandbox` |
+| 13 | [harbor-access](../../manifests/bootstrap/applications/access/harbor-access.yaml) | `access` | [manifests/access/harbor](../../manifests/access/harbor) | `harbor` |
+| 13 | [hitomi-upload-viewer-access](../../manifests/bootstrap/applications/access/hitomi-upload-viewer-access.yaml) | `access` | [manifests/access/hitomi-upload-viewer](../../manifests/access/hitomi-upload-viewer) | `sandbox` |
+| 13 | [observability-access](../../manifests/bootstrap/applications/access/observability-access.yaml) | `access` | [manifests/access/observability](../../manifests/access/observability) | `observability` |
+| 13 | [rsshub-access](../../manifests/bootstrap/applications/access/rsshub-access.yaml) | `access` | [manifests/access/rsshub](../../manifests/access/rsshub) | `sandbox` |
+| 13 | [rustfs-access](../../manifests/bootstrap/applications/access/rustfs-access.yaml) | `access` | [manifests/access/rustfs](../../manifests/access/rustfs) | `rustfs` |
+| 14 | [cloudflared](../../manifests/bootstrap/applications/access/cloudflared.yaml) | `access` | [manifests/access/cloudflared](../../manifests/access/cloudflared) | `cloudflared` |
+| 14 | [dns-core](../../manifests/bootstrap/applications/access/dns-core.yaml) | `access` | [manifests/access/dns/core](../../manifests/access/dns/core) | `kube-system` |
+| 14 | [dns-tailscale](../../manifests/bootstrap/applications/access/dns-tailscale.yaml) | `access` | [manifests/access/dns/tailscale](../../manifests/access/dns/tailscale) | `tailscale` |
 
-- `manifests/bootstrap/app-of-apps.yaml`
-- `manifests/bootstrap/applications/`
+root 配下は **46 Application**。`argocd-projects` / `argocd-core` のみ automated prune が false、他は true です。
+ローカル Git source は `HEAD`、外部 chart は固定 revision です。
+
+## ARC が追加する Application
+
+[platform の Kustomization](../../manifests/platform/ci-cd/github-actions/kustomization.yaml) は
+[arc-controller](../../manifests/platform/ci-cd/github-actions/arc-controller.yaml) と
+[arc-runners ApplicationSet](../../manifests/platform/ci-cd/github-actions/runners-appset.yaml) を管理します。
+arc-controller は wave の明示なし、prune false。Runner template は wave 9 / prune true です。
+これらを root の wave 9 と同じ同期段階と解釈しません。
+
+| 生成 Application | GitHub repo | Runner 名 | min / max |
+|---|---|---|---|
+| `blog-runner` | `ksera524/blog` | `blog-runners` | 0 / 1 |
+| `cooklog-runner` | `ksera524/cookLog` | `cooklog-runners` | 0 / 1 |
+| `hitomi-runner` | `ksera524/hitomi` | `hitomi-runners` | 0 / 1 |
+| `api-hub-runner` | `ksera524/api-hub` | `api-hub-runners` | 0 / 1 |
+| `home-camera-runner` | `ksera524/home-camera` | `home-camera-runners` | 0 / 1 |
+| `hitomi-pdf-batch-runner` | `ksera524/hitomi-pdf-batch` | `hitomi-pdf-batch-runners` | 0 / 1 |
+| `rsshub-private-runner` | `ksera524/RSSHub-private` | `rsshub-private-runners` | 0 / 1 |
+
+## 確認する依存
+
+- CRD → controller / Custom Resource。cert-manager 本体と設定は同じ wave 7 です。
+- ESO → config-secrets → 証明書や workload が使う Secret。
+- PGO → shared-postgresql → 資格情報・CA・復元マーカー → Harbor。
+- workload → HTTPRoute → DNS / Tunnel。Gateway の Programmed と実クライアントの疎通を確認します。
+
+Application を変更したら、この一覧・Runner 表・関連する運用ページを合わせて更新します。
+同期状態の確認と切り戻しは [GitOps](../gitops.md) を参照してください。

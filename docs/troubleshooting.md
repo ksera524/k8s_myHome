@@ -1,153 +1,82 @@
-# Troubleshooting
+# 障害対応
 
-この文書は current main の一次切り分け手順です。
+まず [日常運用の確認](operations.md) で対象クラスタと障害範囲を確定します。
+`automation/run.log` はローカル操作のログで、ArgoCD の同期・Pod のログは Kubernetes 側で確認します。
+復旧を急ぐ場合も、既存環境を削除する `make phase2` / `make all` を再試行の代わりに使わないでください。
 
-## 最初に確認するもの
+| 症状 | 調べる順序 |
+|---|---|
+| API に接続できない | kubeconfig/context → libvirt VM → SSH → kubelet/containerd → API server |
+| Node NotReady | Node の Conditions / Events → kubelet → containerd → Flannel |
+| Pending | Pod Events → requests / node selector / taint → PVC / StorageClass / NFS |
+| ImagePullBackOff | image 名と tag → pull Secret → Harbor / DNS / TLS → registry に対象イメージがあるか |
+| CrashLoopBackOff | 現在と previous のログ → probe →設定・Secret →依存サービス |
+| ArgoCD 同期失敗 | Application Conditions / operationState → source の描画 → CRD / admission →リソースの所有重複 |
+| ESO 未 Ready | Store → token と参照 environment → remoteRef → target Secret の creationPolicy |
+| URL に接続できない | DNS →経路 →証明書 → Gateway / Route condition → Service / EndpointSlice → Pod / NetworkPolicy |
 
-```bash
-make phase5
-kubectl get nodes -o wide
-kubectl get applications -n argocd
-kubectl get pods -A
-kubectl get events -A --sort-by='.lastTimestamp'
-```
-
-実行ログです。
-
-```text
-automation/run.log
-```
-
-## `make all` / phase が失敗する
+## Node / Pod
 
 ```bash
-automation/scripts/ci/validate.sh
-```
-
-確認観点です。
-
-- `automation/settings.toml` の必須項目が未設定ではないか
-- Pulumi / GitHub 認証情報が不足していないか
-- ホスト側のディスク容量が不足していないか
-- `automation/run.log` に直近エラーがないか
-
-## Node が `NotReady`
-
-```bash
-kubectl get nodes -o wide
 kubectl describe node <node-name>
-ssh k8suser@<node-ip> 'sudo systemctl status kubelet'
-ssh k8suser@<node-ip> 'sudo journalctl -u kubelet -n 200'
+ssh k8suser@<node-ip> 'sudo systemctl status kubelet containerd'
+ssh k8suser@<node-ip> 'sudo journalctl -u kubelet -n 200 --no-pager'
+kubectl -n <namespace> describe pod <pod-name>
+kubectl -n <namespace> logs <pod-name> -c <container-name> --tail=100
+kubectl -n <namespace> logs <pod-name> -c <container-name> --previous --tail=100
 ```
 
-## Pod が `Pending` / `CrashLoopBackOff`
+initContainer が待機中なら、そのコンテナのログを指定します。Harbor の DB 待機は下記を参照してください。
+
+## ArgoCD / Secret
 
 ```bash
-kubectl describe pod <pod-name> -n <namespace>
-kubectl logs <pod-name> -n <namespace>
-kubectl logs <pod-name> -n <namespace> --previous
-kubectl get events -n <namespace> --sort-by='.lastTimestamp'
-```
-
-確認観点です。
-
-- ImagePull エラー
-- PVC 未バインド
-- Secret / ConfigMap 不足
-- probe 失敗
-- node resource 不足
-
-## ArgoCD が `OutOfSync` / `Degraded`
-
-```bash
-kubectl get applications -n argocd
-kubectl describe application <app-name> -n argocd
-kubectl get application <app-name> -n argocd -o jsonpath='{.status}'
-```
-
-確認観点です。
-
-- 同一リソースが複数経路で apply されていないか
-- CRD / Webhook など順序依存リソースの Sync Wave が正しいか
-- `targetRevision` が `HEAD` のままか
-
-## ExternalSecret が同期されない
-
-```bash
-kubectl get clustersecretstore
+kubectl -n argocd describe application <app-name>
 kubectl describe clustersecretstore pulumi-esc-store
-kubectl get externalsecrets -A
-kubectl describe externalsecret <name> -n <namespace>
+kubectl -n <namespace> describe externalsecret <name>
 ```
 
-主な原因です。
+ローカル Git source は `HEAD`、外部 Helm source は chart の版番号です。
+Secret の本文をログに出す必要はありません。ArgoCD の Merge 対象 Secret は upstream の作成も確認します。
+詳しくは [GitOps](gitops.md) と [Secret 管理](secrets.md) を参照してください。
 
-- Pulumi ESC 側キー名不一致
-- `remoteRef.key` の誤り
-- access token 期限切れ
-- ExternalSecret の配置 domain が誤っている
-
-## Gateway / Cloudflared が 502 または接続不可
+## Gateway / TLS / HTTP 413
 
 ```bash
-kubectl get pods -n cloudflared
-kubectl logs -n cloudflared deploy/cloudflared --since=10m
-kubectl get gateway -A
-kubectl get httproute -A
-kubectl describe httproute <route-name> -n <namespace>
-kubectl get certificate -A
+kubectl -n nginx-gateway get gateway,svc,certificate
+kubectl -n <namespace> describe httproute <route-name>
+kubectl -n <namespace> get svc,endpointslices
+kubectl -n cloudflared logs deployment/cloudflared --since=10m
+kubectl get clientsettingspolicies -A
 ```
 
-確認観点です。
+Cloudflared が公開するのは Harbor です。内部 URL は Tailnet / LAN の経路と Split DNS を先に確認します。
+HTTPS の調査では hostname と証明書を照合し、`curl -k` の成功を TLS 検証成功として扱いません。
+413 は api-hub / Harbor の ClientSettingsPolicy の Accepted / Programmed と実際の NGINX 設定を確認します。
+NGF / Gateway API の更新手順は [アプリ更新](application-auto-updates.md) を参照してください。
 
-- Cloudflared origin が `nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443` を指しているか
-- `originServerName` と hostname が一致しているか
-- `wildcard-external-tls` と対象 hostname の internal 個別 TLS Secret が Ready か
-- HTTPRoute の parentRefs と sectionName が正しいか
-
-## Harbor へ push / pull できない
+## Harbor / PostgreSQL
 
 ```bash
-kubectl get pods -n harbor
-kubectl logs -n harbor deployment/harbor-core --since=10m
-docker login harbor.internal.qroksera.com
+kubectl -n harbor get pods
+kubectl -n harbor logs deployment/harbor-core --all-containers=true --tail=100
+kubectl -n database get postgrescluster,pods,jobs,pvc
+kubectl -n database describe cronjob postgresql-credentials
 ```
 
-確認観点です。
+`Waiting for PostgreSQL credentials, TLS, and verified Harbor restore` は
+資格情報・TLS・復元マーカーのいずれかが未準備であることを示します。
+待機を除去するためだけにマーカーを書き込まず、[復旧手順](shared-postgresql.md#再起動と再構築) で復元内容を確認します。
+Harbor の内部認証エラーでは [固定 Secret](secrets.md#harbor-内部認証情報) と各プロセスへの反映を確認します。
 
-- 端末に内部 CA を信頼登録しているか
-- namespace 側の pull secret が最新か
-- image tag が存在するか
-
-## PVC が `Pending`
+## ストレージ
 
 ```bash
-kubectl get pvc -A
-kubectl describe pvc <pvc-name> -n <namespace>
-kubectl get storageclass
-kubectl get pods -n local-path-storage
+kubectl get storageclass,pv
+kubectl -n <namespace> describe pvc <pvc-name>
+kubectl -n nfs-storage get pods
+kubectl -n local-path-storage get pods
 ```
 
-## CronJob / Job が失敗する
-
-```bash
-kubectl get cronjobs -A
-kubectl get jobs -A
-kubectl describe job <job-name> -n <namespace>
-kubectl get pods -n <namespace> -l job-name=<job-name>
-kubectl logs -n <namespace> -l job-name=<job-name>
-```
-
-failed job の Pod が削除済みの場合、ログは取得できません。次回実行直後にログを取得します。
-
-## Ubuntu 再起動後に接続できない
-
-```bash
-make recover
-```
-
-必要に応じて待機時間を上書きします。
-
-```bash
-RECOVER_MAX_WAIT_SECONDS=600 RECOVER_CHECK_INTERVAL_SECONDS=15 make recover
-```
+NFS 到達性・export・権限・実空き容量、local-path の配置ノードを確認します。
+PVC の削除・再作成を一般的な復旧方法にしないでください。旧 PV と実データの対応を先に保存します。

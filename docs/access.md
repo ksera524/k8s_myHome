@@ -1,270 +1,87 @@
-# Access
+# アクセス経路と公開の追加
 
-この文書は Gateway、HTTPRoute、DNS、Cloudflared、access contract の運用ルールです。
+経路の照合元は [access-surfaces.yaml](../manifests/contracts/home-lab/access-surfaces.yaml)、
+実リソースは [access/](../manifests/access/) です。contract の変更だけでは DNS や Route は生成されません。
 
-## 方針
-
-- 公開/接続系リソースは `manifests/access/` に置きます。
-- hostname / listener / backend / publish は `manifests/contracts/home-lab/access-surfaces.yaml` を正本にします。
-- 外部公開は Cloudflared から NGINX Gateway へ集約します。
-- TLS は cert-manager の証明書を Gateway に配置します（外部はワイルドカード、内部は個別証明書）。
-- Cloudflared の公開対象は Harbor のみです。ArgoCD・RustFS console・Blog は Tunnel から公開しません。
-- ArgoCD・RustFS console・Blog は内部 hostname を CoreDNS / Tailscale Split DNS で公開します。
-- Cloudflared の設定変更時は Pod template も更新して再起動し、新設定を読み込ませます。公開対象は template の access-surfaces annotation にも記載します。
-
-## Tailscale からの管理・閲覧
-
-| アプリ | URL |
-|---|---|
-| ArgoCD | `https://argocd.internal.qroksera.com` |
-| RustFS console | `https://rustfs.internal.qroksera.com` |
-| Blog | `https://blog.internal.qroksera.com` |
-
-既存の `k8s-subnet-router` が広告する `192.168.122.0/24` を利用し、
-Split DNS は各 hostname を Gateway `192.168.122.100` に解決します。
-RustFS は console (9001) のみを Gateway に接続し、S3 API (9000) は公開しません。
-RustFS の `/` への未認証 GET / HEAD は HTTPRoute で `/rustfs/console/` に 302 リダイレクトします。
-認証に使う POST `/`、署名付き GET `/` と、それ以外のパスはそのまま転送し、ログイン画面・静的ファイル・コンソール API のパスを維持します。
-
-Tailnet 側では以下の設定が必要です（このリポジトリからは管理しません）。
-
-- サブネットルート `192.168.122.0/24` を承認し、利用端末で受け入れる。
-- `internal.qroksera.com` の Split DNS を `192.168.122.101` に向ける。
-- 利用者から DNS `192.168.122.101:53` (UDP/TCP) と Gateway `192.168.122.100:443` を許可する。
-  HTTP からのリダイレクトも利用する場合は Gateway の TCP 80 も許可する。
-- 端末で Tailscale DNS を利用する。
-
-ArgoCD の GitHub OAuth App (client ID `Ov23li8T6IFuiuLcoSJa`) の Authorization callback URL は
-`https://argocd.internal.qroksera.com/api/dex/callback` に更新します。
-GitHub 側の変更はマニフェスト同期では反映されません。切替時は内部証明書と DNS の準備後に
-ArgoCD URL / Dex 設定と OAuth App の callback を合わせ、Tailscale 接続端末からログインを確認します。
-
-反映後は証明書の Ready、HTTPRoute の Accepted / ResolvedRefs を確認し、Tailscale 接続端末で
-3つの hostname が `192.168.122.100` に解決されることと、HTTPS の応答・ログイン後の操作を確認します。
-
-## 主要 path
-
-| Path | 用途 |
-|---|---|
-| `manifests/access/gateway/` | 共通 Gateway / listener |
-| `manifests/access/cloudflared/` | Cloudflared tunnel |
-| `manifests/access/dns/core/` | CoreDNS publish |
-| `manifests/access/dns/tailscale/` | Tailnet DNS publish |
-| `manifests/access/<app>/` | app ごとの HTTPRoute |
-| `manifests/contracts/home-lab/access-surfaces.yaml` | access surface 正本 |
-
-## HTTPRoute 追加
-
-`manifests/access/<app>/` に HTTPRoute を追加し、対応する access surface annotation を付けます。
-
-```yaml
-metadata:
-  annotations:
-    contracts.k8s-myhome.local/access-surface: <app>-internal
+```mermaid
+flowchart LR
+  Internet[Internet: Harbor] --> CF[Cloudflare Tunnel]
+  CF --> Tunnel[cloudflared]
+  Tunnel --> GW[NGINX Gateway :443]
+  Client[LAN / Tailnet 端末] --> GW
+  Client -. 名前解決 .-> DNS[Split DNS 192.168.122.101]
+  GW --> Route[HTTPRoute]
+  Route --> Service[Service / Pod]
 ```
 
-access owner が新規の場合は `manifests/bootstrap/applications/access/<app>-access.yaml` も追加します。
+## 利用する URL
+
+通常の内部 URL は `https://<名前>.internal.qroksera.com` です。
+名前は `argocd`、`harbor`、`rustfs`、`blog`、`cooklog`、`api-hub`、`hitomi-upload-viewer`、
+`observability`、`rsshub`、`grafana` が宣言されています。
+VMUI は `https://observability.internal.qroksera.com/vmui/` です。
+
+[Cloudflared 設定](../manifests/access/cloudflared/cloudflared-config.yaml) が転送する外部 hostname は
+`harbor.qroksera.com` のみで、残りは catch-all の 404 になります。
+ArgoCD / RustFS / Blog の外部 hostname 用 Route 自体は残っているため、
+「Tunnel に登録していない」ことを「Gateway からも接続できない」と混同しないでください。
+
+RustFS の Gateway backend は console の 9001 のみです。S3 の 9000 はクラスタ内で api-hub などが利用します。
+console の `/` は GET / HEAD のリダイレクトと POST / Authorization 付き GET の転送を
+[HTTPRoute](../manifests/access/rustfs/manifest.yaml) で分岐しています。
+
+## DNS・TLS・外部設定
+
+| 対象 | 宣言元・役割 |
+|---|---|
+| 共通 Gateway | [gateway.yaml](../manifests/access/gateway/gateway.yaml)、LB `192.168.122.100` |
+| クラスタ内 DNS | [CoreDNS](../manifests/access/dns/core/coredns-configmap.yaml) |
+| Tailnet 向け DNS | [Split DNS](../manifests/access/dns/tailscale/manifest.yaml)、LB `192.168.122.101` |
+| TLS | [cert-manager 設定](../manifests/infrastructure/security/cert-manager/)、DNS-01、外部 wildcard と内部個別証明書 |
+| Tunnel | [cloudflared](../manifests/access/cloudflared/)、Gateway:443 へ TLS 検証付きで転送 |
+
+Gateway の証明書 Secret は `nginx-gateway` namespace に置きます。
+内部 hostname でも公開 ACME issuer の DNS-01 を使っています。「内部 URL だから独自 CA を端末へ追加する」とは限りません。
+
+Tailnet 側では `192.168.122.0/24` の subnet route 承認、端末での route 受け入れ、
+`internal.qroksera.com` の Split DNS を `.101` に向ける設定が必要です。
+DNS の UDP/TCP 53、Gateway の TCP 443（HTTP redirect を使うなら 80）の到達性も確認します。
+Harbor internal は contract 上 Tailscale Split DNS の publish 対象ではなく、CoreDNS 側に登録されています。
+必要なクライアントの名前解決は個別に確認してください。
+
+GitHub OAuth App の callback は ArgoCD の URL と `/api/dex/callback` を一致させます。
+Cloudflare の DNS と Tunnel の紐付け、Tailnet ACL、OAuth App の設定はこのリポジトリから自動反映されません。
 
 ## 新しく到達可能な API を追加する手順
 
-### 1. 公開範囲と通信経路を決める
+1. 公開範囲（クラスタ内 / LAN・Tailnet / Internet）、hostname、backend Service と port、呼び出し元を決めます。
+2. [アプリ配布](app-delivery.md) に従って workload / Service / Secret を追加します。
+   クラスタ内 Service DNS のみで利用するなら Gateway / hostname の追加は不要です。
+3. hostname を使う場合は contract の surface を追加します。`backend`、`gatewayListener`、各 `publish` を指定します。
+4. `access/<app>/` に HTTPRoute と Kustomization を追加します。
+   annotation `contracts.k8s-myhome.local/access-surface` を surface 名に合わせます。
+   `parentRefs.sectionName`、hostname、backend の **Service port** を照合します。
+5. 必要な Gateway listener と Certificate を追加します。証明書は cert-manager 配下に置きます。
+6. 必要な CoreDNS / Split DNS の hosts と surface annotation を更新します。
+   外部公開なら cloudflared の catch-all より前へ追加し、`originServerName` / `httpHostHeader` を hostname と一致させます。
+   ConfigMap の変更時は Pod template も変更し、新しい設定を読み込ませます。
+7. 新しい access Application を `bootstrap/applications/access/` に作り、Kustomization と [一覧](diagrams/app-of-apps-sync-wave.md) に登録します。
+8. [NetworkPolicy](network-policy.md) の受信先・送信元と **Pod の待受 port** を確認し、必要な許可を追加します。
+9. 静的検証後、Secret / workload の準備、公開経路の同期、クライアントからの実操作を順に確認します。
 
-最初に hostname、利用者、接続元 Namespace / Pod ラベル、Service port、
-実際の Pod の待受ポート（targetPort）、依存先を記録します。
+Service が 80 → 8080 なら HTTPRoute は 80、NetworkPolicy は 8080 です。
+既存 HTTPRoute の PathPrefix 内で API のパスだけを追加する場合、接続先・port・公開範囲が変わらなければ
+新しい Route は通常不要です。認証・認可はアプリ側で実装します。
 
-| 利用範囲 | 通信経路 | 追加する入口 |
-|---|---|---|
-| クラスタ内のみ | 呼び出し元 Pod → ClusterIP Service → API Pod | Service と NetworkPolicy |
-| LAN / Tailnet 内 | 利用者 → 内部 DNS → Gateway → API Pod | 内部 hostname、証明書、HTTPRoute |
-| インターネット | 利用者 → Cloudflare Tunnel → cloudflared → Gateway → API Pod | 外部 hostname、Tunnel の公開設定、HTTPRoute |
-
-既存の api-hub などに HTTP パスだけを追加し、hostname・ポート・接続元・依存先が変わらず、
-既存 HTTPRoute の PathPrefix に含まれる場合は、新しい Service / HTTPRoute / NetworkPolicy は不要です。
-アプリ側の認証・認可と API 実装を追加し、イメージ更新後に動作確認します。
-NetworkPolicy は HTTP パスや利用者の権限を判別しないため、認証・認可の代わりにはなりません。
-
-RustFS の操作は原則 api-hub の BFF 経由にします。新しい利用アプリごとに RustFS:9000 を
-許可する必要はありません。presigned URL をクライアントに渡して直接転送させる変更は、
-現在の「api-hub だけが S3 API に接続できる」構成とは異なるため、別途経路を設計します。
-
-### 2. 新しいサービスなら workload と Service を追加する
-
-- `manifests/apps/<app>/` に Deployment / ClusterIP Service / `kustomization.yaml` を追加します。
-- Service selector と Pod ラベル、Service port と targetPort の対応を確認します。
-  新規 API の通常の入口に NodePort は追加しません。
-- `manifests/bootstrap/applications/user-apps/<app>-app.yaml` を追加し、
-  同ディレクトリの `kustomization.yaml` に登録します。既存例は `api-hub-app.yaml` です。
-- 新規 Namespace が必要なら `manifests/core/namespaces.yaml` に追加し、
-  使用する AppProject の destination にも含まれることを確認します。
-- 認証情報は `manifests/platform/secrets/external-secrets/` に定義し、workload から Secret を参照します。
-
-イメージ更新と workload の手順は [App Delivery](app-delivery.md) を参照してください。
-
-### 3. hostname を公開する場合は contract と access を追加する
-
-クラスタ内の Service DNS だけで利用する API は、この節の追加は不要です。
-
-1. `manifests/contracts/home-lab/access-surfaces.yaml` に surface を追加します。
-   hostname / backend / gatewayListener / publish を指定します。contract は設定の正本であり、
-   HTTPRoute や DNS を自動生成するものではないため、以下の実体も更新します。
-2. `manifests/access/<app>/` に HTTPRoute と `kustomization.yaml` を追加します。
-   surface annotation、hostname、parentRefs の listener、backendRefs の Service 名と **Service port** を一致させます。
-   通常は API と同じ Namespace に HTTPRoute を置きます。HTTP → HTTPS redirect も既存例に合わせます。
-3. `manifests/access/gateway/gateway.yaml` に必要な HTTPS listener を追加します。
-   既存 listener を使える場合は追加不要です。証明書の対象 hostname と allowedRoutes も確認します。
-4. 内部 hostname の Certificate は `manifests/infrastructure/security/cert-manager/internal-certificates.yaml` に追加します。
-   外部 hostname は既存の `*.qroksera.com` 証明書でカバーされるか確認します。
-5. 内部公開は、利用範囲に応じて `manifests/access/dns/core/coredns-configmap.yaml` と
-   `manifests/access/dns/tailscale/manifest.yaml` の hosts と access-surfaces annotation を更新します。
-   Tailnet 側の Split DNS と Gateway IP への経路も確認します。
-6. 外部公開は `manifests/access/cloudflared/cloudflared-config.yaml` に hostname を追加します。
-   origin は既存と同じ Gateway:443 とし、`originServerName` / `httpHostHeader` を hostname に合わせます。
-   catch-all の `http_status:404` より前に配置し、access-surfaces annotation も更新します。
-   Cloudflare 側の DNS が対象 Tunnel に紐付いていることも確認します。ConfigMap の追加だけでは DNS は作成されません。
-7. 新しい access owner は `manifests/bootstrap/applications/access/<app>-access.yaml` に定義し、
-   同ディレクトリの `kustomization.yaml` に登録します。既存例は `api-hub-access.yaml` です。
-
-Application の `targetRevision` は `HEAD`、runtime は wave 12、access は wave 13 を既存例の基準にします。
-新しい Application の追加や wave の変更は [Sync Wave 図](diagrams/app-of-apps-sync-wave.md) に反映します。
-
-### 4. 宛先 API の NetworkPolicy を追加する
-
-現行のポリシー owner は `core` です。`manifests/core/networkpolicies.yaml` に、
-**宛先 Namespace** のポリシーを追加します。新しい YAML に分ける場合は `core/kustomization.yaml` に登録します。
-現在は全 Namespace に一律の default-deny があるわけではなく、
-Ingress ポリシーに選択されていない Pod は原則として受信が許可されます。
-
-以下は `sandbox` の `app=sample-api`、Pod の待受ポート 8080 を、
-共有 Gateway の NGINX Pod からだけ許可する例です。名前・Namespace・ラベル・ポートを実体に合わせて変更します。
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: sample-api-from-gateway
-  namespace: sandbox
-spec:
-  podSelector:
-    matchLabels:
-      app: sample-api
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: nginx-gateway
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: nginx-gateway-nginx
-              gateway.networking.k8s.io/gateway-name: nginx-gateway
-      ports:
-        - protocol: TCP
-          port: 8080
-```
-
-`namespaceSelector` と `podSelector` は同じ peer に書くと AND 条件になります。
-別々のリスト要素にすると OR 条件になり、許可対象が広がります。
-NetworkPolicy の port は **Pod の待受ポート**です。Service が 80 → 8080 の場合、
-HTTPRoute は 80、NetworkPolicy は 8080 を指定します。
-
-クラスタ内から直接呼ぶ場合は、実際の呼び出し元 Namespace と Pod ラベルを同様に限定した peer を追加します。
-API が DB や別 API に接続する場合は、その依存先の受信ポリシーも確認します。
-送信元に Egress 制限がある場合は送信側の許可も必要です。今回は一律の Egress 制限は導入していません。
-監視の scrape 元などが必要なら、その通信元とポートも明示します。
-
-既存の広い許可ルールがないかも確認します。NetworkPolicy の許可は合算されるため、
-狭いルールを追加しても別の全許可ルールは打ち消せません。
-Cloudflared → Gateway → API の経路では、API から見た接続元は NGINX Pod です。
-API 側で Cloudflared や Cloudflare の公開 IP を許可元に追加しません。
-共有 Gateway 全体を Cloudflared 限定にすると内部公開 API に影響するため、入口制限の変更は別途設計します。
-
-### 5. 検証して GitOps で反映する
+## 反映後の確認
 
 ```bash
-nix develop --command bash automation/scripts/ci/validate.sh
-git diff --check
+kubectl -n argocd get applications
+kubectl -n nginx-gateway get gateway,svc,certificate
+kubectl -n <namespace> describe httproute <route-name>
+kubectl -n <namespace> get svc,endpointslices
 ```
 
-workload と access の変更は [App Delivery](app-delivery.md) に沿って分け、Git に反映します。
-初めて公開する API は、必要な Secret・宛先のポリシー・workload の準備を先に確認し、
-HTTPRoute / DNS / Cloudflared の公開を後に行います。
-既存 API の許可元を変更する場合は、新しい許可を同期して接続確認後に古い許可を削除します。
-独立した Application の更新順は wave だけに依存せず、各段階の同期を確認します。
-
-次のプレースホルダーは実際の名前に置き換えます。
-
-```bash
-kubectl get applications -n argocd
-kubectl get ds kube-network-policies -n kube-system
-kubectl get pods,svc,endpointslices -n <namespace>
-kubectl get networkpolicy -n <namespace>
-kubectl describe httproute <route-name> -n <namespace>
-kubectl get gateway -n nginx-gateway
-kubectl get certificate -n nginx-gateway
-```
-
-API の Application が Synced / Healthy、controller が全ノード Ready、
-HTTPRoute の Accepted / ResolvedRefs と Gateway の Programmed が True、証明書が Ready であることを確認します。
-
-### 6. 許可通信と拒否通信を実測する
-
-| 確認 | 合格条件 |
-|---|---|
-| 正規の入口 | 内部なら LAN / Tailnet、外部なら Cloudflare 経由で想定した応答を得る |
-| 認証と実操作 | 認証後の主要操作まで成功する。401 / 403 だけでは操作成功とはしない |
-| 呼び出し元制限 | 無関係な Pod、別 Namespace の同名ラベルの Pod から直接接続できない |
-| 宛先制限 | Service IP と Pod IP の両方で拒否を確認し、許可していないポートも試す |
-| 既存経路 | ArgoCD / Harbor / RustFS console と api-hub 経由の S3 操作を維持する |
-
-拒否試験は通常の Pod ネットワークから行い、複数ノードで確認します。
-`kubectl port-forward` やノードからの接続だけでは Pod 間の NetworkPolicy 検証になりません。
-HTTP 403 はアプリまで到達した結果であり、NetworkPolicy による遮断と区別します。
-テスト用 Pod に本番 Service と同じラベルを付けるとトラフィックを受ける場合があるため、
-正規の呼び出し元の確認には実アプリ経由を使い、拒否試験には Service に選ばれない Pod を使います。
-書き込み検証は専用の一時データを使い、確認後にデータと検証用 Pod を削除します。
-
-障害時は新しい公開を戻し、Git revert と ArgoCD 同期で復旧します。
-コントローラの fail-open / NRI の制約と緊急切り戻しは [NetworkPolicy の運用](network-policy.md) を参照してください。
-
-## Cloudflared
-
-Cloudflared の origin は Gateway に統一します。
-
-```yaml
-service: https://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:443
-originRequest:
-  originServerName: <hostname>
-  httpHostHeader: <hostname>
-  noTLSVerify: false
-```
-
-`originServerName` と `httpHostHeader` は公開ホスト名と一致させます。
-
-## TLS
-
-Gateway が参照する証明書は `nginx-gateway` namespace に置きます。
-外部公開はワイルドカード証明書、内部公開は hostname ごとの個別証明書を使います。
-
-| Certificate | Hostname |
-|---|---|
-| `wildcard-external` | `*.qroksera.com` |
-| `argocd-internal` | `argocd.internal.qroksera.com` |
-| `harbor-internal` | `harbor.internal.qroksera.com` |
-| `cooklog-internal` | `cooklog.internal.qroksera.com` |
-| `api-hub-internal` | `api-hub.internal.qroksera.com` |
-| `hitomi-upload-viewer-internal` | `hitomi-upload-viewer.internal.qroksera.com` |
-| `observability-internal` | `observability.internal.qroksera.com` |
-
-cert-manager 系リソースは `manifests/infrastructure/security/cert-manager/` に集約します。
-
-## 確認コマンド
-
-```bash
-kubectl get gateway -A
-kubectl get httproute -A
-kubectl describe httproute <route-name> -n <namespace>
-kubectl get certificate -A
-kubectl describe certificate <name> -n <namespace>
-kubectl logs -n cloudflared deploy/cloudflared --since=10m
-```
+Gateway の Programmed、HTTPRoute の Accepted / ResolvedRefs、Certificate の Ready を確認します。
+利用端末で DNS と HTTPS、ログイン後の主要操作を確認し、通信制限を追加した場合は拒否される経路も実測します。
+初回公開や依存変更の順序を、別 Application の wave だけに依存させないでください。

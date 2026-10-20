@@ -1,82 +1,59 @@
-# PostgreSQL の更新と CI
+# PostgreSQL の更新と検証
 
-共通 PostgreSQL 基盤は、Renovate が PGO chart の更新を検出して一括 PR を作成する。
-個別イメージの最新タグを独立に追わず、更新先 chart に同梱された推奨構成を採用する。
-PostgreSQL のメジャーは現在の `spec.postgresVersion` を維持する。
+[PGO Kustomization](../manifests/platform/pgo/kustomization.yaml) の chart version を起点に、
+その chart が指定する PostgreSQL / pgBackRest と補助コンテナのイメージを揃えます。
+現在の `spec.postgresVersion` を維持し、独立した最新タグを各所へ設定しません。
 
-## 更新の流れ
+## 自動更新
 
-1. 毎日の Renovate が OCI の PGO chart を検出する。
-2. 同一リポジトリの `github-actions[bot]` が作った `renovate/` PR に対して、
-   main の信頼済みスクリプトが chart を取得・同梱し、次のイメージを同期する。
-   - PostgreSQL 本体と pgBackRest
-   - 資格情報 Job と Harbor core / jobservice の起動待機コンテナ
-   - 手動復元用のサンプル定義
-3. 同期コミット後の HEAD に既存の検証 workflow を dispatch する。
-4. 整合性・マニフェスト検証と、一時 kind クラスタでの実行テストを通してから手動マージする。
+[Renovate workflow](../.github/workflows/renovate.yml) は PGO chart の PR 作成後、
+[sync-renovate-postgresql.py](../automation/scripts/ci/sync-renovate-postgresql.py) を実行します。
+同一 repo の `github-actions[bot]` 作成 `renovate/` PR で、PGO Kustomization に変更があるものが対象です。
 
-OCI の Docker datasource では公開日時が取得できないことがあるため、PGO chart に限り
-`minimumReleaseAgeBehaviour: timestamp-optional` を設定する。日時を取得できない場合は
-3 日経過を保証せず PR を作成し、マージ判断は人が行う。他の依存の設定は変更しない。
-PGO major 更新は Dependency Dashboard の承認対象となる。
+信頼済み同期処理が候補を worktree に展開し、chart を取得して関連ファイルを更新します。
+PR 側のコードや Git hooks を実行せず、通常 push で同時更新の上書きを拒否します。
+その後、最新 HEAD の検証 workflow を dispatch します。
 
-同期処理は PR 側のスクリプトや Git hooks を実行しない。取得元を Crunchy の公式 OCI に限定し、
-archive のパス・ファイル種別・chart metadata を確認する。同時更新された PR は通常の push で上書きを拒否する。
-更新先が現在の PostgreSQL major を提供しない場合は失敗し、自動的に別 major へ切り替えない。
+PGO は OCI の公開日時がない場合も候補を作る設定なので、3 日待機が保証されない場合があります。
+major chart 更新には Dashboard 承認が必要です。DB major の変更はこの自動更新経路に含めません。
 
-## 整合性チェック
+## 手動変更と整合性
 
-```sh
+[postgresql-versions.py](../automation/scripts/ci/postgresql-versions.py) は chart metadata、Operator、DB major、
+DB / pgBackRest / 資格情報 Job / Harbor 待機コンテナ / 復元例のイメージを照合します。
+
+```bash
 nix develop --command python3 automation/scripts/ci/postgresql-versions.py
-```
-
-chart version、同梱 chart metadata、Operator の版、PostgreSQL major、
-PostgreSQL / pgBackRest と補助コンテナのイメージを照合する。
-公式 chart のデフォルトと厳密に一致させるため、独立した最新 minor / build は採用しない。
-イメージの取得可否・実行アーキテクチャへの対応は後述の実行テストで確認する。
-CRD の schema は指定した chart から取得し、kubeconform でも検証する。
-
-手動で PGO の version を変更した場合は、次で関連ファイルを揃える。
-
-```sh
+# chart version を編集した後、取得・同梱・関連イメージ同期を行う
 nix develop --command python3 automation/scripts/ci/postgresql-versions.py --sync
+nix develop --command automation/scripts/ci/validate.sh
 ```
+
+`--sync` は作業ツリーを変更し、検証成功後に古い同梱 chart を削除します。
+更新先 chart が現在の DB major を提供しなければ失敗させ、自動 major 切り替えは行いません。
 
 ## 実行テスト
 
-`ci-deploy-validate.yml` の `postgresql-runtime` job が対象ファイルの変更時に起動する。
-GitHub Actions の一時 kind クラスタを使い、本番 kubeconfig・NFS・ESC のトークンを必要としない。
-検証用 `app` パスワードは PGO が生成し、SQL 接続時の標準入力で渡す。
+[ci-deploy-validate.yml](../.github/workflows/ci-deploy-validate.yml) の `postgresql-runtime` は、
+workflow に列挙された PostgreSQL 関連ファイルの変更時、または手動 input `postgresql_runtime=true` の場合に実行します。
+全 DB 関連設定を自動検出するわけではないため、変更検出の path も確認します。
 
-1. PR の base commit の PGO / DB / pgBackRest を起動する。
-2. 本番と同じ `bootstrap.sql` で所有権を設定し、検証データを作成する。
-3. PR の PGO / DB / pgBackRest を適用し、DB Pod を再起動する。
-4. TLS verify-full / app 認証、DB major、データ内容、読み書きを確認する。
-5. 更新後の手動 full backup の ID と成功を確認する。
-6. 別の PostgresCluster へ復元し、検証データの件数・内容と読み書きを確認する。
-7. 成否にかかわらず診断ログを保存し、一時クラスタを削除する。
+[postgresql-runtime.py](../automation/scripts/ci/postgresql-runtime.py) は一時 kind クラスタで次を確認します。
 
-比較する版が同じ場合も、再起動・バックアップ・復元のテストを実施する。
-DB major が異なる場合は失敗させる。メジャー移行、PITR、更新前バックアップの更新後環境での復元、
-本番 NFS、ESC / ESO、Harbor 全体の機能試験はこのテストの検証範囲に含まない。
-本番の復旧演習を代替したという扱いにはしない。
+1. base ref の Operator / DB / pgBackRest を起動し、検証データを作成。
+2. 更新候補を適用し、DB Pod の再起動後に実行 image と readiness を確認。
+3. app / verify-full の接続、major、データ件数・内容、読み書きを確認。
+4. 更新後 full backup の成功 ID を確認し、別 PostgresCluster に復元して同じ検証を実行。
+5. 診断情報を保存して一時クラスタを削除。
 
-ローカルで実行するには Docker を起動して次を実行する。
+同版比較でも再起動・backup・restore を実行します。既存の kubeconfig は使わず、専用の一時パスを指定します。
+Docker が使える環境での実行例:
 
-```sh
+```bash
 nix develop --command python3 automation/scripts/ci/postgresql-runtime.py \
   --base-ref origin/main --logs /tmp/postgresql-runtime-logs
 ```
 
-kind は flake.lock の Nix パッケージに固定し、その版が既定とする node image を使う。
-テスト専用 kubeconfig を明示し、利用者の既存 context を参照・更新しない。
-実行時間の目標は 10〜20 分、CI 全体の上限は 30 分。ダウンロード速度により変わる。
-Actions の手動実行で `postgresql_runtime=true` を指定すると、変更がなくても実行する。
-通常の Renovate dispatch は PostgreSQL 関連に変更がある場合だけ実行する。
-診断ログは Actions artifact `postgresql-runtime-logs` に 7 日間保存する。
-
-## 参照
-
-- [PGO のコンポーネント対応表](https://access.crunchydata.com/documentation/postgres-operator/latest/references/components)
-- [PGO のバックアップとクローン](https://access.crunchydata.com/documentation/postgres-operator/latest/tutorials/backups-disaster-recovery/disaster-recovery)
-- [Renovate の custom manager](https://docs.renovatebot.com/modules/manager/regex/)
+CI の上限は 30 分、diagnostics artifact は 7 日保持です。
+このテストは本番 NFS / ESC / ESO / Harbor 全体、PITR、major 移行、旧 backup の新環境復元、
+全クラスタ喪失からの再構築を検証しません。[運用上の復元確認](shared-postgresql.md) は別に行います。

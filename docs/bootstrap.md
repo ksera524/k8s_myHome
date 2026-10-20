@@ -1,185 +1,98 @@
-# Bootstrap
+# 初期構築
 
-この文書は current main の初期構築と検証入口をまとめます。実行フローの正は `Makefile` と `automation/scripts/run.sh` です。
+実行順序は [run.sh](../automation/scripts/run.sh)、各コマンドの入口は [Makefile](../Makefile) が正本です。
+**`make phase2` とそれを含む `make all` は既存環境を削除して構築し直します。通常の更新・再起動後の復旧には使いません。**
 
-## 前提
+## 実際のフェーズ
 
-- ホストは Ubuntu 24.04 LTS を想定します。
-- VM は QEMU/KVM + libvirt で作成します。
-- `make all` と `make phase1` は `sudo` 前提です。
-- 設定値は `automation/settings.toml` に置きます。
+| コマンド | 実体 | 主な処理 |
+|---|---|---|
+| `make phase1` / `make vm` | [setup-host.sh](../automation/host-setup/setup-host.sh) | ホストの apt 更新、KVM/libvirt/Docker/CLI 導入、グループ・サービス設定 |
+| `make phase2` / `make k8s` | [clean-and-deploy.sh](../automation/infrastructure/clean-and-deploy.sh) | VM・Terraform 状態の削除、tfvars 生成、Terraform による VM / kubeadm / Flannel 構築 |
+| `make bootstrap` | [platform-deploy.sh](../automation/platform/platform-deploy.sh) | SSH 経由の ArgoCD 初期導入、ESC token、root Application |
+| `make phase5` / `make verify` | [verify.sh](../automation/scripts/verify.sh) | kubeconfig 取得とクラスタ状態確認 |
 
-## 初期設定
+`make all` はこの順序で実行し、途中の失敗で停止します。`phase1` の別名は `vm` ですが、この段階では VM は作成しません。
+`run.sh` 経由の出力は `automation/run.log` に追記します。
 
-```bash
-cp automation/settings.toml.example automation/settings.toml
-```
+## 事前準備
 
-`automation/settings.toml` を環境に合わせて編集します。secret 本文は Pulumi ESC などの参照元に置き、Git に直接置きません。
+1. Ubuntu 24.04 LTS、KVM、sudo を使える一般ユーザー、ネットワーク・ディスク容量を用意します。
+   `setup-host.sh` は root での起動を拒否するため、`sudo make all` ではなく一般ユーザーから実行します。
+2. ローカル設定を作成します。既存の設定を上書きしないでください。
 
-## 既存データがあるクラスタの再構築
+   ```bash
+   cp automation/settings.toml.example automation/settings.toml
+   ```
 
-PGO の DB と pgBackRest repo は NFS 上の既存データを確認して復旧します。
-[共通 PostgreSQL の再構築手順](shared-postgresql.md#再起動と再構築) に従ってください。
-Harbor core / jobservice は資格情報・TLS・復元済みマーカーを確認するまで起動を待ちます。
-Sync Wave だけではデータの復元完了を保証しません。
+3. SSH ユーザー・鍵・IP、Pulumi token を設定します。`settings.toml` は Git 管理外です。
+   Secret の必要なキーと外部設定は [Secret 管理](secrets.md) と [アクセス経路](access.md) を確認します。
+4. NFS 共有を用意します。標準の phase1 は [setup-storage.sh](../automation/host-setup/setup-storage.sh) を実行しません。
+   この補助スクリプトはディスク操作を含むため、対象デバイスと既存データを確認して必要な場合だけ実行します。
 
-## 全体構築
+## 設定の適用範囲
 
-```bash
-make all
-```
+`settings.toml` は全構成を生成する設定ではありません。
+現在の `clean-and-deploy.sh` は `terraform.tfvars` を毎回生成し、ユーザー `k8suser`、IP `.10/.11/.12`、
+`~/.ssh/id_rsa.pub` を使用します。鍵がなければ `~/.ssh/id_rsa` を作成します。
+`settings.toml` の IP や鍵だけを変えても、このフェーズの値は変わりません。
 
-`make all` は次の順に実行します。
+初期 Kubernetes 版は [variables.tf](../automation/infrastructure/variables.tf) の `kubernetes_version`、
+既存ノードの更新先は `settings.toml` の `[upgrade].target_version` です。
+ArgoCD の Git URL、DNS、NFS、ESC environment も各マニフェストで固定されています。
+環境を変える場合は [contracts](../manifests/contracts/home-lab/) と対応する実体を同時に更新します。
 
-1. `make phase1`
-2. `make phase2`
-3. `make bootstrap`
-4. `make phase5`
+## 構築手順
 
-## 個別入口
+初回は段階実行すると、phase1 によるグループ変更後に再ログインできます。
 
 ```bash
 make phase1
+# 再ログイン後、libvirt / docker へのアクセスと NFS を確認
+sudo -v
 make phase2
 make bootstrap
 make phase5
 ```
 
-## GitOps Bootstrap
+`phase2` は名前に `k8s` を含む VM、関連イメージ、Terraform 状態などを削除します。
+既存クラスタを再構築する場合は、先に PV/PVC の対応、DB とオブジェクトのバックアップ、外部認証情報を保全し、
+[PostgreSQL の復旧](shared-postgresql.md#再起動と再構築) を確認してください。
+NFS にファイルが残ることと、新クラスタが正しいデータを再利用できることは別です。
 
-`make bootstrap` は `automation/scripts/run.sh bootstrap` を経由し、`automation/platform/platform-deploy.sh` を実行します。
-ArgoCD の固定版は `manifests/platform/argocd-config/upstream/kustomization.yaml` を正本とし、
-bootstrap も同じ tag を読み取ります。初回導入後は `argocd-core` Application が本体・CRD・設定を管理するため、
-通常のバージョン更新に `make bootstrap` の再実行は不要です。
-更新PRの作成は[定期更新](application-auto-updates.md)で自動化します。
+Nix で CLI を揃える場合は `nix develop .#bootstrap` 内で実行できます。
+この shell は `K8S_MYHOME_USE_NIX_TOOLCHAIN=true` を設定し、phase1 の一部 CLI 導入を省略します。
+ホストの apt / libvirt / Docker / systemd 設定は実行されます。
 
-root `Application` は次です。
+## Bootstrap が行うこと
 
-```text
-manifests/bootstrap/app-of-apps.yaml
-```
+1. control-plane に SSH 接続し `kubectl get nodes` を確認。
+2. [ArgoCD upstream](../manifests/platform/argocd-config/upstream/kustomization.yaml) から固定 tag を読み、
+   本体と ApplicationSet CRD を初期適用。server の起動を待ち、insecure 設定と bootstrap 用 Ingress を適用。
+3. `external-secrets-system/pulumi-esc-token`（キー `accessToken`）と provider 用 RBAC を作成。
+4. [bootstrap-root](../manifests/bootstrap/app-of-apps.yaml) を適用。
 
-## 検証
+トークンは `PULUMI_ACCESS_TOKEN` または設定ローダーから取得します。
+bootstrap の SSH/SCP は既定の SSH 設定を使い、verify と異なり `K8S_SSH_KEY` を `-i` に渡しません。
+必要なら SSH config / agent を用意します。
 
-```bash
-make phase5
-```
+bootstrap 終了は全 child Application の収束完了ではありません。
+CRD、ESO、証明書、DB の復元、アプリ起動を別途確認します。
+特に Harbor は復元済みマーカーを要求するため、空の DB を作成しただけでは起動しません。
+初回の空環境でも現在のデータ初期化・復元方針を決める必要があります。
+初回以降の ArgoCD 更新は `argocd-core` が管理します。
 
-`make phase5` は既定で `k8suser@192.168.122.10` に SSH し、`/etc/kubernetes/admin.conf` をローカル `~/.kube/config` に同期してから検証します。
+## 検証時の副作用と限界
 
-CI またはライブ検証をスキップしたい場合は次を使います。
-
-```bash
-VERIFY_SKIP_SSH=true make phase5
-```
-
-## 静的検証
-
-```bash
-make validate
-nix develop .#default --command automation/scripts/ci/validate.sh
-make validate-local
-```
-
-`automation/scripts/ci/validate.sh` は actionlint、setup / version update / 監視レポート / GitOps 検証の回帰テスト、shellcheck、yamllint、GitOps 参照・登録チェック、policy check、全 `manifests/**/kustomization.yaml` の `kustomize build` と CRD catalog schema を含む kubeconform、整合性チェックを実行します。
-
-PR の `Deploy Process Validation` で同じ入口を実行します。GitOps チェックは次を検出します。
-
-- このリポジトリを参照する bootstrap Application の `targetRevision` が `HEAD` 以外（multi-source も対象）。
-- source path の参照切れ・リポジトリ外への参照・Kustomization / Chart.yaml の欠落。
-- `directory.include` のファイル欠落。現行構成に合わせて単一ファイル指定のみ対応し、glob は検証エラーにします。
-- `manifests/apps/<app>/` に実体があるのに bootstrap Application が存在しない。
-- Application YAML が存在しても、`manifests/bootstrap/applications` の Kustomize 出力に含まれない登録漏れ。
-
-チェック自身は一時リポジトリと実際の Kustomize を使って正常系・異常系をテストします。
+`make phase5` は既定で `k8suser@192.168.122.10` から `/etc/kubernetes/admin.conf` を取得し、
+既存 kubeconfig をバックアップして書き換えます。`KUBECONFIG` 指定時は最初のパス、未指定時は `~/.kube/config` が対象です。
+また root / platform Application の hard refresh を試みます。
 
 ```bash
-nix develop .#default --command python3 -m unittest discover -s automation/tests/ci -v
-nix develop .#default --command python3 automation/scripts/ci/gitops-check.py
+# kubeconfig の保存先を明示する例
+KUBECONFIG="$HOME/.kube/k8s-myhome" make phase5
 ```
 
-外部 Helm chart の実際の同期、クラスタ上の admission、外部接続はこの静的検証の対象外です。
-kubeconform は引き続き schema のないリソースをスキップします。
-マージの強制ブロックには、GitHub 側の ruleset / branch protection で `validate` を必須チェックに設定する必要があります。
-
-## 再構築せずに行うセットアップの振る舞い検証
-
-```bash
-python3 -m unittest discover -s automation/tests/setup -v
-```
-
-Deploy Process Validation の `setup-behavior` job と `validate.sh` で実行します。
-Python 標準ライブラリと Bash・基本コマンドのみを使用し、クラスタや認証情報は不要です。
-一時ディレクトリに必要な実スクリプトだけをコピーし、外部コマンドは許可リスト形式の PATH 内のテスト用 stub に置き換えます。
-ローカルの `settings.toml` は読み込まず、実際の SSH・sudo・kubectl は実行しません。
-
-| 検証対象 | CI で確認する内容 |
-| --- | --- |
-| `run.sh` | all の実行順序、個別入口と別名、sudo 失敗、途中失敗時の終了コードと後続停止、ログ記録 |
-| `platform-deploy.sh` | リモート Bash 本文の実行、ArgoCD → Secret → root Application の順序、接続・転送・導入・Secret 作成失敗時の停止 |
-| `verify.sh` | CI / VERIFY_SKIP_SSH 時に SSH と kubeconfig 書き込みを行わないこと |
-
-これらの成功は **セットアップ全体の実構築成功の証明ではありません**。
-phase1 / phase2 の本体は置き換えているため、APT・libvirt・Terraform・cloud-init・kubeadm の動作は未検証です。
-bootstrap も Kubernetes API、ArgoCD の起動・同期、外部サービスとの接続を模擬しています。
-特に `CI=true make phase5` の成功はライブ検証のスキップであり、クラスタ正常性を示しません。
-
-## GitHub Actions での実構築テスト
-
-Actions の **Setup Integration (disposable VMs)** → **Run workflow** で手動実行します。
-CLI では `gh workflow run setup-integration.yml --ref main` です。
-PR ごとの自動実行は行いません。
-
-`ubuntu-24.04` の GitHub-hosted runner 内で libvirt を準備し、共通の
-`automation/infrastructure/*.tf` と cloud-init を変更せず一時ディレクトリへコピーして適用します。
-設定はCI専用に生成し、VMは control-plane 3GiB + worker 2GiB × 2、各2 vCPUです。
-SSH鍵とTerraform状態も一時領域に置き、NFSマウントは `enable_nfs_mount=false` で無効にします。
-本番の設定・Secret・kubeconfig は不要です。
-Ubuntu 24.04 の libvirt / AppArmor によるイメージの読み取り拒否を回避するため、
-使い捨てrunner内だけでCI用イメージ名に限定したAppArmorルールを追加します。
-AppArmorは有効のままです。
-
-成功条件は次のすべてです。
-
-- Terraform apply（VM作成・cloud-init・kubeadm init/join・CNI導入）が成功する。
-- 3ノードすべてがReadyになり、CoreDNSが起動する。
-- worker2のPodからDNSを解決し、Service経由でworker1のHTTP Podにアクセスできる。
-- Terraformの再適用前後で `plan -detailed-exitcode` が0（差分なし）になる。
-  差分がある場合は再適用せず失敗させる。
-- worker1、worker2、control-planeを順に再起動し、各VMのboot IDが変わる。
-  containerd/kubelet、IP転送、bridge設定、swap無効化が再起動後も維持される。
-- 再起動後に3ノードReadyとCoreDNS復旧を確認し、新しいclient PodでDNS・ノード間HTTP通信を再検証する。
-- 再起動後もTerraformの再適用前後に差分がない。
-
-再適用の確認はTerraform管理リソースが対象です。作成時のprovisionerを再実行する検証ではありません。
-VMの静的IPはcloud-initで設定し、libvirt domainの `network_interface.addresses` には重複指定しません。
-DHCP leaseのない静的IPを同属性に指定すると、状態の再取得で恒常的な差分が生じます。
-再起動検証は復旧を確認するもので、単一control-planeの無停止性や障害時のPod再配置は保証しません。
-
-成功・失敗にかかわらず診断情報の収集と `terraform destroy` を試みます。
-`setup-integration-diagnostics` artifactにはVM一覧、各VMのcloud-init状態、サービス状態、
-ノード・Pod・イベント・通信テスト結果を7日間保存します。
-イメージのファイル権限と、そのパスに対するlibvirtのAppArmor拒否も保存します。
-秘密鍵、joinコマンド、Terraform状態、認証情報を含みうる全ログはartifactに含めません。
-destroy失敗時もGitHub-hosted runner自体が破棄されます。
-
-GitHubのネスト仮想化は[公式サポート対象外](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners)です。
-冒頭でKVM APIによるVM作成、メモリ12GiB以上、空き容量10GiB以上を確認し、不足なら失敗させます。
-KVMを利用できない場合をテスト成功として扱いません。
-
-このテストは共通Terraformからの構築を検証します。phase1のホストセットアップ、
-`clean-and-deploy.sh` の既存環境削除・権限修復、NFS、ArgoCD以降のGitOps収束は対象外です。
-UbuntuイメージとFlannelは現行Terraformの可変URLを使うため、外部配布物の変更でも結果が変わります。
-`make all` 全体や本番の再構築成功を保証するものではありません。
-`clean-and-deploy.sh` は既存 VM と Terraform 状態を削除するため、既存クラスタのホストで試験しないでください。
-
-## ログ
-
-実行ログは次に出力されます。
-
-```text
-automation/run.log
-```
-
-失敗時は `automation/run.log` と `make phase5` の出力を先に確認します。
+Node / Pod / Application / ESO の状態を確認しますが、Namespace や Gateway / LoadBalancer の一部欠落は警告のみです。
+`CI=true`、`CI=1`、`VERIFY_SKIP_SSH=true` では SSH と kubeconfig 更新を含むライブ検証全体をスキップし、成功終了します。
+静的検証と使い捨て VM の実構築テストは [検証・参照](reference.md) にまとめています。
