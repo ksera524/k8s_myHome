@@ -136,7 +136,8 @@ RBAC と ConfigMap の反映には時間差があり、一時的な scrape 失�
 - TLS: クラスタ CA 検証を維持。
 - RBAC: `nodes/metrics` は `get` のみ。`nodes` / `pods` は探索用に `get/list/watch`。
 - 既存の job 名・`node`・`instance` ラベルと metric フィルターを維持する。
-  `instance` は時系列互換のため従来の `kubernetes.default.svc:443` を維持し、ノード識別には `node` を使う。
+  `instance` は実クラスタの既存時系列に合わせてノード名を明示する（`node` も同じノード名）。
+  2026-10-21 に全3ノード・両ジョブで実データのラベルを確認した。
 
 ```bash
 SA=system:serviceaccount:observability:victoria-metrics

@@ -27,9 +27,9 @@ data:
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10250
-          # 従来の instance を維持し、既存の時系列を継続する（ノード識別は node）。
-          - target_label: instance
-            replacement: kubernetes.default.svc:443
+          # 実クラスタの既存 instance（ノード名）を維持して時系列を継続する。
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: instance
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
         metric_relabel_configs:
@@ -50,9 +50,9 @@ data:
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
             target_label: __address__
             replacement: $1:10250
-          # 従来の instance を維持し、既存の時系列を継続する（ノード識別は node）。
-          - target_label: instance
-            replacement: kubernetes.default.svc:443
+          # 実クラスタの既存 instance（ノード名）を維持して時系列を継続する。
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: instance
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
         metric_relabel_configs:
