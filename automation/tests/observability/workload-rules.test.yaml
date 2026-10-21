@@ -47,6 +47,16 @@ tests:
         values: '1 1 stale'
       - series: 'kube_pod_info{namespace="apps",pod="standalone"}'
         values: '1 1 stale'
+      - series: 'kube_pod_labels{namespace="apps",pod="web-a",label_app_kubernetes_io_name="suite",label_app="ignored"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_labels{namespace="apps",pod="web-b",label_app="suite"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_labels{namespace="apps",pod="db-0",label_app_kubernetes_io_name="suite"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_labels{namespace="apps",pod="backup-first",label_app="suite"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_labels{namespace="other",pod="web-a",label_app="other-app"}'
+        values: '1 1 stale'
     promql_expr_test:
       - expr: 'kube_pod_workload_info'
         eval_time: 1m
@@ -93,3 +103,55 @@ tests:
       - expr: 'kube_pod_workload_info'
         eval_time: 4m
         exp_samples: []
+      - expr: 'kube_pod_application_info'
+        eval_time: 1m
+        exp_samples:
+          - labels: 'kube_pod_application_info{namespace="apps",pod="web-a",workload_kind="Deployment",workload="web",application="suite"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="web-b",workload_kind="Deployment",workload="web",application="suite"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="other",pod="web-a",workload_kind="Deployment",workload="different-web",application="other-app"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="backup-first",workload_kind="CronJob",workload="backup",application="backup"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="backup-second",workload_kind="CronJob",workload="backup",application="backup"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="manual",workload_kind="Job",workload="manual-12345678",application="manual-12345678"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="db-0",workload_kind="StatefulSet",workload="db",application="suite"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="node-agent",workload_kind="DaemonSet",workload="agent",application="agent"}'
+            value: 1
+          - labels: 'kube_pod_application_info{namespace="apps",pod="standalone",workload_kind="Pod",workload="standalone",application="standalone"}'
+            value: 1
+      - expr: 'max_over_time(kube_pod_application_info[5m])'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{namespace="apps",pod="web-a",workload_kind="Deployment",workload="web",application="suite"}'
+            value: 1
+          - labels: '{namespace="apps",pod="web-b",workload_kind="Deployment",workload="web",application="suite"}'
+            value: 1
+          - labels: '{namespace="other",pod="web-a",workload_kind="Deployment",workload="different-web",application="other-app"}'
+            value: 1
+          - labels: '{namespace="apps",pod="backup-first",workload_kind="CronJob",workload="backup",application="backup"}'
+            value: 1
+          - labels: '{namespace="apps",pod="backup-second",workload_kind="CronJob",workload="backup",application="backup"}'
+            value: 1
+          - labels: '{namespace="apps",pod="manual",workload_kind="Job",workload="manual-12345678",application="manual-12345678"}'
+            value: 1
+          - labels: '{namespace="apps",pod="db-0",workload_kind="StatefulSet",workload="db",application="suite"}'
+            value: 1
+          - labels: '{namespace="apps",pod="node-agent",workload_kind="DaemonSet",workload="agent",application="agent"}'
+            value: 1
+          - labels: '{namespace="apps",pod="standalone",workload_kind="Pod",workload="standalone",application="standalone"}'
+            value: 1
+      - expr: 'count(kube_pod_application_info{namespace="apps",application="suite"})'
+        eval_time: 1m
+        exp_samples:
+          - labels: '{}'
+            value: 3
+      - expr: 'count(max_over_time(kube_pod_application_info{namespace="apps",application="suite"}[5m]))'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{}'
+            value: 3

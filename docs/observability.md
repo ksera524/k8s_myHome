@@ -35,15 +35,19 @@ local-path はノードローカルの単一コピーです。PVC の要求サ�
 データソース・画面の正本は [config/](../manifests/platform/observability/config/) です。
 Git 管理の画面を変更する場合は JSON に反映します。SQL は [DB の権限](shared-postgresql.md#grafana-から-sql-を使う) を確認します。
 
-「02 アプリ・ログ」は Namespace → 種類 → Workload → Pod の順で選択します。
-Deployment は ReplicaSet、CronJob は Job の所有関係をたどり、配下の Pod のメトリクスとログを絞り込みます。
-StatefulSet / DaemonSet / 単独 Job / 単独 Pod も選択できます。CPU・メモリの内訳表示は Pod 単位です。
-Pod の All は選択条件に合う候補だけに展開します。Deployment / CronJob 固有のパネルも同じ選択に従います。
+「02 アプリ・ログ」は「アプリ / CronJob」で名前を選ぶと、配下の全 Pod・全コンテナのログを
+1つのパネルに時刻順で表示します。種類や Pod 名の選択は不要です。
+例えば `cloudflared` は両 replica、`hitomi-monitor` は選択期間内の各実行のログをまとめます。
+Namespace は任意の追加絞り込みです。ログ詳細から元の Pod / コンテナを確認できます。
+CPU・メモリの内訳表示は Pod 単位で、アプリの選択に連動します。
 
-[workload-rules.yaml](../manifests/platform/observability/config/workload-rules.yaml) は
-所有関係を30秒間隔で1 Pod あたり原則1系列として記録します（metrics の保持は30日）。
-候補は画面の選択期間内の記録から取得するため、削除済み Pod もその期間に記録があれば検索できます。
-導入前や収集間隔より短命で記録できなかった Pod は候補に出ません。そのログは Explore で namespace / pod を直接指定します。
+[workload-rules.yaml](../manifests/platform/observability/config/workload-rules.yaml) で
+所有関係とアプリへの所属を30秒間隔で記録します（metrics の保持は30日）。
+CronJob は CronJob 名、それ以外は Pod の `app.kubernetes.io/name` → `app` → 所有者名の順に使います。
+同じアプリラベルを持つ複数 Deployment / StatefulSet なども1つの候補にまとまります。
+kube-state-metrics に公開する Pod ラベルはこの2つだけに限定します。
+選択期間内に所属の記録があれば削除済み Pod も対象です。導入前や収集前に消えた Pod は
+Explore で namespace / pod を直接指定します。種類・Pod の古い URL パラメーターは絞り込みに使いません。
 ログ本文の追加保存や Loki ラベルの追加は行いません。ログ保持168時間・自動削除を維持します。
 削除には Compactor の処理待ちと2時間の猶予があり、容量に応じた早期削除はしません。
 

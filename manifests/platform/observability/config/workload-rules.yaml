@@ -34,3 +34,25 @@ groups:
               "workload", "$1", "pod", "(.+)"),
               "workload_kind", "Pod", "pod", ".*")
           )
+      # CronJob は実行回に依存しない CronJob 名でまとめる。
+      # その他は標準アプリラベル → app ラベル → 所有者名の順でまとめる。
+      - record: kube_pod_application_info
+        expr: >-
+          max by (namespace, pod, workload_kind, workload, application) (
+            label_replace(kube_pod_workload_info{workload_kind="CronJob"},
+              "application", "$1", "workload", "(.+)")
+            or on(namespace,pod)
+            (
+              kube_pod_workload_info
+              * on(namespace,pod) group_left(application)
+              max by(namespace,pod,application) (
+                label_replace(kube_pod_labels{label_app_kubernetes_io_name!=""},
+                  "application", "$1", "label_app_kubernetes_io_name", "(.+)")
+                or on(namespace,pod)
+                label_replace(kube_pod_labels{label_app!=""},
+                  "application", "$1", "label_app", "(.+)"))
+            )
+            or on(namespace,pod)
+            label_replace(kube_pod_workload_info,
+              "application", "$1", "workload", "(.+)")
+          )

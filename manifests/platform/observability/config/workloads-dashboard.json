@@ -1,9 +1,9 @@
 {
   "uid": "home-lab-workloads",
   "title": "02 アプリ・ログ",
-  "description": "GitOps 管理。Namespace → 種類 → Workload → Pod で絞り込み。選択期間内の所有関係を使用。ログ保持7日。",
+  "description": "アプリ名・CronJob 名を選ぶと、配下の全 Pod のメトリクスとログをまとめて表示します。ログ保持7日。",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "30s",
   "timezone": "browser",
   "time": {
@@ -67,18 +67,18 @@
         }
       },
       {
-        "name": "workload_kind",
-        "label": "種類",
+        "name": "application",
+        "label": "アプリ / CronJob",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "victoriametrics"
         },
         "query": {
-          "query": "query_result(count by (workload_kind) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\"}[$__range])))",
-          "refId": "var-workload_kind"
+          "query": "query_result(count by (application) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\"}[$__range])))",
+          "refId": "var-application"
         },
-        "definition": "query_result(count by (workload_kind) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\"}[$__range])))",
+        "definition": "query_result(count by (application) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\"}[$__range])))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -88,34 +88,10 @@
           "text": "All",
           "value": "$__all"
         },
-        "regex": "/workload_kind=\"([^\"]+)\"/"
+        "regex": "/application=\"([^\"]+)\"/"
       },
       {
-        "name": "workload",
-        "label": "Workload",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "victoriametrics"
-        },
-        "query": {
-          "query": "query_result(count by (workload) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\"}[$__range])))",
-          "refId": "var-workload"
-        },
-        "definition": "query_result(count by (workload) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\"}[$__range])))",
-        "refresh": 2,
-        "sort": 1,
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "regex": "/workload=\"([^\"]+)\"/"
-      },
-      {
-        "name": "pod",
+        "name": "selected_pods",
         "label": "Pod",
         "type": "query",
         "datasource": {
@@ -123,10 +99,10 @@
           "uid": "victoriametrics"
         },
         "query": {
-          "query": "query_result(count by (pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\"}[$__range])))",
-          "refId": "var-pod"
+          "query": "query_result(count by (pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\"}[$__range])))",
+          "refId": "var-selected_pods"
         },
-        "definition": "query_result(count by (pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\"}[$__range])))",
+        "definition": "query_result(count by (pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\"}[$__range])))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -136,7 +112,9 @@
           "text": "All",
           "value": "$__all"
         },
-        "regex": "/pod=\"([^\"]+)\"/"
+        "regex": "/pod=\"([^\"]+)\"/",
+        "hide": 2,
+        "skipUrlSync": true
       },
       {
         "name": "log_pod",
@@ -147,10 +125,10 @@
           "uid": "victoriametrics"
         },
         "query": {
-          "query": "query_result(label_join(max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range])), \"namespace_pod\", \"/\", \"namespace\", \"pod\"))",
+          "query": "query_result(label_join(max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range])), \"namespace_pod\", \"/\", \"namespace\", \"pod\"))",
           "refId": "var-log_pod"
         },
-        "definition": "query_result(label_join(max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range])), \"namespace_pod\", \"/\", \"namespace\", \"pod\"))",
+        "definition": "query_result(label_join(max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range])), \"namespace_pod\", \"/\", \"namespace\", \"pod\"))",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -185,7 +163,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum((kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$pod\",phase=\"Running\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))) or vector(0)",
+          "expr": "sum((kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$selected_pods\",phase=\"Running\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))) or vector(0)",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": false,
           "instant": true,
@@ -243,7 +221,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum((kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$pod\",phase=\"Pending\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))) or vector(0)",
+          "expr": "sum((kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$selected_pods\",phase=\"Pending\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))) or vector(0)",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": false,
           "instant": true,
@@ -309,7 +287,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum((increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$pod\"}[1h])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))) or vector(0)",
+          "expr": "sum((increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$selected_pods\"}[1h])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))) or vector(0)",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": false,
           "instant": true,
@@ -360,7 +338,7 @@
     {
       "id": 4,
       "title": "不足 Deployment replica",
-      "description": "選択した Workload / Pod に属する Deployment の不足 replica。対象外の場合は0。",
+      "description": "選択したアプリに属する Deployment の不足 replica。対象外の場合は0。",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -375,7 +353,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum((clamp_min(kube_deployment_spec_replicas{namespace=~\"$namespace\"} - kube_deployment_status_replicas_available{namespace=~\"$namespace\"}, 0)) and on(namespace,deployment) max by (namespace, deployment) (label_replace(max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",workload_kind=\"Deployment\",pod=~\"$pod\"}[$__range]), \"deployment\", \"$1\", \"workload\", \"(.+)\"))) or vector(0)",
+          "expr": "sum((clamp_min(kube_deployment_spec_replicas{namespace=~\"$namespace\"} - kube_deployment_status_replicas_available{namespace=~\"$namespace\"}, 0)) and on(namespace,deployment) max by (namespace, deployment) (label_replace(max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",workload_kind=\"Deployment\",pod=~\"$selected_pods\"}[$__range]), \"deployment\", \"$1\", \"workload\", \"(.+)\"))) or vector(0)",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": false,
           "instant": true,
@@ -454,7 +432,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by(namespace,pod) ((rate(pod_cpu_usage_seconds_total{job=\"kubelet-resources\",namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))))",
+          "expr": "topk(10, sum by(namespace,pod) ((rate(pod_cpu_usage_seconds_total{job=\"kubelet-resources\",namespace=~\"$namespace\",pod=~\"$selected_pods\"}[$__rate_interval])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))))",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": true,
           "instant": false,
@@ -520,7 +498,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, max by(namespace,pod) ((pod_memory_working_set_bytes{job=\"kubelet-resources\",namespace=~\"$namespace\",pod=~\"$pod\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))))",
+          "expr": "topk(10, max by(namespace,pod) ((pod_memory_working_set_bytes{job=\"kubelet-resources\",namespace=~\"$namespace\",pod=~\"$selected_pods\"}) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))))",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": true,
           "instant": false,
@@ -599,7 +577,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by(namespace,pod) ((increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$pod\"}[1h])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",pod=~\"$pod\"}[$__range]))))",
+          "expr": "topk(10, sum by(namespace,pod) ((increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$selected_pods\"}[1h])) and on(namespace,pod) max by(namespace,pod) (max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",pod=~\"$selected_pods\"}[$__range]))))",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": true,
           "instant": false,
@@ -650,7 +628,7 @@
     {
       "id": 10,
       "title": "CronJob の最終成功からの時間",
-      "description": "選択した Workload / Pod に属する CronJob。未成功・対象外は表示されません。",
+      "description": "選択した CronJob の最終成功からの時間。未成功・対象外は表示されません。",
       "type": "table",
       "datasource": {
         "type": "prometheus",
@@ -665,7 +643,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(time() - kube_cronjob_status_last_successful_time{namespace=~\"$namespace\"}) and on(namespace,cronjob) max by (namespace, cronjob) (label_replace(max_over_time(kube_pod_workload_info{namespace=~\"$namespace\",workload_kind=~\"$workload_kind\",workload=~\"$workload\",workload_kind=\"CronJob\",pod=~\"$pod\"}[$__range]), \"cronjob\", \"$1\", \"workload\", \"(.+)\"))",
+          "expr": "(time() - kube_cronjob_status_last_successful_time{namespace=~\"$namespace\"}) and on(namespace,cronjob) max by (namespace, cronjob) (label_replace(max_over_time(kube_pod_application_info{namespace=~\"$namespace\",application=~\"$application\",workload_kind=\"CronJob\",pod=~\"$selected_pods\"}[$__range]), \"cronjob\", \"$1\", \"workload\", \"(.+)\"))",
           "legendFormat": "{{namespace}} / {{pod}}",
           "range": false,
           "instant": true,
@@ -715,7 +693,7 @@
     {
       "id": 11,
       "type": "row",
-      "title": "選択した Workload / Pod のログ",
+      "title": "選択したアプリ / CronJob のログ（全 Pod）",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -727,8 +705,8 @@
     },
     {
       "id": 12,
-      "title": "Workload / Pod ログ",
-      "description": "Namespace → 種類 → Workload → Pod と期間で絞り込み。Pod の All は選択した Workload 配下の全件。ログ保持7日。所有関係の収集前に消えた Pod は候補に出ません。",
+      "title": "アプリ / CronJob の統合ログ",
+      "description": "選択したアプリ・CronJob 配下の全 Pod・全コンテナのログを時刻順に表示します。保持7日。詳細から Pod / コンテナを確認できます。",
       "type": "logs",
       "datasource": {
         "type": "loki",
@@ -743,7 +721,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"$namespace\",pod=~\"$pod\"} | label_format namespace_pod=\"{{.namespace}}/{{.pod}}\" | namespace_pod=~\"$log_pod\" | drop namespace_pod",
+          "expr": "{namespace=~\"$namespace\",pod=~\"$selected_pods\"} | label_format namespace_pod=\"{{.namespace}}/{{.pod}}\" | namespace_pod=~\"$log_pod\" | drop namespace_pod",
           "maxLines": 300
         }
       ],
