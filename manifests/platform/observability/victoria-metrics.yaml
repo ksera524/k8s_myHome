@@ -14,20 +14,22 @@ data:
           - targets:
               - kube-state-metrics.observability.svc.cluster.local:8080
 
-      # API server proxy 経由で CA / ServiceAccount 認証を使用する。
+      # kubelet に直接接続し、CA 検証と nodes/metrics の get 権限を使用する。
       - job_name: kubelet-volume-stats
         scheme: https
+        metrics_path: /metrics
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
         tls_config:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         kubernetes_sd_configs:
           - role: node
         relabel_configs:
-          - target_label: __address__
-            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          # 実クラスタの既存 instance（ノード名）を維持して時系列を継続する。
           - source_labels: [__meta_kubernetes_node_name]
-            target_label: __metrics_path__
-            replacement: /api/v1/nodes/$1/proxy/metrics
+            target_label: instance
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
         metric_relabel_configs:
@@ -35,20 +37,22 @@ data:
             action: keep
             regex: kubelet_volume_stats_(available|capacity|used)_bytes
 
-      # API server proxy 経由で CA / ServiceAccount 認証を使用する。
+      # kubelet に直接接続し、CA 検証と nodes/metrics の get 権限を使用する。
       - job_name: kubelet-resources
         scheme: https
+        metrics_path: /metrics/resource
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
         tls_config:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         kubernetes_sd_configs:
           - role: node
         relabel_configs:
-          - target_label: __address__
-            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          # 実クラスタの既存 instance（ノード名）を維持して時系列を継続する。
           - source_labels: [__meta_kubernetes_node_name]
-            target_label: __metrics_path__
-            replacement: /api/v1/nodes/$1/proxy/metrics/resource
+            target_label: instance
           - source_labels: [__meta_kubernetes_node_name]
             target_label: node
         metric_relabel_configs:
@@ -93,11 +97,11 @@ rules:
   - apiGroups: [""]
     resources:
       - nodes
-      - nodes/proxy
       - pods
-      - services
-      - endpoints
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes/metrics"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

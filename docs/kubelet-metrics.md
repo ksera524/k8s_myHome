@@ -1,0 +1,208 @@
+# kubelet metrics の最小権限化
+
+VictoriaMetrics は kubelet の `/metrics` と `/metrics/resource` を直接収集する。
+`nodes/metrics` の `get` はこの収集に必要な権限で、`nodes/proxy` は不要になる。
+API server の `/api/v1/nodes/<node>/proxy/...` に接続する構成では、この削減はできない。
+
+## マージ・初回同期の前提
+
+**既存クラスタでは、以下の証明書準備を全ノードで完了してから収集設定をマージする。**
+ArgoCD の自動同期で ConfigMap と RBAC が反映されるため、先にマージすると収集が失敗する。
+この手順はノード設定変更を含む。PR の作成・CI の実行だけでは実施されない。
+
+- kubelet の認証は Webhook 有効、匿名アクセス無効、認可は Webhook とする。
+- 各ノードの 10250 番で、クラスタ CA が署名し、接続先 InternalIP を SAN に持つ証明書を配信する。
+- VictoriaMetrics Pod から各ノードの TCP 10250 へ到達できること。
+- この repo の IPv4 構成を対象とする。IPv6 化時は scrape の `__address__` に角括弧を付ける変更も必要。
+
+2026-10-20 の調査では全3ノードが認証・認可の条件を満たしたが、証明書はノード固有の
+発行者で DNS SAN のみだった。`insecure_skip_verify` による回避はしない。
+
+## 新規構築と証明書更新の自動化
+
+`make all` / `make phase2` → `make bootstrap` では、手動のCSR承認は不要。
+
+1. Terraform の kubeadm 設定で全ノードの `serverTLSBootstrap: true` を有効化する。
+2. bootstrap は root Application の適用前に、Git と同じ
+   [kubelet-serving-certificates](../manifests/infrastructure/security/kubelet-serving-certificates/) を初期導入する。
+3. 承認処理が30秒間隔で初回・更新用CSRを検査し、条件を満たすものだけを承認する。
+4. control-plane から全ノードの Ready、クラスタCA、InternalIP SAN、有効期限（残り1日超）を検証する。
+   失敗・タイムアウト時は bootstrap を停止し、root Application を適用しない。
+5. 初回導入後は同名の ArgoCD Application が承認処理と設定を管理する。
+
+承認台帳は [nodes.json](../manifests/infrastructure/security/kubelet-serving-certificates/nodes.json)。
+`k8s-control-plane=.10`、`k8s-worker1=.11`、`k8s-worker2=.12` を明示している。
+ノード名・IPを変える場合は、この台帳と ClusterRole の `nodes.resourceNames`、Terraform の構成も変更する。
+Node.status だけを信頼せず、要求元、groups、CN、Organization、DNS/IP SAN、usages、CSR署名、
+要求有効期間、登録 Node の InternalIP を台帳と照合する。
+未知のノード、別ノードのIP、追加のSAN、クライアント証明書用途は承認しない。
+不一致CSRは削除・一括拒否せず Pending のまま残し、ログに理由を記録する。
+
+承認処理は標準ライブラリだけを使う小さなGoプログラム。独自registryへの依存を避けるため、
+固定版の公式Goイメージを使う initContainer が、ConfigMap のソースをネットワーク不要でビルドする。
+実行コンテナは非root・読み取り専用で動き、承認対象 signer は `kubernetes.io/kubelet-serving` のみ。
+起動時のビルド用に最大768MiBのメモリが必要。ソース・台帳の変更ではConfigMap名が変わり再起動する。
+CA秘密鍵、admin kubeconfig、ノードのホストファイルはPodに渡さない。
+
+証明書の残存14日、TLS検証失敗、承認処理のAPI照合停止を監視する。
+承認処理自身もPodから全ノードへTLS接続するため、control-plane側とPod側の到達性を確認できる。
+メトリクス収集の認証・認可の確認は、後述の実scrapeで行う。
+
+単独で準備・再確認する場合（既存ノードの設定ファイルやkubelet再起動はこのコマンドでは行わない）:
+
+```bash
+make kubelet-certificates
+# 既に導入済みの場合、変更なしの検証のみ
+bash automation/scripts/kubelet-serving-certificates.sh --verify-only
+```
+
+## 既存ノードの証明書移行
+
+新規クラスタでは `automation/infrastructure/main.tf` の kubeadm 設定が
+`serverTLSBootstrap: true` を指定する。既存ノードには以下の設定変更が必要。
+既存クラスタを移行するために Terraform のリソースを再作成してはいけない。
+
+既存クラスタは次の順で移行する。ノードの変更は1台ずつ行い、その都度 Ready と証明書を確認する。
+
+1. `kube-system/kubelet-config` ConfigMap をバックアップし、`data.kubelet` 内の
+   `KubeletConfiguration` に `serverTLSBootstrap: true` を設定する。
+   `tlsCertFile` / `tlsPrivateKeyFile` に旧証明書への固定参照があれば削除する。
+   kubeadm upgrade / join 時にもこの構成が使われるよう、クラスタ側も更新する。
+2. 対象ノードの `/var/lib/kubelet/config.yaml` をバックアップし、同じ変更を行う。
+   systemd unit / drop-in / kubelet の起動引数にも `--tls-cert-file` / `--tls-private-key-file`
+   の固定指定がないことを確認する。クライアント認証用 kubeconfig や鍵は変更・削除しない。
+3. `sudo systemctl restart kubelet` を実行する。
+4. 自動承認処理を初回導入する。旧設定のノードが残る間は、承認処理の導入後に全台検証が
+   タイムアウトして終了してよい。次のノードへ進む前に対象ノードの証明書とReadyを確認する。
+
+   ```bash
+   make kubelet-certificates
+   ```
+
+   正常なCSRは自動承認される。Pending が残った場合は以下で内容と承認処理のログを確認する。
+   手動承認は自動承認処理を使わない場合の代替手順。検証の不一致を回避するために承認しない。
+
+   ```bash
+   kubectl -n kube-system logs deployment/kubelet-serving-approver -c approver
+   ```
+
+```bash
+kubectl get csr
+CSR=<対象のCSR名>
+kubectl get csr "$CSR" -o yaml
+kubectl get csr "$CSR" -o jsonpath='{.spec.request}' \
+  | base64 -d | openssl req -noout -text
+kubectl get nodes -o wide
+```
+
+確認する内容:
+
+- signerName は `kubernetes.io/kubelet-serving`。
+- requestor と CSR の CN は `system:node:<対象ノード名>`、Organization は `system:nodes`。
+- SAN は対象ノードの DNS 名 / InternalIP と一致し、他ノードの名前・IP を含まない。
+- usages はサーバー認証用で、クライアント認証用ではない。
+
+確認済みの CSR だけを個別に承認する。一括承認や未検証 CSR の自動承認はしない。
+
+```bash
+kubectl certificate approve "$CSR"
+kubectl wait --for=condition=Ready node/<対象ノード名> --timeout=120s
+```
+
+5. 実際に配信された証明書を CA と IP の両方で検証する。以下は管理端末で行う
+   TLS の事前確認であり、Pod からの通信確認は別途必要。
+
+```bash
+kubectl -n observability get configmap kube-root-ca.crt \
+  -o jsonpath='{.data.ca\.crt}' > /tmp/kubelet-metrics-ca.crt
+NODE_IP=192.168.122.10 # .11 / .12 でも実施
+openssl s_client -connect "${NODE_IP}:10250" \
+  -CAfile /tmp/kubelet-metrics-ca.crt -verify_ip "$NODE_IP" \
+  -verify_return_error </dev/null
+```
+
+`Verify return code: 0 (ok)` を確認する。旧証明書のままなら固定パス・起動引数・kubelet のログを調べる。
+必要に応じて正しい設定で再起動し、証明書配信を再確認する。
+既存の API server proxy 経由の収集も維持されていることを確認してから次のノードへ進む。
+
+## GitOps で収集と権限を切り替える
+
+全ノードの準備後、収集設定と RBAC をマージし、`observability` Application の同期を確認する。
+ConfigMap はボリュームへ伝播後、VictoriaMetrics が30秒間隔で再読込する。
+RBAC と ConfigMap の反映には時間差があり、一時的な scrape 失敗があり得る。
+
+- 接続先: ノードの InternalIP:10250。
+- 認証: Pod に投影された ServiceAccount token。外部へ取り出さない。
+- TLS: クラスタ CA 検証を維持。
+- RBAC: `nodes/metrics` は `get` のみ。`nodes` / `pods` は探索用に `get/list/watch`。
+- 既存の job 名・`node`・`instance` ラベルと metric フィルターを維持する。
+  `instance` は実クラスタの既存時系列に合わせてノード名を明示する（`node` も同じノード名）。
+  2026-10-21 に全3ノード・両ジョブで実データのラベルを確認した。
+
+```bash
+SA=system:serviceaccount:observability:victoria-metrics
+kubectl auth can-i get nodes/metrics --as="$SA"     # yes
+kubectl auth can-i get nodes/proxy --as="$SA"       # no
+kubectl auth can-i create nodes/proxy --as="$SA"    # no
+kubectl -n argocd get application observability
+kubectl -n observability port-forward svc/victoria-metrics 18428:8428
+```
+
+VMUI / `/targets` とクエリ API で以下を確認する。port-forward は VictoriaMetrics の状態確認に使い、
+実際の scrape が Pod → kubelet の TLS・認証・通信の検証になる。
+
+- `up{job=~"kubelet-volume-stats|kubelet-resources"}` が全3ノード・両ジョブで `1`。
+  直近の scrape 成功日時と対象 URL が各ノードの 10250 番であることも確認する。
+- `kubelet_volume_stats_capacity_bytes` 等が移行前と同じ PVC で更新される。
+  元から容量未報告の PVC を新たな障害と誤認しない。
+- `node_cpu_usage_seconds_total`、`pod_memory_working_set_bytes` 等が更新される。
+- Grafana の CPU・メモリ・容量、週次レポートの dry-run が正常。
+- kubelet の認可キャッシュ（調査時は許可5分）が失効した後も収集でき、旧 proxy 権限がないこと。
+
+## 証明書の更新と復旧
+
+serving CSR は標準の controller では自動承認されないため、本PRの承認処理が初回と更新を担当する。
+`KubeletServingCertificateExpiring` / `KubeletServingCertificateInvalid` /
+`KubeletServingApproverUnavailable` を監視し、異常時は Deployment、Pending CSR、台帳との不一致を調べる。
+再実行は未承認CSRだけを対象とし、証明書や秘密鍵の削除は行わない。
+既存ノードも設定変更と全台検証を終えてからマージするという前提は変わらない。
+
+証明書移行中に問題が起きた場合は、対象ノードの設定をバックアップへ戻して kubelet を再起動し、
+既存経路の収集・Node Ready を確認する。証明書の秘密鍵は削除しない。
+
+GitOps 切り替え後の問題では、まず TLS・到達性・権限・scrape エラーを確認する。
+緊急に旧経路へ戻す場合は **scrape 設定と RBAC の両方**を Git revert して同期する。
+これは `nodes/proxy` のリスクを再導入する暫定復旧なので、修正後に再び削除する。
+署名済み serving 証明書は旧経路でも使えるため、収集の切り戻しで元に戻す必要はない。
+
+## 既存クラスタへの適用記録（2026-10-21）
+
+22:14〜22:18 JST に worker1 → worker2 → control-plane の順で移行した。
+クラスタ共通 `kubelet-config` と各ノードの設定へ `serverTLSBootstrap: true` を追加し、
+kubelet を1台ずつ再起動。固定証明書参照は全台とも存在しなかった。
+CSR は台帳照合付き承認処理が自動承認し、3件とも Approved,Issued を確認した。
+
+| Node | CSR | ノード内の設定バックアップ |
+|---|---|---|
+| k8s-worker1 | csr-6x4c5 | `/var/lib/kubelet/config.yaml.before-serving-20261021T131424Z` |
+| k8s-worker2 | csr-vqttn | `/var/lib/kubelet/config.yaml.before-serving-20261021T131606Z` |
+| k8s-control-plane | csr-m4f4d | `/var/lib/kubelet/config.yaml.before-serving-20261021T131749Z` |
+
+全台 Ready、クラスタCA・InternalIP SAN・有効期限の検証成功、
+Podからの `kubelet_serving_certificate_valid` が全台 `1`、既存監視の3台×2ジョブが
+新しいscrapeでもすべて `up` であることを確認した。証明書の有効期限は全台2027-10-21 UTC。
+再起動〜発行完了の間には一時的なscrape失敗があり、その後の回復を各ノードで確認した。
+SSH鍵が使用できなかったため、一時的な保守Pod経由で設定変更し、作業後は全Podを削除した。
+クラスタ共通設定のバックアップと検証記録は、実行端末の
+`~/.local/state/k8s_myHome/kubelet-cert-migration-20261021/` に保存している。
+
+承認処理の Application は Healthy / Synced。PR未マージのため、実クラスタだけ
+`targetRevision: 9ec0fd985d58ffd0075cd7b85ddf999baf29cb77` に固定してArgoCD管理へ移した。
+Git上のbootstrap定義は `HEAD` を維持しており、PRマージ後にrootが採用して通常管理へ戻す。
+この作業ではPRをマージしていない。監視収集経路とRBAC、新しいアラートルールの切り替えは
+PRマージ後に行う。証明書整備というマージ前提は満たしたが、直接scrapeの確認は未実施。
+
+参考:
+
+- [kubelet の認証・認可](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/)
+- [kubeadm の serving 証明書設定](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/#enabling-signed-kubelet-serving-certificates)

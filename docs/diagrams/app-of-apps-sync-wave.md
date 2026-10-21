@@ -7,7 +7,8 @@ root は [bootstrap-root](../../manifests/bootstrap/app-of-apps.yaml) で、sour
 
 ```mermaid
 flowchart TD
-  Bootstrap[make bootstrap] --> Root[bootstrap-root]
+  Bootstrap[make bootstrap] --> Serving[serving CSR自動承認・全ノードTLS検証]
+  Serving --> Root[bootstrap-root]
   Root --> Child[bootstrap 配下の child Applications]
   Child --> Workload[core / infrastructure / platform / access / apps]
   Child --> Platform[platform: github-actions ディレクトリ]
@@ -27,6 +28,7 @@ wave は root が作成・更新する Application の annotation です。別 A
 | 1 | [argocd-core](../../manifests/bootstrap/applications/platform/argocd-core.yaml) | `platform` | [manifests/platform/argocd-config](../../manifests/platform/argocd-config) | `argocd` |
 | 1 | [local-path-provisioner](../../manifests/bootstrap/applications/infrastructure/local-path-provisioner.yaml) | `infrastructure` | [manifests/infrastructure/storage/local-path](../../manifests/infrastructure/storage/local-path) | `local-path-storage` |
 | 1 | [nfs-subdir-external-provisioner](../../manifests/bootstrap/applications/infrastructure/nfs-subdir-external-provisioner.yaml) | `infrastructure` | Helm `nfs-subdir-external-provisioner`（版は定義を参照） | `nfs-storage` |
+| 1 | [kubelet-serving-certificates](../../manifests/bootstrap/applications/infrastructure/kubelet-serving-certificates.yaml) | `infrastructure` | [manifests/infrastructure/security/kubelet-serving-certificates](../../manifests/infrastructure/security/kubelet-serving-certificates) | `kube-system` |
 | 2 | [core](../../manifests/bootstrap/applications/core/core.yaml) | `core` | [manifests/core](../../manifests/core) | `指定なし` |
 | 3 | [kube-network-policies](../../manifests/bootstrap/applications/infrastructure/kube-network-policies.yaml) | `infrastructure` | [manifests/infrastructure/networking/kube-network-policies](../../manifests/infrastructure/networking/kube-network-policies) | `kube-system` |
 | 3 | [metallb](../../manifests/bootstrap/applications/infrastructure/metallb.yaml) | `infrastructure` | Helm `metallb`（版は定義を参照） | `metallb-system` |
@@ -70,7 +72,7 @@ wave は root が作成・更新する Application の annotation です。別 A
 | 14 | [dns-core](../../manifests/bootstrap/applications/access/dns-core.yaml) | `access` | [manifests/access/dns/core](../../manifests/access/dns/core) | `kube-system` |
 | 14 | [dns-tailscale](../../manifests/bootstrap/applications/access/dns-tailscale.yaml) | `access` | [manifests/access/dns/tailscale](../../manifests/access/dns/tailscale) | `tailscale` |
 
-root 配下は **46 Application**。`argocd-projects` / `argocd-core` のみ automated prune が false、他は true です。
+root 配下は **47 Application**。`argocd-projects` / `argocd-core` のみ automated prune が false、他は true です。
 ローカル Git source は `HEAD`、外部 chart は固定 revision です。
 
 ## ARC が追加する Application
@@ -93,6 +95,7 @@ arc-controller は wave の明示なし、prune false。Runner template は wave
 
 ## 確認する依存
 
+- kubelet serving 証明書 → root Application。初回は bootstrap が承認処理を導入・検証し、以降は `kubelet-serving-certificates` が所有します。
 - CRD → controller / Custom Resource。cert-manager 本体と設定は同じ wave 7 です。
 - ESO → config-secrets → 証明書や workload が使う Secret。
 - PGO → shared-postgresql → 資格情報・CA・復元マーカー → Harbor。

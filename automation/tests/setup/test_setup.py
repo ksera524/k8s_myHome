@@ -110,6 +110,8 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(self.events(), [])
 
     def prepare_bootstrap(self):
+        gate = self.root / "automation/scripts/kubelet-serving-certificates.sh"
+        gate.write_text('echo certificate-gate >> "$TRACE"\nexit "${CERTIFICATE_STATUS:-0}"\n')
         self.stub('scp', 'echo copy >> "$TRACE"\nexit "${COPY_STATUS:-0}"')
         self.stub('ssh', r'''
 command="${!#}"
@@ -145,6 +147,7 @@ fi
         install = next(i for i, s in enumerate(events) if '/manifests/install.yaml' in s)
         secret = next(i for i, s in enumerate(events) if 'create secret generic pulumi-esc-token' in s)
         root = events.index('kubectl apply -f /tmp/k8s-myhome-bootstrap/app-of-apps.yaml')
+        self.assertLess(events.index("certificate-gate"), install)
         self.assertLess(install, secret)
         self.assertLess(secret, root)
         self.assertIn('--from-literal=accessToken=' + token, events[secret])
@@ -154,6 +157,7 @@ fi
         self.prepare_bootstrap()
         cases = [
             {'CONNECT_STATUS': '1'}, {'COPY_STATUS': '1'},
+            {'CERTIFICATE_STATUS': '1'},
             {'PULUMI_ACCESS_TOKEN': ''},
             {'FAIL_COMMAND': '/manifests/install.yaml'},
             {'FAIL_COMMAND': 'rollout status'},

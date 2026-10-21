@@ -5,7 +5,7 @@
 .PHONY: help all phase1 phase2 bootstrap phase5 vm k8s verify recover diagrams validate validate-local
 .PHONY: upgrade upgrade-safe upgrade-precheck upgrade-control-plane upgrade-workers upgrade-postcheck
 .PHONY: containerd-precheck containerd-safe
-.PHONY: add-runner add-runners-all
+.PHONY: add-runner add-runners-all kubelet-certificates
 
 help:
 	@echo "k8s_myHome task runner"
@@ -14,6 +14,7 @@ help:
 	@echo "  make all                 - phase1 -> phase2 -> bootstrap -> phase5を順番に実行"
 	@echo "  make phase1 / make vm     - VMの構成"
 	@echo "  make phase2 / make k8s    - k8sの構成"
+	@echo "  make kubelet-certificates - serving CSRの自動承認導入と全ノードTLS検証"
 	@echo "  make bootstrap            - GitOps bootstrap（ArgoCD + root Application）"
 	@echo "  make phase5 / make verify       - 確認"
 	@echo "  make validate                   - Dockerized NixでCI相当の検証"
@@ -33,6 +34,9 @@ phase1 vm:
 
 phase2 k8s:
 	@./automation/scripts/run.sh phase2
+
+kubelet-certificates:
+	@bash automation/scripts/kubelet-serving-certificates.sh --prepare
 
 bootstrap:
 	@./automation/scripts/run.sh bootstrap
