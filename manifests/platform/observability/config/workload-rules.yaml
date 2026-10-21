@@ -1,0 +1,36 @@
+groups:
+  - name: home-lab-workload-owners
+    interval: 30s
+    rules:
+      # 所有関係を記録し、Pod / Job 削除後も選択期間のログを検索できるようにする。
+      # 左側を優先: Deployment / CronJob → 直接の所有者 → 単独 Pod。
+      # 名前の接尾辞から親を推測せず、namespace と ownerReferences で対応付ける。
+      - record: kube_pod_workload_info
+        expr: >-
+          max by (namespace, pod, workload_kind, workload) (
+            label_replace(
+              label_replace(kube_pod_owner{owner_kind="ReplicaSet",owner_is_controller="true"},
+                "replicaset", "$1", "owner_name", "(.+)")
+              * on(namespace,replicaset) group_left(workload)
+              max by(namespace,replicaset,workload) (
+                label_replace(kube_replicaset_owner{owner_kind="Deployment",owner_is_controller="true"},
+                  "workload", "$1", "owner_name", "(.+)")),
+              "workload_kind", "Deployment", "pod", ".*")
+            or on(namespace,pod)
+            label_replace(
+              label_replace(kube_pod_owner{owner_kind="Job",owner_is_controller="true"},
+                "job_name", "$1", "owner_name", "(.+)")
+              * on(namespace,job_name) group_left(workload)
+              max by(namespace,job_name,workload) (
+                label_replace(kube_job_owner{owner_kind="CronJob",owner_is_controller="true"},
+                  "workload", "$1", "owner_name", "(.+)")),
+              "workload_kind", "CronJob", "pod", ".*")
+            or on(namespace,pod)
+            label_replace(label_replace(kube_pod_owner{owner_is_controller="true"},
+              "workload", "$1", "owner_name", "(.+)"),
+              "workload_kind", "$1", "owner_kind", "(.+)")
+            or on(namespace,pod)
+            label_replace(label_replace(kube_pod_info,
+              "workload", "$1", "pod", "(.+)"),
+              "workload_kind", "Pod", "pod", ".*")
+          )

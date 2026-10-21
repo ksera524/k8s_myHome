@@ -34,6 +34,7 @@ spec:
           image: victoriametrics/vmalert:v1.154.0
           args:
             - "-rule=/etc/vmalert/alert-rules.yaml"
+            - "-rule=/etc/vmalert/workload-rules.yaml"
             - "-datasource.url=http://victoria-metrics:8428"
             - "-notifier.url=http://alertmanager:9093"
             - "-remoteWrite.url=http://victoria-metrics:8428"

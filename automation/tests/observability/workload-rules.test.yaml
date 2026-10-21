@@ -1,0 +1,95 @@
+rule_files:
+  - ../../../manifests/platform/observability/config/workload-rules.yaml
+evaluation_interval: 30s
+tests:
+  - name: 所有関係・名前推測の回避・namespace分離・削除後の候補
+    interval: 1m
+    input_series:
+      - series: 'kube_pod_info{namespace="apps",pod="web-a"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="web-a",owner_kind="ReplicaSet",owner_name="arbitrary-rs",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="web-b"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="web-b",owner_kind="ReplicaSet",owner_name="arbitrary-rs",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_replicaset_owner{namespace="apps",replicaset="arbitrary-rs",owner_kind="Deployment",owner_name="web",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="other",pod="web-a"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="other",pod="web-a",owner_kind="ReplicaSet",owner_name="arbitrary-rs",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_replicaset_owner{namespace="other",replicaset="arbitrary-rs",owner_kind="Deployment",owner_name="different-web",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="backup-first"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="backup-first",owner_kind="Job",owner_name="manual-first",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_job_owner{namespace="apps",job_name="manual-first",owner_kind="CronJob",owner_name="backup",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="backup-second"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="backup-second",owner_kind="Job",owner_name="manual-second",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_job_owner{namespace="apps",job_name="manual-second",owner_kind="CronJob",owner_name="backup",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="manual"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="manual",owner_kind="Job",owner_name="manual-12345678",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="db-0"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="db-0",owner_kind="StatefulSet",owner_name="db",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="node-agent"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_owner{namespace="apps",pod="node-agent",owner_kind="DaemonSet",owner_name="agent",owner_is_controller="true"}'
+        values: '1 1 stale'
+      - series: 'kube_pod_info{namespace="apps",pod="standalone"}'
+        values: '1 1 stale'
+    promql_expr_test:
+      - expr: 'kube_pod_workload_info'
+        eval_time: 1m
+        exp_samples:
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="web-a",workload_kind="Deployment",workload="web"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="web-b",workload_kind="Deployment",workload="web"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="other",pod="web-a",workload_kind="Deployment",workload="different-web"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="backup-first",workload_kind="CronJob",workload="backup"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="backup-second",workload_kind="CronJob",workload="backup"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="manual",workload_kind="Job",workload="manual-12345678"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="db-0",workload_kind="StatefulSet",workload="db"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="node-agent",workload_kind="DaemonSet",workload="agent"}'
+            value: 1
+          - labels: 'kube_pod_workload_info{namespace="apps",pod="standalone",workload_kind="Pod",workload="standalone"}'
+            value: 1
+      - expr: 'max_over_time(kube_pod_workload_info[5m])'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{namespace="apps",pod="web-a",workload_kind="Deployment",workload="web"}'
+            value: 1
+          - labels: '{namespace="apps",pod="web-b",workload_kind="Deployment",workload="web"}'
+            value: 1
+          - labels: '{namespace="other",pod="web-a",workload_kind="Deployment",workload="different-web"}'
+            value: 1
+          - labels: '{namespace="apps",pod="backup-first",workload_kind="CronJob",workload="backup"}'
+            value: 1
+          - labels: '{namespace="apps",pod="backup-second",workload_kind="CronJob",workload="backup"}'
+            value: 1
+          - labels: '{namespace="apps",pod="manual",workload_kind="Job",workload="manual-12345678"}'
+            value: 1
+          - labels: '{namespace="apps",pod="db-0",workload_kind="StatefulSet",workload="db"}'
+            value: 1
+          - labels: '{namespace="apps",pod="node-agent",workload_kind="DaemonSet",workload="agent"}'
+            value: 1
+          - labels: '{namespace="apps",pod="standalone",workload_kind="Pod",workload="standalone"}'
+            value: 1
+      - expr: 'kube_pod_workload_info'
+        eval_time: 4m
+        exp_samples: []

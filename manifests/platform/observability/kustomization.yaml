@@ -18,6 +18,7 @@ configMapGenerator:
     namespace: observability
     files:
       - config/alert-rules.yaml
+      - config/workload-rules.yaml
   - name: observability-alertmanager-config
     namespace: observability
     files:

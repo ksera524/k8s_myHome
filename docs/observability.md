@@ -35,6 +35,18 @@ local-path はノードローカルの単一コピーです。PVC の要求サ�
 データソース・画面の正本は [config/](../manifests/platform/observability/config/) です。
 Git 管理の画面を変更する場合は JSON に反映します。SQL は [DB の権限](shared-postgresql.md#grafana-から-sql-を使う) を確認します。
 
+「02 アプリ・ログ」は Namespace → 種類 → Workload → Pod の順で選択します。
+Deployment は ReplicaSet、CronJob は Job の所有関係をたどり、配下の Pod のメトリクスとログを絞り込みます。
+StatefulSet / DaemonSet / 単独 Job / 単独 Pod も選択できます。CPU・メモリの内訳表示は Pod 単位です。
+Pod の All は選択条件に合う候補だけに展開します。Deployment / CronJob 固有のパネルも同じ選択に従います。
+
+[workload-rules.yaml](../manifests/platform/observability/config/workload-rules.yaml) は
+所有関係を30秒間隔で1 Pod あたり原則1系列として記録します（metrics の保持は30日）。
+候補は画面の選択期間内の記録から取得するため、削除済み Pod もその期間に記録があれば検索できます。
+導入前や収集間隔より短命で記録できなかった Pod は候補に出ません。そのログは Explore で namespace / pod を直接指定します。
+ログ本文の追加保存や Loki ラベルの追加は行いません。ログ保持168時間・自動削除を維持します。
+削除には Compactor の処理待ちと2時間の猶予があり、容量に応じた早期削除はしません。
+
 初回管理者は `admin`、ESO Password generator が `grafana-admin` を CreatedOnce で生成します。
 管理端末で必要なときだけ値を取得します。
 
