@@ -18,10 +18,48 @@ ArgoCD の自動同期で ConfigMap と RBAC が反映されるため、先に�
 2026-10-20 の調査では全3ノードが認証・認可の条件を満たしたが、証明書はノード固有の
 発行者で DNS SAN のみだった。`insecure_skip_verify` による回避はしない。
 
-## 証明書の準備
+## 新規構築と証明書更新の自動化
+
+`make all` / `make phase2` → `make bootstrap` では、手動のCSR承認は不要。
+
+1. Terraform の kubeadm 設定で全ノードの `serverTLSBootstrap: true` を有効化する。
+2. bootstrap は root Application の適用前に、Git と同じ
+   [kubelet-serving-certificates](../manifests/infrastructure/security/kubelet-serving-certificates/) を初期導入する。
+3. 承認処理が30秒間隔で初回・更新用CSRを検査し、条件を満たすものだけを承認する。
+4. control-plane から全ノードの Ready、クラスタCA、InternalIP SAN、有効期限（残り1日超）を検証する。
+   失敗・タイムアウト時は bootstrap を停止し、root Application を適用しない。
+5. 初回導入後は同名の ArgoCD Application が承認処理と設定を管理する。
+
+承認台帳は [nodes.json](../manifests/infrastructure/security/kubelet-serving-certificates/nodes.json)。
+`k8s-control-plane=.10`、`k8s-worker1=.11`、`k8s-worker2=.12` を明示している。
+ノード名・IPを変える場合は、この台帳と ClusterRole の `nodes.resourceNames`、Terraform の構成も変更する。
+Node.status だけを信頼せず、要求元、groups、CN、Organization、DNS/IP SAN、usages、CSR署名、
+要求有効期間、登録 Node の InternalIP を台帳と照合する。
+未知のノード、別ノードのIP、追加のSAN、クライアント証明書用途は承認しない。
+不一致CSRは削除・一括拒否せず Pending のまま残し、ログに理由を記録する。
+
+承認処理は標準ライブラリだけを使う小さなGoプログラム。独自registryへの依存を避けるため、
+固定版の公式Goイメージを使う initContainer が、ConfigMap のソースをネットワーク不要でビルドする。
+実行コンテナは非root・読み取り専用で動き、承認対象 signer は `kubernetes.io/kubelet-serving` のみ。
+起動時のビルド用に最大768MiBのメモリが必要。ソース・台帳の変更ではConfigMap名が変わり再起動する。
+CA秘密鍵、admin kubeconfig、ノードのホストファイルはPodに渡さない。
+
+証明書の残存14日、TLS検証失敗、承認処理のAPI照合停止を監視する。
+承認処理自身もPodから全ノードへTLS接続するため、control-plane側とPod側の到達性を確認できる。
+メトリクス収集の認証・認可の確認は、後述の実scrapeで行う。
+
+単独で準備・再確認する場合（既存ノードの設定ファイルやkubelet再起動はこのコマンドでは行わない）:
+
+```bash
+make kubelet-certificates
+# 既に導入済みの場合、変更なしの検証のみ
+bash automation/scripts/kubelet-serving-certificates.sh --verify-only
+```
+
+## 既存ノードの証明書移行
 
 新規クラスタでは `automation/infrastructure/main.tf` の kubeadm 設定が
-`serverTLSBootstrap: true` を指定する。初回の serving CSR 承認は以下と同様に必要。
+`serverTLSBootstrap: true` を指定する。既存ノードには以下の設定変更が必要。
 既存クラスタを移行するために Terraform のリソースを再作成してはいけない。
 
 既存クラスタは次の順で移行する。ノードの変更は1台ずつ行い、その都度 Ready と証明書を確認する。
@@ -34,7 +72,19 @@ ArgoCD の自動同期で ConfigMap と RBAC が反映されるため、先に�
    systemd unit / drop-in / kubelet の起動引数にも `--tls-cert-file` / `--tls-private-key-file`
    の固定指定がないことを確認する。クライアント認証用 kubeconfig や鍵は変更・削除しない。
 3. `sudo systemctl restart kubelet` を実行する。
-4. 対象ノードが生成した CSR を検査する。
+4. 自動承認処理を初回導入する。旧設定のノードが残る間は、承認処理の導入後に全台検証が
+   タイムアウトして終了してよい。次のノードへ進む前に対象ノードの証明書とReadyを確認する。
+
+   ```bash
+   make kubelet-certificates
+   ```
+
+   正常なCSRは自動承認される。Pending が残った場合は以下で内容と承認処理のログを確認する。
+   手動承認は自動承認処理を使わない場合の代替手順。検証の不一致を回避するために承認しない。
+
+   ```bash
+   kubectl -n kube-system logs deployment/kubelet-serving-approver -c approver
+   ```
 
 ```bash
 kubectl get csr
@@ -110,10 +160,11 @@ VMUI / `/targets` とクエリ API で以下を確認する。port-forward は V
 
 ## 証明書の更新と復旧
 
-serving CSR は標準の controller では自動承認されない。更新時も CSR を検査して承認する必要がある。
-定期保守で Pending CSR と各ノードの配信証明書の有効期限を確認し、期限前に承認する。
-本変更は承認 controller や期限監視を追加しない。自動化する場合はノードの identity・SAN を
-検証する仕組みを別途設計する。
+serving CSR は標準の controller では自動承認されないため、本PRの承認処理が初回と更新を担当する。
+`KubeletServingCertificateExpiring` / `KubeletServingCertificateInvalid` /
+`KubeletServingApproverUnavailable` を監視し、異常時は Deployment、Pending CSR、台帳との不一致を調べる。
+再実行は未承認CSRだけを対象とし、証明書や秘密鍵の削除は行わない。
+既存ノードも設定変更と全台検証を終えてからマージするという前提は変わらない。
 
 証明書移行中に問題が起きた場合は、対象ノードの設定をバックアップへ戻して kubelet を再起動し、
 既存経路の収集・Node Ready を確認する。証明書の秘密鍵は削除しない。

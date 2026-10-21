@@ -21,6 +21,32 @@ groups:
           severity: critical
         annotations:
           summary: "NetworkPolicy controller の metrics を収集できません"
+      - alert: KubeletServingCertificateInvalid
+        expr: >-
+          kubelet_serving_certificate_valid == 0 or absent(kubelet_serving_certificate_valid)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "kubelet serving 証明書を検証できません"
+      - alert: KubeletServingCertificateExpiring
+        expr: >-
+          (kubelet_serving_certificate_expiry_seconds - time() < 14 * 86400)
+          and (kubelet_serving_certificate_valid == 1)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node }} の serving 証明書の有効期限が14日以内です"
+      - alert: KubeletServingApproverUnavailable
+        expr: >-
+          time() - kubelet_serving_approver_last_success_seconds > 180
+          or absent(kubelet_serving_approver_last_success_seconds)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "kubelet serving CSR 自動承認処理が停止しています"
       - alert: KubeStateMetricsUnavailable
         expr: >-
           up{job="kube-state-metrics"} == 0 or absent(up{job="kube-state-metrics"})

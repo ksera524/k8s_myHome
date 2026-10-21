@@ -37,6 +37,9 @@ jobs:
         timeout-minutes: 35
         run: |
           sg libvirt -c 'terraform -chdir="$SETUP_CI_DIR/infrastructure" apply -auto-approve -input=false -no-color'
+      - name: Bootstrap signed kubelet serving certificates
+        timeout-minutes: 12
+        run: bash automation/scripts/ci/setup-integration.sh certificates
       - name: Verify nodes, cross-node traffic and DNS
         timeout-minutes: 8
         run: bash automation/scripts/ci/setup-integration.sh verify

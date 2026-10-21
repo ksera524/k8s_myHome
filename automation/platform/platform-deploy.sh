@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # GitOps bootstrap entrypoint.
-# 責務は ArgoCD 初期導入、pre-ESO 最小 Secret、root Application 適用に限定する。
+# kubelet serving 証明書の準備後、ArgoCD、pre-ESO 最小 Secret、root Application を初期導入する。
 
 set -euo pipefail
 
@@ -68,6 +68,9 @@ if [[ -z "${PULUMI_ACCESS_TOKEN:-}" ]]; then
   log_error "PULUMI_ACCESS_TOKEN が未設定です。automation/settings.toml または環境変数に設定してください。"
   exit 1
 fi
+
+log_status "kubelet serving 証明書を準備・検証中..."
+bash "$AUTOMATION_DIR/scripts/kubelet-serving-certificates.sh" --prepare
 
 "${ssh_cmd[@]}" "mkdir -p ${REMOTE_TMP}"
 copy_manifest "$APP_OF_APPS_SRC" "app-of-apps.yaml"

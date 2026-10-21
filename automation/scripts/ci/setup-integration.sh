@@ -87,6 +87,10 @@ config = {
 (base / 'infrastructure/ci.auto.tfvars.json').write_text(json.dumps(config))
 PY
     ;;
+  certificates)
+    K8S_USER=k8suser K8S_CONTROL_PLANE_IP=192.168.122.10 K8S_SSH_KEY="$SETUP_CI_DIR/id_ed25519" \
+      bash "$ROOT_DIR/automation/scripts/kubelet-serving-certificates.sh" --prepare
+    ;;
   reapply)
     # 差分がある場合（終了コード2）も失敗。意図しない再作成をapplyで隠さない。
     # stepの強制終了より先にプロセス群を停止し、stateロックをdestroyへ持ち越さない。
@@ -127,6 +131,8 @@ timeout 120 bash -c 'until kubectl get --raw=/readyz; do sleep 3; done'
 REMOTE
     ;;
   verify)
+    K8S_USER=k8suser K8S_CONTROL_PLANE_IP=192.168.122.10 K8S_SSH_KEY="$SETUP_CI_DIR/id_ed25519" \
+      bash "$ROOT_DIR/automation/scripts/kubelet-serving-certificates.sh" --verify-only
     ssh_vm 192.168.122.10 'bash -se' <<'REMOTE'
 set -euo pipefail
 kubectl wait --for=condition=Ready nodes --all --timeout=240s
@@ -210,5 +216,5 @@ REMOTE
       'kubectl get nodes -o wide; kubectl get pods -A -o wide; kubectl get events -A --sort-by=.lastTimestamp; kubectl logs -n setup-smoke client' \
       > "$SETUP_CI_DIR/diagnostics/kubernetes.txt" 2>&1 || true
     ;;
-  *) echo 'Usage: setup-integration.sh preflight|prepare|verify|reapply|reboot|collect' >&2; exit 1 ;;
+  *) echo 'Usage: setup-integration.sh preflight|prepare|certificates|verify|reapply|reboot|collect' >&2; exit 1 ;;
 esac

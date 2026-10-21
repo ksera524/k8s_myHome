@@ -9,7 +9,7 @@
 |---|---|---|
 | `make phase1` / `make vm` | [setup-host.sh](../automation/host-setup/setup-host.sh) | ホストの apt 更新、KVM/libvirt/Docker/CLI 導入、グループ・サービス設定 |
 | `make phase2` / `make k8s` | [clean-and-deploy.sh](../automation/infrastructure/clean-and-deploy.sh) | VM・Terraform 状態の削除、tfvars 生成、Terraform による VM / kubeadm / Flannel 構築 |
-| `make bootstrap` | [platform-deploy.sh](../automation/platform/platform-deploy.sh) | SSH 経由の ArgoCD 初期導入、ESC token、root Application |
+| `make bootstrap` | [platform-deploy.sh](../automation/platform/platform-deploy.sh) | serving 証明書自動承認・全台TLS検証、ArgoCD 初期導入、ESC token、root Application |
 | `make phase5` / `make verify` | [verify.sh](../automation/scripts/verify.sh) | kubeconfig 取得とクラスタ状態確認 |
 
 `make all` はこの順序で実行し、途中の失敗で停止します。`phase1` の別名は `vm` ですが、この段階では VM は作成しません。
@@ -67,14 +67,19 @@ Nix で CLI を揃える場合は `nix develop .#bootstrap` 内で実行でき�
 ## Bootstrap が行うこと
 
 1. control-plane に SSH 接続し `kubectl get nodes` を確認。
-2. [ArgoCD upstream](../manifests/platform/argocd-config/upstream/kustomization.yaml) から固定 tag を読み、
+2. [kubelet serving 証明書](kubelet-metrics.md)の自動承認処理を導入し、全ノードのTLS検証を待つ。
+   失敗時は以降の初期導入を停止する。初回・更新とも手動のCSR承認は不要。
+3. [ArgoCD upstream](../manifests/platform/argocd-config/upstream/kustomization.yaml) から固定 tag を読み、
    本体と ApplicationSet CRD を初期適用。server の起動を待ち、insecure 設定と bootstrap 用 Ingress を適用。
-3. `external-secrets-system/pulumi-esc-token`（キー `accessToken`）と provider 用 RBAC を作成。
-4. [bootstrap-root](../manifests/bootstrap/app-of-apps.yaml) を適用。
+4. `external-secrets-system/pulumi-esc-token`（キー `accessToken`）と provider 用 RBAC を作成。
+5. [bootstrap-root](../manifests/bootstrap/app-of-apps.yaml) を適用。
 
 トークンは `PULUMI_ACCESS_TOKEN` または設定ローダーから取得します。
 bootstrap の SSH/SCP は既定の SSH 設定を使い、verify と異なり `K8S_SSH_KEY` を `-i` に渡しません。
 必要なら SSH config / agent を用意します。
+
+証明書準備にはローカルの SSH/SCP、control-plane の Python 3 / kubectl（内蔵Kustomize）が必要。
+`nix develop .#bootstrap` と標準Ubuntuノードで揃う。ノード台帳は [nodes.json](../manifests/infrastructure/security/kubelet-serving-certificates/nodes.json) を参照。
 
 bootstrap 終了は全 child Application の収束完了ではありません。
 CRD、ESO、証明書、DB の復元、アプリ起動を別途確認します。

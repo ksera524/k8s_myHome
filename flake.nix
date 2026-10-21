@@ -17,6 +17,7 @@
           curl
           findutils
           git
+          go
           gnugrep
           gnused
           gawk

@@ -264,7 +264,7 @@ networking:
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 cgroupDriver: systemd
-# serving CSR はノード名・SAN を確認して承認する。docs/kubelet-metrics.md を参照。
+# serving CSR は bootstrap の台帳照合付き承認処理が初回・更新とも処理する。
 serverTLSBootstrap: true
 EOL
       EOF
