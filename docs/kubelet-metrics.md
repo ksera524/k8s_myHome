@@ -174,6 +174,33 @@ GitOps 切り替え後の問題では、まず TLS・到達性・権限・scrape
 これは `nodes/proxy` のリスクを再導入する暫定復旧なので、修正後に再び削除する。
 署名済み serving 証明書は旧経路でも使えるため、収集の切り戻しで元に戻す必要はない。
 
+## 既存クラスタへの適用記録（2026-10-21）
+
+22:14〜22:18 JST に worker1 → worker2 → control-plane の順で移行した。
+クラスタ共通 `kubelet-config` と各ノードの設定へ `serverTLSBootstrap: true` を追加し、
+kubelet を1台ずつ再起動。固定証明書参照は全台とも存在しなかった。
+CSR は台帳照合付き承認処理が自動承認し、3件とも Approved,Issued を確認した。
+
+| Node | CSR | ノード内の設定バックアップ |
+|---|---|---|
+| k8s-worker1 | csr-6x4c5 | `/var/lib/kubelet/config.yaml.before-serving-20261021T131424Z` |
+| k8s-worker2 | csr-vqttn | `/var/lib/kubelet/config.yaml.before-serving-20261021T131606Z` |
+| k8s-control-plane | csr-m4f4d | `/var/lib/kubelet/config.yaml.before-serving-20261021T131749Z` |
+
+全台 Ready、クラスタCA・InternalIP SAN・有効期限の検証成功、
+Podからの `kubelet_serving_certificate_valid` が全台 `1`、既存監視の3台×2ジョブが
+新しいscrapeでもすべて `up` であることを確認した。証明書の有効期限は全台2027-10-21 UTC。
+再起動〜発行完了の間には一時的なscrape失敗があり、その後の回復を各ノードで確認した。
+SSH鍵が使用できなかったため、一時的な保守Pod経由で設定変更し、作業後は全Podを削除した。
+クラスタ共通設定のバックアップと検証記録は、実行端末の
+`~/.local/state/k8s_myHome/kubelet-cert-migration-20261021/` に保存している。
+
+承認処理の Application は Healthy / Synced。PR未マージのため、実クラスタだけ
+`targetRevision: 9ec0fd985d58ffd0075cd7b85ddf999baf29cb77` に固定してArgoCD管理へ移した。
+Git上のbootstrap定義は `HEAD` を維持しており、PRマージ後にrootが採用して通常管理へ戻す。
+この作業ではPRをマージしていない。監視収集経路とRBAC、新しいアラートルールの切り替えは
+PRマージ後に行う。証明書整備というマージ前提は満たしたが、直接scrapeの確認は未実施。
+
 参考:
 
 - [kubelet の認証・認可](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/)
