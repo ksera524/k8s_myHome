@@ -106,3 +106,4 @@ Application を変更したら、この一覧・Runner 表・関連する運用�
 Harbor は内部 Gateway 経由に統一し、cloudflared は撤去しました。`harbor-access` は HTTPRoute に加え、
 ノードの名前解決を管理する `kube-system/harbor-node-hosts` DaemonSet を所有します。
 移行時の段階的な同期は [アクセス経路](../access.md#harbor-の内部経路と移行) を参照してください。
+`harbor-access` 内ではスクリプト ConfigMap（wave -2）→ DaemonSet（wave -1）→ Route（wave 0）の順に同期します。
