@@ -58,7 +58,6 @@ def main() -> int:
     surfaces = access_contract["spec"]["surfaces"]
     gateway_ip = cluster_contract["spec"]["network"]["serviceIPs"]["gateway"]
     tailscale_split_dns_ip = cluster_contract["spec"]["network"]["serviceIPs"]["tailscaleSplitDNS"]
-    tunnel_id = access_contract["spec"]["shared"]["cloudflared"]["tunnelId"]
 
     annotated_surfaces: set[str] = set()
 
@@ -112,16 +111,6 @@ def main() -> int:
         hostname = surface["hostname"]
         if listener_hosts.get(listener) != hostname:
             fail(issues, f"gateway listener {listener} hostname {listener_hosts.get(listener)} != {hostname} ({surface_id})")
-
-    cloudflared_docs = load_docs(ACCESS_DIR / "cloudflared/cloudflared-config.yaml")
-    cloudflared = cloudflared_docs[0]
-    cloud_config = cloudflared.get("data", {}).get("config.yml", "")
-    if f"tunnel: {tunnel_id}" not in cloud_config:
-        fail(issues, "cloudflared tunnel ID does not match access contract")
-    cloud_hosts = hostnames_from_block_text(cloud_config)
-    expected_cloud_hosts = {s["hostname"] for s in surfaces.values() if s["publish"].get("cloudflared")}
-    if cloud_hosts != expected_cloud_hosts:
-        fail(issues, f"cloudflared hosts {sorted(cloud_hosts)} != {sorted(expected_cloud_hosts)}")
 
     coredns = load_docs(ACCESS_DIR / "dns/core/coredns-configmap.yaml")[0]
     corefile = coredns.get("data", {}).get("Corefile", "")

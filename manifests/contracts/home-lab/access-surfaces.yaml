@@ -3,9 +3,6 @@ kind: AccessSurfaceContract
 metadata:
   name: home-lab
 spec:
-  shared:
-    cloudflared:
-      tunnelId: 9fded92e-4b5b-4b7e-b86d-2a10b8bc0e16
   surfaces:
     argocd-external:
       hostname: argocd.qroksera.com
@@ -16,7 +13,6 @@ spec:
         namespace: argocd
       gatewayListener: https-argocd-external
       publish:
-        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     argocd-internal:
@@ -28,19 +24,17 @@ spec:
         namespace: argocd
       gatewayListener: https-argocd-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     harbor-external:
       hostname: harbor.qroksera.com
       scheme: https
-      exposure: external
+      exposure: internal
       backend:
         service: harbor-core
         namespace: harbor
       gatewayListener: https-harbor-external
       publish:
-        cloudflared: true
         coreDNS: true
         tailscaleSplitDNS: false
     harbor-internal:
@@ -52,9 +46,8 @@ spec:
         namespace: harbor
       gatewayListener: https-harbor-internal
       publish:
-        cloudflared: false
         coreDNS: true
-        tailscaleSplitDNS: false
+        tailscaleSplitDNS: true
     rustfs-console:
       hostname: rustfs.qroksera.com
       scheme: https
@@ -64,7 +57,6 @@ spec:
         namespace: rustfs
       gatewayListener: https-rustfs
       publish:
-        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     blog-external:
@@ -76,7 +68,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-blog-external
       publish:
-        cloudflared: false
         coreDNS: false
         tailscaleSplitDNS: false
     cooklog-internal:
@@ -88,7 +79,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-cooklog-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     api-hub-internal:
@@ -100,7 +90,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-api-hub-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     hitomi-upload-viewer-internal:
@@ -112,7 +101,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-hitomi-upload-viewer-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     observability-internal:
@@ -124,7 +112,6 @@ spec:
         namespace: observability
       gatewayListener: https-observability-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     rsshub-internal:
@@ -136,7 +123,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-rsshub-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     blog-internal:
@@ -148,7 +134,6 @@ spec:
         namespace: sandbox
       gatewayListener: https-blog-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     rustfs-console-internal:
@@ -160,7 +145,6 @@ spec:
         namespace: rustfs
       gatewayListener: https-rustfs-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true
     grafana-internal:
@@ -172,6 +156,5 @@ spec:
         namespace: observability
       gatewayListener: https-grafana-internal
       publish:
-        cloudflared: false
         coreDNS: true
         tailscaleSplitDNS: true

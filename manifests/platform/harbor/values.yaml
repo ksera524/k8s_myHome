@@ -3,7 +3,7 @@ expose:
   tls:
     enabled: false
 
-externalURL: https://harbor.qroksera.com
+externalURL: https://harbor.internal.qroksera.com
 
 existingSecretSecretKey: harbor-internal-secret
 

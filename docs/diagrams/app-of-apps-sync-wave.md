@@ -68,7 +68,6 @@ wave は root が作成・更新する Application の annotation です。別 A
 | 13 | [observability-access](../../manifests/bootstrap/applications/access/observability-access.yaml) | `access` | [manifests/access/observability](../../manifests/access/observability) | `observability` |
 | 13 | [rsshub-access](../../manifests/bootstrap/applications/access/rsshub-access.yaml) | `access` | [manifests/access/rsshub](../../manifests/access/rsshub) | `sandbox` |
 | 13 | [rustfs-access](../../manifests/bootstrap/applications/access/rustfs-access.yaml) | `access` | [manifests/access/rustfs](../../manifests/access/rustfs) | `rustfs` |
-| 14 | [cloudflared](../../manifests/bootstrap/applications/access/cloudflared.yaml) | `access` | [manifests/access/cloudflared](../../manifests/access/cloudflared) | `cloudflared` |
 | 14 | [dns-core](../../manifests/bootstrap/applications/access/dns-core.yaml) | `access` | [manifests/access/dns/core](../../manifests/access/dns/core) | `kube-system` |
 | 14 | [dns-tailscale](../../manifests/bootstrap/applications/access/dns-tailscale.yaml) | `access` | [manifests/access/dns/tailscale](../../manifests/access/dns/tailscale) | `tailscale` |
 
@@ -103,3 +102,7 @@ arc-controller は wave の明示なし、prune false。Runner template は wave
 
 Application を変更したら、この一覧・Runner 表・関連する運用ページを合わせて更新します。
 同期状態の確認と切り戻しは [GitOps](../gitops.md) を参照してください。
+
+Harbor は内部 Gateway 経由に統一し、cloudflared は撤去しました。`harbor-access` は HTTPRoute に加え、
+ノードの名前解決を管理する `kube-system/harbor-node-hosts` DaemonSet を所有します。
+移行時の段階的な同期は [アクセス経路](../access.md#harbor-の内部経路と移行) を参照してください。

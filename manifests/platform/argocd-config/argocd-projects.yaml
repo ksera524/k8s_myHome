@@ -90,8 +90,6 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: tailscale
     - server: https://kubernetes.default.svc
-      namespace: cloudflared
-    - server: https://kubernetes.default.svc
       namespace: observability
   clusterResourceWhitelist:
     - group: "*"
@@ -103,7 +101,7 @@ metadata:
   name: access
   namespace: argocd
 spec:
-  description: 公開/接続系（Gateway/DNS/Cloudflared/HTTPRoute）
+  description: 公開/接続系（Gateway/DNS/HTTPRoute）
   sourceRepos:
     - https://github.com/ksera524/k8s_myHome.git
   destinations:
@@ -115,8 +113,6 @@ spec:
       namespace: rustfs
     - server: https://kubernetes.default.svc
       namespace: sandbox
-    - server: https://kubernetes.default.svc
-      namespace: cloudflared
     - server: https://kubernetes.default.svc
       namespace: kube-system
     - server: https://kubernetes.default.svc

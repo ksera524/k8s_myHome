@@ -37,7 +37,7 @@ Git 管理の画面を変更する場合は JSON に反映します。SQL は [D
 
 「02 アプリ・ログ」は「アプリ / CronJob」で名前を選ぶと、配下の全 Pod・全コンテナのログを
 1つのパネルに時刻順で表示します。種類や Pod 名の選択は不要です。
-例えば `cloudflared` は両 replica、`hitomi-monitor` は選択期間内の各実行のログをまとめます。
+例えば `coredns` は各 replica、`hitomi-monitor` は選択期間内の各実行のログをまとめます。
 Namespace は任意の追加絞り込みです。ログ詳細から元の Pod / コンテナを確認できます。
 CPU・メモリの内訳表示は Pod 単位で、アプリの選択に連動します。
 

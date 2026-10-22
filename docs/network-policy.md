@@ -8,7 +8,7 @@
 
 | 正本 | 選択する対象と許可 |
 |---|---|
-| [core/networkpolicies.yaml](../manifests/core/networkpolicies.yaml) | cloudflared の受信制限とノード CIDR からの probe、Gateway → RustFS:9001、sandbox の `app=api-hub` → RustFS:9000 |
+| [core/networkpolicies.yaml](../manifests/core/networkpolicies.yaml) | Gateway → RustFS:9001、sandbox の `app=api-hub` → RustFS:9000 |
 | [RustFS lifecycle](../manifests/platform/rustfs/lifecycle-networkpolicy.yaml) | 同 namespace の lifecycle Job → RustFS:9000 |
 | [PostgreSQL](../manifests/platform/shared-postgresql/credentials.yaml) | database 内 Pod、harbor の `app=harbor`、observability の Grafana → DB（namespace 外は TCP 5432） |
 | [Loki](../manifests/platform/observability/logging-networkpolicy.yaml) | Grafana / Alloy → Loki:3100 |

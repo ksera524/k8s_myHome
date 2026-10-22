@@ -46,7 +46,7 @@ Secret の本文をログに出す必要はありません。ArgoCD の Merge �
 kubectl -n nginx-gateway get gateway,svc,certificate
 kubectl -n <namespace> describe httproute <route-name>
 kubectl -n <namespace> get svc,endpointslices
-kubectl -n cloudflared logs deployment/cloudflared --since=10m
+kubectl -n kube-system logs daemonset/harbor-node-hosts --since=10m
 kubectl get clientsettingspolicies -A
 ```
 

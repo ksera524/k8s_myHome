@@ -228,7 +228,7 @@ sudo -n mkdir -p "$MOUNT_BASE/nfs-share"
 sudo -n mkdir -p "$MOUNT_BASE/local-volumes"
 
 # Create application-specific directories
-for app in cloudflared hitomi pepup rss slack; do
+for app in hitomi pepup rss slack; do
     sudo -n mkdir -p "$MOUNT_BASE/local-volumes/$app"
 done
 
@@ -301,7 +301,7 @@ nfs:
   server_ip: localhost
   
 applications:
-$(for app in cloudflared hitomi pepup rss slack; do
+$(for app in hitomi pepup rss slack; do
   echo "  - name: $app"
   echo "    local_path: $MOUNT_BASE/local-volumes/$app"
 done)

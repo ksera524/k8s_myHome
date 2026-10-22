@@ -45,7 +45,6 @@ EXPECTED_EXTERNAL_SECRET_FILES = {
     "harbor-registry-sandbox.yaml",
     "github-multi-repo-secret.yaml",
     "harbor-auth-secret.yaml",
-    "cloudflared-secret.yaml",
     "cloudflare-api-token.yaml",
     "tailscale-oauth.yaml",
     "slack-secret.yaml",
@@ -163,7 +162,6 @@ def check_access_annotations(issues: list[str]) -> None:
 
     coredns = MANIFESTS / "access/dns/core/coredns-configmap.yaml"
     tailscale = MANIFESTS / "access/dns/tailscale/manifest.yaml"
-    cloudflared = MANIFESTS / "access/cloudflared/cloudflared-config.yaml"
 
     docs = load_docs(coredns) if coredns.exists() else []
     annotations = (docs[0].get("metadata", {}).get("annotations", {}) if docs else {}) or {}
@@ -177,10 +175,6 @@ def check_access_annotations(issues: list[str]) -> None:
     if "network.serviceIPs.tailscaleSplitDNS" not in tailscale_service_ip_annotations:
         fail(issues, f"{rel(tailscale)}: service-ip annotation が network.serviceIPs.tailscaleSplitDNS ではありません")
 
-    docs = load_docs(cloudflared) if cloudflared.exists() else []
-    annotations = (docs[0].get("metadata", {}).get("annotations", {}) if docs else {}) or {}
-    if annotations.get("contracts.k8s-myhome.local/cloudflared-tunnel-id") != "shared.cloudflared.tunnelId":
-        fail(issues, f"{rel(cloudflared)}: cloudflared tunnel annotation が shared.cloudflared.tunnelId ではありません")
 
 
 def check_external_secrets(issues: list[str]) -> None:

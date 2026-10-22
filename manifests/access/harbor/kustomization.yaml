@@ -3,3 +3,10 @@ kind: Kustomization
 
 resources:
   - manifest.yaml
+  - node-hosts.yaml
+
+configMapGenerator:
+  - name: harbor-node-hosts
+    namespace: kube-system
+    files:
+      - scripts/reconcile-hosts.sh
