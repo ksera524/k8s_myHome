@@ -1,0 +1,64 @@
+# Pod の CoreDNS と独立している kubelet/containerd の名前解決を管理する。
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: harbor-node-hosts
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  selector:
+    matchLabels:
+      app: harbor-node-hosts
+  template:
+    metadata:
+      labels:
+        app: harbor-node-hosts
+    spec:
+      automountServiceAccountToken: false
+      tolerations:
+        - operator: Exists
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: hosts
+          image: busybox:1.37.0
+          command: ["sh", "/config/reconcile-hosts.sh"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - grep -q '^192.168.122.100 harbor.qroksera.com harbor.internal.qroksera.com ' /host/hosts
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - name: hosts
+              mountPath: /host/hosts
+            - name: script
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: hosts
+          hostPath:
+            path: /etc/hosts
+            type: File
+        - name: script
+          configMap:
+            name: harbor-node-hosts
+        - name: tmp
+          emptyDir: {}

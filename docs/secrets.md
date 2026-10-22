@@ -29,14 +29,10 @@ organization `ksera` / project `k8s` / environment `secret`、token の参照先
 | [argocd](../manifests/platform/secrets/external-secrets/argocd/) | `argocd` の `client-secret`、`alertmanager-slack-webhook-url` |
 | [harbor](../manifests/platform/secrets/external-secrets/harbor/) | `harbor.admin_password`、内部認証、namespace ごとの pull Secret |
 | [github-actions](../manifests/platform/secrets/external-secrets/github-actions/) | `github` の GitHub App 情報、Harbor push 認証 |
-| [networking](../manifests/platform/secrets/external-secrets/networking/) | `dns-01`、`cloudflared`、`tailscale.client_id` / `client_secret` |
+| [networking](../manifests/platform/secrets/external-secrets/networking/) | `dns-01`、`tailscale.client_id` / `client_secret` |
 | [app-runtime](../manifests/platform/secrets/external-secrets/app-runtime/) | `slack`、`rustfs.access_key` / `secret_key` |
 | [observability](../manifests/platform/secrets/external-secrets/observability/) | Slack Webhook、PostgreSQL 共用パスワード、Grafana 初期管理者 generator |
 | [postgresql](../manifests/platform/secrets/external-secrets/postgresql/) | `postgresql.admin_password` / `postgresql.password` |
-
-`cloudflared` は Secret の `token` から **credentials.json としてファイルにマウント**されます。
-Deployment は `--token` モードではないため、名前だけを見て Tunnel token 文字列を入れず、
-[設定](../manifests/access/cloudflared/cloudflared-config.yaml) の tunnel と一致する credentials JSON を用意します。
 
 ## 反映・ローテーション
 

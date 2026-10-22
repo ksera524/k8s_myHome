@@ -185,13 +185,6 @@ else
   log_warning "NGINX Gateway LoadBalancer IP が未割り当てです"
 fi
 
-log_status "Cloudflaredアプリ確認中..."
-if "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get application cloudflared -n argocd >/dev/null 2>&1"; then
-  log_status "✓ CloudflaredはArgoCD管理です"
-else
-  log_warning "Cloudflaredは未検出です（同期待機中の可能性）"
-fi
-
 log_status "ArgoCDアプリ一覧:"
 "${ssh_cmd[@]}" "sudo KUBECONFIG=${REMOTE_KUBECONFIG} kubectl get applications -n argocd --no-headers" | awk '{print "  - " $1 " (" $2 "/" $3 ")"}' || true
 

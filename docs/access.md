@@ -5,9 +5,8 @@
 
 ```mermaid
 flowchart LR
-  Internet[Internet: Harbor] --> CF[Cloudflare Tunnel]
-  CF --> Tunnel[cloudflared]
-  Tunnel --> GW[NGINX Gateway :443]
+  Nodes[kubelet / containerd] --> GW[NGINX Gateway :443]
+  ARC[ARC Runner] --> GW
   Client[LAN / Tailnet 端末] --> GW
   Client -. 名前解決 .-> DNS[Split DNS 192.168.122.101]
   GW --> Route[HTTPRoute]
@@ -21,10 +20,11 @@ flowchart LR
 `observability`、`rsshub`、`grafana` が宣言されています。
 VMUI は `https://observability.internal.qroksera.com/vmui/` です。
 
-[Cloudflared 設定](../manifests/access/cloudflared/cloudflared-config.yaml) が転送する外部 hostname は
-`harbor.qroksera.com` のみで、残りは catch-all の 404 になります。
-ArgoCD / RustFS / Blog の外部 hostname 用 Route 自体は残っているため、
-「Tunnel に登録していない」ことを「Gateway からも接続できない」と混同しないでください。
+Harbor は push・pull・認証を内部 Gateway `192.168.122.100` で完結させます。
+コンソールは `https://harbor.internal.qroksera.com` を LAN / Tailscale 経由で利用します。
+cloudflared と専用 Secret / Namespace / Application は撤去しました。
+旧 `harbor.qroksera.com` の Route は既存イメージ名との互換用に内部で残しています。
+contract の `harbor-external` は旧名であり、exposure は internal です。
 
 RustFS の Gateway backend は console の 9001 のみです。S3 の 9000 はクラスタ内で api-hub などが利用します。
 console の `/` は GET / HEAD のリダイレクトと POST / Authorization 付き GET の転送を
@@ -38,7 +38,7 @@ console の `/` は GET / HEAD のリダイレクトと POST / Authorization 付
 | クラスタ内 DNS | [CoreDNS](../manifests/access/dns/core/coredns-configmap.yaml) |
 | Tailnet 向け DNS | [Split DNS](../manifests/access/dns/tailscale/manifest.yaml)、LB `192.168.122.101` |
 | TLS | [cert-manager 設定](../manifests/infrastructure/security/cert-manager/)、DNS-01、外部 wildcard と内部個別証明書 |
-| Tunnel | [cloudflared](../manifests/access/cloudflared/)、Gateway:443 へ TLS 検証付きで転送 |
+| ノードの名前解決 | [harbor-node-hosts](../manifests/access/harbor/node-hosts.yaml)、両 Harbor hostname を内部 Gateway に固定 |
 
 Gateway の証明書 Secret は `nginx-gateway` namespace に置きます。
 内部 hostname でも公開 ACME issuer の DNS-01 を使っています。「内部 URL だから独自 CA を端末へ追加する」とは限りません。
@@ -46,11 +46,10 @@ Gateway の証明書 Secret は `nginx-gateway` namespace に置きます。
 Tailnet 側では `192.168.122.0/24` の subnet route 承認、端末での route 受け入れ、
 `internal.qroksera.com` の Split DNS を `.101` に向ける設定が必要です。
 DNS の UDP/TCP 53、Gateway の TCP 443（HTTP redirect を使うなら 80）の到達性も確認します。
-Harbor internal は contract 上 Tailscale Split DNS の publish 対象ではなく、CoreDNS 側に登録されています。
-必要なクライアントの名前解決は個別に確認してください。
+Harbor internal は CoreDNS と Tailscale Split DNS の両方に登録しています。
 
 GitHub OAuth App の callback は ArgoCD の URL と `/api/dex/callback` を一致させます。
-Cloudflare の DNS と Tunnel の紐付け、Tailnet ACL、OAuth App の設定はこのリポジトリから自動反映されません。
+Cloudflare 側の旧 Tunnel / DNS レコードの削除、Tailnet ACL、OAuth App の設定はこのリポジトリから自動反映されません。
 
 ## 新しく到達可能な API を追加する手順
 
@@ -63,7 +62,6 @@ Cloudflare の DNS と Tunnel の紐付け、Tailnet ACL、OAuth App の設定�
    `parentRefs.sectionName`、hostname、backend の **Service port** を照合します。
 5. 必要な Gateway listener と Certificate を追加します。証明書は cert-manager 配下に置きます。
 6. 必要な CoreDNS / Split DNS の hosts と surface annotation を更新します。
-   外部公開なら cloudflared の catch-all より前へ追加し、`originServerName` / `httpHostHeader` を hostname と一致させます。
    ConfigMap の変更時は Pod template も変更し、新しい設定を読み込ませます。
 7. 新しい access Application を `bootstrap/applications/access/` に作り、Kustomization と [一覧](diagrams/app-of-apps-sync-wave.md) に登録します。
 8. [NetworkPolicy](network-policy.md) の受信先・送信元と **Pod の待受 port** を確認し、必要な許可を追加します。
@@ -85,3 +83,23 @@ kubectl -n <namespace> get svc,endpointslices
 Gateway の Programmed、HTTPRoute の Accepted / ResolvedRefs、Certificate の Ready を確認します。
 利用端末で DNS と HTTPS、ログイン後の主要操作を確認し、通信制限を追加した場合は拒否される経路も実測します。
 初回公開や依存変更の順序を、別 Application の wave だけに依存させないでください。
+
+## Harbor の内部経路と移行
+
+`harbor-access` が kube-system の `harbor-node-hosts` DaemonSet を管理します。
+ノードの `/etc/hosts` のみをファイルマウントし、両 Harbor hostname の競合を除去して
+`192.168.122.100` に固定します。他のホスト名は保持し、60 秒ごとに再調整します。
+containerd の設定・再起動、hostNetwork、privileged は不要です。
+Pod DNS は CoreDNS、ARC は既存の hostAliases、ノードはこの DaemonSet を使います。
+
+既存の `harbor.qroksera.com/sandbox/...` はそのまま内部で pull できます。
+Harbor の externalURL / EXT_ENDPOINT は内部 hostname に統一し、token realm も内部へ向けます。
+両 hostname の証明書検証は維持します。Cloudflare DNS-01 用の Secret は証明書更新に必要なので残します。
+
+移行時は先に DaemonSet の全ノード Ready と両 hostname の内部 HTTPS 到達を確認し、
+Harbor・Secret・Split DNS を同期して認証付き pull を確認してから cloudflared を撤去します。
+App-of-Apps の sync wave だけで既存 Application の同期完了順を保証しないでください。
+
+DaemonSet を削除しても `/etc/hosts` のエントリは残ります。
+ロールバックで外部経路へ戻す場合は、Tunnel の復旧後に DaemonSet を停止し、
+全ノードで `# managed: harbor-node-hosts` の行を除去します。

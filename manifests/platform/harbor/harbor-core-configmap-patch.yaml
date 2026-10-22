@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: harbor-core
 data:
-  EXT_ENDPOINT: https://harbor.qroksera.com
+  EXT_ENDPOINT: https://harbor.internal.qroksera.com

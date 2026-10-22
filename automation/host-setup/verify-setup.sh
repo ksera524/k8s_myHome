@@ -91,7 +91,7 @@ if check_status "Storage mount point" "mountpoint -q $MOUNT_BASE"; then
     check_status "Local volumes directory" "test -d $MOUNT_BASE/local-volumes"
     
     # Check application directories
-    for app in cloudflared hitomi pepup rss slack; do
+    for app in hitomi pepup rss slack; do
         check_status "$app directory" "test -d $MOUNT_BASE/local-volumes/$app"
     done
 else
