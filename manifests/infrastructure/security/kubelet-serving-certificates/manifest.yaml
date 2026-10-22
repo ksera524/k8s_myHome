@@ -103,7 +103,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: approver
-          image: alpine:3.22.2
+          image: alpine:3.24.2
           command: [/work/approver]
           ports:
             - name: http
