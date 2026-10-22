@@ -10,3 +10,6 @@ configMapGenerator:
     namespace: kube-system
     files:
       - scripts/reconcile-hosts.sh
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"

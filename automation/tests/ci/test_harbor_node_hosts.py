@@ -5,12 +5,24 @@ import subprocess
 import tempfile
 import unittest
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "manifests/access/harbor/scripts/reconcile-hosts.sh"
 EXPECTED = "192.168.122.100 harbor.qroksera.com harbor.internal.qroksera.com # managed: harbor-node-hosts"
 
 
 class HarborNodeHostsTests(unittest.TestCase):
+    def test_script_is_synced_before_daemonset(self):
+        base = ROOT / "manifests/access/harbor"
+        kustomization = yaml.safe_load((base / "kustomization.yaml").read_text())
+        daemonset = yaml.safe_load((base / "node-hosts.yaml").read_text())
+        generator = next(item for item in kustomization["configMapGenerator"] if item["name"] == "harbor-node-hosts")
+        key = "argocd.argoproj.io/sync-wave"
+        config_wave = int(generator.get("options", {}).get("annotations", {}).get(key, "0"))
+        daemonset_wave = int(daemonset["metadata"].get("annotations", {}).get(key, "0"))
+        self.assertLess(config_wave, daemonset_wave, "初回同期で ConfigMap 待ちの DaemonSet が wave をブロックする")
+
     def test_conflicts_aliases_comments_and_idempotence(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "hosts"
