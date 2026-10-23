@@ -7,3 +7,5 @@ resources:
 images:
   - name: harbor.qroksera.com/sandbox/rsshub-private
     newTag: latest
+    newName: harbor.qroksera.com/sandbox/rsshub-private
+    digest: sha256:0a04e9693bfe292d208a4fb9ace2a5e488641e74b23d5f6f00b4a964d800e883
