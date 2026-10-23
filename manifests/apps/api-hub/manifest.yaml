@@ -93,11 +93,10 @@ metadata:
   name: api-hub
   namespace: sandbox
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: api-hub
   ports:
     - protocol: TCP
       port: 3000
       targetPort: 3000
-      nodePort: 32001

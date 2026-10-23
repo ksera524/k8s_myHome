@@ -101,3 +101,8 @@ KUBECONFIG="$HOME/.kube/k8s-myhome" make phase5
 Node / Pod / Application / ESO の状態を確認しますが、Namespace や Gateway / LoadBalancer の一部欠落は警告のみです。
 `CI=true`、`CI=1`、`VERIFY_SKIP_SSH=true` では SSH と kubeconfig 更新を含むライブ検証全体をスキップし、成功終了します。
 静的検証と使い捨て VM の実構築テストは [検証・参照](reference.md) にまとめています。
+
+## API Server のセキュリティ設定
+
+新規構築では Secret 保存時暗号化と Metadata 監査を有効にします。既存クラスタの移行、鍵の保管、検証は
+[API Server セキュリティ](apiserver-security.md) を参照してください。

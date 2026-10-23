@@ -13,7 +13,32 @@
 | [PostgreSQL](../manifests/platform/shared-postgresql/credentials.yaml) | database 内 Pod、harbor の `app=harbor`、observability の Grafana → DB（namespace 外は TCP 5432） |
 | [Loki](../manifests/platform/observability/logging-networkpolicy.yaml) | Grafana / Alloy → Loki:3100 |
 
-全 namespace 一律の default-deny / egress 制限は宣言されていません。
+[workload-networkpolicies.yaml](../manifests/core/workload-networkpolicies.yaml) は
+`sandbox`・`tools`・`arc-systems`・`arc-runners`・`harbor` に Ingress/Egress 両方の default-deny を設定します。
+`arc-runners` は現在未使用で、DNS 以外の許可はありません。システム namespace 全体への一律適用は行いません。
+
+| 接続元 | 許可する宛先 |
+|---|---|
+| 各対象 namespace | kube-system の CoreDNS TCP/UDP 53 |
+| NGINX Gateway | sandbox の公開アプリ（80 / 3000 / 1200）、Harbor nginx:8080 |
+| home-camera / hitomi-pdf | api-hub:3000（hitomi-pdf も内部 Service を使用） |
+| api-hub | RustFS:9000、外部 HTTP/HTTPS（Slack 等） |
+| hitomi-monitor | Selenium:4444、外部 HTTP/HTTPS |
+| hitomi-pdf / rsshub / Selenium | 外部 HTTP/HTTPS |
+| rsshub | rsshub-redis:6379 |
+| home-camera | 192.168.10.4:554/TCP と RTSP の RTP/RTCP 用 UDP 1024–65535（同カメラからの受信も許可） |
+| ARC namespace | 外部 HTTP/HTTPS、Gateway:443（Harbor push） |
+| ARC controller / listener のみ | API Service 10.96.0.1:443 と Control Plane 192.168.122.10:6443 |
+| Harbor 内部（cleanup Job 含む） | 同 namespace の Harbor Pod の TCP 8080 / 5000 / 8082 / 6379 |
+| Harbor | shared-postgresql:5432 |
+| Harbor Trivy | 外部 HTTP/HTTPS（脆弱性 DB 更新） |
+
+外部 HTTP/HTTPS は IPv4 の private / loopback / link-local / CGNAT 宛を除外しています。
+標準 NetworkPolicy は FQDN や HTTP の宛先を制限できないため、許可された HTTPS を使った情報持ち出しは防げません。
+宛先ドメインの制限には別途 egress proxy 等が必要です。IPv6 の外部許可はありません。
+Gateway の許可は共有 VIP を使うため、CI から同じ Gateway 上の他の HTTPS route にも到達可能です。
+API Service と Gateway VIP は DNAT の前後の違いを考慮して明記しており、IP 変更時は本ポリシーも更新します。
+イメージ pull は kubelet によるノード通信で、Pod の Egress 許可とは別です。
 RustFS は api-hub と lifecycle Job の両方に S3 の許可があり、「api-hub 以外は一切接続できない」という説明は不正確です。
 
 ## controller の設定と限界
@@ -43,6 +68,9 @@ kubectl get networkpolicy -A
 kubectl -n kube-system logs daemonset/kube-network-policies --tail=100
 ```
 
+導入前に home-camera の新しい Pod ラベルと hitomi-pdf の接続先変更を同期し、古い Job の完了を確認します。
+core の同期で default-deny と許可ポリシーが順次作られるため、初回同期は短時間の通信断があり得ます。
+
 許可された実アプリ経由の操作、無関係な Pod からの Service IP / Pod IP への接続拒否を複数ノードで確認します。
 port-forward やノード発の通信だけでは Pod 間の拒否試験になりません。HTTP 403 はアプリへの到達を意味します。
 検証 Pod に本番 Service と同じラベルを付けて、誤って Service の配信対象にしないでください。
@@ -50,3 +78,16 @@ port-forward やノード発の通信だけでは Pod 間の拒否試験にな�
 通常の切り戻しはポリシー変更の Git revert と同期です。
 GitOps 自体が通信障害で止まった場合は、影響する namespace と port に限定した暫定許可を検討し、
 Git 修正の反映後に撤去します。controller 全停止は全ポリシーへ影響するため、局所修正と分けて判断します。
+
+最低限の疎通試験:
+
+- Gateway から api-hub / blog / cooklog / viewer / RSSHub と Harbor にアクセスできる。
+- api-hub の S3 操作、RSSHub のキャッシュ、hitomi の Selenium 操作、カメラ収録が成功する。
+- Runner を起動して GitHub 接続・依存取得・Harbor push、Harbor の DB 接続と Trivy 更新が成功する。
+- 無関係な sandbox Pod から Selenium、Redis、API Server、LAN への通信が失敗する。
+- controller/listener から API 接続が成功し、runner から API Service / Control Plane の両アドレスへの接続が失敗する。
+- 許可されていない Pod の外向き TCP 443 と、許可された Pod の外向き TCP 22 が失敗する。
+- api-hub Service が ClusterIP であり、ノードの旧 32001/TCP から到達できない。
+
+これらの実測は宣言の静的検証では代替できません。ノード自身や hostNetwork Pod に対する標準 NetworkPolicy の制約も考慮します。
+公式の [NetworkPolicy の動作](https://kubernetes.io/docs/concepts/services-networking/network-policies/) も参照してください。

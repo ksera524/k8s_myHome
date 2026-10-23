@@ -205,7 +205,7 @@ resource "null_resource" "k8s_control_plane_setup" {
     inline = [
       "set -eu",
       "sudo apt update",
-      "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd",
+      "sudo apt install -y apt-transport-https ca-certificates curl gpg containerd python3-yaml",
       "curl -fsSL https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg",
       "echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${local.kubernetes_minor}/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list",
       "sudo apt update",
@@ -238,6 +238,19 @@ resource "null_resource" "k8s_control_plane_setup" {
       "sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml",
       "sudo systemctl restart containerd",
       "sudo systemctl enable containerd"
+    ]
+  }
+
+  # 暗号鍵は VM 内で生成し、Terraform state / provisioner 出力へ渡さない。
+  provisioner "file" {
+    source      = "${path.module}/apiserver-security"
+    destination = "/tmp/apiserver-security"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "set -eu",
+      "sudo python3 /tmp/apiserver-security/configure.py prepare"
     ]
   }
 
@@ -275,7 +288,8 @@ EOL
   provisioner "remote-exec" {
     inline = [
       "set -eu",
-      "sudo kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs",
+      "sudo python3 /tmp/apiserver-security/configure.py kubeadm --input /tmp/kubeadm-config.yaml --output /tmp/kubeadm-config-secure.yaml",
+      "sudo kubeadm init --config=/tmp/kubeadm-config-secure.yaml --upload-certs",
       "mkdir -p /home/${var.vm_user}/.kube",
       "sudo cp -i /etc/kubernetes/admin.conf /home/${var.vm_user}/.kube/config",
       "sudo chown ${var.vm_user}:${var.vm_user} /home/${var.vm_user}/.kube/config",
