@@ -74,7 +74,10 @@ Kustomization の digest を戻します。停止せず revert すると、`late
 旧 Secret の参照がなくなったことを確認し、残存していれば移行後に削除します。
 共通 sandbox Robot Account には同 project 内のイメージを push できる権限が残ります。
 アプリ間のレジストリ権限も厳密に分離する場合は、Harbor project と Robot Account をアプリ別に分離します。
-Git 資格情報もファイル単位の権限制限ではないため、Runner には渡さず Image Updater のみが使用します。
+Git 資格情報もファイル単位の権限制限ではないため、Runner には渡しません。
+専用 Deploy Key は ArgoCD の `apps` project 用 repository credential として登録し、Image Updater が利用します。
+`method: git` と `insecure: false` により、ArgoCD の既知ホスト情報で SSH host key を検証します。
+この版の `git:secret:...` は SSH host key 検証を無効にするため使用しません。
 
 確認例（Secret の値を表示しない）:
 
@@ -85,7 +88,7 @@ kubectl auth can-i patch deployments -n sandbox --as=system:serviceaccount:arc-s
 kubectl auth can-i get secrets -n arc-systems --as=system:serviceaccount:arc-systems:github-actions-runner
 kubectl -n arc-systems get autoscalingrunnersets,pods
 kubectl -n argocd get imageupdater sandbox-images -o yaml
-kubectl -n argocd logs deployment/argocd-image-updater --tail=100
+kubectl -n argocd logs -l app.kubernetes.io/name=argocd-image-updater --tail=100
 ```
 
 権限確認は両方 `no` が期待値です。新 Runner Pod には特権コンテナ、Docker socket、API トークンのマウントがないことも確認します。

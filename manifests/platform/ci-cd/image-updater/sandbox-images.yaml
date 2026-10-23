@@ -11,7 +11,8 @@ spec:
     # CronJob に実行中の Pod がなくても更新する。
     forceUpdate: true
   writeBackConfig:
-    method: git:secret:argocd/image-updater-git
+    # Argo CD repository credentials 経由で SSH host key 検証を有効にする。
+    method: git
     gitConfig:
       repository: git@github.com:ksera524/k8s_myHome.git
       branch: main
