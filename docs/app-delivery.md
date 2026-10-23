@@ -18,18 +18,77 @@ selenium は `tools`、それ以外は `sandbox` に配置します。
 イメージはベース YAML だけでなく、Kustomize の `images` で上書きされる場合があります。
 更新対象は `kustomize build manifests/apps/<app>` の最終出力で確認します。
 
-## 現行の sandbox 配布
+## sandbox 配布
 
 [Runner 生成スクリプト](../automation/scripts/github-actions/add-runner.sh) は `STRATEGY=latest` のみを受け付けます。
-生成 workflow の経路は GitHub-hosted runner で build → artifact → ARC runner で Harbor へ push →
-sandbox の Deployment を `rollout restart` です。PR イベントでは build までです。
+GitHub-hosted runner で build → artifact → ARC runner で `crane push` → Harbor の `latest` を更新します。
+PR イベントでは build までです。ARC runner に Docker daemon、sudo、kubectl は不要です。
 
-これは固定 tag をインフラ PR で更新する方式と異なり、**同じ Git revision / `latest` でも稼働イメージが変わります**。
-ArgoCD の Synced は最新 digest の稼働を証明しません。新規 Pod の imageID とアプリの動作も確認します。
-アプリ側リポジトリの workflow の実際の配置・改変内容は、このリポジトリだけでは確認できません。
+[Image Updater](../manifests/platform/ci-cd/image-updater/sandbox-images.yaml) が約2分間隔で
+許可した8アプリの `latest` の digest を検知し、このリポジトリの `main` にある各
+`manifests/apps/<app>/kustomization.yaml` に書き戻します。ArgoCD Application の revision は `HEAD` のままです。
+Harbor への接続は内部 URL、マニフェスト内のイメージ名は従来の `harbor.qroksera.com/sandbox/...` を使います。
+初回の検知・Git 更新が成功するまでは既存の `latest` 指定が残ります。
+更新方式は公式の [Git write-back](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-methods/) と
+[digest strategy](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-strategies/#digest---update-to-the-most-recent-pushed-version-of-a-tag) を利用します。
 
-CI policy は `apps/`・namespace `sandbox`・`harbor.qroksera.com/sandbox/` の条件下で first-party の `latest` を許容します。
-固定版へ移行する場合は manifest とアプリ側 workflow を一緒に変更します。
+- Deployment: Pod テンプレートの digest が変わるため、ArgoCD 同期後にローリング更新します。
+- CronJob: Job テンプレートを更新し、次回作成の Job から新イメージになります。実行中の Job は継続します。
+  実行中 Pod がない場合も検知できるよう `forceUpdate: true` を指定しています。
+- 同じ Application 内の同じイメージを使う Deployment / CronJob は Kustomize の `images` で一緒に更新されます。
+  別 Application 間の更新・同期は独立しており、同時切替は保証しません。
+
+Git に digest が残るため、履歴から配布イメージを特定できます。
+ロールバックは、まず対象の `applicationRefs` を Git で一時的に外して同期し、自動更新を止めてから
+Kustomization の digest を戻します。停止せず revert すると、`latest` の digest に再更新されます。
+再開時は対象を `applicationRefs` に戻します。Harbor の保持ポリシーでもロールバック対象の digest を残してください。
+
+## 既存 CI からの移行
+
+このリポジトリの変更だけでは、外部のアプリリポジトリの workflow は更新されません。
+旧 workflow の `docker load/push`、`kubectl get secret`、`rollout restart` は新 Runner で実行できません。
+次の順で切り替えます。
+
+1. Harbor に `sandbox` project の pull / push 専用 Robot Account を作成し、CI に管理者権限を渡さないようにします。
+   Image Updater には別の pull-only Robot Account を作成します。
+2. このリポジトリ専用の書き込み可能 Deploy Key を作成します。
+   `main` への bot の書き込みをリポジトリの保護ルールで許可する必要があります。
+   PR 必須ルールで直接 push が拒否される場合、この自動配布方式は開始できません。
+3. Pulumi ESC の既存ストアに下表のキーを登録します。平文を Git に保存しません。
+4. アプリ CI の push を一時停止し、実行中ジョブの終了を待ちます。
+   `make add-runners-all` または個別の生成コマンドで作成した workflow を各アプリリポジトリへ反映します。
+   独自の build / テストがある場合は維持し、push job を置き換えます。
+5. このリポジトリを反映し、ExternalSecret の Ready、旧 Role / RoleBinding の prune、Runner のテンプレート変更、
+   `image-updater` の同期を確認します。既存 Pod のトークンは変更で消えないため、旧 Runner Pod が残っていないことも確認します。
+6. CI を再開し、1アプリの push → digest の Git commit → ArgoCD 同期 → imageID を確認します。
+   CronJob は次回 Job の image / imageID を確認します。
+
+| ESC キー | 用途 |
+|---|---|
+| `harbor.ci_username` / `harbor.ci_password` | Runner の sandbox pull / push Robot Account |
+| `harbor.image_updater_username` / `harbor.image_updater_password` | Image Updater の sandbox pull-only Robot Account |
+| `image_updater.git_ssh_private_key` | このリポジトリへの Git 書き込み用 Deploy Key の秘密鍵 |
+
+資格情報が未登録なら ExternalSecret は Ready になりません。admin 認証へのフォールバックはしません。
+新 Runner は専用の `harbor-ci-auth` をマウントします。移行前の admin 入り `harbor-auth` が残っていても利用しません。
+旧 Secret の参照がなくなったことを確認し、残存していれば移行後に削除します。
+共通 sandbox Robot Account には同 project 内のイメージを push できる権限が残ります。
+アプリ間のレジストリ権限も厳密に分離する場合は、Harbor project と Robot Account をアプリ別に分離します。
+Git 資格情報もファイル単位の権限制限ではないため、Runner には渡さず Image Updater のみが使用します。
+
+確認例（Secret の値を表示しない）:
+
+```bash
+kubectl -n arc-systems get externalsecret harbor-auth-secret
+kubectl -n argocd get externalsecret image-updater-git image-updater-harbor
+kubectl auth can-i patch deployments -n sandbox --as=system:serviceaccount:arc-systems:github-actions-runner
+kubectl auth can-i get secrets -n arc-systems --as=system:serviceaccount:arc-systems:github-actions-runner
+kubectl -n arc-systems get autoscalingrunnersets,pods
+kubectl -n argocd get imageupdater sandbox-images -o yaml
+kubectl -n argocd logs deployment/argocd-image-updater --tail=100
+```
+
+権限確認は両方 `no` が期待値です。新 Runner Pod には特権コンテナ、Docker socket、API トークンのマウントがないことも確認します。
 
 ## Runner を追加する
 
@@ -47,20 +106,14 @@ make add-runners-all
 Make がスクリプトのディレクトリへ移動し、スクリプトが相対パスで出力するためです。
 生成物は Git 非追跡なので、内容を確認してアプリリポジトリの `.github/workflows/` に配置します。
 
-生成後に確認する点:
+生成後は、アーティファクトの名前とファイル形式（gzip 圧縮した `docker save`）、Runner 名、Harbor の push 先を確認します。
+イメージ名はリポジトリ名を小文字化します。`crane` はバージョンと SHA256 を固定し、一般ユーザーで取得・実行します。
+Docker コンテナ action、job container、services、sudo を必要とする処理は GitHub-hosted runner 側へ置きます。
 
-- Docker イメージ名は repo 名をそのまま使うため、大文字を含む repo では小文字への調整が必要です。
-- `KUBECONFIG` の export は生成 workflow の 1 step 内だけです。後続 step でも使うには `$GITHUB_ENV` 等への引き継ぎが必要です。
-- Deployment 名は repo の小文字化と `.` / `_` の置換から導出します。CronJob は再起動対象になりません。
-- Harbor の認証処理を確認し、アプリ側では `--password-stdin` で渡す形に整えます。
+新規アプリを自動更新するには [sandbox-images.yaml](../manifests/platform/ci-cd/image-updater/sandbox-images.yaml) に
+Application 名とイメージを登録し、対象 Kustomization に `images` エントリを追加します。
+Runner 追加だけでは自動配布対象にしません。
 
-Runner 定義の Git 反映と ArgoCD 同期後、アプリ側の workflow を実行します。
-[RBAC](../manifests/platform/ci-cd/github-actions/github-actions-rbac.yaml) は `harbor-auth` の読み取りと
-sandbox Deployment の get / list / watch / patch を許可しています。
+[Runner ServiceAccount](../manifests/platform/ci-cd/github-actions/github-actions-rbac.yaml) に API 権限はありません。
+Harbor 認証は Secret volume として読み取り専用で渡し、ServiceAccount トークンはマウントしません。
 controller の手動 Helm 導入は不要です。
-
-```bash
-kubectl -n arc-systems get autoscalingrunnersets,pods
-kubectl -n argocd get applications
-kubectl -n sandbox get pods -o wide
-```

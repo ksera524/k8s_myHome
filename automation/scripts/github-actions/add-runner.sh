@@ -26,8 +26,7 @@ WORKFLOW_STRATEGY="$4"
 # Runner名生成（小文字変換、ドット・アンダースコアをハイフンに変換）
 RUNNER_SLUG="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')"
 RUNNER_NAME="${RUNNER_SLUG}-runners"
-DEPLOYMENT_NAME="$RUNNER_SLUG"
-LEGACY_DEPLOYMENT_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[._].*$//')"
+IMAGE_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$WORKFLOW_STRATEGY" != "latest" ]]; then
     log_error "strategy は latest のみ指定可能です: $WORKFLOW_STRATEGY"
@@ -40,8 +39,6 @@ log_debug "Runner名: $RUNNER_NAME"
 log_debug "Min Runners: $MIN_RUNNERS"
 log_debug "Max Runners: $MAX_RUNNERS"
 log_debug "Workflow Strategy: $WORKFLOW_STRATEGY"
-log_debug "Deployment名: $DEPLOYMENT_NAME"
-log_debug "Legacy Deployment名: $LEGACY_DEPLOYMENT_NAME"
 
 # GitHubユーザー名を取得（settings.tomlから）
 SETTINGS_FILE="$SCRIPTS_ROOT/../settings.toml"
@@ -207,6 +204,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+concurrency:
+  group: build-push-\${{ github.workflow }}-\${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   pull-requests: read
@@ -222,11 +223,11 @@ jobs:
     - name: Build Docker image
       run: |
         echo "=== Build image on GitHub-hosted runner ==="
-        docker build -t $REPOSITORY_NAME:ci .
+        docker build -t $IMAGE_NAME:ci .
 
     - name: Export Docker image tar
       run: |
-        docker save $REPOSITORY_NAME:ci | gzip > /tmp/$REPOSITORY_NAME-image.tar.gz
+        docker save $IMAGE_NAME:ci | gzip > /tmp/$REPOSITORY_NAME-image.tar.gz
 
     - name: Upload image artifact
       uses: actions/upload-artifact@v7
@@ -247,85 +248,44 @@ jobs:
         name: $REPOSITORY_NAME-image
         path: /tmp
 
-    - name: Load Docker image
+    - name: Install crane (verified release)
+      shell: bash
       run: |
-        echo "=== Load image on self-hosted runner ==="
-        gunzip -c /tmp/$REPOSITORY_NAME-image.tar.gz | docker load
+        set -euo pipefail
+        case "\$(uname -m)" in
+          x86_64) ARCH=x86_64; SHA256=0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0 ;;
+          aarch64) ARCH=arm64; SHA256=898c0cff975f898a33e8c4580bdafb0e7c02c7faa33374e946762f97c4ab7110 ;;
+          *) echo "Unsupported architecture" >&2; exit 1 ;;
+        esac
+        mkdir -p "\$RUNNER_TEMP/crane-bin"
+        curl --fail --silent --show-error --location \\
+          "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_\$ARCH.tar.gz" \\
+          -o "\$RUNNER_TEMP/crane.tar.gz"
+        echo "\$SHA256  \$RUNNER_TEMP/crane.tar.gz" | sha256sum --check
+        tar -xzf "\$RUNNER_TEMP/crane.tar.gz" -C "\$RUNNER_TEMP/crane-bin" crane
 
-    - name: Setup kubectl and Harbor credentials
+    - name: Push latest image without Docker
+      shell: bash
       run: |
-        echo "=== Setup kubectl and Harbor credentials ==="
-
-        echo "Installing kubectl..."
-        curl -LO "https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
-
-        echo "Configuring kubectl..."
-        export KUBECONFIG=/tmp/kubeconfig
-        kubectl config set-cluster default \
-            --server=https://kubernetes.default.svc \
-            --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
-            --kubeconfig=\$KUBECONFIG
-        kubectl config set-credentials default \
-            --token=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \
-            --kubeconfig=\$KUBECONFIG
-        kubectl config set-context default \
-            --cluster=default --user=default \
-            --kubeconfig=\$KUBECONFIG
-        kubectl config use-context default --kubeconfig=\$KUBECONFIG
-
-        echo "Getting Harbor credentials..."
-        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_USERNAME}' | base64 -d > /tmp/harbor_username
-        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PASSWORD}' | base64 -d > /tmp/harbor_password
-        kubectl get secret harbor-auth -n arc-systems -o jsonpath='{.data.HARBOR_PROJECT}' | base64 -d > /tmp/harbor_project
-
-        chmod 600 /tmp/harbor_*
-        echo "✅ Harbor credentials retrieved successfully"
-
-    - name: Tag and push latest image
-      run: |
-        echo "=== Tag and push latest image on self-hosted runner ==="
-
-        HARBOR_USERNAME=\$(cat /tmp/harbor_username)
-        HARBOR_PASSWORD=\$(cat /tmp/harbor_password)
-        HARBOR_URL="harbor.internal.qroksera.com"
-        HARBOR_PROJECT=\$(cat /tmp/harbor_project)
-
-        docker tag $REPOSITORY_NAME:ci \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
-
-        echo "192.168.122.100 harbor.internal.qroksera.com" | sudo tee -a /etc/hosts
-
-        echo "Logging in to Harbor..."
-        docker login \$HARBOR_URL -u "\$HARBOR_USERNAME" -p "\$HARBOR_PASSWORD"
-
-        echo "Pushing to Harbor..."
-        docker push \$HARBOR_URL/\$HARBOR_PROJECT/$REPOSITORY_NAME:latest
-
-        echo "✅ Image pushed successfully to Harbor"
-        echo "📦 Pushed tag: latest"
-
-    - name: Restart sandbox workload
-      run: |
-        echo "=== Restart sandbox workload ==="
-        if kubectl get deployment $DEPLOYMENT_NAME -n sandbox >/dev/null 2>&1; then
-          kubectl rollout restart deployment/$DEPLOYMENT_NAME -n sandbox
-          kubectl rollout status deployment/$DEPLOYMENT_NAME -n sandbox --timeout=180s
-          echo "✅ Restarted deployment/$DEPLOYMENT_NAME"
-        elif [[ "$LEGACY_DEPLOYMENT_NAME" != "$DEPLOYMENT_NAME" ]] && kubectl get deployment $LEGACY_DEPLOYMENT_NAME -n sandbox >/dev/null 2>&1; then
-          kubectl rollout restart deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox
-          kubectl rollout status deployment/$LEGACY_DEPLOYMENT_NAME -n sandbox --timeout=180s
-          echo "✅ Restarted deployment/$LEGACY_DEPLOYMENT_NAME (legacy fallback)"
-        else
-          echo "ℹ️ deployment/$DEPLOYMENT_NAME および deployment/$LEGACY_DEPLOYMENT_NAME は存在しないため再起動をスキップします"
-        fi
+        set -euo pipefail
+        umask 077
+        export DOCKER_CONFIG="\$RUNNER_TEMP/harbor-auth"
+        mkdir -p "\$DOCKER_CONFIG"
+        CRANE="\$RUNNER_TEMP/crane-bin/crane"
+        HARBOR_URL=\$(cat /etc/harbor-auth/HARBOR_URL)
+        HARBOR_PROJECT=\$(cat /etc/harbor-auth/HARBOR_PROJECT)
+        HARBOR_USERNAME=\$(cat /etc/harbor-auth/HARBOR_USERNAME)
+        "\$CRANE" auth login "\$HARBOR_URL" --username "\$HARBOR_USERNAME" \\
+          --password-stdin < /etc/harbor-auth/HARBOR_PASSWORD
+        gunzip -c /tmp/$REPOSITORY_NAME-image.tar.gz > "\$RUNNER_TEMP/image.tar"
+        "\$CRANE" push "\$RUNNER_TEMP/image.tar" "\$HARBOR_URL/\$HARBOR_PROJECT/$IMAGE_NAME:latest"
 
     - name: Cleanup
       if: always()
+      shell: bash
       run: |
-        echo "=== Cleanup ==="
-        rm -f /tmp/harbor_* /tmp/kubeconfig /tmp/$REPOSITORY_NAME-image.tar.gz
-        echo "✅ Cleanup completed"
+        rm -rf "\$RUNNER_TEMP/harbor-auth" "\$RUNNER_TEMP/crane-bin"
+        rm -f "\$RUNNER_TEMP/crane.tar.gz" "\$RUNNER_TEMP/image.tar" /tmp/$REPOSITORY_NAME-image.tar.gz
 WORKFLOW_EOF
 
 log_status "=== セットアップ完了 ==="

@@ -1,54 +1,7 @@
+# Runner は Kubernetes API を利用しない。認証情報は kubelet が Secret volume として渡す。
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: github-actions-runner
   namespace: arc-systems
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: github-actions-secret-reader
-  namespace: arc-systems
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  resourceNames: ["harbor-auth"]
-  verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: github-actions-secret-reader
-  namespace: arc-systems
-subjects:
-- kind: ServiceAccount
-  name: github-actions-runner
-  namespace: arc-systems
-roleRef:
-  kind: Role
-  name: github-actions-secret-reader
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: github-actions-sandbox-deployment-manager
-  namespace: sandbox
-rules:
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: github-actions-sandbox-deployment-manager
-  namespace: sandbox
-subjects:
-- kind: ServiceAccount
-  name: github-actions-runner
-  namespace: arc-systems
-roleRef:
-  kind: Role
-  name: github-actions-sandbox-deployment-manager
-  apiGroup: rbac.authorization.k8s.io
+automountServiceAccountToken: false

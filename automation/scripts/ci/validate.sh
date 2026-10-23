@@ -104,6 +104,12 @@ crd = yaml.safe_load((root / f"manifests/platform/pgo/charts/pgo-{version}/pgo/c
 for version in crd["spec"]["versions"]:
     schema = version["schema"]["openAPIV3Schema"]
     (output / f"postgrescluster_{version['name']}.json").write_text(json.dumps(schema))
+
+# 汎用 CRD カタログは旧 Image Updater の spec.namespace を要求するため、採用 chart と一致させる。
+application = yaml.safe_load((root / "manifests/bootstrap/applications/platform/image-updater.yaml").read_text())
+chart = next(source for source in application["spec"]["sources"] if source.get("chart") == "argocd-image-updater")
+schema = root / "automation/schemas/argocd-image-updater" / chart["targetRevision"] / "imageupdater_v1alpha1.json"
+(output / "imageupdater_v1alpha1.json").write_text(schema.read_text())
 PY
 
 kubeconform_schema_locations=(

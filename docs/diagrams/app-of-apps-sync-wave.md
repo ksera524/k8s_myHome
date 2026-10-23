@@ -1,6 +1,6 @@
 # Application と Sync Wave
 
-2026-10-20 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
+2026-10-23 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
 root は [bootstrap-root](../../manifests/bootstrap/app-of-apps.yaml) で、source は `manifests/bootstrap/applications` です。
 
 ## 管理構造
@@ -12,6 +12,8 @@ flowchart TD
   Root --> Child[bootstrap 配下の child Applications]
   Child --> Workload[core / infrastructure / platform / access / apps]
   Child --> Platform[platform: github-actions ディレクトリ]
+  Child --> Updater[image-updater: Helm + ImageUpdater CR]
+  Updater --> Git[アプリの digest を Git 更新]
   Platform --> Controller[arc-controller Application]
   Platform --> AppSet[arc-runners ApplicationSet]
   AppSet --> Runner[repo ごとの runner Application]
@@ -42,6 +44,7 @@ wave は root が作成・更新する Application の annotation です。別 A
 | 8 | [pgo](../../manifests/bootstrap/applications/platform/pgo.yaml) | `platform` | [manifests/platform/pgo](../../manifests/platform/pgo) | `postgres-operator` |
 | 9 | [config-secrets](../../manifests/bootstrap/applications/platform/config-secrets.yaml) | `platform` | [manifests/platform/secrets/external-secrets](../../manifests/platform/secrets/external-secrets) | `external-secrets-system` |
 | 10 | [platform](../../manifests/bootstrap/applications/platform/platform.yaml) | `platform` | [manifests/platform/ci-cd/github-actions](../../manifests/platform/ci-cd/github-actions) | `argocd` |
+| 11 | [image-updater](../../manifests/bootstrap/applications/platform/image-updater.yaml) | `platform` | Helm `argocd-image-updater` + [digest 更新設定](../../manifests/platform/ci-cd/image-updater) | `argocd` |
 | 10 | [reloader](../../manifests/bootstrap/applications/platform/reloader.yaml) | `platform` | [manifests/platform/reloader](../../manifests/platform/reloader) | `kube-system` |
 | 10 | [rustfs](../../manifests/bootstrap/applications/platform/rustfs.yaml) | `platform` | [manifests/platform/rustfs](../../manifests/platform/rustfs) | `rustfs` |
 | 10 | [shared-postgresql](../../manifests/bootstrap/applications/platform/shared-postgresql.yaml) | `platform` | [manifests/platform/shared-postgresql](../../manifests/platform/shared-postgresql) | `database` |
@@ -107,3 +110,11 @@ Harbor は内部 Gateway 経由に統一し、cloudflared は撤去しました�
 ノードの名前解決を管理する `kube-system/harbor-node-hosts` DaemonSet を所有します。
 移行時の段階的な同期は [アクセス経路](../access.md#harbor-の内部経路と移行) を参照してください。
 `harbor-access` 内ではスクリプト ConfigMap（wave -2）→ DaemonSet（wave -1）→ Route（wave 0）の順に同期します。
+
+### sandbox イメージの更新
+
+`image-updater` は root 配下の wave 11 で Helm chart（CRD/controller）とローカル ImageUpdater CR を管理します。
+同 Application 内では CR を wave 1 とし、controller / CRD の後で同期します。
+ExternalSecret は既存の config-secrets から供給します。Image Updater は許可したアプリの `latest` digest を
+Kustomization に Git write-back し、wave 12 のアプリが Git 差分を同期します。
+Runner に Deployment / CronJob の変更権限はありません。

@@ -8,7 +8,7 @@ resources:
   - arc-controller.yaml
   # ARC RunnerScaleSet (ApplicationSetでGitOps管理)
   - runners-appset.yaml
-  # Runner Pod ServiceAccount（sandbox rollout と harbor-auth 読み取りに限定）
+  # Runner Pod ServiceAccount（API 権限なし、トークン自動マウントなし）
   - github-actions-rbac.yaml
   # GitHub PAT は platform/secrets/external-secrets/github-actions/ で管理
   # Runner ScaleSetは runners-appset.yaml の list generator をGit管理する
