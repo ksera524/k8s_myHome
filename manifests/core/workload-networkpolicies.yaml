@@ -753,7 +753,12 @@ spec:
   podSelector:
     matchLabels:
       app: harbor
-      component: nginx
+    matchExpressions:
+    - key: component
+      operator: In
+      values:
+      - core
+      - portal
   policyTypes:
   - Ingress
   ingress:

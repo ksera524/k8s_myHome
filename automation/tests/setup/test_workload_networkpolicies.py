@@ -62,6 +62,16 @@ class NetworkPolicyTests(unittest.TestCase):
             self.assertTrue(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': src}, '10.244.1.3', port))
             self.assertFalse(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': 'unrelated'}, '10.244.1.3', port))
 
+    def test_harbor_gateway_reaches_route_backends_only(self):
+        gateway = {'app.kubernetes.io/name': 'nginx-gateway-nginx',
+                   'gateway.networking.k8s.io/gateway-name': 'nginx-gateway'}
+        for component in ['core', 'portal']:
+            self.assertTrue(allowed('harbor', {'app': 'harbor', 'component': component},
+                                    'Ingress', 'nginx-gateway', gateway, '10.244.1.2', 8080))
+        for component in ['redis', 'registry', 'jobservice']:
+            self.assertFalse(allowed('harbor', {'app': 'harbor', 'component': component},
+                                     'Ingress', 'nginx-gateway', gateway, '10.244.1.2', 8080))
+
     def test_gateway_requires_both_namespace_and_labels(self):
         labels = {'app.kubernetes.io/name': 'nginx-gateway-nginx',
                   'gateway.networking.k8s.io/gateway-name': 'nginx-gateway'}

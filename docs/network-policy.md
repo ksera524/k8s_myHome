@@ -20,7 +20,7 @@
 | 接続元 | 許可する宛先 |
 |---|---|
 | 各対象 namespace | kube-system の CoreDNS TCP/UDP 53 |
-| NGINX Gateway | sandbox の公開アプリ（80 / 3000 / 1200）、Harbor nginx:8080 |
+| NGINX Gateway | sandbox の公開アプリ（80 / 3000 / 1200）、Harbor core / portal:8080 |
 | home-camera / hitomi-pdf | api-hub:3000（hitomi-pdf も内部 Service を使用） |
 | api-hub | RustFS:9000、外部 HTTP/HTTPS（Slack 等） |
 | hitomi-monitor | Selenium:4444、外部 HTTP/HTTPS |
