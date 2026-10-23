@@ -84,7 +84,7 @@ Gateway の Programmed、HTTPRoute の Accepted / ResolvedRefs、Certificate の
 利用端末で DNS と HTTPS、ログイン後の主要操作を確認し、通信制限を追加した場合は拒否される経路も実測します。
 初回公開や依存変更の順序を、別 Application の wave だけに依存させないでください。
 
-## Harbor の内部経路と移行
+## Harbor の内部経路
 
 `harbor-access` が kube-system の `harbor-node-hosts` DaemonSet を管理します。
 ノードの `/etc/hosts` のみをファイルマウントし、両 Harbor hostname の競合を除去して
@@ -96,10 +96,9 @@ Pod DNS は CoreDNS、ARC は既存の hostAliases、ノードはこの DaemonSe
 Harbor の externalURL / EXT_ENDPOINT は内部 hostname に統一し、token realm も内部へ向けます。
 両 hostname の証明書検証は維持します。Cloudflare DNS-01 用の Secret は証明書更新に必要なので残します。
 
-移行時は先に DaemonSet の全ノード Ready と両 hostname の内部 HTTPS 到達を確認し、
-Harbor・Secret・Split DNS を同期して認証付き pull を確認してから cloudflared を撤去します。
+再構築時は DaemonSet の全ノード Ready と両 hostname の内部 HTTPS 到達を確認し、
+Harbor・Secret・Split DNS を同期して認証付き pull を確認します。
 App-of-Apps の sync wave だけで既存 Application の同期完了順を保証しないでください。
 
 DaemonSet を削除しても `/etc/hosts` のエントリは残ります。
-ロールバックで外部経路へ戻す場合は、Tunnel の復旧後に DaemonSet を停止し、
-全ノードで `# managed: harbor-node-hosts` の行を除去します。
+固定先を廃止する場合は DaemonSet を停止し、全ノードで `# managed: harbor-node-hosts` の行を除去します。

@@ -50,7 +50,7 @@ kubectl -n kube-system logs daemonset/harbor-node-hosts --since=10m
 kubectl get clientsettingspolicies -A
 ```
 
-Cloudflared が公開するのは Harbor です。内部 URL は Tailnet / LAN の経路と Split DNS を先に確認します。
+Harbor を含む内部 URL は Tailnet / LAN の経路と Split DNS を先に確認します。
 HTTPS の調査では hostname と証明書を照合し、`curl -k` の成功を TLS 検証成功として扱いません。
 413 は api-hub / Harbor の ClientSettingsPolicy の Accepted / Programmed と実際の NGINX 設定を確認します。
 NGF / Gateway API の更新手順は [アプリ更新](application-auto-updates.md) を参照してください。

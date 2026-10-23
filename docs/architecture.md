@@ -11,7 +11,7 @@ flowchart TD
   Boot --> Argo[ArgoCD child Applications]
   Argo --> Infra[Storage / MetalLB / Gateway API / cert-manager]
   Argo --> Platform[ESO / ARC / Harbor / RustFS / PostgreSQL / 監視]
-  Argo --> Access[Gateway / HTTPRoute / DNS / Cloudflared]
+  Argo --> Access[Gateway / HTTPRoute / DNS]
   Argo --> Apps[ユーザーアプリ]
 ```
 
@@ -40,7 +40,7 @@ control-plane、NFS、単一 replica のサービスを含むため、構成全�
 |---|---|
 | GitOps | ArgoCD 本体・設定の自己管理、AppProject、ApplicationSet |
 | 認証情報 | ESO → Pulumi ESC。初回の ESC token は bootstrap が投入 |
-| 公開 | NGINX Gateway Fabric + cert-manager。外部 Tunnel は Harbor、内部接続は Tailscale 経路 |
+| 公開 | NGINX Gateway Fabric + cert-manager。Harbor を含む内部接続は LAN / Tailscale 経路 |
 | レジストリ・CI | Harbor、ARC。アプリの build workflow はアプリ側リポジトリに配置 |
 | データ | RustFS（S3）、PGO 管理の共通 PostgreSQL（Harbor DB と Grafana の SQL 接続先） |
 | 監視 | VictoriaMetrics / kube-state-metrics / vmalert / Alertmanager / Grafana / Loki / Alloy |
@@ -51,5 +51,5 @@ Grafana 自体の永続データは local-path PVC に保存します。PostgreS
 
 ## リポジトリ外の設定
 
-Pulumi ESC の値、Cloudflare の DNS / Tunnel、Tailscale の route 承認・DNS・ACL、GitHub OAuth App・GitHub App の設定、
+Pulumi ESC の値、Cloudflare の DNS、Tailscale の route 承認・DNS・ACL、GitHub OAuth App・GitHub App の設定、
 NFS 上の既存データは Git の YAML だけでは復元できません。初回構築では [bootstrap](bootstrap.md) と [secrets](secrets.md) を併せて確認します。

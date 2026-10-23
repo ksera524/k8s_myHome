@@ -10,7 +10,7 @@ Application の `source` を辿ったものが通常の GitOps 管理対象で�
 | [core/](../manifests/core/) | Namespace、基本 NetworkPolicy、StorageClass |
 | [infrastructure/](../manifests/infrastructure/) | ネットワーク・証明書・ストレージコントローラなど |
 | [platform/](../manifests/platform/) | ArgoCD、ESO、ARC、Harbor、RustFS、PGO、共通 DB、共有設定、監視 |
-| [access/](../manifests/access/) | Gateway、HTTPRoute、DNS、Cloudflared |
+| [access/](../manifests/access/) | Gateway、HTTPRoute、DNS |
 | [apps/](../manifests/apps/) | アプリの Deployment / Service / CronJob など |
 | [contracts/](../manifests/contracts/) | 非機密な環境値と公開経路の照合用定義 |
 
