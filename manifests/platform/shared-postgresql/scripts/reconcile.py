@@ -1,4 +1,4 @@
-"""ESC の入力資格情報を PGO に反映し、公開 CA だけを Harbor / Grafana に配布する。"""
+"""ESC の入力資格情報を PGO に反映し、公開 CA だけを Harbor / Grafana / sandbox に配布する。"""
 import base64
 import json
 import os
@@ -43,7 +43,7 @@ def main():
     cert = request(f'/api/v1/namespaces/database/secrets/{CLUSTER}-cluster-cert')
     ca = base64.b64decode(cert['data']['ca.crt']).decode()
     # 公開 CA のみを配布。秘密鍵や管理用資格情報をコピーしない。
-    for namespace in ('harbor', 'observability'):
+    for namespace in ('harbor', 'observability', 'sandbox'):
         cm_path = f'/api/v1/namespaces/{namespace}/configmaps/shared-postgresql-ca'
         try:
             current = request(cm_path)

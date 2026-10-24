@@ -71,7 +71,16 @@ class TestCluster:
         self.apply(yaml.safe_dump(cluster))
         self.wait_database(name, spec['image'])
         self.wait_images(name, root)
-        sql = (ROOT / 'manifests/platform/shared-postgresql/scripts/bootstrap.sql').read_text()
+        # Ready な Pod と、PGO によるユーザー/DB作成完了は別の状態。
+        required = {db for user in spec['users'] for db in user.get('databases', [])}
+        def databases_created():
+            actual = self.kubectl('-n', 'database', 'exec', self.database_pod(name), '-c', 'database',
+                                  '--', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-Atc',
+                                  'SELECT datname FROM pg_database;').splitlines()
+            return required.issubset(actual)
+        wait_for(f'{name}: PGO declared databases created', databases_created)
+        # 更新前のクラスタには、その版と対になる bootstrap を適用する。
+        sql = (root / 'manifests/platform/shared-postgresql/scripts/bootstrap.sql').read_text()
         self.kubectl('-n', 'database', 'exec', '-i', self.database_pod(name), '-c', 'database',
                      '--', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', data=sql)
 
@@ -112,12 +121,12 @@ class TestCluster:
     def wait_database(self, name, image):
         wait_for(f'{name}: DB Pod ready ({image.rsplit(":", 1)[1]})', lambda: self.database_pod(name, image))
 
-    def sql(self, name, sql):
+    def sql(self, name, sql, database='registry'):
         # SQL 接続には PGO 生成の検証専用 password を使い、コマンドやログに出さない。
         secret = self.obj('database', 'secret', f'{name}-pguser-app')
         password = base64.b64decode(secret['data']['password']).decode()
         command = (f'read -r PGPASSWORD; export PGPASSWORD; exec psql '
-                   f'"host={name}-primary.database.svc user=app dbname=registry '
+                   f'"host={name}-primary.database.svc user=app dbname={database} '
                    'sslmode=verify-full sslrootcert=/pgconf/tls/ca.crt connect_timeout=10" '
                    '-X -At -v ON_ERROR_STOP=1')
         return self.kubectl('-n', 'database', 'exec', '-i', self.database_pod(name), '-c', 'database',
@@ -140,6 +149,15 @@ class TestCluster:
         assert self.sql(name, "SELECT count(*) FROM public.renovate_smoke WHERE value <> md5(id::text);") == '0'
         self.sql(name, "BEGIN; INSERT INTO public.renovate_smoke VALUES(101,md5('101')); ROLLBACK;")
         print(f'PASS: {name}: TLS / 読み書き / 検証データ一致', flush=True)
+        spec = VERSIONS.load(ROOT / 'manifests/platform/shared-postgresql/postgrescluster.yaml')['spec']
+        databases = next(user['databases'] for user in spec['users'] if user['name'] == 'app')
+        for database in databases:
+            assert self.sql(name, 'SELECT current_user;', database) == 'app'
+            assert self.sql(name, 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid();', database) == 't'
+            assert self.sql(name, "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database();", database) == 'app'
+            assert self.sql(name, "SELECT count(*) FROM pg_database d, LATERAL aclexplode(d.datacl) a WHERE d.datname=current_database() AND a.grantee=0 AND a.privilege_type IN ('CONNECT','TEMPORARY');", database) == '0'
+            self.sql(name, 'BEGIN; CREATE TABLE public.application_connection_smoke(id integer); INSERT INTO public.application_connection_smoke VALUES(1); ROLLBACK;', database)
+        print(f'PASS: {name}: all app databases / TLS / owner / PUBLIC ACL / DDL', flush=True)
 
     def backup(self, name):
         identifier = 'ci-' + secrets.token_hex(5)

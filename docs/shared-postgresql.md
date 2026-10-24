@@ -9,14 +9,23 @@ Namespace は `database`、名前は `shared-postgresql`、PostgreSQL major は 
 | 項目 | 宣言 |
 |---|---|
 | primary | `shared-postgresql-primary.database.svc:5432` |
-| 利用 DB / role | `registry` / 共用 `app`（Harbor と Grafana SQL データソース） |
+| 利用 DB / role | `registry`, `api_hub`, `hitomi`, `media`, `camera` / 共用 `app` |
 | 管理 role | `postgres` |
 | TLS | アプリは PGO の公開 CA を使い `verify-full` |
-| 接続数 | DB 全体 100、app 50、Harbor 各 Pod 最大 10、Grafana datasource 最大 5 |
+| 接続数 | DB 全体 100、app 80、Harbor 各 Pod 最大 10、Grafana datasource 最大 5 |
 
-[bootstrap.sql](../manifests/platform/shared-postgresql/scripts/bootstrap.sql) は registry の所有権を app に設定し、
-PUBLIC の registry CONNECT / TEMP、postgres CONNECT を取り消します。
+[bootstrap.sql](../manifests/platform/shared-postgresql/scripts/bootstrap.sql) は上記5 DBの所有権を app に設定し、
+PUBLIC の各アプリDBの CONNECT / TEMP、postgres CONNECT を取り消します。
 共用 role はアプリごとのデータ分離を提供しません。接続先を追加する際は DB / schema の権限と接続予算を見直します。
+
+アプリのpool上限はapi-hub API 3、通知worker 2、media API 3、media worker 2、media planner 2、hitomi CronJob 2、outbox 2、camera uploader 2で合計18。
+通知・media worker・outboxはRecreate、cameraは1 replicaのStatefulSetとし、APIの一時増加を含めたrollout時は24。4つのmigration Jobを各1接続で同時実行した場合は28。
+さらにmedia importとreconcileの各2接続、資格情報Jobのapp接続確認1、既存Harbor rollout40＋Grafana 5を加えて最大78と見込み、app上限80、クラスタ全体100を維持する。残りは2接続なので、移行中の手動Job追加やreplica増加はこの予算を再確認してから行う。
+2026-10-24の変更前確認ではapp接続3（idle）、DBコンテナ使用量約368 MiB / limit1 GiBだった。新worker導入後やピーク時の値ではないため、配備後に接続数・メモリを再確認する。
+
+sandboxでは `application-postgresql` SecretのPGPASSWORDを使い、Podに `database.k8s-myhome.local/shared-postgresql: "true"` を付けてNetworkPolicyを通す。
+`shared-postgresql-ca` の `ca.crt` をread-only mountし、PGHOSTは上記Service、PGUSERはapp、PGDATABASEは担当DB、PGSSLROOTCERTはmount先を指定する。
+Secretの入力は既存の `postgresql.password` のみで、外部Secret管理の項目は増やさない。
 
 ## 資格情報の反映
 
@@ -25,7 +34,7 @@ ESC の `postgresql.admin_password` / `postgresql.password` を ESO が入力 Se
 [reconcile.py](../manifests/platform/shared-postgresql/scripts/reconcile.py) が次を実行します。
 
 1. 入力が変わった場合だけ PGO の postgres / app Secret の password を patch し verifier を解除。
-2. PGO の公開 CA を harbor / observability の `shared-postgresql-ca` ConfigMap に配布。
+2. PGO の公開 CA を harbor / observability / sandbox の `shared-postgresql-ca` ConfigMap に配布。
 3. 管理接続で bootstrap SQL を実行し、app / registry への TLS 接続を確認。
 
 PGO の生成 Secret は ESO の所有物に変更しません。Job は復元マーカーを作成・変更しません。
@@ -121,5 +130,4 @@ Terraform の VM CPU mode は `host-model` です。
 実行する SQL の影響を確認してください。表示する DB 統計は問い合わせ時点の値です。
 
 資格情報 Job が配布した CA と ESO の password で接続します。
-Harbor の rolling update で最大 40、Grafana で 5 の接続を見込むと app 上限 50 の余裕は小さいため、
-他のアプリ追加時に接続予算を調整します。
+Harbor の rolling update 最大40、Grafana 5も共用appの予算に含めます。上記80接続の枠はアプリ追加時に再評価します。

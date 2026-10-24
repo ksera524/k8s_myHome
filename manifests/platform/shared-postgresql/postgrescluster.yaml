@@ -27,8 +27,8 @@ spec:
   users:
     - name: postgres
     - name: app
-      databases: [registry]
-      options: "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 50"
+      databases: [registry, api_hub, hitomi, media, camera]
+      options: "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 80"
   patroni:
     dynamicConfiguration:
       postgresql:

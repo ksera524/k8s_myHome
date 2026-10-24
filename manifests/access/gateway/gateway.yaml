@@ -211,3 +211,17 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    - name: https-s3-internal
+      hostname: s3.internal.qroksera.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: s3-internal-tls
+            namespace: nginx-gateway
+      allowedRoutes:
+        namespaces:
+          from: All

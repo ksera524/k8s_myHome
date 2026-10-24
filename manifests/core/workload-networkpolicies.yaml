@@ -431,6 +431,9 @@ spec:
       values:
       - home-camera-recorder
       - hitomi-pdf-monitor
+      - hitomi-monitor
+      - hitomi-outbox
+      - media-api
   policyTypes:
   - Egress
   egress:
@@ -468,6 +471,9 @@ spec:
           values:
           - home-camera-recorder
           - hitomi-pdf-monitor
+          - hitomi-monitor
+          - hitomi-outbox
+          - media-api
     ports:
     - protocol: TCP
       port: 3000
@@ -479,8 +485,10 @@ metadata:
   namespace: sandbox
 spec:
   podSelector:
-    matchLabels:
-      app: api-hub
+    matchExpressions:
+    - key: app
+      operator: In
+      values: [api-hub, api-hub-notification-worker]
   policyTypes:
   - Egress
   egress:
@@ -539,6 +547,7 @@ spec:
       operator: In
       values:
       - api-hub
+      - api-hub-notification-worker
       - hitomi-monitor
       - hitomi-pdf-monitor
       - rsshub

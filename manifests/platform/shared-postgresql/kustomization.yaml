@@ -1,10 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - application-config.yaml
   - postgrescluster.yaml
   - credentials.yaml
   - harbor-trust.yaml
   - grafana-trust.yaml
+  - sandbox-trust.yaml
+  - application-networkpolicy.yaml
 configMapGenerator:
   - name: postgresql-credentials-scripts
     namespace: database

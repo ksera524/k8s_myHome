@@ -7,6 +7,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 POLICIES = list(yaml.safe_load_all((ROOT / 'manifests/core/workload-networkpolicies.yaml').read_text()))
+for policy_file in ['manifests/core/application-networkpolicies.yaml',
+                    'manifests/platform/shared-postgresql/application-networkpolicy.yaml']:
+    POLICIES.extend(yaml.safe_load_all((ROOT / policy_file).read_text()))
 
 
 def matches(selector, labels):
@@ -38,6 +41,23 @@ def allowed(namespace, labels, direction, remote_ns, remote_labels, ip, port, pr
 
 
 class NetworkPolicyTests(unittest.TestCase):
+    def test_application_clients_require_the_database_opt_in_label(self):
+        database = {'postgres-operator.crunchydata.com/cluster': 'shared-postgresql'}
+        client = {'app': 'media-api', 'database.k8s-myhome.local/shared-postgresql': 'true'}
+        self.assertTrue(allowed('sandbox', client, 'Egress', 'database', database, '10.244.1.2', 5432))
+        self.assertTrue(allowed('database', database, 'Ingress', 'sandbox', client, '10.244.1.3', 5432))
+        self.assertFalse(allowed('sandbox', {'app': 'media-api'}, 'Egress', 'database', database, '10.244.1.2', 5432))
+        self.assertFalse(allowed('database', database, 'Ingress', 'sandbox', {'app': 'media-api'}, '10.244.1.3', 5432))
+
+    def test_new_internal_api_clients_and_camera_metrics(self):
+        for app in ['hitomi-monitor', 'hitomi-outbox', 'media-api']:
+            self.assertTrue(allowed('sandbox', {'app': app}, 'Egress', 'sandbox', {'app': 'api-hub'}, '10.244.1.2', 3000))
+            self.assertTrue(allowed('sandbox', {'app': 'api-hub'}, 'Ingress', 'sandbox', {'app': app}, '10.244.1.3', 3000))
+        self.assertTrue(allowed('sandbox', {'app': 'home-camera-recorder'}, 'Ingress', 'observability',
+                                {'app.kubernetes.io/name': 'victoria-metrics'}, '10.244.1.2', 9090))
+        self.assertFalse(allowed('sandbox', {'app': 'home-camera-recorder'}, 'Ingress', 'sandbox',
+                                 {'app': 'unrelated'}, '10.244.1.2', 9090))
+
     def test_unlabelled_apps_cannot_reach_lan_or_internet(self):
         for ns in ['sandbox', 'tools', 'arc-runners']:
             for ip in ['192.168.122.10', '192.168.10.4', '1.1.1.1']:

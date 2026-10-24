@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hitomi-upload-viewer
+  namespace: sandbox
+  labels:
+    app: hitomi-upload-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hitomi-upload-viewer
+  template:
+    metadata:
+      labels:
+        app: hitomi-upload-viewer
+    spec:
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: harbor-registry
+      containers:
+      - name: hitomi-upload-viewer
+        image: harbor.qroksera.com/sandbox/hitomi-upload-viewer:architecture-20261024
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        env:
+        - name: WRAPPER_API_BASE_URL
+          value: https://api-hub.internal.qroksera.com
+        - name: S3_BUCKET
+          value: pdfs
+        - name: S3_PREFIX
+          value: hitomi
+        - name: DIRECT_MEDIA_DELIVERY
+          value: 'true'
+        - name: MEDIA_CATALOG
+          value: 'true'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hitomi-upload-viewer
+  namespace: sandbox
+  labels:
+    app: hitomi-upload-viewer
+spec:
+  selector:
+    app: hitomi-upload-viewer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP

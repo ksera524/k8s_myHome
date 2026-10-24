@@ -10,6 +10,7 @@ configMapGenerator:
     namespace: rustfs
     files:
       - lifecycle.json
+      - cors.json
       - buckets.txt
       - apply-lifecycle.sh
 

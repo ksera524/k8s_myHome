@@ -2,6 +2,37 @@ groups:
   - name: home-lab-state
     interval: 30s
     rules:
+      - alert: CameraSpoolBlocked
+        expr: home_camera_spool_blocked == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "cameraのspool空き容量不足で録画が停止しています"
+      - alert: CameraUploadBacklog
+        expr: home_camera_spool_oldest_age_seconds > 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cameraの未送信segmentが1時間以上滞留しています"
+      - alert: CameraPartialSegment
+        expr: home_camera_partial_segments > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cameraのspoolに復旧できないsegmentがあります"
+      - alert: CameraNotRecording
+        expr: >-
+          (home_camera_recording_active == 0)
+          and on() ((hour(vector(time() + 9 * 3600)) >= 19)
+          or (hour(vector(time() + 9 * 3600)) < 9))
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "録画時間帯にcameraの録画が停止しています"
       - alert: NetworkPolicyControllerUnavailable
         expr: >-
           (kube_daemonset_status_desired_number_scheduled{namespace="kube-system",daemonset="kube-network-policies"}
