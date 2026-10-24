@@ -7,7 +7,9 @@ metadata:
     contracts.k8s-myhome.local/access-surface: s3-internal
 spec:
   parentRefs:
-    - name: nginx-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
       namespace: nginx-gateway
       sectionName: https-s3-internal
   hostnames:
@@ -40,5 +42,8 @@ spec:
             type: PathPrefix
             value: /pdfs/videos/
       backendRefs:
-        - name: rustfs-svc
+        - group: ""
+          kind: Service
+          name: rustfs-svc
           port: 9000
+          weight: 1

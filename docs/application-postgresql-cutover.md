@@ -10,7 +10,9 @@
 2. Harborへのpush結果のdigestを記録し、各 `manifests/apps/<app>/kustomization.yaml` のimage tag/digestを同時に更新する。ローカルのimage config IDをregistryのmanifest digestとして使わない。
 3. 新DB、ESO、CA配布、NetworkPolicy、S3 HTTPS/DNS/証明書/CORSの基盤変更を同期する。共有roleは既存 `app`、入力資格情報は既存 `postgresql.password`。
 4. `application-postgresql` Secret/ConfigMap、`shared-postgresql-ca`、4 DBの所有者/接続制限を確認する。app上限80、クラスタ100、migration含む見積りは [接続予算](shared-postgresql.md)。
-5. 別媒体backupの保存先を決め、独立した復元先でrestore testを行う。現在のNFS内pgBackRest repoだけではこの項目を完了したことにならない。
+5. 既存のpgBackRest backupと復元手順を維持する。別媒体backupは実施できないとの利用者指示により今回の対象外とし、切替条件から外す。
+
+merge後の基盤確認と最初の切替内容は [api-hub切替の第1段階](application-cutover-api-hub-20261024.md) を参照。
 
 RTSP値の移行用Secret `sandbox/home-camera` は既存値からbootstrap済み。値は出力していない。
 再作成やローテーションには以下を使う。外部Secret管理の新しい資格情報項目は不要。
