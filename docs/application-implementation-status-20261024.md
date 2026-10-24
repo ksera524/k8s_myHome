@@ -2,8 +2,8 @@
 
 承認済みの方針は [構成レビュー](application-architecture-review-20261024.md)。既存の共用 `app` と資格情報を使い、追加アプリの提案は対象外。
 PR単位の目標照合、監査で修正した問題、未達成の本番条件は [受け入れ確認](application-architecture-acceptance-20261024.md) を参照。
-アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。api-hubのmigrationと通知workerは配備・動作確認済み。他アプリのDB migrationと新workerへの切替は未実施。
-既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。次の変更は [api-hub切替の第1段階](application-cutover-api-hub-20261024.md)。
+アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。api-hubのmigrationと通知workerは配備・動作確認済み。mediaのmigration・API/worker・既存S3 importも完了し、3,313 objectのキーとサイズを照合済み。hitomiとcameraのDB切替は未実施。
+既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。次の変更は [viewer切替とplanner再開](application-cutover-viewer-20261025.md)。
 
 ## 実装した部分
 
@@ -44,4 +44,4 @@ Slackへの実送信は行っていない。ブラウザ検証のメディアは
 ## 検証用リソース
 
 本番計測用Pod/NetworkPolicyは削除済み。隔離PostgreSQL（`/tmp/api-hub-pgtest.V5VpRX/data`、127.0.0.1:15433）とviewer検証サーバー（127.0.0.1:5174）は検証後に停止した。
-ローカルDBのデータと検証用imageは残している。本番DBへのmigrationはapi-hubのみ完了。
+ローカルDBのデータと検証用imageは残している。本番DBへのmigrationはapi-hubとmediaが完了。

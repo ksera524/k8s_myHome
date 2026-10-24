@@ -31,6 +31,10 @@ spec:
               value: "pdfs"
             - name: S3_PREFIX
               value: "hitomi"
+            - name: MEDIA_CATALOG
+              value: "true"
+            - name: DIRECT_MEDIA_DELIVERY
+              value: "true"
 
 ---
 # hitomi-upload-viewer用Service（内部公開のみ）
