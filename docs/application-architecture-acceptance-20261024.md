@@ -1,7 +1,7 @@
 # 承認済み目標とPRの受け入れ確認
 
 対象は [構成レビュー](application-architecture-review-20261024.md) の完了条件。
-既存の共用 `app` 資格情報を使い、追加製品の提案は含めない。
+既存の共用 `app` 資格情報を使い、追加製品の提案は含めない。別媒体backupは利用者の指示で今回の対象外とし、未達成条件から除外する。
 **コードと自動テストの確認と、本番での目標達成は別である。未配備のため、全目標を達成済みとは判定しない。**
 
 ## 目標との対応
@@ -12,7 +12,7 @@
 | [hitomi #24](https://github.com/ksera524/hitomi/pull/24) | 初回baseline、安定ID、RSSから消えた未完了項目、lease、原子的outbox、再送と配送状態の照合を検証 | 旧Job終了後の切替と実sourceの初回baseline件数、通知済みへの遷移 |
 | [hitomi-pdf-batch #1](https://github.com/ksera524/hitomi-pdf-batch/pull/1) | 安定した動画ID、項目単位の再試行、PUT後DB更新前の回復。DB一覧/ランダム、個別修復、既存keyを保持したimport、期限表示、署名更新と再生位置復元を検証 | 本番S3のimport件数照合、カタログAPI p95、実端末での速度比較 |
 | [home-camera #6](https://github.com/ksera524/home-camera/pull/6) | 実FFmpegのsegment継続、DB/S3停止中のspool保持、復帰後再送、二重起動防止、破損隔離を検証 | 実カメラ・PVCでの連続録画、spool監視、実機のkeyframe間隔とsegment長 |
-| [k8s_myHome #108](https://github.com/ksera524/k8s_myHome/pull/108) | 4アプリDBと共用app、CA/資格情報配布、双方のNetworkPolicy、S3ルート/CORS、切替用workload。manifest全体検証と接続予算を確認 | image digest固定、基盤同期と段階的切替。別媒体backupの保存先決定と独立した復元試験 |
+| [k8s_myHome #108](https://github.com/ksera524/k8s_myHome/pull/108) | 4アプリDBと共用app、CA/資格情報配布、双方のNetworkPolicy、S3ルート/CORS、切替用workload。manifest全体検証と接続予算を確認 | 公開済みimageのdigest照合とworkloadの段階的切替 |
 
 100件超のページ送りはviewer APIテスト、署名再発行とRangeはAPIテストと実MP4 fixtureのブラウザテストで確認した。実ブラウザの試験でもS3/Slackの本番経路を再現したとは扱わない。
 カタログと通知の追加テストは隔離PostgreSQLを使い、SQLをmockせず実行している。カメラの障害試験も録画fixtureと隔離DBを使う。
@@ -29,6 +29,7 @@
 
 - **性能改善の実証**：変更前の計測はあるが、新S3 HTTPS経路の同条件比較と端末描画・再生開始、カタログAPI p95は未計測。改善率・目標値への到達を主張しない。
 - **本番切替**：新workloadはArgoCD参照外の切替用例にあり、4アプリDBへの本番migrationも未実施。これらのPRのmergeだけで全アプリが新構成になるわけではない。
-- **別媒体backup**：保存先が未確定。kind内のbackup/restore試験は復元処理の検証であり、本番NFSと異なる媒体への保管・復元を証明しない。
+
+別媒体backupは対象外。既存のpgBackRestとkind内のbackup/restore試験は維持する。
 
 切替順序と切戻しの制約は [移行手順](application-postgresql-cutover.md)、計測条件は [変更前測定](performance/20261024/README.md) を参照。

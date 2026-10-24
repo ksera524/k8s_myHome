@@ -2,8 +2,8 @@
 
 承認済みの方針は [構成レビュー](application-architecture-review-20261024.md)。既存の共用 `app` と資格情報を使い、追加アプリの提案は対象外。
 PR単位の目標照合、監査で修正した問題、未達成の本番条件は [受け入れ確認](application-architecture-acceptance-20261024.md) を参照。
-アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。変更は5リポジトリそれぞれのPRでレビューする。本番アプリのrolloutは行っていない。
-本番への反映は、既存RTSP値からの `sandbox/home-camera` Secret作成のみ。値は出力していない。
+アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。アプリのDB migrationと新workerへの切替は未実施。
+既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。次の変更は [api-hub切替の第1段階](application-cutover-api-hub-20261024.md)。
 
 ## 実装した部分
 
@@ -33,13 +33,13 @@ PR単位の目標照合、監査で修正した問題、未達成の本番条件
 | Kubernetes/CI | 全体validate、DB権限・接続許可のテスト、NetworkPolicy、manifest整合性、alert test、4つの変更workflowのactionlintが成功。切替用例もYAML/schema検証済み |
 
 Slackへの実送信は行っていない。ブラウザ検証のメディアは生成したfixtureであり、本番の私的メディアを使っていない。
-ローカルimageタグは `architecture-20261024`。Harborへはまだ公開しておらず、registry digestは未確定。
+ローカル検証時のimageタグは `architecture-20261024`。merge後の5 imageはHarbor公開CIが成功し、Image Updaterが本番kustomizationへdigestを記録した。
 
 ## 本番切替時に残る作業
 
-- 各アプリPRをmergeし、5 imageをHarborへ公開してdigestを固定する。切替用例を既存ArgoCD sourceへ反映し、手順に沿って基盤同期、migration、import、旧writer停止、新writer起動を行う。
+- 公開済みimageのdigestを照合し、切替用例を既存ArgoCD sourceへ段階的に反映する。手順に沿ってmigration、import、旧writer停止、新writer起動を行う。
 - 新S3 HTTPS経路の配備後、実端末からPDF/動画取得・シーク・CORS・署名期限切れを確認し、同一条件で再測定する。現在の結果から新経路の改善率は断定しない。
-- 別媒体backupは保存先が未確定。現NFS内のbackupだけで独立backupができたとは扱わず、保存先決定後に独立した復元先でrestore testを行う。
+- 別媒体backupは利用者の指示で今回の対象外。切替を妨げる未完了項目には含めず、既存backupと復元手順を維持する。
 
 ## 検証用リソース
 

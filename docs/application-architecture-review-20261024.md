@@ -214,7 +214,7 @@ checksumの対応範囲は配備したRustFSで確かめる。署名PUTの利用
 
 ### 保存と可用性
 
-現構成はPostgreSQL 1 instance、RustFS 1 replicaで、DB本体とpgBackRest repoは同じNFS。アプリの状態がDBへ集まるほど復旧の重要度が上がる。まず別媒体/別ホストへのbackupと定期restore testを追加する。RustFSをbackup先にする場合も、実体が同じNFS媒体なら独立backupにはならない。
+現構成はPostgreSQL 1 instance、RustFS 1 replicaで、DB本体とpgBackRest repoは同じNFS。別媒体/別ホストへのbackupは実施できないとの利用者指示により今回の対象外とし、切替の前提にはしない。既存のpgBackRest backupと復元手順・試験は維持する。
 
 DBをSSD等へ移す案は、大容量メディアとfsyncの競合を減らせる可能性がある。一方、local PVではノード固定と復旧手順が必要になる。物理的に同じホスト・媒体上へreplicaだけ増やしても、障害領域は分離できない。容量、I/O、必要な復旧時間を見て判断する。
 
@@ -236,7 +236,7 @@ CronJobには `timeZone` と再実行規則を明示する。Podの生存/待受
 |---|---|---|
 | 1 | 配備版の確認、PDF/動画の3経路比較、既存転送ログの集計。S3 pagination修正は独立PR | 遅延をTTFB/転送/描画に分けられる。100件超の一覧で全件を重複・無限loopなく取得できる |
 | 2 | S3用HTTPS経路、ブラウザ向け署名設定、viewerの直接配信切替 | 同じPDF/動画で旧経路との改善幅を確認。Range/シーク/期限切れ再発行/CORSが動作。署名が対象外objectを許可しない |
-| 3 | アプリ別DB、既存app資格情報の配布、CA/接続予算、別媒体backup、アプリmigration基盤 | 全アプリがappで正しいDBへ接続できる。appとクラスタ全体の接続上限、別環境restoreを検証できる |
+| 3 | アプリ別DB、既存app資格情報の配布、CA/接続予算、アプリmigration基盤 | 全アプリがappで正しいDBへ接続できる。appとクラスタ全体の接続上限、既存backup方式のrestoreを検証できる |
 | 4 | media DB＋API、既存S3からのimport、項目単位のバッチ再試行 | 一覧がS3 List不要。PDFのみ/previewのみの欠損を個別修復。RSS順位変更でも同一動画のIDが変わらない |
 | 5 | api-hub通知queueとhitomiの永続状態/outbox | 同じイベント再受付で通知ジョブが増殖しない。Slack失敗・worker再起動から回復。過去分を誤って一斉通知しない |
 | 6 | home-cameraの常駐segment録画＋spool＋再送 | 通常のsegment境界とupload中に録画が継続。S3/DB停止中もspool内で録画し、復帰後に再送できる |
