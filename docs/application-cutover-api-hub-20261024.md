@@ -17,6 +17,7 @@ migrationが成功してからAPI/workerへ進む。通知producerのhitomiとme
 S3 HTTPRouteのparent/backend既定値を明示し、API serverのdefaultingによるArgoCDの差分残りを解消する。
 
 この変更の作成時点では本番migrationと通知worker起動は未実施。mergeするとArgoCDの自動同期が実行する。
+配備後の成功確認と続くmedia切替は [第2段階](application-cutover-media-20261025.md) に記録した。
 別媒体backupは利用者の指示で今回の対象外とし、切替の前提条件にはしない。既存のpgBackRest backupと復元手順は維持する。この切替PRは通常のレビュー対象として準備する。
 
 ## 同期後の確認

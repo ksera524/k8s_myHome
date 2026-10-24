@@ -2,13 +2,13 @@
 
 承認済みの方針は [構成レビュー](application-architecture-review-20261024.md)。既存の共用 `app` と資格情報を使い、追加アプリの提案は対象外。
 PR単位の目標照合、監査で修正した問題、未達成の本番条件は [受け入れ確認](application-architecture-acceptance-20261024.md) を参照。
-アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。アプリのDB migrationと新workerへの切替は未実施。
+アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。api-hubのmigrationと通知workerは配備・動作確認済み。他アプリのDB migrationと新workerへの切替は未実施。
 既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。次の変更は [api-hub切替の第1段階](application-cutover-api-hub-20261024.md)。
 
 ## 実装した部分
 
 - S3 continuation tokenをapi-hubまで渡し、繰り返しページ・トークン欠落をバッチとviewerで検出する。
-- PDF/MP4の変更前測定を実施。[測定条件・結果](performance/20261024/README.md)。新S3 HTTPS Gatewayの配備後測定は未実施。
+- PDF/MP4の変更前測定を実施。[変更前測定](performance/20261024/README.md)と[新S3 HTTPS経路の機能・速度確認](performance/20261025/README.md)を記録。一貫した速度改善はまだ確認できていない。
 - 内部S3 HTTPSのHTTPRoute/証明書/DNS/NetworkPolicyと、viewer用CORSの宣言を追加。
 - api-hubのブラウザ向け署名を `pdfs/hitomi/` のPDF/JPEGと `pdfs/videos/` のMP4に限定。900秒のGET URLを発行し、Rangeを固定しない。
 - viewerの動画一斉preloadと、JPEG欠損時のPDF本体読み込みを抑制。実MP4を使ったブラウザテストで署名再発行・再生位置復元を確認。
@@ -44,4 +44,4 @@ Slackへの実送信は行っていない。ブラウザ検証のメディアは
 ## 検証用リソース
 
 本番計測用Pod/NetworkPolicyは削除済み。隔離PostgreSQL（`/tmp/api-hub-pgtest.V5VpRX/data`、127.0.0.1:15433）とviewer検証サーバー（127.0.0.1:5174）は検証後に停止した。
-ローカルDBのデータと検証用imageは残している。本番DBへのmigrationは未実施。
+ローカルDBのデータと検証用imageは残している。本番DBへのmigrationはapi-hubのみ完了。
