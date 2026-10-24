@@ -19,6 +19,8 @@ spec:
       ports:
         - protocol: TCP
           port: 9001
+        - protocol: TCP
+          port: 9000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -38,8 +40,10 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: sandbox
           podSelector:
-            matchLabels:
-              app: api-hub
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [api-hub, api-hub-notification-worker]
       ports:
         - protocol: TCP
           port: 9000

@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-media-api
+  namespace: sandbox
+spec:
+  podSelector:
+    matchLabels:
+      app: media-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-nginx
+              gateway.networking.k8s.io/gateway-name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-camera-metrics
+  namespace: sandbox
+spec:
+  podSelector:
+    matchLabels:
+      app: home-camera-recorder
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: victoria-metrics
+      ports:
+        - protocol: TCP
+          port: 9090

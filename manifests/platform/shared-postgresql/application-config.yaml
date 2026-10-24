@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: application-postgresql
+  namespace: sandbox
+data:
+  PGHOST: shared-postgresql-primary.database.svc
+  PGUSER: app
+  PGSSLROOTCERT: /etc/postgresql/ca.crt

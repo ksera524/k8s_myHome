@@ -158,3 +158,14 @@ spec:
       publish:
         coreDNS: true
         tailscaleSplitDNS: true
+    s3-internal:
+      hostname: s3.internal.qroksera.com
+      scheme: https
+      exposure: internal
+      backend:
+        service: rustfs-svc
+        namespace: rustfs
+      gatewayListener: https-s3-internal
+      publish:
+        coreDNS: true
+        tailscaleSplitDNS: true
