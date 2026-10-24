@@ -1,6 +1,7 @@
 # 承認済み目標とPRの受け入れ確認
 
 対象は [構成レビュー](application-architecture-review-20261024.md) の完了条件。
+以下は実装PRレビュー時点の監査記録。merge後の配備状況と追加の実測は [実装状況](application-implementation-status-20261024.md) と [media切替の第2段階](application-cutover-media-20261025.md) を参照。
 既存の共用 `app` 資格情報を使い、追加製品の提案は含めない。別媒体backupは利用者の指示で今回の対象外とし、未達成条件から除外する。
 **コードと自動テストの確認と、本番での目標達成は別である。未配備のため、全目標を達成済みとは判定しない。**
 
