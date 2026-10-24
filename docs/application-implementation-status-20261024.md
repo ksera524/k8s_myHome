@@ -3,7 +3,7 @@
 承認済みの方針は [構成レビュー](application-architecture-review-20261024.md)。既存の共用 `app` と資格情報を使い、追加アプリの提案は対象外。
 PR単位の目標照合、監査で修正した問題、未達成の本番条件は [受け入れ確認](application-architecture-acceptance-20261024.md) を参照。
 アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。5リポジトリのPRはmergeされ、DB・資格情報・CA・S3配信経路の基盤も反映された。api-hubのmigrationと通知workerは配備・動作確認済み。mediaのmigration・API/worker・既存S3 importも完了し、3,313 objectのキーとサイズを照合済み。hitomiとcameraのDB切替は未実施。
-既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。次の変更は [viewer切替とplanner再開](application-cutover-viewer-20261025.md)。
+既存RTSP値からの `sandbox/home-camera` Secret作成も完了。値は出力していない。viewer切替・planner再開も配備済み。次はhitomiのAVIFデコード修正と [camera準備](application-cutover-camera-20261025.md)。
 
 ## 実装した部分
 
@@ -34,6 +34,12 @@ PR単位の目標照合、監査で修正した問題、未達成の本番条件
 
 Slackへの実送信は行っていない。ブラウザ検証のメディアは生成したfixtureであり、本番の私的メディアを使っていない。
 ローカル検証時のimageタグは `architecture-20261024`。merge後の5 imageはHarbor公開CIが成功し、Image Updaterが本番kustomizationへdigestを記録した。
+
+## 配備後の確認
+
+viewerの公開HTTPRouteはAccepted/ResolvedRefs、関連3 ApplicationはSynced/Healthy。公開経由でPDF 1,509件・動画295件の全ページとrandom、署名URLのRange/CORSを確認した。実ブラウザで一覧・ページ送り・random表示が成功し、S3 List 0件・PDF本体の先読み0件・再生前の動画GET 0件・JavaScriptエラー0件を確認した。動画の実再生/シークと署名期限切れの本番確認は残る。
+
+00:50 JSTのmedia plannerは成功（20261024、expected 160、planner_errors 0）。継続確認ではingest_jobsはdone 41、failed 2、retry 1。失敗/再試行は取得元の403/429で、全件成功とは扱わない。
 
 ## 本番切替時に残る作業
 

@@ -1,4 +1,71 @@
 apiVersion: batch/v1
+kind: Job
+metadata:
+  name: camera-migration
+  namespace: sandbox
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: camera-migration
+        database.k8s-myhome.local/shared-postgresql: 'true'
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+      - name: harbor-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: migrate
+        image: harbor.qroksera.com/sandbox/home-camera:latest
+        command:
+        - /usr/local/bin/home-camera
+        args:
+        - --migrate
+        env:
+        - name: PGDATABASE
+          value: camera
+        - name: PGPOOL_MAX
+          value: '1'
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        envFrom:
+        - configMapRef:
+            name: application-postgresql
+        - secretRef:
+            name: application-postgresql
+        volumeMounts:
+        - name: database-ca
+          mountPath: /etc/postgresql
+          readOnly: true
+      volumes:
+      - name: database-ca
+        configMap:
+          name: shared-postgresql-ca
+      restartPolicy: Never
+---
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: home-camera-recorder
@@ -51,3 +118,191 @@ spec:
               value: veryfast
             - name: FFMPEG_CRF
               value: '23'
+  suspend: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-camera-spool
+  namespace: sandbox
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: nfs-external
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: home-camera
+  namespace: sandbox
+spec:
+  clusterIP: None
+  selector:
+    app: home-camera-recorder
+  ports:
+  - name: metrics
+    port: 9090
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: home-camera
+  namespace: sandbox
+  annotations:
+    reloader.stakater.com/auto: 'true'
+spec:
+  replicas: 0
+  serviceName: home-camera
+  selector:
+    matchLabels:
+      app: home-camera-recorder
+  template:
+    metadata:
+      labels:
+        app: home-camera-recorder
+        database.k8s-myhome.local/shared-postgresql: 'true'
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9090'
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+      - name: harbor-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: recorder
+        image: harbor.qroksera.com/sandbox/home-camera:latest
+        command:
+        - /usr/local/bin/home-camera
+        args:
+        - --record
+        env:
+        - name: API_HUB_BASE_URL
+          value: http://api-hub.sandbox.svc:3000
+        - name: SPOOL_DIR
+          value: /spool
+        - name: CAMERA_ID
+          value: camera
+        - name: FFMPEG_VIDEO_CODEC
+          value: copy
+        - name: FFMPEG_AUDIO_CODEC
+          value: copy
+        - name: FFMPEG_AUDIO_BITRATE
+          value: 128k
+        - name: FFMPEG_LOGLEVEL
+          value: warning
+        - name: FFMPEG_PRESET
+          value: veryfast
+        - name: FFMPEG_CRF
+          value: '23'
+        - name: RTSP_URL
+          valueFrom:
+            secretKeyRef:
+              name: home-camera
+              key: RTSP_URL
+        - name: SEGMENT_SECONDS
+          value: '300'
+        - name: SPOOL_MAX_BYTES
+          value: '85899345920'
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: spool
+          mountPath: /spool
+        ports:
+        - name: metrics
+          containerPort: 9090
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          periodSeconds: 5
+          failureThreshold: 60
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          periodSeconds: 15
+          failureThreshold: 4
+      - name: uploader
+        image: harbor.qroksera.com/sandbox/home-camera:latest
+        command:
+        - /usr/local/bin/home-camera
+        args:
+        - --upload
+        env:
+        - name: API_HUB_BASE_URL
+          value: http://api-hub.sandbox.svc:3000
+        - name: SPOOL_DIR
+          value: /spool
+        - name: CAMERA_ID
+          value: camera
+        - name: FFMPEG_VIDEO_CODEC
+          value: copy
+        - name: FFMPEG_AUDIO_CODEC
+          value: copy
+        - name: FFMPEG_AUDIO_BITRATE
+          value: 128k
+        - name: FFMPEG_LOGLEVEL
+          value: warning
+        - name: FFMPEG_PRESET
+          value: veryfast
+        - name: FFMPEG_CRF
+          value: '23'
+        - name: PGDATABASE
+          value: camera
+        - name: PGPOOL_MAX
+          value: '2'
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        envFrom:
+        - configMapRef:
+            name: application-postgresql
+        - secretRef:
+            name: application-postgresql
+        volumeMounts:
+        - name: database-ca
+          mountPath: /etc/postgresql
+          readOnly: true
+        - name: spool
+          mountPath: /spool
+      volumes:
+      - name: database-ca
+        configMap:
+          name: shared-postgresql-ca
+      - name: spool
+        persistentVolumeClaim:
+          claimName: home-camera-spool
+      terminationGracePeriodSeconds: 45
