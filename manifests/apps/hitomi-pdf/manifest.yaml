@@ -145,7 +145,7 @@ spec:
               name: shared-postgresql-ca
           restartPolicy: Never
   timeZone: Asia/Tokyo
-  suspend: true
+  suspend: false
 ---
 apiVersion: apps/v1
 kind: Deployment
