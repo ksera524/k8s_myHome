@@ -19,6 +19,15 @@ S3 HTTPRouteの差分残りも解消し、rustfs-accessはSynced/Healthy。通�
 
 ## 同期後
 
+2026-10-25の実機確認ではmigration version 1成功、media API/worker各1 replica起動を確認した。
+一方、既存のCronJob health customizationが `suspend: true` をProgressingにするため、
+同期はplannerのhealth待ちとなりPostSync importが未開始、assetsは0件だった。
+CronJobの宣言された停止状態をHealthyとして評価するようargocd-configを修正する。
+停止の有無はhealth messageとspec.suspendに残り、Gitとの差分は引き続きsync statusで検知する。
+これは全CronJobに適用される。Jobの成否・定期処理停止の監視は別途必要であり、Healthyは実行成功を意味しない。
+PostSyncの順序とplannerの停止は維持し、argocd-config同期後に待機中のhitomi-pdf同期とimportの完了を再確認する。
+まだ取り込み完了・件数一致を確認していないため、viewer切替とplanner再開には進まない。
+
 1. migration、media-apiの `/ready`、worker、PostSync importの成功とApplicationのSynced/Healthyを確認する。
 2. PDF/preview/MP4の登録数、S3 keyの対応、保存期限と形式未確認の表示用属性を照合する。期限切れを除くready一覧と全状態一覧を混同しない。
 3. カタログ一覧・ランダム・署名取得をServiceで確認し、S3一覧を閲覧時に要求しないことを確認する。

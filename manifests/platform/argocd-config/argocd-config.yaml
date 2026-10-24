@@ -127,11 +127,12 @@ data:
       - /endpoints
       - /ports
   # CronJob の実行成否は Job/ログで確認し、GitOps の Application health では desired state の存在を評価する。
+  # suspend は宣言された停止状態。Progressing にすると段階移行の PostSync が開始できない。
   resource.customizations.health.batch_CronJob: |
     hs = {}
     if obj.spec ~= nil and obj.spec.suspend == true then
-      hs.status = "Progressing"
-      hs.message = "CronJob is suspended"
+      hs.status = "Healthy"
+      hs.message = "CronJob is configured with scheduling suspended"
       return hs
     end
     hs.status = "Healthy"
