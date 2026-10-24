@@ -20,7 +20,7 @@ PUBLIC の各アプリDBの CONNECT / TEMP、postgres CONNECT を取り消しま
 
 アプリのpool上限はapi-hub API 3、通知worker 2、media API 3、media worker 2、media planner 2、hitomi CronJob 2、outbox 2、camera uploader 2で合計18。
 通知・media worker・outboxはRecreate、cameraは1 replicaのStatefulSetとし、APIの一時増加を含めたrollout時は24。4つのmigration Jobを各1接続で同時実行した場合は28。
-既存Harbor rollout40＋Grafana 5を加えて最大73と見込み、app上限80、クラスタ全体100を維持する。
+さらにmedia importとreconcileの各2接続、資格情報Jobのapp接続確認1、既存Harbor rollout40＋Grafana 5を加えて最大78と見込み、app上限80、クラスタ全体100を維持する。残りは2接続なので、移行中の手動Job追加やreplica増加はこの予算を再確認してから行う。
 2026-10-24の変更前確認ではapp接続3（idle）、DBコンテナ使用量約368 MiB / limit1 GiBだった。新worker導入後やピーク時の値ではないため、配備後に接続数・メモリを再確認する。
 
 sandboxでは `application-postgresql` SecretのPGPASSWORDを使い、Podに `database.k8s-myhome.local/shared-postgresql: "true"` を付けてNetworkPolicyを通す。

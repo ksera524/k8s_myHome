@@ -1,6 +1,7 @@
 # アプリケーション構成見直しの実装状況
 
 承認済みの方針は [構成レビュー](application-architecture-review-20261024.md)。既存の共用 `app` と資格情報を使い、追加アプリの提案は対象外。
+PR単位の目標照合、監査で修正した問題、未達成の本番条件は [受け入れ確認](application-architecture-acceptance-20261024.md) を参照。
 アプリの実装、ローカル検証、切替用GitOpsマニフェストと運用手順を作成済み。変更は5リポジトリそれぞれのPRでレビューする。本番アプリのrolloutは行っていない。
 本番への反映は、既存RTSP値からの `sandbox/home-camera` Secret作成のみ。値は出力していない。
 
