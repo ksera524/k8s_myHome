@@ -302,6 +302,33 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: allow-hitomi-pdf-rsshub-gateway
+  namespace: sandbox
+spec:
+  podSelector:
+    matchLabels:
+      app: hitomi-pdf-monitor
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nginx-gateway
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: nginx-gateway-nginx
+          gateway.networking.k8s.io/gateway-name: nginx-gateway
+    # 内部 RSSHub URL の Gateway VIP。DNAT 前後の両方に対応する。
+    - ipBlock:
+        cidr: 192.168.122.100/32
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: allow-rsshub-cache-egress
   namespace: sandbox
 spec:

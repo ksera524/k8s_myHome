@@ -25,6 +25,7 @@
 | api-hub | RustFS:9000、外部 HTTP/HTTPS（Slack 等） |
 | hitomi-monitor | Selenium:4444、外部 HTTP/HTTPS |
 | hitomi-pdf / rsshub / Selenium | 外部 HTTP/HTTPS |
+| hitomi-pdf | Gateway:443（内部 RSSHub URL） |
 | rsshub | rsshub-redis:6379 |
 | home-camera | 192.168.10.4:554/TCP と RTSP の RTP/RTCP 用 UDP 1024–65535（同カメラからの受信も許可） |
 | ARC namespace | 外部 HTTP/HTTPS、Gateway:443（Harbor push） |
@@ -36,7 +37,7 @@
 外部 HTTP/HTTPS は IPv4 の private / loopback / link-local / CGNAT 宛を除外しています。
 標準 NetworkPolicy は FQDN や HTTP の宛先を制限できないため、許可された HTTPS を使った情報持ち出しは防げません。
 宛先ドメインの制限には別途 egress proxy 等が必要です。IPv6 の外部許可はありません。
-Gateway の許可は共有 VIP を使うため、CI から同じ Gateway 上の他の HTTPS route にも到達可能です。
+Gateway の許可は共有 VIP を使うため、CI と hitomi-pdf から同じ Gateway 上の他の HTTPS route にも到達可能です。
 API Service と Gateway VIP は DNAT の前後の違いを考慮して明記しており、IP 変更時は本ポリシーも更新します。
 イメージ pull は kubelet によるノード通信で、Pod の Egress 許可とは別です。
 RustFS は api-hub と lifecycle Job の両方に S3 の許可があり、「api-hub 以外は一切接続できない」という説明は不正確です。
@@ -82,6 +83,7 @@ Git 修正の反映後に撤去します。controller 全停止は全ポリシ�
 最低限の疎通試験:
 
 - Gateway から api-hub / blog / cooklog / viewer / RSSHub と Harbor にアクセスできる。
+- hitomi-pdf から `https://rsshub.internal.qroksera.com/twivideo/ranking` を取得できる。
 - api-hub の S3 操作、RSSHub のキャッシュ、hitomi の Selenium 操作、カメラ収録が成功する。
 - Runner を起動して GitHub 接続・依存取得・Harbor push、Harbor の DB 接続と Trivy 更新が成功する。
 - 無関係な sandbox Pod から Selenium、Redis、API Server、LAN への通信が失敗する。

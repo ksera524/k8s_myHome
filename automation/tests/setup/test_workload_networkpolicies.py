@@ -62,6 +62,24 @@ class NetworkPolicyTests(unittest.TestCase):
             self.assertTrue(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': src}, '10.244.1.3', port))
             self.assertFalse(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': 'unrelated'}, '10.244.1.3', port))
 
+    def test_hitomi_pdf_can_reach_rsshub_via_gateway_only_on_https(self):
+        client = {'app': 'hitomi-pdf-monitor'}
+        gateway = {'app.kubernetes.io/name': 'nginx-gateway-nginx',
+                   'gateway.networking.k8s.io/gateway-name': 'nginx-gateway'}
+        # Gateway VIP（DNAT 前）と Gateway Pod（DNAT 後）の両経路。
+        for ns, labels, ip in [('', {}, '192.168.122.100'),
+                               ('nginx-gateway', gateway, '10.244.1.250')]:
+            self.assertTrue(allowed('sandbox', client, 'Egress', ns, labels, ip, 443))
+            for port in [80, 1200, 6443]:
+                self.assertFalse(allowed('sandbox', client, 'Egress', ns, labels, ip, port))
+            self.assertFalse(allowed('sandbox', {'app': 'unrelated'}, 'Egress', ns, labels, ip, 443))
+        for ns, labels, ip in [('sandbox', gateway, '10.244.1.250'),
+                               ('nginx-gateway', {}, '10.244.1.250'),
+                               ('', {}, '192.168.122.10')]:
+            self.assertFalse(allowed('sandbox', client, 'Egress', ns, labels, ip, 443))
+        self.assertTrue(allowed('sandbox', {'app': 'rsshub'}, 'Ingress',
+                                'nginx-gateway', gateway, '10.244.1.250', 1200))
+
     def test_harbor_gateway_reaches_route_backends_only(self):
         gateway = {'app.kubernetes.io/name': 'nginx-gateway-nginx',
                    'gateway.networking.k8s.io/gateway-name': 'nginx-gateway'}
