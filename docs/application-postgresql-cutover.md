@@ -30,7 +30,7 @@ examples各appの `manifest.yaml` を、対応する既存 `manifests/apps/<app>
 各migrationはPreSync Job、poolは1接続、準備待ちを含めdeadline 900秒。DDLは追加変更のみで、実行roleもapp。
 
 1. **api-hub**：migration → API → 通知worker。既存のS3/Slack同期APIも残す。DB停止時もS3 proxy/署名APIの起動を妨げない。
-2. **media**：旧 `hitomi-pdf-monitor` の実行中Jobを完了させる。plannerは `suspend: true` で新API/workerを起動し、PostSync importを完了させる。importはS3を変更せず、PDF/previewの対応、サイズ、ETag、保存時刻、既存keyを登録する。元ID不明の動画はlegacyとして登録し、順位から元IDを推測しない。
+2. **media**：旧 `hitomi-pdf-monitor` の実行中Jobを完了させる。plannerは `suspend: true` で新API/workerを起動し、[明示import Job](../automation/examples/media-import/README.md)を完了させる。通常同期はimportを実行しない。importはS3を変更せず、PDF/previewの対応、サイズ、ETag、保存時刻、既存keyを登録する。元ID不明の動画はlegacyとして登録し、順位から元IDを推測しない。
 3. **viewer**：examples/accessのHTTPRouteを既存 `manifests/access/hitomi-upload-viewer/manifest.yaml` に反映し、`/media/` をmedia-apiへ向ける。viewerの新imageと `MEDIA_CATALOG=true` / `DIRECT_MEDIA_DELIVERY=true` を有効にする。
 4. import件数と元一覧を比較し、確認後にmedia plannerの `suspend` をfalseにする。既定の対象日は**JSTの前日**、実行は00:50/07:50 JST。特定日を取り込む場合は `--plan YYYYMMDD`。
 5. **hitomi**：旧Jobを完了後、migration → outbox dispatcher → CronJobを反映する。各sourceの初回に見えている項目はbaselineとなり、既存分を一斉送信しない。以後はRSSから消えた未完了項目もDBから処理する。

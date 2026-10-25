@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: media-import-manual
+  namespace: sandbox
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 7200
+  template:
+    metadata:
+      labels:
+        app: hitomi-pdf-monitor
+        database.k8s-myhome.local/shared-postgresql: 'true'
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+      - name: harbor-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: import
+        image: harbor.qroksera.com/sandbox/hitomi-pdf-batch@sha256:b5de462ed830998a79d4dedb95b82df1adb2868d64c569278474b888a06572c2
+        command:
+        - /app/hitomi-pdf-batch
+        args:
+        - --import
+        env:
+        - name: WRAPPER_API_BASE_URL
+          value: http://api-hub.sandbox.svc:3000
+        - name: RUSTFS_S3_BUCKET
+          value: pdfs
+        - name: TZ
+          value: Asia/Tokyo
+        - name: PUBLIC_API_BASE_URL
+          value: https://api-hub.internal.qroksera.com
+        - name: MEDIA_DIRECT_DELIVERY
+          value: 'true'
+        - name: PGDATABASE
+          value: media
+        - name: PGPOOL_MAX
+          value: '2'
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        envFrom:
+        - configMapRef:
+            name: application-postgresql
+        - secretRef:
+            name: application-postgresql
+        volumeMounts:
+        - name: database-ca
+          mountPath: /etc/postgresql
+          readOnly: true
+      volumes:
+      - name: database-ca
+        configMap:
+          name: shared-postgresql-ca
+      restartPolicy: Never

@@ -122,10 +122,6 @@ def main():
     cron['spec'].update({'schedule': '50 0,7 * * *', 'timeZone': 'Asia/Tokyo', 'suspend': True})
     cron['spec']['jobTemplate']['spec']['template'] = pod('hitomi-pdf-monitor', [media('plan')])
     cron['spec']['jobTemplate']['spec']['template']['spec']['restartPolicy'] = 'Never'
-    import_job = {'apiVersion': 'batch/v1', 'kind': 'Job', 'metadata': {'name': 'media-import', 'namespace': 'sandbox',
-                  'annotations': {'argocd.argoproj.io/hook': 'PostSync', 'argocd.argoproj.io/hook-delete-policy': 'BeforeHookCreation,HookSucceeded'}},
-                  'spec': {'backoffLimit': 3, 'activeDeadlineSeconds': 7200, 'template': pod('hitomi-pdf-monitor', [media('import')])}}
-    import_job['spec']['template']['spec']['restartPolicy'] = 'Never'
     reconcile = copy.deepcopy(cron)
     reconcile['metadata']['name'] = 'media-reconcile'
     reconcile['spec'].update({'schedule': '20 * * * *', 'suspend': False})
@@ -133,7 +129,7 @@ def main():
     service = {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': 'media-api', 'namespace': 'sandbox'},
                'spec': {'selector': {'app': 'media-api'}, 'ports': [{'port': 3000, 'targetPort': 3000}]}}
     emit(args.output, 'hitomi-pdf', [migration('media', image('hitomi-pdf-batch'), '/app/hitomi-pdf-batch', 'media'),
-                                   cron, deployment('media-api', [api_c]), worker_d, service, import_job, reconcile])
+                                   cron, deployment('media-api', [api_c]), worker_d, service, reconcile])
 
     hitomi = load('hitomi')
     for cron in hitomi:
