@@ -81,6 +81,7 @@ def main():
     api = load('api-hub')
     api_deploy = next(d for d in api if d and d['kind'] == 'Deployment')
     template = api_deploy['spec']['template']
+    template['spec']['terminationGracePeriodSeconds'] = 90
     template['metadata'].setdefault('annotations', {}).update({
         'prometheus.io/scrape': 'true', 'prometheus.io/port': '3000', 'prometheus.io/path': '/metrics'})
     template['metadata']['labels'][DB_LABEL] = 'true'
