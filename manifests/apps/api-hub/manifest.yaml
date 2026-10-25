@@ -89,6 +89,7 @@ spec:
         app: api-hub
         database.k8s-myhome.local/shared-postgresql: 'true'
     spec:
+      terminationGracePeriodSeconds: 90
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
