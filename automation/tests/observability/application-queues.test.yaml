@@ -131,3 +131,37 @@ tests:
   - eval_time: 8m
     alertname: CameraSpoolStatisticsUnavailable
     exp_alerts: []
+- name: 不正manifestだけ残るspoolと修復後の解除
+  interval: 1m
+  input_series:
+  - series: home_camera_invalid_manifests
+    values: 3+0x6 0+0x5
+  - series: home_camera_spool_oldest_age_seconds
+    values: 0+0x12
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: CameraInvalidManifest
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: cameraのspoolに不正なmanifestがあります
+  - eval_time: 8m
+    alertname: CameraInvalidManifest
+    exp_alerts: []
+- name: プロセス生存中のsegment停止と復旧
+  interval: 1m
+  input_series:
+  - series: home_camera_recording_stalled
+    values: 1+0x3 0+0x4
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: CameraRecordingStalled
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: cameraの完成segmentが停止しています
+  - eval_time: 5m
+    alertname: CameraRecordingStalled
+    exp_alerts: []

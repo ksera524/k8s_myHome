@@ -9,7 +9,7 @@ Namespace は `database`、名前は `shared-postgresql`、PostgreSQL major は 
 | 項目 | 宣言 |
 |---|---|
 | primary | `shared-postgresql-primary.database.svc:5432` |
-| 利用 DB / role | `registry`, `api_hub`, `hitomi`, `media`, `camera` / 共用 `app` |
+| 利用 DB / role | `registry`, `api_hub`, `hitomi`, `media`（cameraは退役履歴を保持） / 共用 `app` |
 | 管理 role | `postgres` |
 | TLS | アプリは PGO の公開 CA を使い `verify-full` |
 | 接続数 | DB 全体 100、app 80、Harbor 各 Pod 最大 10、Grafana datasource 最大 5 |
@@ -18,8 +18,8 @@ Namespace は `database`、名前は `shared-postgresql`、PostgreSQL major は 
 PUBLIC の各アプリDBの CONNECT / TEMP、postgres CONNECT を取り消します。
 共用 role はアプリごとのデータ分離を提供しません。接続先を追加する際は DB / schema の権限と接続予算を見直します。
 
-アプリのpool上限はapi-hub API 3、通知worker 2、media API 3、media worker 2、media planner 2、hitomi CronJob 2、outbox 2、camera uploader 2で合計18。
-通知・media worker・outboxはRecreate、cameraは1 replicaのStatefulSetとし、APIの一時増加を含めたrollout時は24。4つのmigration Jobを各1接続で同時実行した場合は28。
+アプリのpool上限はapi-hub API 3、通知worker 2、media API 3、media worker 2、media planner 2、hitomi CronJob 2、outbox 2で合計16。
+通知・media worker・outboxはRecreate、cameraは1 replicaのStatefulSetとし、APIの一時増加を含めたrollout時は22。3つのmigration Jobを各1接続で同時実行した場合は25。
 さらにmedia importとreconcileの各2接続、資格情報Jobのapp接続確認1、既存Harbor rollout40＋Grafana 5を加えて最大78と見込み、app上限80、クラスタ全体100を維持する。残りは2接続なので、移行中の手動Job追加やreplica増加はこの予算を再確認してから行う。
 2026-10-24の変更前確認ではapp接続3（idle）、DBコンテナ使用量約368 MiB / limit1 GiBだった。新worker導入後やピーク時の値ではないため、配備後に接続数・メモリを再確認する。
 
@@ -131,3 +131,5 @@ Terraform の VM CPU mode は `host-model` です。
 
 資格情報 Job が配布した CA と ESO の password で接続します。
 Harbor の rolling update 最大40、Grafana 5も共用appの予算に含めます。上記80接続の枠はアプリ追加時に再評価します。
+
+cameraの退役DBは削除しない。PGOの宣言から除外しても実DBは自動削除されない（[公式仕様](https://access.crunchydata.com/documentation/postgres-operator/latest/tutorials/basic-setup/user-management)）。bootstrapは既存camera DBだけの権限を保持し、新規導入時に作成を要求しない。過去のSQLx migrationは変更しない。

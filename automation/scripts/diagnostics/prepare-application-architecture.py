@@ -170,9 +170,10 @@ def main():
     recorder['resources']['limits'] = {'cpu': '1', 'memory': '512Mi'}
     upload = container('uploader', image('home-camera'), '/usr/local/bin/home-camera', ['--upload'])
     upload['env'] = copy.deepcopy(common)
-    pg(upload, 'camera')
-    upload['volumeMounts'].append({'name': 'spool', 'mountPath': '/spool'})
+    upload['volumeMounts'] = [{'name': 'spool', 'mountPath': '/spool'}]
     template = pod('home-camera-recorder', [recorder, upload])
+    template['metadata']['labels'].pop(DB_LABEL, None)
+    template['spec']['volumes'] = []
     template['metadata']['annotations'] = {'prometheus.io/scrape': 'true', 'prometheus.io/port': '9090', 'prometheus.io/path': '/metrics'}
     template['spec']['terminationGracePeriodSeconds'] = 45
     template['spec']['volumes'].append({'name': 'spool', 'persistentVolumeClaim': {'claimName': 'home-camera-spool'}})
@@ -182,7 +183,7 @@ def main():
            'spec': {'accessModes': ['ReadWriteOnce'], 'storageClassName': 'nfs-external', 'resources': {'requests': {'storage': '100Gi'}}}}
     service = {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': 'home-camera', 'namespace': 'sandbox'},
                'spec': {'clusterIP': 'None', 'selector': {'app': 'home-camera-recorder'}, 'ports': [{'name': 'metrics', 'port': 9090}]}}
-    emit(args.output, 'home-camera', [migration('camera', image('home-camera'), '/usr/local/bin/home-camera', 'camera'), *legacy, pvc, service, stateful])
+    emit(args.output, 'home-camera', [*[d for d in legacy if d and d['kind'] == 'CronJob'], pvc, service, stateful])
 
     access = list(yaml.safe_load_all((ROOT / 'manifests/access/hitomi-upload-viewer/manifest.yaml').read_text()))
     route = next(d for d in access if d['metadata']['name'] == 'hitomi-upload-viewer-internal')
