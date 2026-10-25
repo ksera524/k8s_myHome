@@ -27,3 +27,14 @@ NFSストレージ自体の停止を吸収する構造ではない。別媒体ba
 
 新StatefulSetを0へ変更して終了を確認後、旧CronJobを再開する。
 spool、DB、S3 objectは削除しない。旧writerと新writerを重ねない。
+
+## 起動段階の前提確認
+
+#113反映後、home-camera ApplicationはSynced/Healthy、PreSync camera-migrationはSucceeded。
+camera DBのmigration version 1が成功、spool PVCは100 GiB/Bound、旧CronJobはsuspend・active 0、
+旧録画PodはCompletedのみで実行中のwriterがないことを確認した。
+これを受けてStatefulSetを1 replicaへ変更する。image・資格情報・録画時間帯は準備段階の設定を使う。
+
+起動後にrecorder/uploaderの両コンテナ、PVCの書込権限、metrics、DB接続を確認する。
+録画時間帯外に配備した場合、Podが正常でも録画は19:00 JSTまで開始しない。
+実segmentの確定、S3転送、spool解放は録画開始後に確認する。Pod起動だけで録画成功とは扱わない。
