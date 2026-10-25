@@ -38,6 +38,10 @@ python3 -m unittest discover -s "$ROOT_DIR/automation/tests/version_updates" -v
 log_section "Observability report tests (no network)"
 python3 -m unittest discover -s "$ROOT_DIR/automation/tests/observability" -v
 
+log_section "Observability alert rule tests"
+require_command promtool
+promtool test rules "$ROOT_DIR"/automation/tests/observability/*.test.yaml
+
 log_section "GitOps validation regression tests"
 python3 -m unittest discover -s "$ROOT_DIR/automation/tests/ci" -v
 

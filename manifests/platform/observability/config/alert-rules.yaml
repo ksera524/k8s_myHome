@@ -2,6 +2,43 @@ groups:
   - name: home-lab-state
     interval: 30s
     rules:
+      - alert: ApplicationQueueFailed
+        expr: >-
+          sum by(queue) (max by(queue,state)
+          (application_queue_jobs{namespace="sandbox",state=~"failed|uncertain"})) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.queue }} に失敗または配送結果不明の処理があります"
+      - alert: ApplicationQueueBacklog
+        expr: >-
+          (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"notifications|hitomi_outbox"}) > 900)
+          or (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue="media"}) > 7200)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.queue }} の未完了処理が滞留しています"
+      - alert: ApplicationQueueMetricsUnavailable
+        expr: >-
+          absent(application_queue_jobs{namespace="sandbox",queue="notifications"})
+          or absent(application_queue_jobs{namespace="sandbox",queue="hitomi_outbox"})
+          or absent(application_queue_jobs{namespace="sandbox",queue="media"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.queue }} の業務メトリクスを収集できません"
+      - alert: CameraSpoolStatisticsUnavailable
+        expr: >-
+          home_camera_spool_stats_success == 0
+          or absent(home_camera_spool_stats_success)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cameraのspool集計結果を確認できません"
       - alert: CameraSpoolBlocked
         expr: home_camera_spool_blocked == 1
         for: 2m

@@ -28,6 +28,7 @@
           kubectl
           kubernetes-helm
           openssh
+          prometheus.cli
           python3
           python3Packages.packaging
           python3Packages.pyyaml

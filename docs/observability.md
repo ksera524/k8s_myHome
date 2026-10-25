@@ -144,3 +144,6 @@ kubectl -n observability port-forward svc/vmalert 8880:8880
 
 `http://localhost:9093/` と `http://localhost:8880/vmalert/` で通知・評価を確認します。
 Grafana の metrics / logs / SQL 接続と直近データも確認します。CI の設定検証は [reference](reference.md) を参照してください。
+
+アプリの非同期処理は[業務キューと録画の監視](application-queue-monitoring.md)を参照。
+通知・outbox・mediaの滞留、失敗・結果不明、メトリクス欠損をPodの正常性とは別に監視する。
