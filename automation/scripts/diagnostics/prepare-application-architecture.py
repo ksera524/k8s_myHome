@@ -136,7 +136,8 @@ def main():
     for cron in hitomi:
         if not cron or cron.get('kind') != 'CronJob':
             continue
-        cron['spec']['timeZone'] = 'Etc/UTC'
+        cron['spec']['timeZone'] = 'Asia/Tokyo'
+        cron['spec']['schedule'] = '55 2,6,10,14,18,22 * * *'
         template = cron['spec']['jobTemplate']['spec']['template']
         template['metadata']['labels'][DB_LABEL] = 'true'
         c = template['spec']['containers'][0]

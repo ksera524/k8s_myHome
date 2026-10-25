@@ -71,7 +71,7 @@ metadata:
   name: hitomi-monitor
   namespace: sandbox
 spec:
-  schedule: 55 13 * * *
+  schedule: 55 2,6,10,14,18,22 * * *
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -129,7 +129,7 @@ spec:
               name: shared-postgresql-ca
           imagePullSecrets:
           - name: harbor-registry
-  timeZone: Etc/UTC
+  timeZone: Asia/Tokyo
 ---
 apiVersion: apps/v1
 kind: Deployment
