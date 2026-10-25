@@ -81,6 +81,10 @@ spec:
       app: api-hub
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '3000'
+        prometheus.io/path: /metrics
       labels:
         app: api-hub
         database.k8s-myhome.local/shared-postgresql: 'true'
@@ -203,6 +207,7 @@ spec:
         app: api-hub-notification-worker
         database.k8s-myhome.local/shared-postgresql: 'true'
     spec:
+      terminationGracePeriodSeconds: 90
       automountServiceAccountToken: false
       imagePullSecrets:
       - name: harbor-registry

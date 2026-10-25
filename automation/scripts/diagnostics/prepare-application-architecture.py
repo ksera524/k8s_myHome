@@ -49,6 +49,12 @@ def pod(app, containers):
 
 def deployment(name, containers, recreate=False):
     spec = {'replicas': 1, 'selector': {'matchLabels': {'app': name}}, 'template': pod(name, containers)}
+    if name == 'api-hub-notification-worker':
+        spec['template']['spec']['terminationGracePeriodSeconds'] = 90
+    if name in {'media-api', 'hitomi-outbox'}:
+        port = '9090' if name == 'hitomi-outbox' else '3000'
+        spec['template']['metadata']['annotations'] = {
+            'prometheus.io/scrape': 'true', 'prometheus.io/port': port, 'prometheus.io/path': '/metrics'}
     if recreate:
         spec['strategy'] = {'type': 'Recreate'}
     return {'apiVersion': 'apps/v1', 'kind': 'Deployment', 'metadata': {'name': name, 'namespace': 'sandbox', 'annotations': {'reloader.stakater.com/auto': 'true'}}, 'spec': spec}
@@ -75,6 +81,8 @@ def main():
     api = load('api-hub')
     api_deploy = next(d for d in api if d and d['kind'] == 'Deployment')
     template = api_deploy['spec']['template']
+    template['metadata'].setdefault('annotations', {}).update({
+        'prometheus.io/scrape': 'true', 'prometheus.io/port': '3000', 'prometheus.io/path': '/metrics'})
     template['metadata']['labels'][DB_LABEL] = 'true'
     c = template['spec']['containers'][0]
     c['image'] = image('api-hub')
@@ -140,6 +148,7 @@ def main():
         pg(c, 'hitomi')
         template['spec'].setdefault('volumes', []).append({'name': 'database-ca', 'configMap': {'name': 'shared-postgresql-ca'}})
     outbox = container('outbox', image('hitomi'), '/app/hitomi', ['--dispatch'])
+    outbox['ports'] = [{'name': 'metrics', 'containerPort': 9090}]
     outbox['env'] = [{'name': 'WRAPPER_API_BASE_URL', 'value': 'http://api-hub.sandbox.svc:3000'}]
     pg(outbox, 'hitomi')
     emit(args.output, 'hitomi', [migration('hitomi', image('hitomi'), '/app/hitomi', 'hitomi'), *hitomi,

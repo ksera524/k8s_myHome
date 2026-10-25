@@ -41,6 +41,15 @@ def allowed(namespace, labels, direction, remote_ns, remote_labels, ip, port, pr
 
 
 class NetworkPolicyTests(unittest.TestCase):
+    def test_queue_metrics_require_the_monitoring_collector(self):
+        for app, port in [('api-hub', 3000), ('media-api', 3000), ('hitomi-outbox', 9090)]:
+            self.assertTrue(allowed('sandbox', {'app': app}, 'Ingress', 'observability',
+                                    {'app.kubernetes.io/name': 'victoria-metrics'}, '10.244.1.2', port))
+            self.assertFalse(allowed('sandbox', {'app': app}, 'Ingress', 'observability',
+                                     {'app.kubernetes.io/name': 'grafana'}, '10.244.1.2', port))
+            self.assertFalse(allowed('sandbox', {'app': app}, 'Ingress', 'sandbox',
+                                     {'app.kubernetes.io/name': 'victoria-metrics'}, '10.244.1.2', port))
+
     def test_application_clients_require_the_database_opt_in_label(self):
         database = {'postgres-operator.crunchydata.com/cluster': 'shared-postgresql'}
         client = {'app': 'media-api', 'database.k8s-myhome.local/shared-postgresql': 'true'}
