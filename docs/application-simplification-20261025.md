@@ -52,3 +52,5 @@ hitomiの日次Jobはsources 11（initialized）、baseline 852件を保存し�
 同一feed6回・章revision更新・再掲載・baseline維持、応答喪失/503/429/ID欠落202からの同一payload再送、400/409、移行照合のidentity不一致、受付後の非GET、切戻しSQLを隔離DBで確認。回復試験3件成功。通常lib試験58件成功。
 
 先にアプリimage/migrationを配備し、api-hubの配送失敗監視が有効な状態で受付責任を切り替える。その後、GitOpsのscheduleをJST 02:55/06:55/10:55/14:55/18:55/22:55に変更する。負荷時はscheduleだけ日次へ戻し、履歴を残す。切戻しはhitomi/docs/state.mdとrollback-acceptance.sqlに従い、未知migrationのある旧imageへhookをそのまま戻さない。
+
+P3の実運用確認で3件のRSS timeoutは、内部RSSHub Gatewayへのegressがmediaだけに許可され、hitomi-monitorに欠けていることを特定。既存のGateway/443の許可を両collectorへ適用し、他のLAN port・無関係なappは引き続き拒否する回帰試験を追加する。収集頻度変更に先立つ欠落防止の修正であり、source/items/outbox履歴は初期化しない。

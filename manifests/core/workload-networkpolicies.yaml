@@ -302,12 +302,14 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-hitomi-pdf-rsshub-gateway
+  name: allow-hitomi-rsshub-gateway
   namespace: sandbox
 spec:
   podSelector:
-    matchLabels:
-      app: hitomi-pdf-monitor
+    matchExpressions:
+    - key: app
+      operator: In
+      values: [hitomi-pdf-monitor, hitomi-monitor]
   policyTypes:
   - Egress
   egress:

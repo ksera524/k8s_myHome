@@ -67,6 +67,18 @@ class NetworkPolicyTests(unittest.TestCase):
         self.assertFalse(allowed('sandbox', {'app': 'home-camera-recorder'}, 'Ingress', 'sandbox',
                                  {'app': 'unrelated'}, '10.244.1.2', 9090))
 
+    def test_hitomi_can_fetch_internal_rss_without_opening_other_lan_ports(self):
+        gateway = {'app.kubernetes.io/name': 'nginx-gateway-nginx',
+                   'gateway.networking.k8s.io/gateway-name': 'nginx-gateway'}
+        for app in ['hitomi-monitor', 'hitomi-pdf-monitor']:
+            for address in ['192.168.122.100', '10.244.1.2']:
+                self.assertTrue(allowed('sandbox', {'app': app}, 'Egress', 'nginx-gateway',
+                                        gateway, address, 443))
+            self.assertFalse(allowed('sandbox', {'app': app}, 'Egress', 'nginx-gateway',
+                                     gateway, '192.168.122.100', 5432))
+        self.assertFalse(allowed('sandbox', {'app': 'unrelated'}, 'Egress', 'nginx-gateway',
+                                 gateway, '192.168.122.100', 443))
+
     def test_unlabelled_apps_cannot_reach_lan_or_internet(self):
         for ns in ['sandbox', 'tools', 'arc-runners']:
             for ip in ['192.168.122.10', '192.168.10.4', '1.1.1.1']:
