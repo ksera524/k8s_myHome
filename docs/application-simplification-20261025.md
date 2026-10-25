@@ -38,3 +38,19 @@ RTSPは`-timeout`で接続を制限し、完成segmentがsegment長の2倍+起�
 配備順序: 先に互換imageの回復試験を通す。旧設定の`--record`/`--upload`で起動でき、旧migration Job向け`--migrate`はDBを変更せず終了する暫定互換（P6で削除）。その後GitOpsからPG設定/CA/DBラベル/migrationを除去し、StatefulSetの順序付き更新で旧uploader終了後に新uploaderを起動する。強制削除しない。PVC/S3の移動・削除を行わない。
 
 切戻し: 旧digestとPG設定を同時に戻す。writer/uploaderの終了を確認して交代し、S3保存済みと旧DBの履歴差分を明示する。camera DBの物理削除は行わない。
+
+## 2026-10-26 再開時の確認
+
+P1: media #3、GitOps #117をマージし配備済み。ArgoCDのhitomi-pdf同期対象にimport Jobなし。P2アプリhome-camera #7をマージ、公開CI成功、新digest `sha256:106847f78175cc4e478c471ba71704eefe284604a30b228b0faf1e3c51ce101c`が配備済み。07:24 JST、S3の2026/10/25 UTC prefixに146 object/1,671,012,127 bytes。spoolは現在のpart/active/CSV/locksだけで、完成分は解放済み。recording_active=1、invalid_manifests=0、stalled=0、partial=0、stats_success=1。GitOps #118も全CI成功後マージ。PG設定除去の反映と09:00 JSTの時間帯終了確認は追跡する。
+
+hitomiの日次Jobはsources 11（initialized）、baseline 852件を保存し、outboxとapi-hub通知は0件。123hon 1件とcomic-walker 2件のRSS取得timeoutにより3 failed operationsで終了。初回全経路の成功とはしない。既存履歴を維持して次の収集へ引き継ぐ。
+
+## P3
+
+通知受付をoutbox accepted/items notification_acceptedで終端にする。追加migration 2で既存行を分類し、api_id付き非sent行をverifyで一度照合。不一致等はreceipt_failedとして保持。有効な202まで同じpayloadを再送し、配送結果の継続GETは撤去する。
+
+同一feed6回・章revision更新・再掲載・baseline維持、応答喪失/503/429/ID欠落202からの同一payload再送、400/409、移行照合のidentity不一致、受付後の非GET、切戻しSQLを隔離DBで確認。回復試験3件成功。通常lib試験58件成功。
+
+先にアプリimage/migrationを配備し、api-hubの配送失敗監視が有効な状態で受付責任を切り替える。その後、GitOpsのscheduleをJST 02:55/06:55/10:55/14:55/18:55/22:55に変更する。負荷時はscheduleだけ日次へ戻し、履歴を残す。切戻しはhitomi/docs/state.mdとrollback-acceptance.sqlに従い、未知migrationのある旧imageへhookをそのまま戻さない。
+
+P3の実運用確認で3件のRSS timeoutは、内部RSSHub Gatewayへのegressがmediaだけに許可され、hitomi-monitorに欠けていることを特定。既存のGateway/443の許可を両collectorへ適用し、他のLAN port・無関係なappは引き続き拒否する回帰試験を追加する。収集頻度変更に先立つ欠落防止の修正であり、source/items/outbox履歴は初期化しない。

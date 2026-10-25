@@ -165,3 +165,27 @@ tests:
   - eval_time: 5m
     alertname: CameraRecordingStalled
     exp_alerts: []
+- name: 収集項目の失敗と滞留をoutboxとは別に検知する
+  interval: 1m
+  input_series:
+  - series: application_queue_jobs{namespace="sandbox",queue="hitomi_items",state="failed"}
+    values: 1+0x12
+  - series: application_queue_oldest_pending_age_seconds{namespace="sandbox",queue="hitomi_items"}
+    values: 7201+0x12
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: ApplicationQueueFailed
+    exp_alerts:
+    - exp_labels:
+        queue: hitomi_items
+        severity: warning
+      exp_annotations:
+        summary: hitomi_items に失敗または配送結果不明の処理があります
+  - eval_time: 10m
+    alertname: ApplicationQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        queue: hitomi_items
+        severity: warning
+      exp_annotations:
+        summary: hitomi_items の未完了処理が滞留しています

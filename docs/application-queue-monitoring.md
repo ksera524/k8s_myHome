@@ -5,7 +5,8 @@ PodのReadyと業務の完了を別々に監視する。既存VictoriaMetricsの
 | 対象 | metricsの取得先 | queueラベル | 待機状態 |
 |---|---|---|---|
 | Slack配送 | api-hub:3000/metrics | notifications | pending / sending / retry |
-| 通知受付・配送確認 | hitomi-outbox:9090/metrics | hitomi_outbox | pending / accepted |
+| 通知受付 | hitomi-outbox:9090/metrics | hitomi_outbox | pending / verify（移行時一度の照合） |
+| 収集項目処理 | hitomi-outbox:9090/metrics | hitomi_items | pending / running / retry |
 | メディア取得 | media-api:3000/metrics | media | pending / running / retry |
 
 全endpointは既存のDB poolを共有するため接続上限は増やさない。DB読み取りは3秒で打ち切り、失敗時は503。取得失敗を空キューとして報告しない。
@@ -16,13 +17,13 @@ NetworkPolicyはobservabilityのVictoriaMetricsから対象portへの接続を�
 
 - `application_queue_jobs{queue,state}`: 状態別の件数。存在しない状態も0を返す。
 - `application_queue_oldest_pending_age_seconds{queue}`: 待機・処理中の最古受付からの経過秒数。自動backoffで時計をリセットしない。
-- `application_queue_last_success_timestamp_seconds{queue}`: 最後の成功時刻。mediaはassetの保存時刻、通知系はsent確定時刻。実績なしは0。
+- `application_queue_last_success_timestamp_seconds{queue}`: 最後の成功時刻。mediaはassetの保存時刻、api-hubはsent確定時刻、hitomiはaccepted確定時刻。実績なしは0。
 - `home_camera_spool_stats_success`: 集計成功は1、失敗は0。失敗時は直近の値を保持して録画を継続するため、他のspool値は古い可能性がある。
 
 | アラート | 条件 | 継続時間 |
 |---|---|---|
 | ApplicationQueueFailed | failed / uncertainが1件以上 | 5分 |
-| ApplicationQueueBacklog | 通知・outboxは最古15分超、mediaは最古2時間超 | 10分 |
+| ApplicationQueueBacklog | 通知・outboxは最古15分超、media・収集項目は最古2時間超 | 10分 |
 | ApplicationQueueMetricsUnavailable | 対象キューのmetricsを取得できない | 5分 |
 | CameraSpoolStatisticsUnavailable | spool集計失敗、またはメトリクス欠損 | 5分 |
 
@@ -50,3 +51,5 @@ NetworkPolicyはobservabilityのVictoriaMetricsから対象portへの接続を�
 回帰テストは各アプリの隔離DBテストとcameraの並行spool集計テストで実行する。
 `nix develop --command automation/scripts/ci/validate.sh`にはNetworkPolicyテストと
 `promtool test rules automation/tests/observability/*.test.yaml`を含む。発火待機、復旧、空キュー、欠損、複数Podの重複排除を検証する。
+
+hitomiのacceptedは受付完了で滞留に数えない。配送failed/uncertainはapi-hubで検知する。items.failedも検知対象。cameraの不正manifestはCameraInvalidManifest、segment停止はCameraRecordingStalledで検知し、破損manifestだけのspoolも正常な空状態にしない。

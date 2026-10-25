@@ -14,7 +14,7 @@ groups:
       - alert: ApplicationQueueBacklog
         expr: >-
           (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"notifications|hitomi_outbox"}) > 900)
-          or (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue="media"}) > 7200)
+          or (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"media|hitomi_items"}) > 7200)
         for: 10m
         labels:
           severity: warning
