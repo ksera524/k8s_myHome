@@ -26,3 +26,15 @@ hitomiは22:55 JSTの日次schedule。既存のsources/items/outboxを初期化�
 以降の変更・検証結果は段階ごとに追記する。配備していない変更を配備済みとは記録しない。
 
 検証: `nix develop --command automation/scripts/ci/validate.sh`成功。mediaの`cargo test --locked`は24件成功、隔離PostgreSQLで`durable_media_recovery`成功（import 2回の冪等性と取得Job非生成を含む）。
+
+## P2: camera
+
+完成mp4と既存キーのmanifestを正本にし、uploader.lockの排他で再送。SQL claim/lease/heartbeat、sqlx依存、CIのPostgreSQLを撤去。旧manifestは追加フィールド省略を許容。失敗回数と次回試行をatomic renameで保存し、1件失敗しても走査を継続する。
+
+S3 HEADは404だけPUTへ進み、認証・一時障害・サイズ不一致を失敗として保持。ローカルchecksum確認を維持し、S3キー/サイズの照合後に動画→manifestの順で削除する。動画だけ消失したmanifestはS3を照合し、両方欠損は保持する。破損manifestは再生成せず保持し、専用件数とアラートで検知する。
+
+RTSPは`-timeout`で接続を制限し、完成segmentがsegment長の2倍+起動猶予60秒停止すると再接続する。DBなし回復試験は7件成功（FFmpeg 7.1.1、実segment継続、RTSP無応答と再接続を含む）。
+
+配備順序: 先に互換imageの回復試験を通す。旧設定の`--record`/`--upload`で起動でき、旧migration Job向け`--migrate`はDBを変更せず終了する暫定互換（P6で削除）。その後GitOpsからPG設定/CA/DBラベル/migrationを除去し、StatefulSetの順序付き更新で旧uploader終了後に新uploaderを起動する。強制削除しない。PVC/S3の移動・削除を行わない。
+
+切戻し: 旧digestとPG設定を同時に戻す。writer/uploaderの終了を確認して交代し、S3保存済みと旧DBの履歴差分を明示する。camera DBの物理削除は行わない。

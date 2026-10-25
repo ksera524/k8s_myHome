@@ -11,7 +11,7 @@ class ApplicationDatabaseTest(unittest.TestCase):
     def test_new_databases_reuse_app_and_revoke_public_connect(self):
         cluster = yaml.safe_load((ROOT / 'manifests/platform/shared-postgresql/postgrescluster.yaml').read_text())
         app = next(user for user in cluster['spec']['users'] if user['name'] == 'app')
-        self.assertEqual(set(app['databases']), {'registry', 'api_hub', 'hitomi', 'media', 'camera'})
+        self.assertEqual(set(app['databases']), {'registry', 'api_hub', 'hitomi', 'media'})
         for option in ['NOSUPERUSER', 'NOCREATEDB', 'NOCREATEROLE', 'CONNECTION LIMIT 80']:
             self.assertIn(option, app['options'])
         sql = (ROOT / 'manifests/platform/shared-postgresql/scripts/bootstrap.sql').read_text()

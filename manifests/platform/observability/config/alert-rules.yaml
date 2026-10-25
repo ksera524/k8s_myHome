@@ -39,6 +39,20 @@ groups:
           severity: warning
         annotations:
           summary: "cameraのspool集計結果を確認できません"
+      - alert: CameraInvalidManifest
+        expr: home_camera_invalid_manifests > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cameraのspoolに不正なmanifestがあります"
+      - alert: CameraRecordingStalled
+        expr: home_camera_recording_stalled == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cameraの完成segmentが停止しています"
       - alert: CameraSpoolBlocked
         expr: home_camera_spool_blocked == 1
         for: 2m
