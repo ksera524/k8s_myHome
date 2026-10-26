@@ -16,7 +16,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(module.summarize([{'value': [0, '1']}]), '1 / 1 対象')
 
     def test_partial_failure_and_secret_redaction(self):
-        def broken(_):
+        def broken(*_):
             raise RuntimeError('https://hooks.slack.com/services/SECRET')
         text, errors = module.report(broken, dt.datetime(2026, 10, 19, tzinfo=dt.timezone.utc))
         self.assertEqual(len(errors), 11)
@@ -25,7 +25,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn('2026-10-19 09:00', text)
 
     def test_no_restarts_and_positive_ranking(self):
-        def fetch(expr):
+        def fetch(expr, at=None):
             if expr == module.PVC_INFO or expr in module.PVC_STATS.values():
                 return []
             if expr == module.RESTARTS:
@@ -35,6 +35,43 @@ class ReportTests(unittest.TestCase):
         self.assertFalse(errors)
         self.assertIn('apps/&lt;pod&gt;/app: 約 3.2 回', text)
         self.assertIn('0 / 1 対象', text)
+
+    def test_history_queries_cover_seven_days_and_merge_resource_identities(self):
+        end = dt.datetime(2026, 10, 26, 0, 2, tzinfo=dt.timezone.utc)
+        calls = []
+
+        def row(pod, value):
+            return {'metric': {'namespace': 'apps', 'pod': pod}, 'value': [0, str(value)]}
+
+        def fetch(expr, at):
+            calls.append((expr, at))
+            day = (end - at).days
+            if day == 0:
+                return [row('same', 0), row('recent', 0)]
+            if day == 6:
+                return [row('same', 1), row('old', 1)]
+            return [row('same', 0)]
+
+        rows = module.historical_rows(fetch, 'namespace,pod', 'ready == bool 0', end)
+        self.assertEqual(module.summarize(rows), '2 / 3 対象')
+        self.assertEqual([at for _, at in calls], [end - dt.timedelta(days=d) for d in range(7)])
+        self.assertTrue(all('[1d:5m]' in expr and '[7d:' not in expr for expr, _ in calls))
+        self.assertEqual({r['metric']['pod']: float(r['value'][1]) for r in rows},
+                         {'same': 1, 'recent': 0, 'old': 1})
+
+    def test_failed_history_partition_is_not_counted_as_a_complete_report(self):
+        end = dt.datetime(2026, 10, 26, tzinfo=dt.timezone.utc)
+
+        def fetch(expr, at=end):
+            if at == end - dt.timedelta(days=3) and 'kube_pod_status_ready' in expr:
+                raise RuntimeError('SECRET')
+            return []
+
+        text, errors = module.report(fetch, end)
+        self.assertEqual(errors, ['Pod Ready 異常'])
+        self.assertIn('Pod Ready 異常: 取得失敗', text)
+        self.assertIn('不完全', text)
+        self.assertNotIn('SECRET', text)
 
     def test_pvc_capacity_and_missing(self):
         def row(name, value):
