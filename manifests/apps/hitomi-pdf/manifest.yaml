@@ -240,6 +240,19 @@ spec:
         configMap:
           name: shared-postgresql-ca
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-worker-tmp
+  namespace: sandbox
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: nfs-external
+  resources:
+    requests:
+      storage: 12Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -276,6 +289,8 @@ spec:
         args:
         - --worker
         env:
+        - name: MAX_ASSET_BYTES
+          value: '10737418240'
         - name: WRAPPER_API_BASE_URL
           value: http://api-hub.sandbox.svc:3000
         - name: RUSTFS_S3_BUCKET
@@ -294,11 +309,11 @@ spec:
           requests:
             cpu: 50m
             memory: 128Mi
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 128Mi
           limits:
             cpu: 300m
             memory: 512Mi
-            ephemeral-storage: 6Gi
+            ephemeral-storage: 1Gi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -321,8 +336,8 @@ spec:
         configMap:
           name: shared-postgresql-ca
       - name: tmp
-        emptyDir:
-          sizeLimit: 5Gi
+        persistentVolumeClaim:
+          claimName: media-worker-tmp
   strategy:
     type: Recreate
 ---
