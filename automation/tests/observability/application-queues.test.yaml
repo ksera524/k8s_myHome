@@ -189,3 +189,27 @@ tests:
         severity: warning
       exp_annotations:
         summary: hitomi_items の未完了処理が滞留しています
+- name: 再接続でactiveが変動してもsegment停止を検知し正常確定で解除する
+  interval: 30s
+  input_series:
+  - series: home_camera_recording_active
+    values: 1 0 1 0 1 0 1 0 1 0 1 0 1
+  - series: home_camera_recording_stalled
+    values: 0 0 0 1 1 1 1 1 1 0 0 0 0
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: CameraRecordingStalled
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: CameraRecordingStalled
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: cameraの完成segmentが停止しています
+  - eval_time: 4m
+    alertname: CameraNotRecording
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: CameraRecordingStalled
+    exp_alerts: []
