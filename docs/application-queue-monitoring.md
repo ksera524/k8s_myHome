@@ -44,9 +44,9 @@ NetworkPolicyはobservabilityのVictoriaMetricsから対象portへの接続を�
 ## 配備順序と検証
 
 1. api-hub、hitomi、media、cameraの修正版imageを公開する。mediaはmigration 2が必要で、既存のPreSync Jobで適用する。
-2. 通知workerの終了猶予90秒とimage digestをGitOpsで反映する。新workerは終了要求後に次のclaimを始めず、処理中の1件を最大75秒で完了させる。初回の旧worker置換時は、この終了処理がまだ適用されないためsendingの有無を確認する。
+2. api-hubは統合API/通知taskを1 replica/Recreate、終了猶予90秒で動かす。終了要求後は新claimを始めず、進行中の1件を最大75秒で確定し、HTTPのdrain後に共有poolを閉じる。
 3. metrics endpointが利用可能なimageに更新された後、scrape annotation・NetworkPolicy・アラートを反映する。先行してアラートのみ配備すると、旧imageのmetrics欠損が通知される。
-4. 3キューのmetrics、cameraのstats_success、VictoriaMetricsの収集を確認する。空キューでも状態別0件のseriesが存在することを確認する。
+4. 4キューのmetrics、cameraのstats_success、VictoriaMetricsの収集を確認する。空キューでも状態別0件のseriesが存在することを確認する。
 
 回帰テストは各アプリの隔離DBテストとcameraの並行spool集計テストで実行する。
 `nix develop --command automation/scripts/ci/validate.sh`にはNetworkPolicyテストと

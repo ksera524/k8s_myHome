@@ -32,7 +32,8 @@ Harbor への接続は内部 URL、マニフェスト内のイメージ名は従
 更新方式は公式の [Git write-back](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-methods/) と
 [digest strategy](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-strategies/#digest---update-to-the-most-recent-pushed-version-of-a-tag) を利用します。
 
-- Deployment: Pod テンプレートの digest が変わるため、ArgoCD 同期後にローリング更新します。
+- Deployment: Podテンプレートのdigestを更新します。api-hubはAPI/配送の1 replica/Recreateで短い受付停止があり、他のworkloadは各更新方式に従います。
+- StatefulSet: cameraのrecorder/uploaderを同じdigestで更新し、旧Pod終了後に交代します。PVC・manifest・固定object keyは維持します。
 - CronJob: Job テンプレートを更新し、次回作成の Job から新イメージになります。実行中の Job は継続します。
   実行中 Pod がない場合も検知できるよう `forceUpdate: true` を指定しています。
 - 同じ Application 内の同じイメージを使う Deployment / CronJob は Kustomize の `images` で一緒に更新されます。

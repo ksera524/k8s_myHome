@@ -110,7 +110,7 @@ class RunnerDeliveryTests(unittest.TestCase):
                 rendered = subprocess.check_output(['kustomize', 'build', str(target)], text=True)
                 matched = 0
                 for doc in yaml.safe_load_all(rendered):
-                    if doc['kind'] == 'Deployment':
+                    if doc['kind'] in ('Deployment', 'StatefulSet'):
                         pod = doc['spec']['template']['spec']
                     elif doc['kind'] == 'CronJob':
                         pod = doc['spec']['jobTemplate']['spec']['template']['spec']
@@ -123,7 +123,7 @@ class RunnerDeliveryTests(unittest.TestCase):
                             matched += 1
                 self.assertGreater(matched, 0, name)
                 covered.add(source.name)
-        self.assertEqual(kinds, {'Deployment', 'CronJob'})
+        self.assertEqual(kinds, {'Deployment', 'StatefulSet', 'CronJob'})
         expected = {p.parent.name for p in (ROOT / 'manifests/apps').glob('*/manifest.yaml')
                     if 'harbor.qroksera.com/sandbox/' in p.read_text()}
         self.assertEqual(covered, expected)

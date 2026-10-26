@@ -1,10 +1,5 @@
-# 切替用workload
+# 初回切替の履歴snapshot
 
-新コードに対応する既存アプリのマニフェスト。ArgoCDの現在のsourceからは参照されていない。
-新imageのHarbor digestを確定してから既存appsへ反映する。[手順](../../../docs/application-postgresql-cutover.md)を参照。
+2026-10-24〜25にレビューした切替例を履歴として保持する。通常Applicationからは参照せず、現行運用へ適用しない。旧worker・旧起動mode等を含むため、現行構成の生成元ではない。生成器prepare-application-architecture.pyは廃止した。
 
-`prepare-application-architecture.py` で再生成可能。plannerはsuspend、camera StatefulSetは0 replicaで生成し、旧writerとの重複を防いでから段階的に有効にする。
-
-```bash
-nix develop --command python3 automation/scripts/diagnostics/prepare-application-architecture.py --image-tag architecture-20261024
-```
+現在の正本は[manifests/apps](../../../manifests/apps/)、操作は[運用手順](../../../docs/application-postgresql-cutover.md)、変更記録は[簡素化の記録](../../../docs/application-simplification-20261025.md)を参照する。media importは隣の[明示Job](../media-import/README.md)を使用する。
