@@ -490,7 +490,7 @@ spec:
     matchExpressions:
     - key: app
       operator: In
-      values: [api-hub, api-hub-notification-worker]
+      values: [api-hub]
   policyTypes:
   - Egress
   egress:
@@ -549,7 +549,6 @@ spec:
       operator: In
       values:
       - api-hub
-      - api-hub-notification-worker
       - hitomi-monitor
       - hitomi-pdf-monitor
       - rsshub

@@ -43,7 +43,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api-hub, api-hub-notification-worker]
+                values: [api-hub]
       ports:
         - protocol: TCP
           port: 9000

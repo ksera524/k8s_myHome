@@ -14,14 +14,14 @@ Namespace は `database`、名前は `shared-postgresql`、PostgreSQL major は 
 | TLS | アプリは PGO の公開 CA を使い `verify-full` |
 | 接続数 | DB 全体 100、app 80、Harbor 各 Pod 最大 10、Grafana datasource 最大 5 |
 
-[bootstrap.sql](../manifests/platform/shared-postgresql/scripts/bootstrap.sql) は上記5 DBの所有権を app に設定し、
+[bootstrap.sql](../manifests/platform/shared-postgresql/scripts/bootstrap.sql) は現行4 DBの所有権を app に設定し、既存camera履歴DBがある場合は同じ権限を維持する。
 PUBLIC の各アプリDBの CONNECT / TEMP、postgres CONNECT を取り消します。
 共用 role はアプリごとのデータ分離を提供しません。接続先を追加する際は DB / schema の権限と接続予算を見直します。
 
-アプリのpool上限はapi-hub API 3、通知worker 2、media API 3、media worker 2、media planner 2、hitomi CronJob 2、outbox 2で合計16。
-通知・media worker・outboxはRecreate、cameraは1 replicaのStatefulSetとし、APIの一時増加を含めたrollout時は22。3つのmigration Jobを各1接続で同時実行した場合は25。
-さらにmedia importとreconcileの各2接続、資格情報Jobのapp接続確認1、既存Harbor rollout40＋Grafana 5を加えて最大78と見込み、app上限80、クラスタ全体100を維持する。残りは2接続なので、移行中の手動Job追加やreplica増加はこの予算を再確認してから行う。
-2026-10-24の変更前確認ではapp接続3（idle）、DBコンテナ使用量約368 MiB / limit1 GiBだった。新worker導入後やピーク時の値ではないため、配備後に接続数・メモリを再確認する。
+アプリ主処理のpool上限はapi-hub API/配送共有3、media API3/worker2/planner2、hitomi収集2/outbox2で合計14（変更前18）。cameraはDB接続しない。
+API・media worker・outboxはRecreate、cameraは単一StatefulSet。media APIのrollout時に3接続が一時追加され17、3つのmigration Job各1接続を含め20。
+明示media import2・毎時reconcile2・資格情報Jobのapp確認1・Harbor rollout40・Grafana5を加えた最大見積りは70（変更前78）。app上限80/クラスタ100を維持し、appの残りは10接続。追加Job/replicaはこの予算に含め直す。
+2026-10-24のapp接続3（idle）/DBコンテナ約368MiBは過去の待機時の値であり、新構成のピーク実測とは扱わない。
 
 sandboxでは `application-postgresql` SecretのPGPASSWORDを使い、Podに `database.k8s-myhome.local/shared-postgresql: "true"` を付けてNetworkPolicyを通す。
 `shared-postgresql-ca` の `ca.crt` をread-only mountし、PGHOSTは上記Service、PGUSERはapp、PGDATABASEは担当DB、PGSSLROOTCERTはmount先を指定する。

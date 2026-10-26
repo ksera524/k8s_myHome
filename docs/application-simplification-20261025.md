@@ -54,3 +54,44 @@ hitomiの日次Jobはsources 11（initialized）、baseline 852件を保存し�
 先にアプリimage/migrationを配備し、api-hubの配送失敗監視が有効な状態で受付責任を切り替える。その後、GitOpsのscheduleをJST 02:55/06:55/10:55/14:55/18:55/22:55に変更する。負荷時はscheduleだけ日次へ戻し、履歴を残す。切戻しはhitomi/docs/state.mdとrollback-acceptance.sqlに従い、未知migrationのある旧imageへhookをそのまま戻さない。
 
 P3の実運用確認で3件のRSS timeoutは、内部RSSHub Gatewayへのegressがmediaだけに許可され、hitomi-monitorに欠けていることを特定。既存のGateway/443の許可を両collectorへ適用し、他のLAN port・無関係なappは引き続き拒否する回帰試験を追加する。収集頻度変更に先立つ欠落防止の修正であり、source/items/outbox履歴は初期化しない。
+
+
+## P2完了: 09:00 JSTの録画終了
+
+2026-10-26 09:00 JSTにrecording_active=0、spool bytes=0、最古待機=0、partial=0、invalid_manifests=0、stalled=0、stats_success=1を確認。現Podのrecorder再起動0、spoolは2つのlockだけ。S3の2026/10/25 UTC prefixは167 object / 1,807,333,500 bytes（一覧は非truncated）。連続segmentの確定・保存・解放から時間帯外停止までを確認した。開始時の旧RTSP不備とStatefulSet交代の中断があるため、14時間無欠落とは記録しない。
+
+cameraのPG環境変数・CA・DBラベル・migrationはGitOps #118で撤去済み。退役camera DBは存在しrecordings 0件、過去migration履歴を保持。PGOのDB宣言からの除外は物理DROPを行わないことを仕様と実DBで確認した。
+
+## P3配備・通常収集
+
+hitomi #26 / GitOps #119を配備。digest `sha256:2cf7f6cb878c7d92e25ebcfa0b3da87b2c423dc32470ba4ec4866435feb47eec`、migration2を確認。RSSHub 3経路はHTTP200へ回復。通常CronJobから作成した `hitomi-simplification-20261026` は14source初期化、baseline861、notification_accepted9、filtered13、retry3。outbox accepted9に対しapi-hub sent9、pending/sending/uncertainは0だった。通知は通常収集で発生したものだけで、試験通知は送っていない。
+
+Job自体は取得元の「No tags found for content」3件により失敗。3件はretryとして保持し、成功扱いや全件再取得をしない。画像decode警告5件は既存fallbackで処理できた。RSS取得障害とは分けて記録する。JST 1日6回/Forbidを維持し、source/items/outboxの履歴を初期化していない。
+
+## P4: native HTTP
+
+api-hub #12 / GitOps #120を配備。reqwest 0.12.28の共有Clientとaxum 0.8.9へ置換し、独自wire decoder/socket loop/TLS/接続poolを撤去。残るRequest/Responseは業務handlerのデータ型。S3署名と操作は維持し、redirect/暗黙retry/proxy/自動展開を無効化。署名targetをURL正規化が変える場合は送信しない（既存media keyに該当0件）。
+
+API/stream22件、HTTP6件、隔離通知回復1件、static Nix/CPU/CA/非rootimageのビルド起動を検証。64/256MiBの実binaryのpeak RSSはupload22,016/22,144KiB、download5,292/5,476KiB。ファイル全体をbufferしない。配備digest `sha256:8b76b99ef8335728a8f3bc5d57fa927fec79de69fd50614c2e64fd3e08247894` で実PDF/動画のproxyと直接S3のRange 0-63のbyte一致、206/304/416、health/metrics200を確認。上記sent9もnative HTTPでの実配送だった。
+
+GitOps #120は最後のCI完了前にmergeしてしまった。最終CIは全成功し、終了猶予90秒がHTTP新imageより先に反映されたことを確認した。以降は対象headのchecks成功を確認してからmergeする。
+
+## P5: APIと配送taskの統合
+
+api-hub #13の準備image `sha256:7293713df8a0d060217d122374951017e53aa38f555f6786fb05b43d7d504040` は既存API専用起動のまま配備し、GitOps #121で旧専用workerを0にした。Pod消滅とsending/uncertain 0を確認後、別PR #122でAPIを `--serve` / 1 replica / Recreate / 終了猶予90秒へ変更。09:09 JST起動の統合PodはReady、再起動0、health/metrics200。共有poolの2接続の一方に通知claim queryが残り、統合taskのDB走査を確認した。統合後は空キューのため、新たな実配送成功とは扱わない。
+
+通常24件、HTTP7件、隔離DB回復3件が成功。実CLIにSIGTERMを送り、処理中Slack応答を待ってsentをcommitし、次のpendingをclaimせず終了すること、migrationは非配送であること、worker panic/異常終了の監督、DB障害中のHTTP200とmetrics503を確認。外部障害でPodを再起動しない。HTTP80秒/配送75秒をdrainし、task終了後にpoolを閉じる。CIのport probeはTIME_WAITをlistenerと誤認しないよう修正した。
+
+## P6: 最終経路と運用
+
+各PRの全checks成功後、camera #8、hitomi #27、media #4、api-hub #14をmergeした。cameraの引数なし旧録画/SQL互換migrate/旧hourlyコード、mediaの旧一括取得、hitomiのDBなし直接配送fallback、api-hubのAPI専用/worker専用起動を削除。api-hubは引数なし/`--serve`とも統合、`--migrate`はmigrationだけ。cameraは`--record`/`--upload`だけ、mediaの手動日付は`--plan YYYYMMDD`へ統一した。
+
+最終app検証: cameraは通常とFFmpeg回復・不正引数、hitomiはlib60/HTTP3とDB必須、mediaは通常19/隔離durable recovery、APIは通常24/HTTP7/隔離3が成功。APIのmemory fixtureは配布imageに含まないtest専用exampleへ移し、製品へAPI専用flagを残していない。同じ2thread条件で64/256MiB debug fixtureのupload55,312/72,684KiB、download15,628/15,636KiBで既存閾値内。
+
+GitOps最終整理は専用worker Deployment・旧camera CronJob・専用policy参照・未使用env・旧生成器を撤去する。旧exampleと過去配備記録は履歴として区別する。[構成図](application-simplification-architecture.md)、[運用・復元手順](application-postgresql-cutover.md)、[接続予算](shared-postgresql.md)を最終形へ更新。DB復元時の重複通知は許容し、通常の統合起動で再開する。Slack事前照合用の起動modeは設けない。
+
+対象常駐Pod6→5、container7→6、主処理pool上限18→14、全app最大見積り78→70（app80/cluster100）。09時台の待機時実測はapp接続11（api_hub2/hitomi2/media4/registry3、全idle）であり、ピーク実測とは扱わない。cameraは接続0。
+
+残課題は既存media video failed3件とhitomiのタグ欠落retry3件。行を削除せず個別調査対象として保持する。これらを空キューや全件成功と記録しない。fixtureは隔離DBのみ、移行のための全件再取得・一括Slack再送・camera DB/PVC/S3削除を行っていない。
+
+最終公開digestとGitOps整理の反映結果は、全公開workflowと実Podの照合後に追記する。

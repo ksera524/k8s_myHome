@@ -1,58 +1,3 @@
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: home-camera-recorder
-  namespace: sandbox
-spec:
-  schedule: 0 19-23,0-8 * * *
-  timeZone: Asia/Tokyo
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 3
-  jobTemplate:
-    spec:
-      backoffLimit: 1
-      activeDeadlineSeconds: 3900
-      template:
-        metadata:
-          labels:
-            app: home-camera-recorder
-        spec:
-          restartPolicy: OnFailure
-          imagePullSecrets:
-          - name: harbor-registry
-          containers:
-          - name: recorder
-            image: harbor.qroksera.com/sandbox/home-camera:latest
-            imagePullPolicy: Always
-            env:
-            - name: RTSP_URL
-              valueFrom:
-                secretKeyRef:
-                  name: home-camera
-                  key: RTSP_URL
-            - name: API_HUB_BASE_URL
-              value: http://api-hub.sandbox.svc:3000
-            - name: S3_BUCKET
-              value: home-camera-recordings
-            - name: CAMERA_ID
-              value: camera
-            - name: RECORD_SECONDS
-              value: '3600'
-            - name: FFMPEG_VIDEO_CODEC
-              value: copy
-            - name: FFMPEG_AUDIO_CODEC
-              value: copy
-            - name: FFMPEG_AUDIO_BITRATE
-              value: 128k
-            - name: FFMPEG_LOGLEVEL
-              value: warning
-            - name: FFMPEG_PRESET
-              value: veryfast
-            - name: FFMPEG_CRF
-              value: '23'
-  suspend: true
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -131,8 +76,6 @@ spec:
           value: copy
         - name: FFMPEG_AUDIO_BITRATE
           value: 128k
-        - name: FFMPEG_LOGLEVEL
-          value: warning
         - name: FFMPEG_PRESET
           value: veryfast
         - name: FFMPEG_CRF
@@ -196,8 +139,6 @@ spec:
           value: copy
         - name: FFMPEG_AUDIO_BITRATE
           value: 128k
-        - name: FFMPEG_LOGLEVEL
-          value: warning
         - name: FFMPEG_PRESET
           value: veryfast
         - name: FFMPEG_CRF
