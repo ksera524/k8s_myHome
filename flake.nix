@@ -28,6 +28,7 @@
           kubectl
           kubernetes-helm
           openssh
+          postgresql_17
           prometheus.cli
           python3
           python3Packages.packaging
