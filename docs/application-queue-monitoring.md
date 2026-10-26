@@ -26,6 +26,9 @@ NetworkPolicyはobservabilityのVictoriaMetricsから対象portへの接続を�
 | ApplicationQueueBacklog | 通知・outboxは最古15分超、media・収集項目は最古2時間超 | 10分 |
 | ApplicationQueueMetricsUnavailable | 対象キューのmetricsを取得できない | 5分 |
 | CameraSpoolStatisticsUnavailable | spool集計失敗、またはメトリクス欠損 | 5分 |
+| CameraRecordingStalled | 録画可能な時間帯に正常確定segmentがsegment長の2倍+60秒を超えて途絶 | 2分 |
+
+cameraの録画監視は再接続で猶予をリセットしない。`home_camera_recording_active`が一時的に1でも、正常確定segmentがなければ`home_camera_recording_stalled`が1になる。正常確定で解除し、時間帯外・容量停止中は監視の猶予を解除する。FFmpegごとの再接続判定は独立しており、録画停止の通知中も接続回復を試みる。
 
 キューが空の時間帯は最終成功が古くても通知しない。デプロイ時に同じDBを参照するPodが複数になっても件数を二重計上しない。
 
