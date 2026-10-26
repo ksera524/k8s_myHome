@@ -35,6 +35,11 @@ def reconcile_password(user, password):
         print(f'{user}: password unchanged')
 
 
+def bootstrap(env):
+    # psqlのメタコマンドも含むため、SQL文字列ではなくファイルとして実行する。
+    subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-f', str(Path(__file__).with_name('bootstrap.sql'))], env=env, check=True, stdout=subprocess.DEVNULL)
+
+
 def main():
     admin = Path('/input/admin-password').read_text()
     password = Path('/input/password').read_text()
@@ -59,7 +64,7 @@ def main():
         root.flush()
         env = {**os.environ, 'PGHOST': HOST, 'PGUSER': 'postgres', 'PGDATABASE': 'postgres', 'PGPASSWORD': admin, 'PGSSLMODE': 'verify-full', 'PGSSLROOTCERT': root.name, 'PGCONNECT_TIMEOUT': '10'}
         # PGO の password 反映前なら失敗し、Job の再試行に委ねる。
-        subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', Path(__file__).with_name('bootstrap.sql').read_text()], env=env, check=True, stdout=subprocess.DEVNULL)
+        bootstrap(env)
         env.update(PGUSER='app', PGDATABASE='registry', PGPASSWORD=password)
         subprocess.run(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'SELECT 1'], env=env, check=True, stdout=subprocess.DEVNULL)
     print('Credentials and TLS verified; migration gate is not modified')
