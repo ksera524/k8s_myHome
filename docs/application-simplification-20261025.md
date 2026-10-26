@@ -88,10 +88,27 @@ api-hub #13の準備image `sha256:7293713df8a0d060217d122374951017e53aa38f555f67
 
 最終app検証: cameraは通常とFFmpeg回復・不正引数、hitomiはlib60/HTTP3とDB必須、mediaは通常19/隔離durable recovery、APIは通常24/HTTP7/隔離3が成功。APIのmemory fixtureは配布imageに含まないtest専用exampleへ移し、製品へAPI専用flagを残していない。同じ2thread条件で64/256MiB debug fixtureのupload55,312/72,684KiB、download15,628/15,636KiBで既存閾値内。
 
-GitOps最終整理は専用worker Deployment・旧camera CronJob・専用policy参照・未使用env・旧生成器を撤去する。旧exampleと過去配備記録は履歴として区別する。[構成図](application-simplification-architecture.md)、[運用・復元手順](application-postgresql-cutover.md)、[接続予算](shared-postgresql.md)を最終形へ更新。DB復元時の重複通知は許容し、通常の統合起動で再開する。Slack事前照合用の起動modeは設けない。
+GitOps #123で専用worker Deployment・旧camera CronJob・専用policy参照・未使用env・旧生成器を撤去した。旧exampleと過去配備記録は履歴として区別する。[構成図](application-simplification-architecture.md)、[運用・復元手順](application-postgresql-cutover.md)、[接続予算](shared-postgresql.md)を最終形へ更新。DB復元時の重複通知は許容し、通常の統合起動で再開する。Slack事前照合用の起動modeは設けない。
 
 対象常駐Pod6→5、container7→6、主処理pool上限18→14、全app最大見積り78→70（app80/cluster100）。09時台の待機時実測はapp接続11（api_hub2/hitomi2/media4/registry3、全idle）であり、ピーク実測とは扱わない。cameraは接続0。
 
-残課題は既存media video failed3件とhitomiのタグ欠落retry3件。行を削除せず個別調査対象として保持する。これらを空キューや全件成功と記録しない。fixtureは隔離DBのみ、移行のための全件再取得・一括Slack再送・camera DB/PVC/S3削除を行っていない。
+清掃前の残課題は既存media video failed3件とhitomiのタグ欠落retry3件だった。最新件数は次節を参照。行を削除せず個別調査対象として保持する。これらを空キューや全件成功と記録しない。fixtureは隔離DBのみ、移行のための全件再取得・一括Slack再送・camera DB/PVC/S3削除を行っていない。
 
-最終公開digestとGitOps整理の反映結果は、全公開workflowと実Podの照合後に追記する。
+## 最終確認（2026-10-26 JST）
+
+最終4アプリは同一commitの回復試験を通したartifactだけをHarborへ公開した。公開workflowとGitOpsのdigest、稼働PodのimageIDを照合した結果を以下に記録する。
+
+| 対象 | 最終main commit | 公開workflow | 最終digest |
+|---|---|---|---|
+| api-hub | `3e5d521` | [40248246373](https://github.com/ksera524/api-hub/actions/runs/40248246373) | `sha256:dfc8dafb23f49ad43cbe4f2a100b6550c706f785921efe3278398de4d7ffbd46` |
+| hitomi | `ceae70f` | [40248232023](https://github.com/ksera524/hitomi/actions/runs/40248232023) | `sha256:ddd21019e5d30862dd2203bdc78f66bd18f2b63447120ba9df1eef5d12cfd2b7` |
+| media | `68ed7f4` | [40248240113](https://github.com/ksera524/hitomi-pdf-batch/actions/runs/40248240113) | `sha256:a196f9df2fb7537790206a0087db70e0529ba8d278e8c4dfb219fb70d7721b93` |
+| camera | `ceef3aa` | [40248224355](https://github.com/ksera524/home-camera/actions/runs/40248224355) | `sha256:a9a6219b3ee4b08a46dd2d0a141e84bf25a7bc5d374b19a680461bcfbe94667c` |
+
+09時台の最終照合で対象5Pod/6containerすべてReady・再起動0・公開digestと実imageID一致。api-hub/hitomi/hitomi-pdf/home-camera/core/shared-postgresql/observabilityはSynced/Healthy。専用通知worker Deploymentと旧camera CronJobは存在しない。実APIはserve/replica1/Recreate/pool3/grace90、hitomiは6回/Asia-Tokyo/Forbidを確認した。cameraは最終imageでもPG設定・DBラベルなし、spool bytes0/invalid0/stalled0/partial0/stats_success1、時間帯外停止、100GiBの既存PVCがBound。退役camera DBは存在しrecordings0件を再確認。録画時間帯の実処理証跡はP2段階のもので、最終清掃imageで一晩を再計測したとは扱わない。
+
+最終APIで実PDF/動画のproxyと直接S3のRange64 byteが一致し、206/304/416、health/metrics200を再確認した。API共有poolは2接続、その一方にclaim queryを確認、通知はsent9。新しい試験通知は発生させていない。09:20の毎時reconcileは更新前imageで正常終了し、次回用Job templateは最終digestへ更新済み。P6でreconcile本体は変更していない。
+
+定期取得が継続したため、mediaの最新状態はPDF/preview各ready1459/expired100、video ready368/failed4/pending1、ingest_jobs done173/failed4/retry1。失敗4件は容量上限・MP4 signature不一致・取得元429・403が各1、retry1件は取得元503。開始時のfailed3件だけを最新値として扱わない。hitomiはbaseline861/filtered13/notification_accepted9/retry3、outbox accepted9。取得失敗は個別に残し、一括retryや成功状態への書換えを行っていない。
+
+清掃のGitOps PRは[#123](https://github.com/ksera524/k8s_myHome/pull/123)、最終配備確認は本節に記録。通常のmedia importは実行しておらず、手動Jobの見本だけを上記検証済みmedia digestへ更新した。

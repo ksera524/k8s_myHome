@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: import
-        image: harbor.qroksera.com/sandbox/hitomi-pdf-batch@sha256:b5de462ed830998a79d4dedb95b82df1adb2868d64c569278474b888a06572c2
+        image: harbor.qroksera.com/sandbox/hitomi-pdf-batch@sha256:a196f9df2fb7537790206a0087db70e0529ba8d278e8c4dfb219fb70d7721b93
         command:
         - /app/hitomi-pdf-batch
         args:
