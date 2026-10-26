@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -82,9 +83,9 @@ def pvc_report(fetch):
     return lines
 
 
-def query(base, expression, end):
+def query(base, expression, end, timeout=20):
     params = urllib.parse.urlencode({'query': expression, 'time': end.timestamp()})
-    with urllib.request.urlopen(base.rstrip('/') + '/api/v1/query?' + params, timeout=20) as response:
+    with urllib.request.urlopen(base.rstrip('/') + '/api/v1/query?' + params, timeout=timeout) as response:
         data = json.load(response)
     if data.get('status') != 'success' or data.get('data', {}).get('resultType') != 'vector':
         raise ValueError('metrics API の応答が不正')
@@ -100,6 +101,21 @@ def summarize(rows):
     return f'{sum(float(r["value"][1]) > 0 for r in rows)} / {len(rows)} 対象'
 
 
+def historical_rows(fetch, labels, expression, end):
+    # Podの入れ替わりで増えた全系列を7日分同時展開しない。
+    # 各区間は同じ5分刻みで評価し、異常値の最大と観測対象の和集合を取る。
+    merged = {}
+    names = labels.split(',')
+    query_expression = f'max by ({labels}) (max_over_time(({expression})[1d:5m]))'
+    for day in range(7):
+        rows = fetch(query_expression, end - dt.timedelta(days=day))
+        for row in rows:
+            key = tuple(row.get('metric', {}).get(name, '') for name in names)
+            merged[key] = max(merged.get(key, 0), float(row['value'][1]))
+    return [{'metric': dict(zip(names, key)), 'value': [end.timestamp(), str(value)]}
+            for key, value in sorted(merged.items())]
+
+
 def report(fetch, end):
     jst = dt.timezone(dt.timedelta(hours=9))
     start = end - dt.timedelta(days=7)
@@ -109,7 +125,7 @@ def report(fetch, end):
     errors = []
     for title, labels, expr in CHECKS:
         try:
-            rows = fetch(f'max by ({labels}) (max_over_time(({expr})[7d:5m]))')
+            rows = historical_rows(fetch, labels, expr, end)
             lines.append(f'• {title}: {summarize(rows)}')
         except Exception:
             # URL や認証情報を含み得る例外本文はログ・Slack に出さない。
@@ -147,7 +163,18 @@ def main():
     args = parser.parse_args()
     end = dt.datetime.now(dt.timezone.utc)
     base = os.environ.get('VICTORIA_METRICS_URL', 'http://victoria-metrics:8428')
-    text, errors = report(lambda expr: query(base, expr, end), end)
+    # Kubernetesの420秒期限内にSlack送信・終了する余裕を残す。
+    deadline = time.monotonic() + 360
+
+    def fetch(expression, at=end):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('report query budget exhausted')
+        return query(base, expression, at, timeout=min(20, remaining))
+
+    text, errors = report(fetch, end)
+    for title in errors:
+        print(f'週次集計の取得失敗: {title}', file=sys.stderr)
     if args.dry_run:
         print(text)
     else:
