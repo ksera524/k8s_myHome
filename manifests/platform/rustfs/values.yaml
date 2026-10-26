@@ -1,5 +1,14 @@
 replicaCount: 1
 
+# 観測値と反映後の確認方法: docs/resource-sizing.md
+resources:
+  requests:
+    cpu: 100m
+    memory: 1536Mi
+  limits:
+    # メモリは制限し、CPU は転送時にノードの余力を利用する。
+    memory: 3Gi
+
 mode:
   standalone:
     enabled: true
