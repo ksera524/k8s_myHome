@@ -76,6 +76,8 @@ metadata:
     app: api-hub
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: api-hub
@@ -103,6 +105,10 @@ spec:
       - name: api-hub
         image: harbor.qroksera.com/sandbox/api-hub:latest
         imagePullPolicy: Always
+        command:
+        - /api-hub
+        args:
+        - --serve
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
