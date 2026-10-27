@@ -9,5 +9,4 @@ resources:
   - hitomi-pdf-app.yaml
   - hitomi-upload-viewer-app.yaml
   - home-camera-app.yaml
-  - selenium-app.yaml
   - rsshub-app.yaml
