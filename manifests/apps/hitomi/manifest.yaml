@@ -85,6 +85,27 @@ spec:
             app: hitomi-monitor
             database.k8s-myhome.local/shared-postgresql: 'true'
         spec:
+          # native sidecar は準備完了後に収集を開始し、Job 終了時に停止する。
+          initContainers:
+          - name: selenium
+            image: selenium/standalone-chrome:155.0-20261010
+            restartPolicy: Always
+            startupProbe:
+              exec:
+                command: ["/opt/bin/check-grid.sh", "--host", "127.0.0.1"]
+              periodSeconds: 5
+              timeoutSeconds: 5
+              failureThreshold: 60
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: "1"
+                memory: 2Gi
+            volumeMounts:
+            - name: selenium-shm
+              mountPath: /dev/shm
           containers:
           - name: hitomi-monitor
             image: harbor.qroksera.com/sandbox/hitomi:latest
@@ -100,7 +121,7 @@ spec:
             - name: LOG_LEVEL
               value: INFO
             - name: SELENIUM_COMMAND_EXECUTOR
-              value: http://selenium-standalone-chrome.tools:4444/wd/hub
+              value: http://127.0.0.1:4444/wd/hub
             - name: TMPDIR
               value: /tmp
             - name: WRAPPER_API_BASE_URL
@@ -122,6 +143,10 @@ spec:
                 name: application-postgresql
           restartPolicy: Never
           volumes:
+          - name: selenium-shm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 1Gi
           - name: tmp
             emptyDir: {}
           - name: database-ca

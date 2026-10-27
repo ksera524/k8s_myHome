@@ -2,8 +2,9 @@
 
 アプリ実体は [apps/](../manifests/apps/)、公開経路は [access/](../manifests/access/) に置きます。
 Application の namespace と source は [一覧](diagrams/app-of-apps-sync-wave.md) が参照先です。
-現在のユーザーアプリは api-hub、blog、cooklog、hitomi、hitomi-pdf、hitomi-upload-viewer、home-camera、rsshub、selenium。
-selenium は `tools`、それ以外は `sandbox` に配置します。
+現在のユーザーアプリは api-hub、blog、cooklog、hitomi、hitomi-pdf、hitomi-upload-viewer、home-camera、rsshub。
+すべて `sandbox` に配置します。Selenium は独立アプリではなく、hitomi の収集 Job 内でのみ起動します。
+起動待ち・終了・切替手順は [Selenium の非常駐化](hitomi-selenium-sidecar.md) を参照してください。
 
 ## 新規追加
 

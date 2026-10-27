@@ -96,12 +96,22 @@ class NetworkPolicyTests(unittest.TestCase):
                            {'app.kubernetes.io/component': 'runner-scale-set-listener'}]:
                 self.assertTrue(allowed('arc-systems', labels, 'Egress', '', {}, ip, port))
 
-    def test_webdriver_and_cache_require_correct_client(self):
-        for src, dstns, dst, port in [('hitomi-monitor', 'tools', 'selenium-standalone-chrome', 4444),
-                                    ('rsshub', 'sandbox', 'rsshub-redis', 6379)]:
+    def test_cache_requires_correct_client(self):
+        for src, dstns, dst, port in [('rsshub', 'sandbox', 'rsshub-redis', 6379)]:
             self.assertTrue(allowed('sandbox', {'app': src}, 'Egress', dstns, {'app': dst}, '10.244.1.2', port))
             self.assertTrue(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': src}, '10.244.1.3', port))
             self.assertFalse(allowed(dstns, {'app': dst}, 'Ingress', 'sandbox', {'app': 'unrelated'}, '10.244.1.3', port))
+
+    def test_webdriver_is_pod_local_and_browser_keeps_web_egress(self):
+        # 同一 Pod の loopback はポリシー対象外。他 Pod からの WebDriver は許可しない。
+        for client in ['unrelated', 'hitomi-monitor']:
+            self.assertFalse(allowed('sandbox', {'app': 'hitomi-monitor'}, 'Ingress',
+                                     'sandbox', {'app': client}, '10.244.1.3', 4444))
+        self.assertFalse(allowed('sandbox', {'app': 'hitomi-monitor'}, 'Egress',
+                                 'tools', {'app': 'selenium-standalone-chrome'}, '10.244.1.2', 4444))
+        for port in [80, 443]:
+            self.assertTrue(allowed('sandbox', {'app': 'hitomi-monitor'}, 'Egress', '', {}, '1.1.1.1', port))
+        self.assertFalse(allowed('sandbox', {'app': 'hitomi-monitor'}, 'Egress', '', {}, '192.168.10.4', 80))
 
     def test_hitomi_pdf_can_reach_rsshub_via_gateway_only_on_https(self):
         client = {'app': 'hitomi-pdf-monitor'}

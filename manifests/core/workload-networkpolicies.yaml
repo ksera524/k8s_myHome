@@ -377,52 +377,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-webdriver-egress
-  namespace: sandbox
-spec:
-  podSelector:
-    matchLabels:
-      app: hitomi-monitor
-  policyTypes:
-  - Egress
-  egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: tools
-      podSelector:
-        matchLabels:
-          app: selenium-standalone-chrome
-    ports:
-    - protocol: TCP
-      port: 4444
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-webdriver-ingress
-  namespace: tools
-spec:
-  podSelector:
-    matchLabels:
-      app: selenium-standalone-chrome
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: sandbox
-      podSelector:
-        matchLabels:
-          app: hitomi-monitor
-    ports:
-    - protocol: TCP
-      port: 4444
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: allow-api-hub-clients-egress
   namespace: sandbox
 spec:
@@ -552,34 +506,6 @@ spec:
       - hitomi-monitor
       - hitomi-pdf-monitor
       - rsshub
-  policyTypes:
-  - Egress
-  egress:
-  - to:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-        except:
-        - 10.0.0.0/8
-        - 172.16.0.0/12
-        - 192.168.0.0/16
-        - 127.0.0.0/8
-        - 169.254.0.0/16
-        - 100.64.0.0/10
-    ports:
-    - protocol: TCP
-      port: 80
-    - protocol: TCP
-      port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-public-web
-  namespace: tools
-spec:
-  podSelector:
-    matchLabels:
-      app: selenium-standalone-chrome
   policyTypes:
   - Egress
   egress:

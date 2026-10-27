@@ -23,8 +23,8 @@
 | NGINX Gateway | sandbox の公開アプリ（80 / 3000 / 1200）、Harbor core / portal:8080 |
 | home-camera / hitomi-pdf | api-hub:3000（hitomi-pdf も内部 Service を使用） |
 | api-hub | RustFS:9000、外部 HTTP/HTTPS（Slack 等） |
-| hitomi-monitor | Selenium:4444、外部 HTTP/HTTPS |
-| hitomi-pdf / rsshub / Selenium | 外部 HTTP/HTTPS |
+| hitomi-monitor（Selenium sidecar を含む） | 外部 HTTP/HTTPS。WebDriver は同一 Pod の loopback:4444 |
+| hitomi-pdf / rsshub | 外部 HTTP/HTTPS |
 | hitomi-pdf | Gateway:443（内部 RSSHub URL） |
 | rsshub | rsshub-redis:6379 |
 | home-camera | 192.168.10.4:554/TCP と RTSP の RTP/RTCP 用 UDP 1024–65535（同カメラからの受信も許可） |
@@ -86,10 +86,13 @@ Git 修正の反映後に撤去します。controller 全停止は全ポリシ�
 - hitomi-pdf から `https://rsshub.internal.qroksera.com/twivideo/ranking` を取得できる。
 - api-hub の S3 操作、RSSHub のキャッシュ、hitomi の Selenium 操作、カメラ収録が成功する。
 - Runner を起動して GitHub 接続・依存取得・Harbor push、Harbor の DB 接続と Trivy 更新が成功する。
-- 無関係な sandbox Pod から Selenium、Redis、API Server、LAN への通信が失敗する。
+- 無関係な sandbox Pod から hitomi Pod の WebDriver:4444、Redis、API Server、LAN への通信が失敗する。
 - controller/listener から API 接続が成功し、runner から API Service / Control Plane の両アドレスへの接続が失敗する。
 - 許可されていない Pod の外向き TCP 443 と、許可された Pod の外向き TCP 22 が失敗する。
 - api-hub Service が ClusterIP であり、ノードの旧 32001/TCP から到達できない。
 
 これらの実測は宣言の静的検証では代替できません。ノード自身や hostNetwork Pod に対する標準 NetworkPolicy の制約も考慮します。
 公式の [NetworkPolicy の動作](https://kubernetes.io/docs/concepts/services-networking/network-policies/) も参照してください。
+
+Selenium の Service と tools 向け WebDriver 許可は廃止しました。同一 Pod の loopback 通信に
+NetworkPolicy の追加許可は不要です。ブラウザも hitomi Pod の外向き通信許可を共有します。

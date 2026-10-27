@@ -1,6 +1,6 @@
 # Application と Sync Wave
 
-2026-10-23 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
+2026-10-27 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
 root は [bootstrap-root](../../manifests/bootstrap/app-of-apps.yaml) で、source は `manifests/bootstrap/applications` です。
 
 ## 管理構造
@@ -61,7 +61,6 @@ wave は root が作成・更新する Application の annotation です。別 A
 | 12 | [hitomi-upload-viewer](../../manifests/bootstrap/applications/user-apps/hitomi-upload-viewer-app.yaml) | `apps` | [manifests/apps/hitomi-upload-viewer](../../manifests/apps/hitomi-upload-viewer) | `sandbox` |
 | 12 | [home-camera](../../manifests/bootstrap/applications/user-apps/home-camera-app.yaml) | `apps` | [manifests/apps/home-camera](../../manifests/apps/home-camera) | `sandbox` |
 | 12 | [rsshub](../../manifests/bootstrap/applications/user-apps/rsshub-app.yaml) | `apps` | [manifests/apps/rsshub](../../manifests/apps/rsshub) | `sandbox` |
-| 12 | [selenium](../../manifests/bootstrap/applications/user-apps/selenium-app.yaml) | `apps` | [manifests/apps/selenium](../../manifests/apps/selenium) | `tools` |
 | 13 | [api-hub-access](../../manifests/bootstrap/applications/access/api-hub-access.yaml) | `access` | [manifests/access/api-hub](../../manifests/access/api-hub) | `sandbox` |
 | 13 | [argocd-access](../../manifests/bootstrap/applications/access/argocd-access.yaml) | `access` | [manifests/access/argocd](../../manifests/access/argocd) | `argocd` |
 | 13 | [blog-access](../../manifests/bootstrap/applications/access/blog-access.yaml) | `access` | [manifests/access/blog](../../manifests/access/blog) | `sandbox` |
@@ -119,3 +118,6 @@ Harbor は内部 Gateway 経由に統一し、cloudflared は撤去しました�
 ExternalSecret は既存の config-secrets から供給します。Image Updater は許可したアプリの `latest` digest を
 Kustomization に Git write-back し、wave 12 のアプリが Git 差分を同期します。
 Runner に Deployment / CronJob の変更権限はありません。
+
+Selenium は独立 Application を廃止し、hitomi-monitor CronJob の native sidecar として起動します。
+切替と検証は [Selenium の非常駐化](../hitomi-selenium-sidecar.md) を参照してください。
