@@ -101,6 +101,7 @@ arc-controller は wave の明示なし、prune false。Runner template は wave
 - CRD → controller / Custom Resource。cert-manager 本体と設定は同じ wave 7 です。
 - ESO → config-secrets → 証明書や workload が使う Secret。
 - PGO → shared-postgresql → 資格情報・CA・復元マーカー → Harbor。
+  shared-postgresql の通常同期後は PostSync Job が資格情報・CAを反映し、以降は30分ごとの CronJob が再確認します。
 - workload → HTTPRoute → DNS / Tunnel。Gateway の Programmed と実クライアントの疎通を確認します。
 
 Application を変更したら、この一覧・Runner 表・関連する運用ページを合わせて更新します。

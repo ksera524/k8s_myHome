@@ -20,7 +20,7 @@ PUBLIC の各アプリDBの CONNECT / TEMP、postgres CONNECT を取り消しま
 
 アプリ主処理のpool上限はapi-hub API/配送共有3、media API3/worker2/planner2、hitomi収集2/outbox2で合計14（変更前18）。cameraはDB接続しない。
 API・media worker・outboxはRecreate、cameraは単一StatefulSet。media APIのrollout時に3接続が一時追加され17、3つのmigration Job各1接続を含め20。
-明示media import2・毎時reconcile2・資格情報Jobのapp確認1・Harbor rollout40・Grafana5を加えた最大見積りは70（変更前78）。app上限80/クラスタ100を維持し、appの残りは10接続。追加Job/replicaはこの予算に含め直す。
+明示media import2・毎時reconcile2・資格情報Jobのapp確認2（定期実行と同期Hookが重なる場合）・Harbor rollout40・Grafana5を加えた最大見積りは71。app上限80/クラスタ100を維持し、appの残りは9接続。追加Job/replicaはこの予算に含め直す。
 2026-10-24のapp接続3（idle）/DBコンテナ約368MiBは過去の待機時の値であり、新構成のピーク実測とは扱わない。
 
 sandboxでは `application-postgresql` SecretのPGPASSWORDを使い、Podに `database.k8s-myhome.local/shared-postgresql: "true"` を付けてNetworkPolicyを通す。
@@ -30,16 +30,35 @@ Secretの入力は既存の `postgresql.password` のみで、外部Secret管理
 ## 資格情報の反映
 
 ESC の `postgresql.admin_password` / `postgresql.password` を ESO が入力 Secret に配布します。
-[postgresql-credentials](../manifests/platform/shared-postgresql/credentials.yaml) は 2 分ごとに動き、
+[postgresql-credentials](../manifests/platform/shared-postgresql/credentials.yaml) は 30 分ごとに動き、
 [reconcile.py](../manifests/platform/shared-postgresql/scripts/reconcile.py) が次を実行します。
 
 1. 入力が変わった場合だけ PGO の postgres / app Secret の password を patch し verifier を解除。
 2. PGO の公開 CA を harbor / observability / sandbox の `shared-postgresql-ca` ConfigMap に配布。
 3. 管理接続で bootstrap SQL を実行し、app / registry への TLS 接続を確認。
 
+定期実行は最大720回/日から48回/日へ減らす。初期構築で次の定期実行を待たないよう、
+ArgoCD の通常同期後にも `postgresql-credentials-sync` PostSync Job で同じ処理を1回実行する。
+Job の spec は Kustomize が CronJob の template からコピーし、イメージ・設定・権限の差分を防ぐ。
+Selective Sync は Hook を実行しないため、初期反映は Application 全体を同期する。
+
 PGO の生成 Secret は ESO の所有物に変更しません。Job は復元マーカーを作成・変更しません。
 資格情報ローテーションは利用アプリの停止、ESC 更新、ESO と Job の成功、再接続の順に計画します。
 Harbor は現行 Reloader の監視範囲外なので、Secret 更新だけで自動再起動するとは扱いません。
+
+ローテーション時は `postgresql-input` への ESO 反映後、定期実行を待たずに同じ template から Job を作れる。
+通常同期の Hook が成功していれば追加実行は不要。既存の資格情報 Job が実行中なら終了を待ち、
+手動 Job は1つずつ実行する。CronJob の Forbid は Hook / 手動 Job との重複を防がない。
+
+```bash
+credentials_job="postgresql-credentials-manual-$(date -u +%Y%m%d%H%M%S)"
+kubectl -n database create job "$credentials_job" --from=cronjob/postgresql-credentials
+kubectl -n database wait --for=condition=complete "job/$credentials_job" --timeout=360s
+kubectl -n database logs "job/$credentials_job"
+```
+
+失敗時は Job / Pod の状態とログを確認し、利用側の再開は成功確認後に行う。
+定期 Job には最大30分の待ち時間がある。上記の即時実行と、PGO の反映完了・利用側の再接続は別に確認する。
 
 ## 管理端末から接続する
 

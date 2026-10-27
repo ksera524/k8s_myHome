@@ -14,3 +14,14 @@ configMapGenerator:
     files:
       - scripts/reconcile.py
       - scripts/bootstrap.sql
+replacements:
+  - source:
+      kind: CronJob
+      name: postgresql-credentials
+      fieldPath: spec.jobTemplate.spec
+    targets:
+      - select:
+          kind: Job
+          name: postgresql-credentials-sync
+        fieldPaths:
+          - spec

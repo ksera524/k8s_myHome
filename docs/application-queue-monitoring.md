@@ -13,6 +13,18 @@ PodのReadyと業務の完了を別々に監視する。既存VictoriaMetricsの
 NetworkPolicyはobservabilityのVictoriaMetricsから対象portへの接続を許可する。
 通知本文・保存キー・URL・IDはmetricsやalertのラベルに含めない。
 
+## キュー確認の待機
+
+api-hub の通知task、hitomi の outbox、media worker は、処理開始時にまず確認する。
+空キュー・DB接続エラー等では待機を1→2→4→8→16→30秒へ延ばし、1件処理すると1秒へ戻す。
+行ごとの再試行日時・lease・heartbeat・通知の冪等性は従来のまま維持する。
+待機中に新着や再試行期限が到来した場合、次の確認まで最大約30秒かかる（DB・外部処理時間は別）。
+hitomi outbox から api-hub 配送までの2段階では、両方が空なら待機が合計約60秒になる場合がある。
+
+長時間空の状態でのキュー確認は、各workerで約86400回/日から約2880回/日へ減る計算。
+これは確認ループ回数の見積りで、SQL総数・実測CPUの削減率ではない。
+監視の30秒scrapeと毎時media reconcile、収集CronJobの頻度は変更しない。
+
 ## メトリクスとアラート
 
 - `application_queue_jobs{queue,state}`: 状態別の件数。存在しない状態も0を返す。
