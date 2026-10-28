@@ -6,6 +6,6 @@ resources:
 
 images:
   - name: harbor.qroksera.com/sandbox/blog
-    newTag: latest
+    newTag: deploy
     newName: harbor.qroksera.com/sandbox/blog
-    digest: sha256:1c903bf21e6e984ef0e0e46a717eaa6aae1c1947e720109af2cbfa084076dd10
+    digest: sha256:48685afc0218934dcb862af3f4f9f5796fc66c1d53130f2c3b3fca59b3ffed6c
