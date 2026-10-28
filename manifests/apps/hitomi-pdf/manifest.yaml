@@ -243,6 +243,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  # 切戻し用に旧PVCを保持。workerはmountしない。
   name: media-worker-tmp
   namespace: sandbox
 spec:
@@ -290,7 +291,9 @@ spec:
         - --worker
         env:
         - name: MAX_ASSET_BYTES
-          value: '10737418240'
+          value: '5368709120'
+        - name: SPOOL_MIN_FREE_BYTES
+          value: '4294967296'
         - name: WRAPPER_API_BASE_URL
           value: http://api-hub.sandbox.svc:3000
         - name: RUSTFS_S3_BUCKET
@@ -309,11 +312,11 @@ spec:
           requests:
             cpu: 50m
             memory: 128Mi
-            ephemeral-storage: 128Mi
+            ephemeral-storage: 5Gi
           limits:
             cpu: 300m
             memory: 512Mi
-            ephemeral-storage: 1Gi
+            ephemeral-storage: 7Gi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -336,8 +339,8 @@ spec:
         configMap:
           name: shared-postgresql-ca
       - name: tmp
-        persistentVolumeClaim:
-          claimName: media-worker-tmp
+        emptyDir:
+          sizeLimit: 6Gi
   strategy:
     type: Recreate
 ---
@@ -390,6 +393,88 @@ spec:
             - /app/hitomi-pdf-batch
             args:
             - --reconcile
+            env:
+            - name: WRAPPER_API_BASE_URL
+              value: http://api-hub.sandbox.svc:3000
+            - name: RUSTFS_S3_BUCKET
+              value: pdfs
+            - name: TZ
+              value: Asia/Tokyo
+            - name: PUBLIC_API_BASE_URL
+              value: https://api-hub.internal.qroksera.com
+            - name: MEDIA_DIRECT_DELIVERY
+              value: 'true'
+            - name: PGDATABASE
+              value: media
+            - name: PGPOOL_MAX
+              value: '2'
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 300m
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            envFrom:
+            - configMapRef:
+                name: application-postgresql
+            - secretRef:
+                name: application-postgresql
+            volumeMounts:
+            - name: database-ca
+              mountPath: /etc/postgresql
+              readOnly: true
+          volumes:
+          - name: database-ca
+            configMap:
+              name: shared-postgresql-ca
+          restartPolicy: Never
+  timeZone: Asia/Tokyo
+  suspend: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: media-verify-objects
+  namespace: sandbox
+spec:
+  schedule: 40 4 * * *
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: hitomi-pdf-monitor
+            database.k8s-myhome.local/shared-postgresql: 'true'
+        spec:
+          automountServiceAccountToken: false
+          imagePullSecrets:
+          - name: harbor-registry
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: verify-objects
+            image: harbor.qroksera.com/sandbox/hitomi-pdf-batch:latest
+            command:
+            - /app/hitomi-pdf-batch
+            args:
+            - --verify-objects
             env:
             - name: WRAPPER_API_BASE_URL
               value: http://api-hub.sandbox.svc:3000
