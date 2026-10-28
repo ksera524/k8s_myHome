@@ -7,7 +7,7 @@
 | 対象 | 起動・責任 |
 |---|---|
 | api-hub | 1 replica/Recreate。`/api-hub --serve`でHTTP APIと1本の通知配送task、PgPool共有3、終了猶予90秒 |
-| media | `--serve`（カタログ）、`--worker`（取得）、`--plan [YYYYMMDD]`（JST前日が既定）、`--reconcile`（毎時照合） |
+| media | `--serve`（カタログ）、`--worker`（取得）、`--plan [YYYYMMDD]`（JST前日が既定）、`--reconcile`（毎時の期限整理）、`--verify-objects`（日次の存在確認） |
 | hitomi | DB必須の通常収集をJST 02:55/06:55/10:55/14:55/18:55/22:55。`--dispatch`は永続受付まで |
 | camera | 単一StatefulSet/PVCの別containerで`--record`/`--upload`。JST 19:00〜翌09:00、DB不要 |
 
@@ -45,3 +45,5 @@ Image Updaterの対象を一時停止してから旧digestと対応する設定�
 - media/viewer: catalogの読み取りを維持し、必要なら`MEDIA_DIRECT_DELIVERY=false`とHTTPS proxyへ戻す。新形式動画を旧日付一覧だけで完全表示できるとは扱わない。
 
 過去の初回配備確認は[2026-10-25記録](application-deployment-verification-20261025.md)と各`application-cutover-*.md`に保持する。旧切替exampleは履歴であり、現行manifestは`manifests/apps/`が正本。
+
+mediaの毎時・日次処理分離とローカル一時領域への移行は[測定・反映手順](media-storage-optimization.md)を参照。
