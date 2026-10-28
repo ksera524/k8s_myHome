@@ -84,7 +84,7 @@ class RetentionTests(unittest.TestCase):
 
     def test_policy_keeps_other_repos_and_only_selected_pilot_digests(self):
         result = MODULE.policy(1, 'api-hub', [d(1), d(2), d(3)])
-        self.assertEqual(result['trigger']['kind'], 'Manual')
+        self.assertEqual(result['trigger']['kind'], '')
         self.assertEqual(result['algorithm'], 'or')
         targeted, other = result['rules']
         self.assertEqual(targeted['template'], 'always')

@@ -120,7 +120,8 @@ def policy(project_id, repository, keep):
     tags = ['retain-' + d[7:] for d in keep]
     pattern = tags[0] if len(tags) == 1 else '{' + ','.join(tags) + '}'
     return {'algorithm': 'or', 'scope': {'level': 'project', 'ref': project_id},
-            'trigger': {'kind': 'Manual'},
+            # Harborの更新APIは非定期実行を空kindで表す（Manualは更新時に拒否される）。
+            'trigger': {'kind': ''},
             'rules': [rule('repoMatches', pattern),
                       rule('repoExcludes', '**')]}
 
@@ -174,7 +175,7 @@ def quota_limit(quota, proposed):
 def canonical(value):
     # Harborが採番するidを除いて、レビューしたpolicyと現在値を比較する。
     if isinstance(value, dict):
-        return {k: ({'kind': 'Manual'} if k == 'trigger' and v.get('kind') == 'Manual' else canonical(v))
+        return {k: ({'kind': ''} if k == 'trigger' and v.get('kind', '') in ('', 'Manual') else canonical(v))
                 for k, v in value.items()
                 if k != 'id' and not (k == 'priority' and v == 0)
                 and not (k == 'disabled' and v is False)
@@ -259,7 +260,7 @@ def main():
         existing = client.request('GET', f'/retentions/{policy_id}')
         if not args.replace_policy or json.loads(args.replace_policy.read_text()) != existing:
             raise RuntimeError('既存policyがあります。GET結果をレビューして--replace-policyで指定してください')
-        if existing.get('trigger', {}).get('kind') != 'Manual':
+        if existing.get('trigger', {}).get('kind', '') not in ('', 'Manual'):
             raise RuntimeError('既存の定期保持処理を停止してから再実行してください')
     if policy_id and any(e['status'] in ('Pending', 'Running')
                          for e in client.pages(f'/retentions/{policy_id}/executions')):
