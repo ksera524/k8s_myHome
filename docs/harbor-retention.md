@@ -36,7 +36,8 @@ CronJobだけのアプリを追加した場合は正常判定の追加が必要�
 
 1. Leaseと`concurrencyPolicy: Forbid`で多重実行を防止。前回のHarbor保持処理が実行中ならタグを変更しません。
 2. Kubernetesを読み取り、正常版を確認。前版→現在版→配布タグの順で更新し、途中終了後も再試行できます。
-3. Harbor標準保持ルールを更新し、標準dry run成功後に標準保持を実行します。独自のartifact削除ループは使いません。
+3. Harbor標準保持ルールを更新し、削除候補がある回だけ標準dry run成功後に標準保持を実行します。
+   候補がない回は状態確認だけで終了し、不要なHarbor Job履歴を増やしません。独自のartifact削除ループは使いません。
    判定不能repoは全保持。他repoの保守は進めます。保持処理の単独スケジュールは設定しません。
 4. Harbor標準GCを毎日03:30 JSTに設定・修復します。`delete_untagged=false`、workers=1。
    未タグartifactをGC独自判断で消さず、保持処理が削除したblobを回収します。新規uploadの2時間の保護窓を維持します。

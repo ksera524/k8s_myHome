@@ -117,6 +117,9 @@ workflowのYAMLデータが整形前後で一致すること、actionlint成功�
 
 ### 回帰検証
 
-保持・切り戻し・OCI index・旧Job・多重起動・Lease初期化・GC設定の14テストが成功。
+保持・切り戻し・OCI index・旧Job・多重起動・Lease初期化・GC設定・削除候補なしの省略を含む16テストが成功。
 停止アラートのpromtoolテスト、全体の`automation/scripts/ci/validate.sh`も成功した。
 全repoの変更workflowはactionlintで検証済み。
+
+定期確認で削除候補がない場合はHarbor保持Jobを作らず終了するよう調整した。
+状態確認・配布の昇格・GC予約の修復は5分ごとに継続し、保持履歴の無駄な増加を抑える。

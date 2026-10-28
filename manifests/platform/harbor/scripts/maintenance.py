@@ -206,6 +206,7 @@ def reconcile(client, config, applications, items, dry_run=False):
     if policy_id and any(e['status'] in ('Pending', 'Running') for e in client.pages(f'/retentions/{policy_id}/executions')):
         raise RuntimeError('前回の保持処理が実行中')
     eligible, blocked, archived = [], [], []
+    delete_count = 0
     repos = client.pages(f'/projects/{project}/repositories')
     names = {r['name'].split('/', 1)[1] for r in repos}
     unknown = names - config['repositories'].keys()
@@ -221,6 +222,7 @@ def reconcile(client, config, applications, items, dry_run=False):
                 if any(project + '/' + name in json.dumps(i.get('spec', {})) for i in items):
                     raise ValueError('archive対象を参照するworkloadを検出')
                 archived.append(name)
+                delete_count += max(0, len(artifacts) - 3)
                 emit(repository=name, status='archived-latest-3')
                 continue
             if settings.get('preserve'):
@@ -253,6 +255,7 @@ def reconcile(client, config, applications, items, dry_run=False):
             if len(keep) > 3:
                 raise ValueError('公開・配布待ちで3世代超過、今回は全保持')
             eligible.append(name)
+            delete_count += len(artifacts) - len(keep)
             emit(repository=name, healthy=healthy, roles=existing, keep=sorted(keep), status='eligible')
         except (ValueError, KeyError) as exc:
             blocked.append(name)
@@ -264,9 +267,11 @@ def reconcile(client, config, applications, items, dry_run=False):
         else:
             client.request('POST', '/retentions', policy)
             policy_id = int(client.request('GET', f'/projects/{project}')['metadata']['retention_id'])
-        execute(client, policy_id, True)
-        execute(client, policy_id, False)
-    emit(eligible=eligible, blocked=blocked, dry_run=dry_run)
+        # 不要な実行履歴・Jobを毎回作らず、削除候補がある回だけ標準保持を実行する。
+        if delete_count:
+            execute(client, policy_id, True)
+            execute(client, policy_id, False)
+    emit(eligible=eligible, blocked=blocked, delete_candidates=delete_count, dry_run=dry_run)
     return not blocked
 
 

@@ -163,5 +163,37 @@ class RuntimeRegressionTests(unittest.TestCase):
         self.assertEqual(calls[-1][1]['spec']['holderIdentity'], '')
 
 
+class NoOpTests(unittest.TestCase):
+    def check_reconcile(self, extra):
+        from unittest.mock import patch
+        artifacts = [{'digest': digest(1), 'type': 'IMAGE', 'push_time': '2026-10-28',
+                      'tags': [{'name': n} for n in ('latest', 'deploy', 'retain-current')]}]
+        if extra:
+            artifacts.append({'digest': digest(2), 'type': 'IMAGE', 'push_time': '2026-10-27', 'tags': []})
+        class Harbor:
+            def request(self, method, path, payload=None):
+                if method == 'GET' and path == '/projects/sandbox':
+                    return {'project_id': 2, 'metadata': {'retention_id': 1}}
+                if method == 'PUT' and path == '/retentions/1': return None
+                raise AssertionError((method, path))
+            def pages(self, path):
+                if path.endswith('/executions'): return []
+                if path.endswith('/repositories'): return [{'name': 'sandbox/test'}]
+                if '/artifacts?' in path: return artifacts
+                raise AssertionError(path)
+        client = Harbor()
+        with patch.object(m, 'observe', return_value=digest(1)), patch.object(m, 'emit'), patch.object(m, 'execute') as execute:
+            self.assertTrue(m.reconcile(client, {'project': 'sandbox', 'repositories': {'test': {'application': 'test'}}}, {'test': {}}, []))
+            return execute.call_args_list
+
+    def test_stable_repositories_do_not_create_harbor_execution_history(self):
+        self.assertEqual(self.check_reconcile(False), [])
+
+    def test_obsolete_artifact_still_runs_standard_dry_run_then_deletion(self):
+        calls = self.check_reconcile(True)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual([c.args[2] for c in calls], [True, False])
+
+
 if __name__ == '__main__':
     unittest.main()
