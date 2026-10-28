@@ -2,7 +2,7 @@
 
 ## 状態
 
-2026-10-29 07:32 JST: アプリ・GitOps設定の本番反映と稼働確認を完了。日次確認Jobの初回定期実行と、ローカル一時領域での通常取得は未確認。
+2026-10-29: 本番反映、存在確認Jobの手動実行、ローカル一時領域での通常取得を確認済み。旧NFS一時領域への切戻し設定を撤去する。
 アプリ変更は隣接するhitomi-pdf-batch、GitOps変更はmanifests/apps/hitomi-pdf/manifest.yaml。
 
 ## 測定根拠
@@ -33,8 +33,7 @@ container/image filesystemも同じ空き容量だった。一時点の値で、
   再試行は既存の最大8回、24時間整理の対象となる。恒常的な容量不足は失敗管理画面で確認する。
 - 一時ファイルは専用ディレクトリのNamedTempFile。emptyDirの走査計測から見える形式にする。
   通常終了時は削除、強制停止で残った自分のファイルは次のworker起動時に削除。
-- 旧media-worker-tmp PVCの定義は切戻し用に保持する。新workerからはmountしない。
-  PVCの要求12GiBは実使用量ではない。今回データ削除はしない。
+- 旧NFS一時領域のPVC定義は撤去する。通常の再試行・lease/intentによる復旧は維持する。
 
 ## 反映順序
 
@@ -46,8 +45,6 @@ container/image filesystemも同じ空き容量だった。一時点の値で、
    次の毎時JobでS3照合がないこと、日次Jobで完了することを確認する。
 
 worker切替時の未完了Jobは既存lease期限後に再試行する。検証目的で本番へ取得Jobを追加しない。
-切戻しはGitで/tmpを旧PVCへ戻し、旧上限・ephemeral-storage予算へ戻す。
-アプリも旧imageへ戻す場合は先に日次CronJobを停止・撤去する（旧imageは新引数を知らない）。
 DB schema変更・S3移動はない。
 
 ## 検証
@@ -57,7 +54,7 @@ DB schema変更・S3移動はない。
 - 一時領域の空き不足判定、再起動時の残骸掃除、サイズ上限（Content-Length有無）、ストリーム保存と復旧を確認。
 - `nix develop --command automation/scripts/ci/validate.sh`: 全体成功（Kustomize/Helm展開、kubeconform含む）。
 
-実ファイルをローカル一時領域へ置いた本番性能比較と、更新後の定期Job成功は未確認。
+ローカル一時領域での通常取得と存在確認Jobの手動実行は下記のとおり確認済み。本番性能の前後比較は未実施。
 
 
 ## 本番反映記録（2026-10-29）
@@ -76,8 +73,8 @@ DB schema変更・S3移動はない。
 - 毎時CronJobは20分、日次は04:40 JST、両方Forbid/suspend=false。
   新imageで07:20 JSTに実行した毎時JobはSucceeded、ログは `media queue retention: removed 0 stale jobs`。
   日次Jobは今回新設のため未実行。次回は2026-10-30 04:40 JST。
-- 旧media-worker-tmp PVCはBoundのまま保持。新workerからのmountなし。
-- 本番への試験取得・通知・日次確認の手動投入はしていない。
+- 初回反映時は旧media-worker-tmp PVCを保持した。動作確認後に定義を撤去する（下記）。
+- 初回反映時は試験取得・通知・日次確認の手動投入なし。その後、依頼により存在確認だけ1回手動実行した。
 
 ### 残る容量制約
 
@@ -89,3 +86,15 @@ DB schema変更・S3移動はない。
 
 確認時のingest_jobsはdone539/failed5。確認済み失敗4件のほか、00:53〜03:14 JSTに発生したsource_fetchの未確認失敗1件がある。
 これは07:32の一時領域切替より前の記録で、今回失敗行を成功扱い・再試行・削除していない。
+
+
+## 動作確認と移行用設定の撤去
+
+2026-10-29 08:49:44〜08:50:34 JST、`media-verify-manual-20261029` を日次CronJobから作成して1回実行。
+Succeeded / exit 0で、ready 3364件すべてのlast_verified_at更新を確認。欠損・新規エラーなし。
+切替後の通常取得は動画12件、最大967528453 bytes（約923MiB）、worker再起動0。
+
+これらの確認を受け、旧 `media-worker-tmp` PVC定義と今回の旧構成への切戻し手順を削除する。
+削除前に旧PVCを参照するPodが0件であることを確認済み。ArgoCDのpruneでPVC/PVを撤去する。
+StorageClassの既存方針はarchiveOnDelete=trueなので、NFS上の旧ディレクトリはprovisionerによるアーカイブ対象となる。
+共有StorageClassの保持方針は変更しない。通常のエラー再試行、起動時の一時ファイル掃除、lease/intent復旧は現行運用として維持する。
