@@ -2,7 +2,7 @@
 
 ## 状態
 
-2026-10-28: ローカル実装・検証済み。本番反映は未実施。
+2026-10-29 07:32 JST: アプリ・GitOps設定の本番反映と稼働確認を完了。日次確認Jobの初回定期実行と、ローカル一時領域での通常取得は未確認。
 アプリ変更は隣接するhitomi-pdf-batch、GitOps変更はmanifests/apps/hitomi-pdf/manifest.yaml。
 
 ## 測定根拠
@@ -58,3 +58,34 @@ DB schema変更・S3移動はない。
 - `nix develop --command automation/scripts/ci/validate.sh`: 全体成功（Kustomize/Helm展開、kubeconform含む）。
 
 実ファイルをローカル一時領域へ置いた本番性能比較と、更新後の定期Job成功は未確認。
+
+
+## 本番反映記録（2026-10-29）
+
+- アプリ: [PR #6](https://github.com/ksera524/hitomi-pdf-batch/pull/6)、commit `2932821`。
+  [公開CI](https://github.com/ksera524/hitomi-pdf-batch/actions/runs/40706725328)成功。
+  公開digestは `sha256:00c493e9ee33c8905b957057a678ce444325d707e3e914807cb5a2fcd47f83ec`。
+- Image Updaterのwrite-backは `6a6087f`。API/worker実imageIDとの一致を確認してからGitOpsを反映。
+- GitOps: [PR #130](https://github.com/ksera524/k8s_myHome/pull/130)、commit `9b1f046`。
+  PR全CIと[マージ後CI](https://github.com/ksera524/k8s_myHome/actions/runs/40780662204)成功。
+- ArgoCD hitomi-pdfはSynced / Healthy、同期操作Succeeded。
+- 新worker `media-worker-667696ff4f-6cpv4` は07:32:32 JST起動、Ready、再起動0。
+  実Podの/tmpはemptyDir 6GiB、MAX_ASSET_BYTES=5368709120、SPOOL_MIN_FREE_BYTES=4294967296、
+  ephemeral-storage request/limitは5GiB/7GiB。公開digestとの一致を確認。
+- API `/health` `/ready` `/metrics` はport-forward経由でHTTP200。
+- 毎時CronJobは20分、日次は04:40 JST、両方Forbid/suspend=false。
+  新imageで07:20 JSTに実行した毎時JobはSucceeded、ログは `media queue retention: removed 0 stale jobs`。
+  日次Jobは今回新設のため未実行。次回は2026-10-30 04:40 JST。
+- 旧media-worker-tmp PVCはBoundのまま保持。新workerからのmountなし。
+- 本番への試験取得・通知・日次確認の手動投入はしていない。
+
+### 残る容量制約
+
+07:32頃のworker2空きは5374558208 bytes（約5.0GiB）、imageFs使用量は約13.8GB。
+前日の測定より空きが減っている。worker自身のephemeral使用量は28672 bytesだった。
+空き4GiBを残すため、現在は約1GiBを超える取得が再試行になり得る。
+5GiBは許容上限であり、常にそのサイズを取得できる保証ではない。
+大きいファイルを継続取得するにはノードの空き容量確保が別途必要。キャッシュ削除・VMディスク拡張は今回行っていない。
+
+確認時のingest_jobsはdone539/failed5。確認済み失敗4件のほか、00:53〜03:14 JSTに発生したsource_fetchの未確認失敗1件がある。
+これは07:32の一時領域切替より前の記録で、今回失敗行を成功扱い・再試行・削除していない。
