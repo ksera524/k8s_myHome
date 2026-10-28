@@ -45,4 +45,9 @@ sha256:7106c516c588989572cd65d6506fb50bf272a44b322ae665de920d3e4820614f
 sandbox使用量は917,006,102 bytes。4 GiBの上限を維持。
 
 公開後の標準dry runはexecution ID 676でSuccess。
-GitOpsでImage Updaterとapi-hubの自動同期を元の設定へ復帰し、公開workflowも再開する。
+GitOpsでImage Updaterとapi-hubの自動同期を復帰し、公開workflowも再開した。
+自動同期は一時停止のfalseが残らないよう `enabled: true` をGitで明示した。
+Image Updaterの自動書き戻しcommitは `c383faa64421dda55fa0dbe5b0767048d69f8d66`。
+新版へのrollout完了、ApplicationのSynced/Healthy、PodのReadyを確認。
+最終的なcurrent/candidateは新版、previousは上記旧稼働版で、保持対象は2世代・削除対象0。
+公開後のdry runでは全15 artifactが保持された。
