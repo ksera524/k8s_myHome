@@ -23,6 +23,7 @@ spec:
         - /spec/template/metadata/annotations/reloader.stakater.com~1last-reloaded-from
   syncPolicy:
     automated:
+      enabled: true
       prune: true
       selfHeal: true
     syncOptions:
