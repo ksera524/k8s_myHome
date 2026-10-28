@@ -175,7 +175,10 @@ def canonical(value):
     # Harborが採番するidを除いて、レビューしたpolicyと現在値を比較する。
     if isinstance(value, dict):
         return {k: ({'kind': 'Manual'} if k == 'trigger' and v.get('kind') == 'Manual' else canonical(v))
-                for k, v in value.items() if k != 'id'}
+                for k, v in value.items()
+                if k != 'id' and not (k == 'priority' and v == 0)
+                and not (k == 'disabled' and v is False)
+                and not (k == 'params' and v == {})}
     if isinstance(value, list):
         return [canonical(v) for v in value]
     return value

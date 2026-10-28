@@ -110,7 +110,13 @@ class RetentionTests(unittest.TestCase):
         actual['id'] = 7
         actual['rules'][0]['id'] = 8
         actual['trigger']['references'] = {'job_id': 9}
+        # Harbor実APIはGoのomitemptyによりゼロ値を省略する。
+        for rule in actual['rules']:
+            for key in ('priority', 'disabled', 'params'):
+                rule.pop(key)
         self.assertEqual(MODULE.canonical(actual), MODULE.canonical(expected))
+        actual['rules'][0]['disabled'] = True
+        self.assertNotEqual(MODULE.canonical(actual), MODULE.canonical(expected))
 
     def test_harbor_pagination_reads_more_than_first_page(self):
         client = MODULE.Harbor('https://example.invalid', 'robot', 'secret')
