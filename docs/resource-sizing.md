@@ -82,3 +82,39 @@ kubectl -n harbor get deployment harbor-registry -o jsonpath='{.spec.template.sp
 通常の録画アップロード、大きめのメディア転送、イメージ push/pull、Trivy scan を含む期間で
 再計測し、待機時の小さい値だけを見て上限を下げない。
 問題があれば Git で今回の resources 変更を戻して ArgoCD 同期する。
+
+## 未設定アプリと runner の初期予算（2026-10-28）
+
+2026-10-28 10:59 JST 頃、VictoriaMetrics の直近7日を読み取りで確認した。
+上記と同じ working set 最大・CPU 2分平均最大で、旧 Pod 系列も含む。
+通常時・処理時を分離した負荷試験ではなく、短いピークや未経験の負荷は保証しない。
+
+| コンテナ | memory 最大 (MiB) | CPU 最大 (core) | CPU request | memory request / limit | ephemeral-storage request / limit |
+|---|---:|---:|---|---|---|
+| blog | 11.2 | 0.000546 | 10m | 32Mi / 128Mi | 128Mi / 512Mi |
+| cooklog | 11.2 | 0.000389 | 10m | 32Mi / 128Mi | 128Mi / 512Mi |
+| hitomi-upload-viewer | 1.2 | 0.000218 | 10m | 16Mi / 128Mi | 128Mi / 512Mi |
+| hitomi-monitor 本体 | 159.3 | 0.0581 | 100m | 256Mi / 512Mi | 1Gi / 4Gi |
+| runner（1 Pod） | 271.6 | 0.865 | 500m | 512Mi / 1Gi | 2Gi / 8Gi |
+
+上記には CPU limit を設けず、空き CPU で処理を進められるようにする。
+RustFS・Harbor・既存 Selenium の設定は維持する。
+runner 生成スクリプトは ApplicationSet の elements のみ更新するため、共通 template の予算は維持される。
+
+一時領域は現在の監視で未計測のため暫定値。
+hitomi のディスク上の `/tmp` emptyDir は 3Gi、runner の `_work` emptyDir は 6Gi に制限する。
+runner の `/tmp` はこの emptyDir の外だが、コンテナ全体の ephemeral-storage limit の対象。
+現行 hitomi workflow は GitHub 側でビルドし、runner で圧縮イメージを取得・展開し crane で push する。
+圧縮ファイルと展開 tar の同時存在を考慮し、最大イメージで両者の合計と作業領域を再計測する。
+クラスタ内でビルドする方式に変える場合は再サイジングする。
+ノードのイメージキャッシュはこの Pod limit で直接制限できず、Selenium のメモリ型 `/dev/shm` はメモリ予算となる。
+
+worker の ephemeral-storage allocatable は各約25.2GiB（空き容量ではない）。
+7系統の runner が各1 Pod 起動すると requests は CPU 3.5 core、memory 3.5Gi、
+ephemeral-storage 14Gi。limit 合計はディスク容量を超え得るため、同時起動時の空き容量と Pending / eviction を確認する。
+常駐3アプリの requests 合計は CPU 30m、memory 80Mi、ephemeral-storage 384Mi。
+
+GitOps 同期後に常駐3アプリの Ready と実 resources、CronJob の次回 Pod、
+runner の次回起動 Pod の resources を確認する。検証目的の業務 Job / workflow は起動しない。
+通常アクセス、大きな hitomi 処理、最大イメージの展開・push を含む期間で再計測し、
+OOM / eviction / Pending、応答時間・完了時間を確認して見直す。

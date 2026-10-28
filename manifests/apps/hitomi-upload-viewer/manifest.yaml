@@ -22,6 +22,14 @@ spec:
         - name: hitomi-upload-viewer
           image: harbor.qroksera.com/sandbox/hitomi-upload-viewer:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+              ephemeral-storage: 128Mi
+            limits:
+              memory: 128Mi
+              ephemeral-storage: 512Mi
           ports:
             - containerPort: 80
           env:

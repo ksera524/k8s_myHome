@@ -22,6 +22,14 @@ spec:
         - name: blog
           image: harbor.qroksera.com/sandbox/blog:0.0.1
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+              ephemeral-storage: 128Mi
+            limits:
+              memory: 128Mi
+              ephemeral-storage: 512Mi
           ports:
             - containerPort: 80
           livenessProbe:

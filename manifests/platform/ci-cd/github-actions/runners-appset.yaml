@@ -106,6 +106,14 @@ spec:
                   - name: runner
                     image: ghcr.io/actions/actions-runner:latest
                     command: ["/home/runner/run.sh"]
+                    resources:
+                      requests:
+                        cpu: 500m
+                        memory: 512Mi
+                        ephemeral-storage: 2Gi
+                      limits:
+                        memory: 1Gi
+                        ephemeral-storage: 8Gi
                     securityContext:
                       allowPrivilegeEscalation: false
                       capabilities:
@@ -118,7 +126,8 @@ spec:
                         readOnly: true
                 volumes:
                   - name: work
-                    emptyDir: {}
+                    emptyDir:
+                      sizeLimit: 6Gi
                   - name: harbor-auth
                     secret:
                       secretName: harbor-ci-auth

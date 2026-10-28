@@ -110,6 +110,14 @@ spec:
           - name: hitomi-monitor
             image: harbor.qroksera.com/sandbox/hitomi:latest
             imagePullPolicy: Always
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+                ephemeral-storage: 1Gi
+              limits:
+                memory: 512Mi
+                ephemeral-storage: 4Gi
             env:
             - name: TOKEN
               valueFrom:
@@ -148,7 +156,8 @@ spec:
               medium: Memory
               sizeLimit: 1Gi
           - name: tmp
-            emptyDir: {}
+            emptyDir:
+              sizeLimit: 3Gi
           - name: database-ca
             configMap:
               name: shared-postgresql-ca
