@@ -23,6 +23,9 @@ Application の namespace と source は [一覧](diagrams/app-of-apps-sync-wave
 
 [Runner 生成スクリプト](../automation/scripts/github-actions/add-runner.sh) は `STRATEGY=latest` のみを受け付けます。
 GitHub-hosted runner で build → artifact → ARC runner で `crane push` → Harbor の `latest` を更新します。
+生成workflowとapi-hubの先行実装は `build-<run-id>-<attempt>-<commit-sha>` タグを付け、
+default branch HEADとの一致を確認した版だけ `latest` へ昇格します。push jobはrepo単位で直列化します。
+他repoの既存workflowへの展開は、生成物の反映が必要です。
 PR イベントでは build までです。ARC runner に Docker daemon、sudo、kubectl は不要です。
 
 [Image Updater](../manifests/platform/ci-cd/image-updater/sandbox-images.yaml) が約2分間隔で
@@ -44,6 +47,7 @@ Git に digest が残るため、履歴から配布イメージを特定でき�
 ロールバックは、まず対象の `applicationRefs` を Git で一時的に外して同期し、自動更新を止めてから
 Kustomization の digest を戻します。停止せず revert すると、`latest` の digest に再更新されます。
 再開時は対象を `applicationRefs` に戻します。Harbor の保持ポリシーでもロールバック対象の digest を残してください。
+保持契約と保守手順は [Harborの3世代保持](harbor-retention.md) を参照してください。
 
 ## 既存 CI からの移行
 

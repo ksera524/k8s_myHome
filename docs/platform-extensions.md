@@ -31,9 +31,10 @@ PostSync の `rustfs-lifecycle` Job を持ちます。
 
 ## Harbor cleanup
 
-[harbor-image-cleanup-cronjob.yaml](../manifests/platform/harbor/harbor-image-cleanup-cronjob.yaml) は
-Harbor Application に含まれる削除処理です。対象プロジェクト・保持条件・schedule はこの manifest で確認します。
-手動実行を単なる疎通試験として使わないでください。
+独自の `harbor-sandbox-image-cleanup` CronJobは撤去します。
+稼働中・直前正常版・候補の最大3世代を保持し、Harbor標準の保持処理・GCへ移行します。
+容量上限、api-hubでの先行移行、公開・配布を停止する手順は [Harborの3世代保持](harbor-retention.md) を参照してください。
+標準保持処理の独立した定期実行は、配布との排他制御を整えるまで設定しません。
 
 ## Renovate と監視
 

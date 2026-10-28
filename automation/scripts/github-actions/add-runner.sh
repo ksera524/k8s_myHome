@@ -240,6 +240,9 @@ jobs:
     if: github.event_name == 'push'
     needs: build-image
     runs-on: $RUNNER_NAME
+    concurrency:
+      group: harbor-publish-\${{ github.repository }}
+      cancel-in-progress: false
 
     steps:
     - name: Download image artifact
@@ -264,7 +267,7 @@ jobs:
         echo "\$SHA256  \$RUNNER_TEMP/crane.tar.gz" | sha256sum --check
         tar -xzf "\$RUNNER_TEMP/crane.tar.gz" -C "\$RUNNER_TEMP/crane-bin" crane
 
-    - name: Push latest image without Docker
+    - name: Push versioned image without Docker
       shell: bash
       run: |
         set -euo pipefail
@@ -278,7 +281,30 @@ jobs:
         "\$CRANE" auth login "\$HARBOR_URL" --username "\$HARBOR_USERNAME" \\
           --password-stdin < /etc/harbor-auth/HARBOR_PASSWORD
         gunzip -c /tmp/$REPOSITORY_NAME-image.tar.gz > "\$RUNNER_TEMP/image.tar"
-        "\$CRANE" push "\$RUNNER_TEMP/image.tar" "\$HARBOR_URL/\$HARBOR_PROJECT/$IMAGE_NAME:latest"
+        VERSION="build-\$GITHUB_RUN_ID-\$GITHUB_RUN_ATTEMPT-\$GITHUB_SHA"
+        "\$CRANE" push "\$RUNNER_TEMP/image.tar" "\$HARBOR_URL/\$HARBOR_PROJECT/$IMAGE_NAME:\$VERSION"
+
+    - name: Check publication is still the default branch head
+      id: publication
+      uses: actions/github-script@v7
+      with:
+        result-encoding: string
+        script: |
+          const {data: repo} = await github.rest.repos.get(context.repo);
+          if (context.ref !== \`refs/heads/\${repo.default_branch}\`) return false;
+          const {data: head} = await github.rest.repos.getCommit({...context.repo, ref: repo.default_branch});
+          return head.sha === context.sha;
+
+    - name: Promote current build to latest
+      if: \${{ steps.publication.outputs.result == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        export DOCKER_CONFIG="\$RUNNER_TEMP/harbor-auth"
+        HARBOR_URL=\$(cat /etc/harbor-auth/HARBOR_URL)
+        HARBOR_PROJECT=\$(cat /etc/harbor-auth/HARBOR_PROJECT)
+        VERSION="build-\$GITHUB_RUN_ID-\$GITHUB_RUN_ATTEMPT-\$GITHUB_SHA"
+        "\$RUNNER_TEMP/crane-bin/crane" tag "\$HARBOR_URL/\$HARBOR_PROJECT/$IMAGE_NAME:\$VERSION" latest
 
     - name: Cleanup
       if: always()

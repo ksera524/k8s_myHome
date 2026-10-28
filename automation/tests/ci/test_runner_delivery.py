@@ -69,7 +69,12 @@ class RunnerDeliveryTests(unittest.TestCase):
             steps = '\n'.join(step.get('run', '') for step in push['steps'])
             for forbidden in ('kubectl', 'sudo', 'docker load', 'docker push', 'rollout restart'):
                 self.assertNotIn(forbidden, steps)
-            self.assertIn('test.repo:latest', steps)
+            self.assertIn('test.repo:$VERSION', steps)
+            self.assertIn('build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_SHA', steps)
+            self.assertIn('head.sha === context.sha', next(s['with']['script'] for s in push['steps'] if s.get('id') == 'publication'))
+            self.assertEqual(next(s['if'] for s in push['steps'] if s['name'] == 'Promote current build to latest'),
+                             "${{ steps.publication.outputs.result == 'true' }}")
+            self.assertEqual(push['concurrency']['group'], 'harbor-publish-${{ github.repository }}')
             self.assertIn('--password-stdin < /etc/harbor-auth/HARBOR_PASSWORD', steps)
             self.assertIn('sha256sum --check', steps)
             for step in push['steps']:
