@@ -16,7 +16,6 @@ spec:
       helm:
         releaseName: argocd-image-updater
         values: |
-          replicaCount: 0
           createClusterRoles: false
           config:
             watch.namespaces: argocd
