@@ -308,6 +308,17 @@ def main():
         run(client, kube, config)
 
 
+def configure_gc(client):
+    # GCのuntagged削除は使わない。配布保護は保持処理だけが判断する。
+    schedule = {'schedule': {'type': 'Custom', 'cron': '0 30 18 * * *'},
+                'parameters': {'delete_untagged': False, 'dry_run': False, 'workers': 1}}
+    current = client.request('GET', '/system/gc/schedule')
+    gc_params = json.loads(current.get('job_parameters') or '{}') if current else {}
+    if (not current or current.get('schedule', {}).get('cron') != schedule['schedule']['cron']
+            or any(gc_params.get(k, False) != v for k, v in schedule['parameters'].items())):
+        client.request('PUT' if current else 'POST', '/system/gc/schedule', schedule)
+
+
 def run(client, kube, config):
     updater = kube.request('GET', '/apis/argocd-image-updater.argoproj.io/v1alpha1/namespaces/argocd/imageupdaters/sandbox-images')
     watched = {i['imageName'] for a in updater['spec']['applicationRefs'] for i in a['images']}
@@ -325,14 +336,7 @@ def run(client, kube, config):
             for row in rows:
                 row['kind'] = singular
             items.extend(rows)
-    # GCのuntagged削除は使わない。配布保護は保持処理だけが判断する。
-    schedule = {'schedule': {'type': 'Custom', 'cron': '0 30 18 * * *'},
-                'parameters': {'delete_untagged': False, 'dry_run': False, 'workers': 1}}
-    current = client.request('GET', '/system/gc/schedule')
-    gc_params = json.loads(current.get('job_parameters') or '{}') if current else {}
-    if (not current or current.get('schedule', {}).get('cron') != schedule['schedule']['cron']
-            or any(gc_params.get(k, False) != v for k, v in schedule['parameters'].items())):
-        client.request('PUT' if current else 'POST', '/system/gc/schedule', schedule)
+    configure_gc(client)
     ok = reconcile(client, config, {a['metadata']['name']: a for a in apps}, items)
     info = client.request('GET', '/projects/' + config['project'])
     quotas = client.request('GET', '/quotas?reference=project&reference_id=' + str(info['project_id']))

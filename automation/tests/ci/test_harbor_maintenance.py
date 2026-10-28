@@ -125,5 +125,43 @@ class ExclusionTests(unittest.TestCase):
                 self.fail('must not enter protected section')
 
 
+class RuntimeRegressionTests(unittest.TestCase):
+    def test_gc_omitted_false_does_not_reschedule(self):
+        class Harbor:
+            def request(self, method, path, payload=None):
+                if method != 'GET': raise AssertionError('unchanged schedule must not be rewritten')
+                return {'schedule': {'type': 'Custom', 'cron': '0 30 18 * * *'},
+                        'job_parameters': '{"delete_untagged":false,"workers":1}'}
+        m.configure_gc(Harbor())
+
+    def test_gc_unsafe_untagged_setting_is_repaired(self):
+        writes = []
+        class Harbor:
+            def request(self, method, path, payload=None):
+                if method == 'GET':
+                    return {'schedule': {'type': 'Custom', 'cron': '0 30 18 * * *'},
+                            'job_parameters': '{"delete_untagged":true,"workers":1}'}
+                writes.append(payload)
+        m.configure_gc(Harbor())
+        self.assertEqual(len(writes), 1)
+        self.assertFalse(writes[0]['parameters']['delete_untagged'])
+
+    def test_first_job_initializes_and_releases_lease(self):
+        from unittest.mock import patch
+        calls = []
+        class Kube:
+            def request(self, method, path, payload=None):
+                calls.append((method, copy.deepcopy(payload)))
+                if method == 'GET': raise m.APIError(method, path, 404)
+                payload = copy.deepcopy(payload)
+                payload['metadata']['resourceVersion'] = str(len(calls))
+                return payload
+        with patch.dict(m.os.environ, {'HOSTNAME': 'test-pod'}):
+            with m.lock(Kube()):
+                self.assertEqual(calls[-1][1]['spec']['holderIdentity'], 'test-pod')
+        self.assertEqual([c[0] for c in calls], ['GET', 'POST', 'PUT', 'PUT'])
+        self.assertEqual(calls[-1][1]['spec']['holderIdentity'], '')
+
+
 if __name__ == '__main__':
     unittest.main()
