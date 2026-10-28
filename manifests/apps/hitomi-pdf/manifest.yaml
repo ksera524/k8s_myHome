@@ -240,20 +240,6 @@ spec:
         configMap:
           name: shared-postgresql-ca
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  # 切戻し用に旧PVCを保持。workerはmountしない。
-  name: media-worker-tmp
-  namespace: sandbox
-spec:
-  accessModes:
-  - ReadWriteOnce
-  storageClassName: nfs-external
-  resources:
-    requests:
-      storage: 12Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
