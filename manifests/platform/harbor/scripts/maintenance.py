@@ -13,6 +13,12 @@ import urllib.parse
 import urllib.request
 
 
+class APIError(RuntimeError):
+    def __init__(self, method, path, code):
+        super().__init__(f'{method} {path}: HTTP {code}')
+        self.code = code
+
+
 class API:
     def __init__(self, url, authorization, context=None):
         self.url, self.authorization, self.context = url, authorization, context
@@ -26,7 +32,7 @@ class API:
                 body = res.read()
                 return json.loads(body) if body else None
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(f'{method} {path}: HTTP {exc.code}') from None
+            raise APIError(method, path, exc.code) from None
 
     def pages(self, path):
         result = []
@@ -268,7 +274,15 @@ def reconcile(client, config, applications, items, dry_run=False):
 def lock(kube):
     # resourceVersion付き更新で、手動Jobを含む二重起動も排他する。
     path = '/apis/coordination.k8s.io/v1/namespaces/harbor/leases/harbor-maintenance'
-    lease = kube.request('GET', path)
+    try:
+        lease = kube.request('GET', path)
+    except APIError as exc:
+        if exc.code != 404:
+            raise
+        # ArgoCDはLeaseを既定で追跡対象外にする。初回だけ実行時に作成する。
+        lease = kube.request('POST', path.rsplit('/', 1)[0], {
+            'apiVersion': 'coordination.k8s.io/v1', 'kind': 'Lease',
+            'metadata': {'name': 'harbor-maintenance', 'namespace': 'harbor'}})
     now = datetime.now(timezone.utc)
     state = lease.get('spec', {})
     renew = state.get('renewTime')

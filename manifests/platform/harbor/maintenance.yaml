@@ -166,12 +166,6 @@ spec:
         - protocol: TCP
           port: 6443
 ---
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: harbor-maintenance
-  namespace: harbor
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -182,6 +176,9 @@ rules:
     resources: [leases]
     resourceNames: [harbor-maintenance]
     verbs: [get, update]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
