@@ -189,7 +189,7 @@ def wait_execution(client, policy_id, before, dry_run):
     deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
         executions = client.pages(f'/retentions/{policy_id}/executions')
-        new = [e for e in executions if e['id'] not in before and e['dry_run'] == dry_run]
+        new = [e for e in executions if e['id'] not in before and e.get('dry_run', False) == dry_run]
         if len(new) > 1:
             raise RuntimeError('並行した保持処理を検出しました。Harborで実行履歴を確認してください')
         if new:

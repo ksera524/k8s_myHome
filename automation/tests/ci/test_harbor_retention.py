@@ -165,6 +165,11 @@ class RetentionTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 MODULE.wait_execution(client, 1, set(), True)
 
+    def test_execution_omitted_dry_run_means_false(self):
+        client = MODULE.Harbor('https://example.invalid', 'robot', 'secret')
+        with patch.object(client, 'pages', return_value=[{'id': 2, 'status': 'Success'}]), patch('builtins.print'):
+            self.assertEqual(MODULE.wait_execution(client, 1, set(), False), 2)
+
 
 if __name__ == '__main__':
     unittest.main()
