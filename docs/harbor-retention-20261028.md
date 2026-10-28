@@ -123,3 +123,21 @@ workflowのYAMLデータが整形前後で一致すること、actionlint成功�
 
 定期確認で削除候補がない場合はHarbor保持Jobを作らず終了するよう調整した。
 状態確認・配布の昇格・GC予約の修復は5分ごとに継続し、保持履歴の無駄な増加を抑える。
+
+18:25 JSTの定期Job `harbor-maintenance-29886325`では、全8アプリeligible、blocked=[]、
+`delete_candidates=0`を確認して11秒で成功した。削除候補なしの回に保持executionを作らない動作も実環境で確認した。
+vmalertの`HarborMaintenanceStalled`はhealth=ok、state=inactive、評価エラーなし。
+
+### 最終確認（22:43 JST）
+
+上表の全7repoの公開workflowが成功した。RSSHubも新しいdigest
+`sha256:14cc59fc56bc0471cd67d0ed6591b9924cb049dec4af55e5c6b69dae72ee6532`
+へ自動配布され、`retain-current`・`deploy`・`latest`が一致した。
+直前正常版`sha256:0a04e9693bfe292d208a4fb9ace2a5e488641e74b23d5f6f00b4a964d800e883`
+は`retain-previous`として保持された。Argo CDの全ApplicationはSynced / Healthy。
+
+19:55 JSTのJob `harbor-maintenance-29886355`はhitomiのPod Readyまたは旧Pod終了待ちで
+保護停止した。その後は自動復帰し、22:40 JSTのJob `harbor-maintenance-29886580`は
+全8アプリeligible、blocked=[]、削除候補0で成功した。
+この時点のsandbox使用量は **1,752,612,568 bytes / 4,294,967,296 bytes**。
+保守コード最終変更のCI [40663600027](https://github.com/ksera524/k8s_myHome/actions/runs/40663600027)も成功した。

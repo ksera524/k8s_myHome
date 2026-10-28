@@ -31,10 +31,11 @@ PostSync の `rustfs-lifecycle` Job を持ちます。
 
 ## Harbor cleanup
 
-独自の `harbor-sandbox-image-cleanup` CronJobは撤去します。
-稼働中・直前正常版・候補の最大3世代を保持し、Harbor標準の保持処理・GCへ移行します。
-容量上限、api-hubでの先行移行、公開・配布を停止する手順は [Harborの3世代保持](harbor-retention.md) を参照してください。
-標準保持処理の独立した定期実行は、配布との排他制御を整えるまで設定しません。
+旧 `harbor-sandbox-image-cleanup` CronJobは撤去済みです。
+`harbor-maintenance`が5分ごとに稼働版・直前正常版・候補を確認し、最大3世代へ整理します。
+削除候補がある回だけHarbor標準保持を実行し、GCは毎日03:30 JSTに実行します。
+容量上限、全repoの定期保守・GC、正常版への切り戻し手順は [Harborの3世代保持](harbor-retention.md) を参照してください。
+標準保持処理を単独で定期実行せず、配布と保守Jobが実行を調停します。
 
 ## Renovate と監視
 
