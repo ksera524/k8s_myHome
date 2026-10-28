@@ -331,7 +331,7 @@ def run(client, kube, config):
     current = client.request('GET', '/system/gc/schedule')
     gc_params = json.loads(current.get('job_parameters') or '{}') if current else {}
     if (not current or current.get('schedule', {}).get('cron') != schedule['schedule']['cron']
-            or any(gc_params.get(k) != v for k, v in schedule['parameters'].items())):
+            or any(gc_params.get(k, False) != v for k, v in schedule['parameters'].items())):
         client.request('PUT' if current else 'POST', '/system/gc/schedule', schedule)
     ok = reconcile(client, config, {a['metadata']['name']: a for a in apps}, items)
     info = client.request('GET', '/projects/' + config['project'])
