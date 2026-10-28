@@ -104,7 +104,7 @@ class RunnerDeliveryTests(unittest.TestCase):
                 target = root / name
                 shutil.copytree(source, target)
                 image = ref['images'][0]['manifestTargets']['kustomize']['name']
-                self.assertEqual(ref['images'][0]['imageName'], image + ':latest')
+                self.assertEqual(ref['images'][0]['imageName'], image + ':deploy')
                 kfile = target / 'kustomization.yaml'
                 kustomization = yaml.safe_load(kfile.read_text())
                 entry = next(x for x in kustomization['images'] if x['name'] == image)

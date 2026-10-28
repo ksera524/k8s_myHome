@@ -1,0 +1,29 @@
+rule_files:
+  - ../../../manifests/platform/observability/config/alert-rules.yaml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_status_last_successful_time{namespace="harbor",cronjob="harbor-maintenance"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HarborMaintenanceStalled
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: HarborMaintenanceStalled
+        exp_alerts:
+          - exp_labels:
+              namespace: harbor
+              cronjob: harbor-maintenance
+              severity: warning
+            exp_annotations:
+              summary: "Harbor自動保守が30分以上成功していません。Jobログと配布状態を確認してください"
+  - interval: 1m
+    input_series:
+      - series: 'kube_cronjob_status_last_successful_time{namespace="harbor",cronjob="harbor-maintenance"}'
+        values: '0+60x60'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: HarborMaintenanceStalled
+        exp_alerts: []

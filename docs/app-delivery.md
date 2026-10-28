@@ -23,16 +23,16 @@ Application の namespace と source は [一覧](diagrams/app-of-apps-sync-wave
 
 [Runner 生成スクリプト](../automation/scripts/github-actions/add-runner.sh) は `STRATEGY=latest` のみを受け付けます。
 GitHub-hosted runner で build → artifact → ARC runner で `crane push` → Harbor の `latest` を更新します。
-生成workflowとapi-hubの先行実装は `build-<run-id>-<attempt>-<commit-sha>` タグを付け、
+全7repoの公開workflowは `build-<run-id>-<attempt>-<commit-sha>` タグを付け、
 default branch HEADとの一致を確認した版だけ `latest` へ昇格します。push jobはrepo単位で直列化します。
-他repoの既存workflowへの展開は、生成物の反映が必要です。
+新しいrepoには生成workflowをそのrepoへ反映してください。
 PR イベントでは build までです。ARC runner に Docker daemon、sudo、kubectl は不要です。
 
 [Image Updater](../manifests/platform/ci-cd/image-updater/sandbox-images.yaml) が約2分間隔で
-許可した8アプリの `latest` の digest を検知し、このリポジトリの `main` にある各
+許可した8アプリの `deploy` の digest を検知し、このリポジトリの `main` にある各
 `manifests/apps/<app>/kustomization.yaml` に書き戻します。ArgoCD Application の revision は `HEAD` のままです。
 Harbor への接続は内部 URL、マニフェスト内のイメージ名は従来の `harbor.qroksera.com/sandbox/...` を使います。
-初回の検知・Git 更新が成功するまでは既存の `latest` 指定が残ります。
+5分間隔のHarbor保守Jobが直前の配布成功を確認して`latest`を`deploy`へ進めます。
 更新方式は公式の [Git write-back](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-methods/) と
 [digest strategy](https://argocd-image-updater.readthedocs.io/en/stable/basics/update-strategies/#digest---update-to-the-most-recent-pushed-version-of-a-tag) を利用します。
 
@@ -44,9 +44,8 @@ Harbor への接続は内部 URL、マニフェスト内のイメージ名は従
   別 Application 間の更新・同期は独立しており、同時切替は保証しません。
 
 Git に digest が残るため、履歴から配布イメージを特定できます。
-ロールバックは、まず対象の `applicationRefs` を Git で一時的に外して同期し、自動更新を止めてから
-Kustomization の digest を戻します。停止せず revert すると、`latest` の digest に再更新されます。
-再開時は対象を `applicationRefs` に戻します。Harbor の保持ポリシーでもロールバック対象の digest を残してください。
+ロールバックはHarborの`maintenance.json`に既知の正常版を`rollbackDigest`として設定し、Gitへ反映します。
+保守Jobが`deploy`を戻し、Image UpdaterとArgoCDが配布します。解除するまで指定版を維持します。
 保持契約と保守手順は [Harborの3世代保持](harbor-retention.md) を参照してください。
 
 ## 既存 CI からの移行

@@ -1,130 +1,82 @@
-# Harborの容量と3世代保持
+# Harborの自動保守と3世代保持
+
+Harborは維持し、`harbor/harbor-maintenance` CronJobが5分ごとに配布と保持を調停します。
+常駐Podは追加しません。実装は [maintenance.py](../manifests/platform/harbor/scripts/maintenance.py)、
+対象・切り戻し設定は [maintenance.json](../manifests/platform/harbor/maintenance.json) です。
 
 ## 保持契約
 
-イメージrepositoryごとに、異なるdigestを最大3世代保持します。
-同じdigestに複数の役割・タグが付いていても1世代です。
+アプリのrepositoryごとに異なるdigestを最大3世代へ収束させます。同じdigestの複数タグは1世代です。
 
-| 役割 | 保持する版 | 更新条件 |
+| 役割 | タグ | 更新条件 |
 |---|---|---|
-| current | 現在Synced/Healthyで稼働する版 | デプロイ成功確認後 |
-| previous | 直前に正常稼働を確認した版 | 次の版の成功確認後。失敗時は維持 |
-| candidate | `latest`が指す次の候補 | default branch HEADの公開成功後 |
+| 現在の正常版 | `retain-current` | ArgoCD Synced/Healthy、controller反映済み、全Pod Ready・imageID一致 |
+| 直前の正常版 | `retain-previous` | 次の版の成功確認後。初期の前版が不明なら推測しない |
+| 配布候補 | `latest` → `deploy` | default branch HEADをCIが公開し、前の配布が正常になってから昇格 |
 
-初期移行時にpreviousを確認できない場合は推測せず未設定とします。
-成功記録として時刻・Application名・Git revision・digestを運用記録に残し、次回のpreviousを指定します。
-currentへ戻す切り戻しでも、その前に正常稼働していた版をpreviousとして明示します。
-単純な「最新ビルド3件」や「最近pullされた3件」は、この契約の代用にはしません。
+CIは`build-<run-id>-<attempt>-<sha>`をpushし、HEAD照合後に`latest`へ昇格します。
+Image Updaterは`deploy`だけを追い、digestをGitへ書き戻します。保守Jobが`deploy`を進めるため、
+CIの連続公開と削除が重なっても、配布中の版を保護できます。公開直後の未昇格artifactは最新push 1件のルールでも保護します。
 
-この上限は**保持処理完了後**の対象です。push中・GC待ちのデータは一時的に増えます。
-稼働状態が不明、デプロイ失敗、切替途中、実行中の旧Podがある場合は削除を停止します。
-安全確認のため停止した場合は3世代への収束が遅れますが、容量上限を緩めたり保護対象を削除したりしません。
+3世代は**正常に保持処理を完了した安定状態**の上限です。公開・配布中、失敗中、GC待ちには一時的に超過します。
+保護役割と最新pushが4つ以上のdigestになる場合は、そのrepoの削除を見送り、正常収束後に再開します。
+失敗した候補は次の公開で自動的に追い越しません。修正時は下記の切り戻しを行い、正常化後に再開します。
+古いJobが動作中、Pod終了中、digest未固定、未知のartifact、APIエラーの場合も削除しません。
+停止が続けば監視通知します。容量不足を理由に稼働版を削除したりquotaを広げたりしません。
 
-## 容量上限
+対象はapi-hub、blog、cooklog、hitomi、hitomi-pdf-batch、hitomi-upload-viewer、home-camera、rsshub-privateです。
+OCI indexは親digestを1世代と数え、子manifestのimageIDを照合します。
+CronJobと常駐workloadが同じイメージを使う場合、正常判定は常駐workloadのReadyと全templateの一致を使用します。
+これは業務処理の成功を保証する検査ではありません。実行中の旧Jobは保護し、終了済みJobの履歴は保持理由にしません。
+CronJobだけのアプリを追加した場合は正常判定の追加が必要で、現実装は削除を止めます。
+未使用のslack.rsは参照がないことを確認したarchive指定で、最新push 3件を保持します。
+未知repoは全保持し、保守失敗として通知します。新アプリはImage Updaterとmaintenance.jsonを一緒に登録してください。
 
-sandbox projectの上限は **4 GiB (4,294,967,296 bytes)** とします。
-既存設定がこれより厳しい場合は維持します。上限到達時は新しいpushが失敗します。
-2026-10-28の読み取り確認では、sandboxは911,594,927 bytes（約869 MiB）、9 repository、容量制限なしでした。
-現時点の使用量の3倍（約2.55 GiB）と、新規push・GC待ちの余裕を見込んだ初期値です。
-既存の版数やレイヤ共有率が異なるため、将来の3世代のサイズを保証する算定ではありません。
+## 自動処理と容量
 
-Harborのproject quotaは全project・NFSの物理容量を制限するものではありません。
-Registry PVCの要求容量10 GiBとproject quotaを混同しないでください。
-quota使用量とストレージ空き容量を保守時に確認します。
-容量不足時はGCと異常なイメージサイズを確認し、4 GiBを超える変更は保持契約の変更としてレビューします。
+1. Leaseと`concurrencyPolicy: Forbid`で多重実行を防止。前回のHarbor保持処理が実行中ならタグを変更しません。
+2. Kubernetesを読み取り、正常版を確認。前版→現在版→配布タグの順で更新し、途中終了後も再試行できます。
+3. Harbor標準保持ルールを更新し、標準dry run成功後に標準保持を実行します。独自のartifact削除ループは使いません。
+   判定不能repoは全保持。他repoの保守は進めます。保持処理の単独スケジュールは設定しません。
+4. Harbor標準GCを毎日03:30 JSTに設定・修復します。`delete_untagged=false`、workers=1。
+   未タグartifactをGC独自判断で消さず、保持処理が削除したblobを回収します。新規uploadの2時間の保護窓を維持します。
 
-## 実装と初期移行
+sandbox quotaは **4 GiB (4,294,967,296 bytes)**。到達時はpushが失敗します。
+quotaはprojectの論理容量で、共有NFSの物理上限ではありません。不要blobは日次GCまで残ることがあります。
+Jobはrequests 25m CPU/32Mi、limits 250m CPU/128Mi、最大15分、再試行は次の定期実行で行います。
+中断時のLeaseは最大1,000秒で期限切れになります。
+既存のHarbor管理Secretをread-only mountし、Kubernetes権限はworkload/ArgoCDの読取と専用Leaseの更新に限定します。
+RunnerにKubernetes権限は追加しません。
 
-[retention.py](../automation/scripts/harbor/retention.py) が、ArgoCDとworkload/Pod、Harborを照合してplanを作成します。
-初期対象はapi-hubだけです。他repoは、untagged artifactも含め全保持する標準ルールを設定します。
-OCI index、非IMAGE artifact、可変タグだけのworkloadは対象外として停止します。
-他repoへの展開は、各repoの公開workflow・成功判定・実行中Jobを確認してから行います。
+監視は`HarborMaintenanceStalled`（30分以上成功なし、10分継続）と既存のPod/PVC監視を使います。
+GCの実成功が36時間以上ない場合、quota使用量が90%以上の場合も保守Jobを失敗にして通知します。
 
-旧 `harbor-sandbox-image-cleanup` CronJobはGitOps定義から撤去します。
-反映時にCronJobがpruneされ、実行中・再試行待ちのJobが残っていないことを確認してください。
-旧処理はlatest以外を削除するため、新しい保持方式と併用できません。
-削除を停止する移行期間は、一時的に保持数が増えることを容量監視で扱います。
-
-標準保持ルールは手動実行とし、独立した定期実行は設定しません。
-Harbor APIでは非定期実行を `trigger.kind: ""` で表します。`Manual` は更新APIで拒否されるため使いません。
-Harborは配布状態を知らず、公開・Image Updater・ArgoCDと保持処理を独立に動かすと配布途中の版を削除し得ます。
-まず保守時間に下記コマンドを使います。常駐PodやRunnerのKubernetes権限は追加しません。
-公開からデプロイ成功までの役割更新と排他制御を自動化できるまで、日次自動削除は開始しません。
-
-## 読み取り確認
-
-ローカルでKubernetes管理用contextを確認し、Harbor管理用資格情報を保護したファイルで用意します。
-資格情報はコマンド引数・Git・planに含めません。TLS検証は有効です。
-疎通にport-forwardを使う場合は、別端末で次を実行します。
+## 状態確認・切り戻し
 
 ```bash
-kubectl -n harbor port-forward service/harbor-core 18080:80
+kubectl -n harbor get cronjob harbor-maintenance
+kubectl -n harbor get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n harbor logs job/<直近のharbor-maintenanceのJob名>
 ```
 
-別端末で、シェルの履歴にパスワードを入れずに実行します。
-以下のURLはlocalhostへのport-forward専用です。通常のアクセスにはHTTPS URLを使います。
+ログの`eligible`・`blocked`、正常digest、役割、保持execution IDを確認します。
+失敗時はAPI疎通、Application同期、Pod、旧Job、quota、Harbor保持/GC履歴を確認します。
+手動でタグ・保持policyを変更したり旧cleanupを復活させたりしないでください。
 
-```bash
-export HARBOR_USERNAME=admin
-export HARBOR_PASSWORD_FILE=/secure/path/harbor-password
-python3 automation/scripts/harbor/retention.py \
-  --url http://127.0.0.1:18080 \
-  --no-previous-known --output /tmp/harbor-plan.json
-```
+切り戻しは`maintenance.json`の対象repoに`"rollbackDigest": "sha256:..."`を追加してGitへ反映します。
+値は`retain-current`または`retain-previous`の既知の正常版に限ります。
+定期Jobは失敗中でも`deploy`を指定版へ戻し、Image Updater→Git→ArgoCD経由で配布します。
+設定がある間はそのdigestに固定するため、不良な`latest`へ戻りません。
+正常化と修正版の公開を確認したら`rollbackDigest`をGitから削除して自動昇格を再開します。
+KustomizationだけをrevertするとImage Updaterが戻してしまうため、この設定を使ってください。
 
-前版が確認できている場合は `--no-previous-known` の代わりに
-`--previous sha256:<正常稼働を確認した64桁のdigest>` を指定します。
-既存artifactの作成日時だけからpreviousを選ばないでください。
-planは新規ファイルにだけ出力します。current/previous/candidate、keep/delete、容量・生成policyをレビューします。
+緊急停止はCronJobの`spec.suspend: true`をGitへ反映します。既存Jobは終了を待ちます。
+GCは別スケジュールなので、停止する必要がある場合はHarbor側でも停止します。
+復旧後はsuspendを解除し、次回Jobの成功を確認します。
+旧手動pilotツールは自動保守と競合するため撤去しました。
 
-## 反映と標準dry run
+## 検証記録
 
-1. 対象アプリの公開workflowを停止し、待機中・実行中・再試行待ちのpush jobがないことを確認します。
-2. Image Updaterの対象 `applicationRefs` をGitで一時的に外し、同期と処理終了を確認します。
-3. 対象Applicationの自動同期をGitで一時停止し、現在の同期が完了したことを確認します。
-   手動の配布・切り戻し・タグ変更も保持処理完了まで停止します。
-4. 旧cleanupのCronJobと残存Jobがないこと、既存の定期保持処理・GCが停止していることを確認します。
-5. この状態で読み取りplanを取り直し、次を実行します。
-
-```bash
-python3 automation/scripts/harbor/retention.py \
-  --url http://127.0.0.1:18080 \
-  --no-previous-known --output /tmp/harbor-apply.json \
-  --reviewed-plan /tmp/harbor-plan.json --apply --maintenance
-```
-
-`--maintenance` は上記停止の確認を表す引数です。コマンド自身はworkflowやGitOpsを停止しません。
-対象digestに `retain-<digestの64桁>` タグを付け、標準保持ルールと容量上限を設定し、標準dry runの完了を待ちます。
-これは設定を書き換えますがartifactは削除しません。標準保持はタグの一致でartifact全体を保持するため、
-SHA/buildタグや古いretainタグが残っていても、今回指定したdigest以外を保持する理由にはなりません。
-
-projectに既存policyがある場合は自動上書きしません。
-Harbor API `GET /api/v2.0/retentions/<id>` のJSONを保存・レビューし、
-`--replace-policy /secure/path/existing-policy.json` を指定します。現在値と一致するときだけ置換します。
-他repoを全保持するため、既存の他repo削除ルールは継承しません。
-標準ルールの結合はORです。既存ルールへ単に追記する方式は使いません。
-
-## 削除・GC・再開
-
-Harbor UIの保持処理dry runログで、削除対象がplanのdeleteと一致し、他repoが保持されることを確認します。
-停止状態を維持したまま、同じ引数に `--delete` を追加し、新しい `--output` を指定します。
-既存policyは上記の方法で取得し `--replace-policy` に渡します。
-コマンドは再度状態とpolicyを確認し、dry run成功後に標準保持処理を実行して完了を待ちます。
-独自のartifact DELETEループは使いません。失敗・タイムアウト時は公開停止を維持し、Harborの実行履歴を確認します。
-
-GCは全projectに作用するため、コマンドから自動実行しません。
-Harbor UIでGCのdry run結果を確認してからGCを実行し、成功・容量回収を確認します。
-不要データの回収後、ArgoCD自動同期、Image Updater、公開workflowをGitOps管理へ戻します。
-次回の保持処理前に役割とplanを更新します。古いpolicyを単独で再実行しないでください。
-保持失敗・容量増加時はこの手順で再実行し、旧CronJobへは戻しません。
-
-## 検証と残作業
-
-回帰テストは `automation/tests/ci/test_harbor_retention.py`、生成workflowの検証は
-`automation/tests/ci/test_runner_delivery.py` で実行します。
-実環境での4版連続公開、デプロイ失敗、直前版への切り戻し、標準dry run・保持・GC後の容量回収は、
-このGit変更を反映してから保守時間内に検証します。
-2026-10-28の初回読み取りではapi-hubはcurrentとlatestが同じ1世代（5,411,177 bytes）で、削除対象はありませんでした。
-前版は不明であり、切り戻し可能とは扱いません。
-
-初回反映の実行ID・容量・稼働版は [2026-10-28の反映記録](harbor-retention-20261028.md) に残しています。
+状態遷移・OCI index・実行中Job・失敗・切り戻しは
+[回帰テスト](../automation/tests/ci/test_harbor_maintenance.py)で検証します。
+実環境の反映と検証結果は [反映記録](harbor-retention-20261028.md) に追記します。

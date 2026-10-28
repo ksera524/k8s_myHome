@@ -254,3 +254,12 @@ groups:
           severity: warning
         annotations:
           summary: "kubelet の容量メトリクスを収集できません"
+      - alert: HarborMaintenanceStalled
+        expr: >-
+          time() - kube_cronjob_status_last_successful_time{namespace="harbor",cronjob="harbor-maintenance"} > 1800
+          or absent(kube_cronjob_status_last_successful_time{namespace="harbor",cronjob="harbor-maintenance"})
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Harbor自動保守が30分以上成功していません。Jobログと配布状態を確認してください"
