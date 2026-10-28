@@ -34,7 +34,8 @@ hitomi outbox から api-hub 配送までの2段階では、両方が空なら�
 
 | アラート | 条件 | 継続時間 |
 |---|---|---|
-| ApplicationQueueFailed | failed / uncertainが1件以上 | 5分 |
+| ApplicationQueueFailed | 通知系のfailed / uncertainが1件以上。旧exporterも従来どおり検知 | 5分 |
+| ApplicationUnreviewedFailure | hitomi_items / hitomi_sources / mediaの未確認失敗が1件以上 | 5分 |
 | ApplicationQueueBacklog | 通知・outboxは最古15分超、media・収集項目は最古2時間超 | 10分 |
 | ApplicationQueueMetricsUnavailable | 対象キューのmetricsを取得できない | 5分 |
 | CameraSpoolStatisticsUnavailable | spool集計失敗、またはメトリクス欠損 | 5分 |
@@ -51,10 +52,11 @@ cameraの録画監視は再接続で猶予をリセットしない。`home_camer
 
 1. MetricsUnavailableはmetrics収集、NetworkPolicy、DB接続・migrationを確認する。DB障害を理由にworkerを再起動し続けない。
 2. Backlogは最終成功時刻とworkerログ、DB/S3/取得元の状態を照合する。キューが減っているか、処理が止まっているかを確認する。
-3. Failedはmediaの個別取得状況、通知APIまたはhitomiのnotification_statusを確認する。通知uncertainはSlackの既存配送と照合してから手動再試行する。一括再送しない。
-4. CameraSpoolStatisticsUnavailableはrecorderログとspoolの読取・容量を確認する。集計成功に戻るまで、保持された容量・滞留時間を最新値として扱わない。
+3. UnreviewedFailureはhitomi管理CLIまたはmedia画面の「失敗の管理」で原因と履歴を確認する。確認済みは警告を解除するが自動再試行を継続し、対象外は理由付きで取得を停止する。原因変更・明示再実行後の失敗は再び未確認になる。
+4. Failedは通知APIまたはhitomiのnotification_statusを確認する。通知uncertainはSlackの既存配送と照合してから手動再試行する。一括再送しない。
+5. CameraSpoolStatisticsUnavailableはrecorderログとspoolの読取・容量を確認する。集計成功に戻るまで、保持された容量・滞留時間を最新値として扱わない。
 
-既存のfailed/uncertainがある場合も発火する。修正配備によって失敗行を消去したり、再送したりはしない。
+通知系の既存failed/uncertainは引き続き発火する。取得系は未確認だけを継続警告し、確認済み・対象外の履歴も保持する。修正配備だけで成功扱いや再送は行わない。
 
 ## 配備順序と検証
 
@@ -68,3 +70,13 @@ cameraの録画監視は再接続で猶予をリセットしない。`home_camer
 `promtool test rules automation/tests/observability/*.test.yaml`を含む。発火待機、復旧、空キュー、欠損、複数Podの重複排除を検証する。
 
 hitomiのacceptedは受付完了で滞留に数えない。配送failed/uncertainはapi-hubで検知する。items.failedも検知対象。cameraの不正manifestはCameraInvalidManifest、segment停止はCameraRecordingStalledで検知し、破損manifestだけのspoolも正常な空状態にしない。
+
+
+## 取得失敗の確認状態
+
+`application_failure_records{queue,disposition}`は未解決の失敗をunreviewed / acknowledged / excludedに分ける。hitomi_sourcesはRSS取得・漫画確認の失敗で、item IDを持たない。任意のURL・原因文字列はラベルにしない。
+`application_queue_oldest_unreviewed_pending_age_seconds`を取得系の滞留警告に使用し、確認済みの古いretryを継続警告から外す。元の待機時間とfailed件数は観測用として保持する。新しいpendingと未確認のretryは引き続き滞留を検知する。
+
+アプリのmigration 3と新exporterを適用後、監視ルールを切り替える。新指標がない旧exporterには従来指標へフォールバックする。確認後の再発には5分の継続時間を改めて適用する。複数Podの値はmaxで集計する。
+
+mediaの24時間整理でも失敗履歴と確認状態は残る。hitomiの直接デバッグ通知はログへ集約し、取得失敗の警告と重複させない。収集Jobのfailed operationsと終了結果は実際の失敗を保つ。

@@ -4,17 +4,28 @@ groups:
     rules:
       - alert: ApplicationQueueFailed
         expr: >-
-          sum by(queue) (max by(queue,state)
-          (application_queue_jobs{namespace="sandbox",state=~"failed|uncertain"})) > 0
+          (sum by(queue) (max by(queue,state)
+          (application_queue_jobs{namespace="sandbox",state=~"failed|uncertain"}))
+          unless on(queue) max by(queue) (application_failure_records{namespace="sandbox"})) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "{{ $labels.queue }} に失敗または配送結果不明の処理があります"
+      - alert: ApplicationUnreviewedFailure
+        expr: >-
+          max by(queue) (application_failure_records{namespace="sandbox",disposition="unreviewed"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.queue }} に未確認の取得失敗があります（新規または再発）"
       - alert: ApplicationQueueBacklog
         expr: >-
           (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"notifications|hitomi_outbox"}) > 900)
-          or (max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"media|hitomi_items"}) > 7200)
+          or ((max by(queue) (application_queue_oldest_pending_age_seconds{namespace="sandbox",queue=~"media|hitomi_items"})
+          unless on(queue) application_queue_oldest_unreviewed_pending_age_seconds{namespace="sandbox"}) > 7200)
+          or (max by(queue) (application_queue_oldest_unreviewed_pending_age_seconds{namespace="sandbox",queue=~"media|hitomi_items"}) > 7200)
         for: 10m
         labels:
           severity: warning
