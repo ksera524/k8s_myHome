@@ -23,8 +23,8 @@ help:
 	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
 	@echo ""
 	@echo "Runners:"
-	@echo "  make add-runner REPO=<name> MIN=<n> MAX=<n> STRATEGY=latest - GitHub Actions Runner追加（workflow生成）"
-	@echo "  make add-runners-all            - settings.tomlから一括Runner追加"
+	@echo "  make add-runner REPO=<name> - 共通Runner用workflow生成"
+	@echo "  make add-runners-all            - settings.tomlからworkflow一括生成"
 
 all:
 	@./automation/scripts/run.sh all
@@ -82,14 +82,11 @@ containerd-safe:
 
 add-runner:
 	@if [ -z "$(REPO)" ]; then \
-		echo "REPO変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
+		echo "REPO変数が必要です (例: make add-runner REPO=my-project)"; \
 		exit 1; \
 	fi
-	@if [ -z "$(MIN)" ] || [ -z "$(MAX)" ] || [ -z "$(STRATEGY)" ]; then \
-		echo "MIN/MAX/STRATEGY変数が必要です (例: make add-runner REPO=my-project MIN=1 MAX=3 STRATEGY=latest)"; \
-		exit 1; \
-	fi
-	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)" "$(MIN)" "$(MAX)" "$(STRATEGY)"'
+	@if [ -n "$(MIN)$(MAX)" ]; then echo "MIN/MAXは使用しません。共通上限は runners-appset.yaml で管理します。"; fi
+	@cd automation/scripts/github-actions && ./add-runner.sh "$(REPO)" "$(or $(STRATEGY),latest)"
 
 add-runners-all:
 	@bash -c 'source automation/scripts/settings-loader.sh load 2>/dev/null || true; cd automation/scripts/github-actions && ./add-runners-bulk.sh'

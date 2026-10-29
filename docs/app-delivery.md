@@ -22,7 +22,8 @@ Application の namespace と source は [一覧](diagrams/app-of-apps-sync-wave
 ## sandbox 配布
 
 [Runner 生成スクリプト](../automation/scripts/github-actions/add-runner.sh) は `STRATEGY=latest` のみを受け付けます。
-GitHub-hosted runner で build → artifact → ARC runner で `crane push` → Harbor の `latest` を更新します。
+GitHub-hosted runner で build → artifact → 共通 ARC runner `harbor-publish-runners` で `crane push` → Harbor の `latest` を更新します。
+Organization `home-lab-ksera` の単一 ScaleSet（min=0/max=2）に集約し、公開処理は全 repo 合計で最大2並列、listener は1つです。
 全7repoの公開workflowは `build-<run-id>-<attempt>-<commit-sha>` タグを付け、
 default branch HEADとの一致を確認した版だけ `latest` へ昇格します。push jobはrepo単位で直列化します。
 新しいrepoには生成workflowをそのrepoへ反映してください。
@@ -98,18 +99,24 @@ kubectl -n argocd logs -l app.kubernetes.io/name=argocd-image-updater --tail=100
 
 権限確認は両方 `no` が期待値です。新 Runner Pod には特権コンテナ、Docker socket、API トークンのマウントがないことも確認します。
 
-## Runner を追加する
+## 共通 Runner を使う repo を追加する
 
-設定の `[github].username` を用意し、PyYAML を含む toolchain で実行します。
+PyYAML を含む toolchain で実行します。登録先と Runner 名は共通の GitOps 定義から読み取ります。
 
 ```bash
 nix develop .#default
-make add-runner REPO=my-app MIN=0 MAX=1 STRATEGY=latest
+make add-runner REPO=my-app
 # settings.toml の arc_repositories から一括生成する場合
 make add-runners-all
 ```
 
-変更先は [runners-appset.yaml](../manifests/platform/ci-cd/github-actions/runners-appset.yaml) です。
+生成処理は workflow のみを出力し、[runners-appset.yaml](../manifests/platform/ci-cd/github-actions/runners-appset.yaml) は変更しません。
+新しい repo は `home-lab-ksera` に作成し、Organization の runner group `harbor-publish` の Selected repositories に追加します。
+公開 repo を含むため同 group の public repository 利用を許可し、公開ジョブの PR 除外条件を維持します。
+同時実行数を変える場合は共通 ScaleSet の `maxRunners` を Git で変更します。旧 CLI/settings の repo 別 min/max は使用しません。
+
+ARC の PAT は Resource owner を `home-lab-ksera` とし、Organization permissions の `Self-hosted runners: Read and write` と
+公式 ARC 認証手順の `Administration: Read` を設定します。Pulumi ESC の `github` キーから ExternalSecret で同期します。
 **Make 経由の workflow 出力先は `automation/scripts/github-actions/.github/workflows/build-and-push-<repo>.yml`** です。
 Make がスクリプトのディレクトリへ移動し、スクリプトが相対パスで出力するためです。
 生成物は Git 非追跡なので、内容を確認してアプリリポジトリの `.github/workflows/` に配置します。

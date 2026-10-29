@@ -52,18 +52,21 @@ class RunnerDeliveryTests(unittest.TestCase):
             target = root / ARC.relative_to(ROOT)
             target.mkdir(parents=True)
             shutil.copy(ARC / 'runners-appset.yaml', target)
-            before = yaml.safe_load((target / 'runners-appset.yaml').read_text())['spec']['template']
-            for _ in range(2):
-                subprocess.run(['bash', str(script_dir / 'add-runner.sh'), 'Test.Repo', '0', '1', 'latest'],
+            before = (target / 'runners-appset.yaml').read_bytes()
+            for args in (['Test.Repo'], ['Test.Repo', '0', '9', 'latest']):
+                subprocess.run(['bash', str(script_dir / 'add-runner.sh'), *args],
                                cwd=root, check=True, capture_output=True, text=True)
             result = yaml.safe_load((target / 'runners-appset.yaml').read_text())
-            self.assertEqual(result['spec']['template'], before)
+            self.assertEqual((target / 'runners-appset.yaml').read_bytes(), before)
             entries = result['spec']['generators'][0]['list']['elements']
-            self.assertEqual(sum(e['githubRepo'] == 'Test.Repo' for e in entries), 1)
+            self.assertEqual(len(entries), 1)
+            self.assertNotIn('githubRepo', entries[0])
+            self.assertEqual(int(entries[0]['maxRunners']), 2)
             workflow = root / '.github/workflows/build-and-push-Test.Repo.yml'
             text = workflow.read_text()
             data = yaml.safe_load(text)
             push = data['jobs']['push-image']
+            self.assertEqual(push['runs-on'], entries[0]['runnerName'])
             self.assertEqual(push['if'], "github.event_name == 'push'")
             self.assertEqual(push['needs'], 'build-image')
             steps = '\n'.join(step.get('run', '') for step in push['steps'])
@@ -81,7 +84,7 @@ class RunnerDeliveryTests(unittest.TestCase):
                 if 'run' in step:
                     subprocess.run(['bash', '-n'], input=step['run'], text=True, check=True)
             lint_config = root / 'actionlint.yaml'
-            lint_config.write_text('self-hosted-runner:\n  labels: [test-repo-runners]\n')
+            lint_config.write_text('self-hosted-runner:\n  labels: [harbor-publish-runners]\n')
             lint = subprocess.run(['actionlint', '-shellcheck=', '-pyflakes=',
                                    '-config-file', str(lint_config), str(workflow)],
                                   capture_output=True, text=True)

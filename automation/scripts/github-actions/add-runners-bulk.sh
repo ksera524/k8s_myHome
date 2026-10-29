@@ -1,5 +1,5 @@
 #!/bin/bash
-# add-runners-bulk.sh - settings.tomlのarc_repositoriesからRunner ScaleSetを一括作成
+# add-runners-bulk.sh - settings.tomlのarc_repositoriesから共通Runner用workflowを一括作成
 
 set -euo pipefail
 
@@ -114,7 +114,7 @@ EOF
 # メイン処理
 main() {
     log_info "========================================="
-    log_info "Runner ScaleSet一括作成開始"
+    log_info "共通Runner用workflow一括作成開始"
     log_info "========================================="
 
     # settings.tomlからリポジトリリストを取得
@@ -160,22 +160,22 @@ main() {
         log_info "-----------------------------------------"
         log_info "リポジトリ: $repo_name"
         log_info "説明: ${description:-設定なし}"
-        log_info "Runner設定: min=$min_runners, max=$max_runners, strategy=$strategy"
-        log_status "Runner ScaleSet作成中..."
+        log_info "共通Runnerを使用します（旧min/maxは無視）。strategy=$strategy"
+        log_status "共通Runner用workflow作成中..."
 
         # add-runner.shを実行（サブシェルで実行して親シェルへの影響を防ぐ）
         set +e
         (
-            "$SCRIPT_DIR/add-runner.sh" "$repo_name" "$min_runners" "$max_runners" "$strategy"
+            "$SCRIPT_DIR/add-runner.sh" "$repo_name" "$strategy"
         )
         result=$?
         set -e
 
         if [[ $result -eq 0 ]]; then
-            log_info "✓ $repo_name のRunner ScaleSet作成成功"
+            log_info "✓ $repo_name の共通Runner用workflow作成成功"
             success_count=$((success_count + 1))
         else
-            log_error "✗ $repo_name のRunner ScaleSet作成失敗 (exit code: $result)"
+            log_error "✗ $repo_name の共通Runner用workflow作成失敗 (exit code: $result)"
             failed_repos+=("$repo_name")
             failed_count=$((failed_count + 1))
         fi
@@ -185,7 +185,7 @@ main() {
 
     # 結果サマリー
     log_info "========================================="
-    log_info "Runner ScaleSet一括作成完了"
+    log_info "共通Runner用workflow一括作成完了"
     log_info "========================================="
     log_info "成功: $success_count / ${#repositories[@]}"
 
@@ -197,7 +197,7 @@ main() {
         done
         exit 1
     else
-        log_info "すべてのRunner ScaleSetが正常に作成されました。"
+        log_info "すべての共通Runner用workflowが正常に作成されました。"
     fi
 }
 

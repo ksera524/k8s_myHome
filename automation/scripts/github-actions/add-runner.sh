@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# GitHub Actions Runner Controller (ARC) - 新しいリポジトリ用Runner追加スクリプト
+# GitHub Actions Runner Controller (ARC) - 共通 runner 用 workflow 生成
 
 set -euo pipefail
 
@@ -10,175 +10,44 @@ SCRIPTS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPTS_ROOT/common-logging.sh"
 
-# 引数確認
-if [[ $# -ne 4 ]]; then
-    log_error "使用方法: $0 <repository-name> <min-runners> <max-runners> <strategy>"
-    log_error "例: $0 my-awesome-project 1 3 latest"
-    log_error "strategy は latest のみ指定可能です"
+# repo ごとの ScaleSet は作らず、共通 runner 用の workflow だけを生成する。
+if [[ $# -eq 4 ]]; then
+    WORKFLOW_STRATEGY="$4"
+    log_warning "旧形式の min/max は使用しません。共通上限は runners-appset.yaml で管理します。"
+elif [[ $# -ge 1 && $# -le 2 ]]; then
+    WORKFLOW_STRATEGY="${2:-latest}"
+else
+    log_error "使用方法: $0 <repository-name> [latest]"
     exit 1
 fi
-
 REPOSITORY_NAME="$1"
-MIN_RUNNERS="$2"
-MAX_RUNNERS="$3"
-WORKFLOW_STRATEGY="$4"
-
-# Runner名生成（小文字変換、ドット・アンダースコアをハイフンに変換）
-RUNNER_SLUG="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]._' '[:lower:]--')"
-RUNNER_NAME="${RUNNER_SLUG}-runners"
-IMAGE_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]')"
-
+if [[ ! "$REPOSITORY_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    log_error "リポジトリ名が不正です: $REPOSITORY_NAME"
+    exit 1
+fi
 if [[ "$WORKFLOW_STRATEGY" != "latest" ]]; then
     log_error "strategy は latest のみ指定可能です: $WORKFLOW_STRATEGY"
     exit 1
 fi
-
-log_status "=== GitHub Actions Runner追加スクリプト (公式ARC対応) ==="
-log_debug "対象リポジトリ: $REPOSITORY_NAME"
-log_debug "Runner名: $RUNNER_NAME"
-log_debug "Min Runners: $MIN_RUNNERS"
-log_debug "Max Runners: $MAX_RUNNERS"
-log_debug "Workflow Strategy: $WORKFLOW_STRATEGY"
-
-# GitHubユーザー名を取得（settings.tomlから）
-SETTINGS_FILE="$SCRIPTS_ROOT/../settings.toml"
-if [[ ! -f "$SETTINGS_FILE" ]]; then
-    SETTINGS_FILE="$SCRIPTS_ROOT/../../settings.toml"
-    if [[ ! -f "$SETTINGS_FILE" ]]; then
-        SETTINGS_FILE="$(dirname "$SCRIPTS_ROOT")/settings.toml"
-        if [[ ! -f "$SETTINGS_FILE" ]]; then
-            log_error "settings.tomlが見つかりません"
-            log_error "automation/settings.tomlを作成してください"
-            exit 1
-        fi
-    fi
-fi
-
-log_debug "settings.tomlファイル: $SETTINGS_FILE"
-GITHUB_USERNAME=$(grep '^username = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2)
-if [[ -z "$GITHUB_USERNAME" ]]; then
-    # 後方互換: repository = "owner/repo" からownerを導出
-    GITHUB_USERNAME=$(grep '^repository = ' "$SETTINGS_FILE" | head -1 | cut -d'"' -f2 | cut -d'/' -f1)
-fi
-if [[ -z "$GITHUB_USERNAME" ]]; then
-    log_error "settings.tomlのgithub.usernameが設定されていません"
-    log_error "ファイル: $SETTINGS_FILE"
-    exit 1
-fi
-log_debug "GitHub Username: $GITHUB_USERNAME"
-
+IMAGE_NAME="$(echo "${REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]')"
 PROJECT_ROOT="$(cd "$SCRIPTS_ROOT/../.." && pwd)"
 APPSET_FILE="$PROJECT_ROOT/manifests/platform/ci-cd/github-actions/runners-appset.yaml"
-
-if [[ ! -f "$APPSET_FILE" ]]; then
-    log_error "ApplicationSet定義が見つかりません: $APPSET_FILE"
-    exit 1
-fi
-
-log_status "=== Runner定義をGitOps管理へ登録 ==="
-UPSERT_RESULT=$(python3 - <<PY
-import re
+# GitOps 定義を読み取り専用で参照する。workflow 生成で同時実行数を変更しない。
+RUNNER_CONFIG=$(python3 - "$APPSET_FILE" <<'CONFIG_PY'
 from pathlib import Path
-import yaml
 import sys
+import yaml
 
-appset_path = Path(r"$APPSET_FILE")
-repo_name = r"$REPOSITORY_NAME"
-min_runners = str(r"$MIN_RUNNERS")
-max_runners = str(r"$MAX_RUNNERS")
-github_owner = r"$GITHUB_USERNAME"
-
-text = appset_path.read_text(encoding="utf-8")
-doc = yaml.safe_load(text)
+doc = yaml.safe_load(Path(sys.argv[1]).read_text())
 elements = doc["spec"]["generators"][0]["list"]["elements"]
-
-slug = re.sub(r"[._]", "-", repo_name.lower())
-entry = {
-    "name": slug,
-    "githubOwner": github_owner,
-    "githubRepo": repo_name,
-    "runnerName": f"{slug}-runners",
-    "minRunners": min_runners,
-    "maxRunners": max_runners,
-    "workflowStrategy": "latest",
-}
-
-updated = False
-result = "unchanged"
-for i, e in enumerate(elements):
-    if e.get("runnerName") == entry["runnerName"] or e.get("githubRepo") == repo_name:
-        if e != entry:
-            elements[i] = entry
-            updated = True
-        result = "updated" if updated else "unchanged"
-        break
-else:
-    elements.append(entry)
-    updated = True
-    result = "added"
-
-if updated:
-    lines = text.splitlines(keepends=True)
-    elem_idx = None
-    elem_indent = 6
-    for i, line in enumerate(lines):
-        match = re.match(r"^(\s*)elements:\s*$", line)
-        if match:
-            elem_idx = i
-            elem_indent = len(match.group(1))
-            break
-    if elem_idx is None:
-        print("runners-appset.yaml に elements: が見つかりません", file=sys.stderr)
-        sys.exit(1)
-
-    end_idx = len(lines)
-    for i in range(elem_idx + 1, len(lines)):
-        stripped = lines[i].lstrip()
-        if stripped.startswith("#") or not stripped.strip():
-            continue
-        indent = len(lines[i]) - len(stripped)
-        if indent < elem_indent:
-            end_idx = i
-            break
-
-    # elements領域のみを再シリアライズする（ファイル全体は safe_dump しない:
-    # values: | ブロックスカラー等が壊れるため）
-    prefix = " " * elem_indent
-    if elements:
-        region = f"{prefix}elements:\n"
-        dumped = yaml.safe_dump(elements, sort_keys=False, allow_unicode=False).splitlines()
-        for line in dumped:
-            if line.startswith("elements:"):
-                continue
-            region += prefix + line + "\n"
-    else:
-        region = f"{prefix}elements: []\n"
-
-    new_lines = lines[:elem_idx] + [region] + lines[end_idx:]
-    appset_path.write_text("".join(new_lines), encoding="utf-8")
-
-print(result)
-PY
+if len(elements) != 1 or "githubRepo" in elements[0]:
+    raise SystemExit("Organization 共通 runner を1つ定義してください")
+entry = elements[0]
+print(entry["runnerName"], entry["githubOwner"], entry["minRunners"], entry["maxRunners"])
+CONFIG_PY
 )
-
-case "$UPSERT_RESULT" in
-    added)
-        log_status "✓ Runner定義を追加しました: $REPOSITORY_NAME"
-        ;;
-    updated)
-        log_status "✓ Runner定義を更新しました: $REPOSITORY_NAME"
-        ;;
-    unchanged)
-        log_status "✓ Runner定義は最新です: $REPOSITORY_NAME"
-        ;;
-    *)
-        log_error "Runner定義の更新に失敗しました"
-        exit 1
-        ;;
-esac
-
-log_status "ℹ️ Runner本体はArgoCD(ApplicationSet)経由でデプロイされます"
-log_status "ℹ️ 反映にはこのリポジトリのcommit/pushが必要です"
+read -r RUNNER_NAME GITHUB_USERNAME MIN_RUNNERS MAX_RUNNERS <<< "$RUNNER_CONFIG"
+log_status "共通 runner: $RUNNER_NAME（全 repo 合計 min=$MIN_RUNNERS / max=$MAX_RUNNERS）"
 
 # GitHub Actions workflow作成
 log_status "=== GitHub Actions workflow作成 ==="
@@ -314,19 +183,6 @@ jobs:
         rm -f "\$RUNNER_TEMP/crane.tar.gz" "\$RUNNER_TEMP/image.tar" /tmp/$REPOSITORY_NAME-image.tar.gz
 WORKFLOW_EOF
 
-log_status "=== セットアップ完了 ==="
-log_status ""
-log_status "✅ Runner定義登録:"
-log_status "   - $RUNNER_NAME (minRunners=$MIN_RUNNERS, maxRunners=$MAX_RUNNERS)"
-log_status "   - strategy: latest"
-log_status "   - リポジトリ: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
-log_status ""
-log_status "✅ GitHub Actions workflow作成:"
-log_status "   - $WORKFLOW_FILE"
-log_status ""
-log_status "📝 次のステップ:"
-log_status "1. アプリリポジトリに workflow を反映して Commit & Push"
-log_status "2. ArgoCD同期を確認（${RUNNER_SLUG}-runner等がSynced/Healthy）"
-log_status "3. GitHub ActionsでCI/CDテスト実行"
-log_status ""
-log_status "🎉 $REPOSITORY_NAME 用のRunner環境が準備完了しました！"
+log_status "workflow を作成しました: $WORKFLOW_FILE"
+log_status "対象 repo: https://github.com/$GITHUB_USERNAME/$REPOSITORY_NAME"
+log_status "GitHub の runner group に対象 repo を許可し、workflow をアプリリポジトリへ反映してください。"

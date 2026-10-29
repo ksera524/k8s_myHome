@@ -17,7 +17,7 @@ flowchart TD
   Updater --> Git[アプリの digest を Git 更新]
   Platform --> Controller[arc-controller Application]
   Platform --> AppSet[arc-runners ApplicationSet]
-  AppSet --> Runner[repo ごとの runner Application]
+  AppSet --> Runner[harbor-publish-runner: 全repoで最大2並列]
 ```
 
 ## root が同期する Application
@@ -85,15 +85,12 @@ root 配下は **47 Application**。`argocd-projects` / `argocd-core` のみ aut
 arc-controller は wave の明示なし、prune false。Runner template は wave 9 / prune true です。
 これらを root の wave 9 と同じ同期段階と解釈しません。
 
-| 生成 Application | GitHub repo | Runner 名 | min / max |
+| 生成 Application | GitHub scope | Runner 名 | min / max |
 |---|---|---|---|
-| `blog-runner` | `home-lab-ksera/blog` | `blog-runners` | 0 / 1 |
-| `cooklog-runner` | `home-lab-ksera/cookLog` | `cooklog-runners` | 0 / 1 |
-| `hitomi-runner` | `home-lab-ksera/hitomi` | `hitomi-runners` | 0 / 1 |
-| `api-hub-runner` | `home-lab-ksera/api-hub` | `api-hub-runners` | 0 / 1 |
-| `home-camera-runner` | `home-lab-ksera/home-camera` | `home-camera-runners` | 0 / 1 |
-| `hitomi-pdf-batch-runner` | `home-lab-ksera/hitomi-pdf-batch` | `hitomi-pdf-batch-runners` | 0 / 1 |
-| `rsshub-private-runner` | `home-lab-ksera/RSSHub-private` | `rsshub-private-runners` | 0 / 1 |
+| `harbor-publish-runner` | `home-lab-ksera` Organization | `harbor-publish-runners` | 0 / 2 |
+
+runner group `harbor-publish` は blog、cookLog、hitomi、api-hub、home-camera、hitomi-pdf-batch、RSSHub-private の7 repo を許可します。
+listener は1つ。公開ジョブの同時実行数は全 repo 合計で最大2です。
 
 ## 確認する依存
 

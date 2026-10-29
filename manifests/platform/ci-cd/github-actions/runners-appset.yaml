@@ -8,55 +8,12 @@ spec:
   generators:
   - list:
       elements:
-      - name: blog
+      - name: harbor-publish
         githubOwner: home-lab-ksera
-        githubRepo: blog
-        runnerName: blog-runners
+        runnerName: harbor-publish-runners
+        runnerGroup: harbor-publish
         minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: cooklog
-        githubOwner: home-lab-ksera
-        githubRepo: cookLog
-        runnerName: cooklog-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: hitomi
-        githubOwner: home-lab-ksera
-        githubRepo: hitomi
-        runnerName: hitomi-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: api-hub
-        githubOwner: home-lab-ksera
-        githubRepo: api-hub
-        runnerName: api-hub-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: home-camera
-        githubOwner: home-lab-ksera
-        githubRepo: home-camera
-        runnerName: home-camera-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: hitomi-pdf-batch
-        githubOwner: home-lab-ksera
-        githubRepo: hitomi-pdf-batch
-        runnerName: hitomi-pdf-batch-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
-      - name: rsshub-private
-        githubOwner: home-lab-ksera
-        githubRepo: RSSHub-private
-        runnerName: rsshub-private-runners
-        minRunners: '0'
-        maxRunners: '1'
-        workflowStrategy: latest
+        maxRunners: '2'
   template:
     metadata:
       name: '{{ .name }}-runner'
@@ -75,7 +32,9 @@ spec:
           releaseName: '{{ .runnerName }}'
           parameters:
           - name: githubConfigUrl
-            value: https://github.com/{{ .githubOwner }}/{{ .githubRepo }}
+            value: https://github.com/{{ .githubOwner }}
+          - name: runnerGroup
+            value: '{{ .runnerGroup }}'
           - name: githubConfigSecret
             value: github-multi-repo-secret
           - name: minRunners

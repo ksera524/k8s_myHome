@@ -9,8 +9,8 @@
 | Service | `rsshub:1200` |
 | image | `harbor.qroksera.com/sandbox/rsshub-private:latest`、Always pull |
 | URL | `https://rsshub.internal.qroksera.com` |
-| Runner | `rsshub-private-runners`、Application `rsshub-private-runner` |
-| アプリ repo | `home-lab-ksera/RSSHub-private`（ApplicationSet の宣言） |
+| Runner | `harbor-publish-runners`、Application `rsshub-private-runner` |
+| アプリ repo | `home-lab-ksera/RSSHub-private`（共通 runner group の許可対象） |
 
 ## 実行環境
 
