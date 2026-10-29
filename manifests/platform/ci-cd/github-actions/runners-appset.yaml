@@ -9,49 +9,49 @@ spec:
   - list:
       elements:
       - name: blog
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: blog
         runnerName: blog-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: cooklog
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: cookLog
         runnerName: cooklog-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: hitomi
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: hitomi
         runnerName: hitomi-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: api-hub
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: api-hub
         runnerName: api-hub-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: home-camera
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: home-camera
         runnerName: home-camera-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: hitomi-pdf-batch
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: hitomi-pdf-batch
         runnerName: hitomi-pdf-batch-runners
         minRunners: '0'
         maxRunners: '1'
         workflowStrategy: latest
       - name: rsshub-private
-        githubOwner: ksera524
+        githubOwner: home-lab-ksera
         githubRepo: RSSHub-private
         runnerName: rsshub-private-runners
         minRunners: '0'

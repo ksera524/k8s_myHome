@@ -14,7 +14,7 @@ spec:
     # Argo CD repository credentials 経由で SSH host key 検証を有効にする。
     method: git
     gitConfig:
-      repository: git@github.com:ksera524/k8s_myHome.git
+      repository: git@github.com:home-lab-ksera/k8s_myHome.git
       branch: main
       writeBackTarget: kustomization
   applicationRefs:

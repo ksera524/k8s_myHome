@@ -44,9 +44,9 @@ project = "k8s"
 environment = "secret"
 
 [github]
-# ArgoCD OAuth / ARC GitHub App 用の非機密ユーザー名
+# Runner の登録先となる GitHub 所有者名（ユーザーまたは Organization）
 # add-runner.sh が Runner 定義登録と workflow 生成に使用します
-username = ""
+username = "home-lab-ksera"
 
 # make add-runners-all で一括追加するリポジトリ
 # 形式: ["repo", min, max, "description", "latest"]

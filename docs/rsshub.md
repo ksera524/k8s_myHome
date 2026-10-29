@@ -10,7 +10,7 @@
 | image | `harbor.qroksera.com/sandbox/rsshub-private:latest`、Always pull |
 | URL | `https://rsshub.internal.qroksera.com` |
 | Runner | `rsshub-private-runners`、Application `rsshub-private-runner` |
-| アプリ repo | `ksera524/RSSHub-private`（ApplicationSet の宣言） |
+| アプリ repo | `home-lab-ksera/RSSHub-private`（ApplicationSet の宣言） |
 
 ## 実行環境
 

@@ -8,7 +8,7 @@ import sys
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-REPO_URL = "https://github.com/ksera524/k8s_myHome.git"
+REPO_URL = "https://github.com/home-lab-ksera/k8s_myHome.git"
 
 
 def applications(base):

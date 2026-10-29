@@ -1,7 +1,8 @@
 # Application と Sync Wave
 
-2026-10-27 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
+2026-10-29 の [bootstrap 定義](../../manifests/bootstrap/applications/) から作成した一覧です。
 root は [bootstrap-root](../../manifests/bootstrap/app-of-apps.yaml) で、source は `manifests/bootstrap/applications` です。
+GitOps repository と各 runner の登録先は `home-lab-ksera` Organization 配下です。
 
 ## 管理構造
 
@@ -86,13 +87,13 @@ arc-controller は wave の明示なし、prune false。Runner template は wave
 
 | 生成 Application | GitHub repo | Runner 名 | min / max |
 |---|---|---|---|
-| `blog-runner` | `ksera524/blog` | `blog-runners` | 0 / 1 |
-| `cooklog-runner` | `ksera524/cookLog` | `cooklog-runners` | 0 / 1 |
-| `hitomi-runner` | `ksera524/hitomi` | `hitomi-runners` | 0 / 1 |
-| `api-hub-runner` | `ksera524/api-hub` | `api-hub-runners` | 0 / 1 |
-| `home-camera-runner` | `ksera524/home-camera` | `home-camera-runners` | 0 / 1 |
-| `hitomi-pdf-batch-runner` | `ksera524/hitomi-pdf-batch` | `hitomi-pdf-batch-runners` | 0 / 1 |
-| `rsshub-private-runner` | `ksera524/RSSHub-private` | `rsshub-private-runners` | 0 / 1 |
+| `blog-runner` | `home-lab-ksera/blog` | `blog-runners` | 0 / 1 |
+| `cooklog-runner` | `home-lab-ksera/cookLog` | `cooklog-runners` | 0 / 1 |
+| `hitomi-runner` | `home-lab-ksera/hitomi` | `hitomi-runners` | 0 / 1 |
+| `api-hub-runner` | `home-lab-ksera/api-hub` | `api-hub-runners` | 0 / 1 |
+| `home-camera-runner` | `home-lab-ksera/home-camera` | `home-camera-runners` | 0 / 1 |
+| `hitomi-pdf-batch-runner` | `home-lab-ksera/hitomi-pdf-batch` | `hitomi-pdf-batch-runners` | 0 / 1 |
+| `rsshub-private-runner` | `home-lab-ksera/RSSHub-private` | `rsshub-private-runners` | 0 / 1 |
 
 ## 確認する依存
 
