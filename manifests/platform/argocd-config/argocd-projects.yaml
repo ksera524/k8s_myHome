@@ -7,8 +7,6 @@ spec:
   description: コア基盤（Namespace/StorageClass/NetworkPolicy）
   sourceRepos:
     - https://github.com/home-lab-ksera/k8s_myHome.git
-    # 移管時の Application 更新中も旧 URL から同期できるようにする。
-    - https://github.com/ksera524/k8s_myHome.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -27,8 +25,6 @@ spec:
   description: クラスタ基盤（Networking/Ingress/Cert/Storage）
   sourceRepos:
     - https://github.com/home-lab-ksera/k8s_myHome.git
-    # 移管時の Application 更新中も旧 URL から同期できるようにする。
-    - https://github.com/ksera524/k8s_myHome.git
     - https://metallb.github.io/metallb
     - oci://ghcr.io/nginx/charts/nginx-gateway-fabric
     - https://charts.jetstack.io
@@ -62,8 +58,6 @@ spec:
   description: 運用基盤（ArgoCD/ESO/Harbor/RustFS/CI）
   sourceRepos:
     - https://github.com/home-lab-ksera/k8s_myHome.git
-    # 移管時の Application 更新中も旧 URL から同期できるようにする。
-    - https://github.com/ksera524/k8s_myHome.git
     - https://charts.external-secrets.io
     - https://argoproj.github.io/argo-helm
     - ghcr.io/actions/actions-runner-controller-charts
@@ -110,8 +104,6 @@ spec:
   description: 公開/接続系（Gateway/DNS/HTTPRoute）
   sourceRepos:
     - https://github.com/home-lab-ksera/k8s_myHome.git
-    # 移管時の Application 更新中も旧 URL から同期できるようにする。
-    - https://github.com/ksera524/k8s_myHome.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argocd
@@ -143,8 +135,6 @@ spec:
   description: ユーザーアプリ
   sourceRepos:
     - https://github.com/home-lab-ksera/k8s_myHome.git
-    # 移管時の Application 更新中も旧 URL から同期できるようにする。
-    - https://github.com/ksera524/k8s_myHome.git
     - https://charts.bitnami.com/bitnami
   destinations:
     - server: https://kubernetes.default.svc
