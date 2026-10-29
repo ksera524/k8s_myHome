@@ -1,0 +1,22 @@
+# OS側に bash / curl / git / jq / Python 3 + venv / PostgreSQL を用意する。
+[tools]
+actionlint = "1.7.7"
+go = "1.25.3"
+kubeconform = "0.7.0"
+kind = "0.30.0"
+kustomize = "5.7.1"
+kubectl = "1.34.1"
+helm = "3.19.0"
+shellcheck = "0.11.0"
+"aqua:prometheus/prometheus" = "3.7.3"
+
+[env]
+_.path = [".venv/bin", "{{ exec(command='pg_config --bindir') }}"]
+
+[tasks.setup]
+description = "検証用Python依存をローカルvenvへ導入"
+run = "python3 -m venv .venv && .venv/bin/python -m pip install -r automation/toolchain/requirements.txt"
+
+[tasks.validate]
+description = "CI相当の静的検証"
+run = "automation/scripts/ci/validate.sh"

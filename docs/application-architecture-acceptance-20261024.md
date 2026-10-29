@@ -1,7 +1,7 @@
 # 承認済み目標とPRの受け入れ確認
 
 対象は [構成レビュー](application-architecture-review-20261024.md) の完了条件。
-以下は実装PRレビュー時点の監査記録。merge後の配備状況と追加の実測は [実装状況](application-implementation-status-20261024.md) と [media切替の第2段階](application-cutover-media-20261025.md) を参照。
+以下は実装PRレビュー時点の監査記録。merge後の配備状況と追加の実測は [実装状況](application-implementation-status-20261024.md) を参照。
 既存の共用 `app` 資格情報を使い、追加製品の提案は含めない。別媒体backupは利用者の指示で今回の対象外とし、未達成条件から除外する。
 **コードと自動テストの確認と、本番での目標達成は別である。** 以下の表は実装PR監査時点の記録。4アプリの配備は完了し、残る実運用・性能確認は [2026-10-25の配備確認](application-deployment-verification-20261025.md) を参照。
 
@@ -33,4 +33,4 @@
 
 別媒体backupは対象外。既存のpgBackRestとkind内のbackup/restore試験は維持する。
 
-切替順序と切戻しの制約は [移行手順](application-postgresql-cutover.md)、計測条件は [変更前測定](performance/20261024/README.md) を参照。
+現行運用は [移行手順](application-postgresql-cutover.md)、計測条件は [変更前測定](performance/20261024/README.md) を参照。

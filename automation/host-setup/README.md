@@ -19,7 +19,7 @@ make phase1
 - `libvirtd` / `docker` サービスの有効化
 - 仮想化サポートの確認
 
-`K8S_MYHOME_USE_NIX_TOOLCHAIN=true` の場合、Terraform / Ansible / kubectl / Helm は Nix toolchain に委譲し、ホスト前提だけを構成します。
+Terraform / Ansible / kubectl / Helm はホストへ直接導入します。検証用の mise toolchain は [検証手順](../../docs/reference.md) を参照してください。
 
 ## ストレージ補助スクリプト
 

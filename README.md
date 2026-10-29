@@ -27,10 +27,10 @@ Ubuntu / libvirt / Terraform で VM と kubeadm クラスタを用意し、ArgoC
 ## 検証
 
 ```bash
-# Docker 内の Nix で主要な静的検証
+# Docker 内の専用 toolchain で主要な静的検証
 make validate
-# ローカル Nix
-nix develop .#default --command automation/scripts/ci/validate.sh
+# ローカル（初回は docs/reference.md のセットアップを実施）
+mise exec -- automation/scripts/ci/validate.sh
 # toolchain 導入済みの場合
 make validate-local
 ```

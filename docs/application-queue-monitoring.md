@@ -66,7 +66,7 @@ cameraの録画監視は再接続で猶予をリセットしない。`home_camer
 4. 4キューのmetrics、cameraのstats_success、VictoriaMetricsの収集を確認する。空キューでも状態別0件のseriesが存在することを確認する。
 
 回帰テストは各アプリの隔離DBテストとcameraの並行spool集計テストで実行する。
-`nix develop --command automation/scripts/ci/validate.sh`にはNetworkPolicyテストと
+`mise exec -- automation/scripts/ci/validate.sh`にはNetworkPolicyテストと
 `promtool test rules automation/tests/observability/*.test.yaml`を含む。発火待機、復旧、空キュー、欠損、複数Podの重複排除を検証する。
 
 hitomiのacceptedは受付完了で滞留に数えない。配送failed/uncertainはapi-hubで検知する。items.failedも検知対象。cameraの不正manifestはCameraInvalidManifest、segment停止はCameraRecordingStalledで検知し、破損manifestだけのspoolも正常な空状態にしない。

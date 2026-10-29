@@ -60,9 +60,8 @@ make phase5
 [PostgreSQL の復旧](shared-postgresql.md#再起動と再構築) を確認してください。
 NFS にファイルが残ることと、新クラスタが正しいデータを再利用できることは別です。
 
-Nix で CLI を揃える場合は `nix develop .#bootstrap` 内で実行できます。
-この shell は `K8S_MYHOME_USE_NIX_TOOLCHAIN=true` を設定し、phase1 の一部 CLI 導入を省略します。
-ホストの apt / libvirt / Docker / systemd 設定は実行されます。
+Terraform / Ansible / kubectl / Helm は phase1 の通常インストール経路で導入します。
+検証用 CLI は [mise toolchain のセットアップ](reference.md#ローカルtoolchainのセットアップ)で追加できます。
 
 ## Bootstrap が行うこと
 
@@ -79,7 +78,7 @@ bootstrap の SSH/SCP は既定の SSH 設定を使い、verify と異なり `K8
 必要なら SSH config / agent を用意します。
 
 証明書準備にはローカルの SSH/SCP、control-plane の Python 3 / kubectl（内蔵Kustomize）が必要。
-`nix develop .#bootstrap` と標準Ubuntuノードで揃う。ノード台帳は [nodes.json](../manifests/infrastructure/security/kubelet-serving-certificates/nodes.json) を参照。
+phase1 のホスト準備と標準Ubuntuノードで揃う。ノード台帳は [nodes.json](../manifests/infrastructure/security/kubelet-serving-certificates/nodes.json) を参照。
 
 bootstrap 終了は全 child Application の収束完了ではありません。
 CRD、ESO、証明書、DB の復元、アプリ起動を別途確認します。

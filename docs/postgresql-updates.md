@@ -23,10 +23,10 @@ major chart 更新には Dashboard 承認が必要です。DB major の変更は
 DB / pgBackRest / 資格情報 Job / Harbor 待機コンテナ / 復元例のイメージを照合します。
 
 ```bash
-nix develop --command python3 automation/scripts/ci/postgresql-versions.py
+mise exec -- python3 automation/scripts/ci/postgresql-versions.py
 # chart version を編集した後、取得・同梱・関連イメージ同期を行う
-nix develop --command python3 automation/scripts/ci/postgresql-versions.py --sync
-nix develop --command automation/scripts/ci/validate.sh
+mise exec -- python3 automation/scripts/ci/postgresql-versions.py --sync
+mise exec -- automation/scripts/ci/validate.sh
 ```
 
 `--sync` は作業ツリーを変更し、検証成功後に古い同梱 chart を削除します。
@@ -50,7 +50,7 @@ workflow に列挙された PostgreSQL 関連ファイルの変更時、また�
 Docker が使える環境での実行例:
 
 ```bash
-nix develop --command python3 automation/scripts/ci/postgresql-runtime.py \
+mise exec -- python3 automation/scripts/ci/postgresql-runtime.py \
   --base-ref origin/main --logs /tmp/postgresql-runtime-logs
 ```
 

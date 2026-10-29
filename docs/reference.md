@@ -2,14 +2,14 @@
 
 ## 静的検証の入口
 
-[flake.nix](../flake.nix) / flake.lock に toolchain を定義し、
+[mise.toml](../mise.toml) と [Python依存](../automation/toolchain/requirements.txt) に toolchain を定義し、
 [validate.sh](../automation/scripts/ci/validate.sh) を CI とローカルで共有しています。
 
 ```bash
-# Docker 内の Nix で実行
+# Docker 内の専用 toolchain で実行
 make validate
-# ローカル Nix
-nix develop .#default --command automation/scripts/ci/validate.sh
+# ローカル（初回は docs/reference.md のセットアップを実施）
+mise exec -- automation/scripts/ci/validate.sh
 # 必要な CLI が導入済みの場合
 make validate-local
 ```
@@ -21,6 +21,27 @@ shellcheck、yamllint、GitOps 参照・登録、policy、PostgreSQL 版整合�
 
 kubeconform は PGO 同梱 CRD・標準 schema・CRD catalog を利用し、schema 不足はスキップします。
 外部 Helm Application の同期そのもの、admission、Secret の実値、URL 疎通、データ復元は保証しません。
+
+## ローカルtoolchainのセットアップ
+
+mise 2026.10.8 以降を用意し、Ubuntu/Debian では次を実行します。
+Dockerでの `make validate` はこのホスト側セットアップを必要としません。
+
+```bash
+sudo apt-get update
+sudo apt-get install -y bash ca-certificates curl git jq libpq-dev postgresql python3-venv unzip xz-utils
+mise trust
+mise install
+mise run setup
+mise run validate
+```
+
+`mise.toml` がCLIのバージョンを固定し、Python依存は `.venv/` に導入します。
+`pg_config --bindir` をPATHへ追加するため、PostgreSQLの `initdb` / `pg_ctl` / `psql` も利用できます。
+一時DBのテストがあるため一般ユーザーで実行してください。
+CIも同じmise設定とrequirementsを使います。Docker版はDebianの専用イメージを作成し、
+ホストと同じUID/GIDの一般ユーザーで検証するため、生成物がroot所有になりません。
+kindやコンテナを使う追加実行テストは、Dockerが使えるホスト側で `mise exec --` を付けて実行します。
 
 ## CI の追加検証
 
@@ -37,7 +58,7 @@ kubeconform は PGO 同梱 CRD・標準 schema・CRD catalog を利用し、sche
 追加設定検証のローカル入口（Docker が必要）:
 
 ```bash
-nix develop --command python3 automation/scripts/ci/validate-platform-configs.py
+mise exec -- python3 automation/scripts/ci/validate-platform-configs.py
 ```
 
 ## 使い捨て VM の実構築テスト
@@ -57,7 +78,7 @@ Node Ready、DNS・ノード間通信、Terraform 再適用の無差分、各 VM
 
 ## 個別検証
 
-Nix shell 内で必要な箇所だけ確認する例です。
+`mise exec -- bash` 内で必要な箇所だけ確認する例です。
 
 ```bash
 git diff --check

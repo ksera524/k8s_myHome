@@ -104,7 +104,7 @@ kubectl -n argocd logs -l app.kubernetes.io/name=argocd-image-updater --tail=100
 PyYAML を含む toolchain で実行します。登録先と Runner 名は共通の GitOps 定義から読み取ります。
 
 ```bash
-nix develop .#default
+mise exec -- bash
 make add-runner REPO=my-app
 # settings.toml の arc_repositories から一括生成する場合
 make add-runners-all

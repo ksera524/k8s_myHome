@@ -37,7 +37,6 @@ RTSPは`-timeout`で接続を制限し、完成segmentがsegment長の2倍+起�
 
 配備順序: 先に互換imageの回復試験を通す。旧設定の`--record`/`--upload`で起動でき、旧migration Job向け`--migrate`はDBを変更せず終了する暫定互換（P6で削除）。その後GitOpsからPG設定/CA/DBラベル/migrationを除去し、StatefulSetの順序付き更新で旧uploader終了後に新uploaderを起動する。強制削除しない。PVC/S3の移動・削除を行わない。
 
-切戻し: 旧digestとPG設定を同時に戻す。writer/uploaderの終了を確認して交代し、S3保存済みと旧DBの履歴差分を明示する。camera DBの物理削除は行わない。
 
 ## 2026-10-26 再開時の確認
 
@@ -49,9 +48,9 @@ hitomiの日次Jobはsources 11（initialized）、baseline 852件を保存し�
 
 通知受付をoutbox accepted/items notification_acceptedで終端にする。追加migration 2で既存行を分類し、api_id付き非sent行をverifyで一度照合。不一致等はreceipt_failedとして保持。有効な202まで同じpayloadを再送し、配送結果の継続GETは撤去する。
 
-同一feed6回・章revision更新・再掲載・baseline維持、応答喪失/503/429/ID欠落202からの同一payload再送、400/409、移行照合のidentity不一致、受付後の非GET、切戻しSQLを隔離DBで確認。回復試験3件成功。通常lib試験58件成功。
+同一feed6回・章revision更新・再掲載・baseline維持、応答喪失/503/429/ID欠落202からの同一payload再送、400/409、移行照合のidentity不一致、受付後の非GETを隔離DBで確認。回復試験3件成功。通常lib試験58件成功。
 
-先にアプリimage/migrationを配備し、api-hubの配送失敗監視が有効な状態で受付責任を切り替える。その後、GitOpsのscheduleをJST 02:55/06:55/10:55/14:55/18:55/22:55に変更する。負荷時はscheduleだけ日次へ戻し、履歴を残す。切戻しはhitomi/docs/state.mdとrollback-acceptance.sqlに従い、未知migrationのある旧imageへhookをそのまま戻さない。
+先にアプリimage/migrationを配備し、api-hubの配送失敗監視が有効な状態で受付責任を切り替える。その後、GitOpsのscheduleをJST 02:55/06:55/10:55/14:55/18:55/22:55に変更する。
 
 P3の実運用確認で3件のRSS timeoutは、内部RSSHub Gatewayへのegressがmediaだけに許可され、hitomi-monitorに欠けていることを特定。既存のGateway/443の許可を両collectorへ適用し、他のLAN port・無関係なappは引き続き拒否する回帰試験を追加する。収集頻度変更に先立つ欠落防止の修正であり、source/items/outbox履歴は初期化しない。
 
@@ -88,7 +87,7 @@ api-hub #13の準備image `sha256:7293713df8a0d060217d122374951017e53aa38f555f67
 
 最終app検証: cameraは通常とFFmpeg回復・不正引数、hitomiはlib60/HTTP3とDB必須、mediaは通常19/隔離durable recovery、APIは通常24/HTTP7/隔離3が成功。APIのmemory fixtureは配布imageに含まないtest専用exampleへ移し、製品へAPI専用flagを残していない。同じ2thread条件で64/256MiB debug fixtureのupload55,312/72,684KiB、download15,628/15,636KiBで既存閾値内。
 
-GitOps #123で専用worker Deployment・旧camera CronJob・専用policy参照・未使用env・旧生成器を撤去した。旧exampleと過去配備記録は履歴として区別する。[構成図](application-simplification-architecture.md)、[運用・復元手順](application-postgresql-cutover.md)、[接続予算](shared-postgresql.md)を最終形へ更新。DB復元時の重複通知は許容し、通常の統合起動で再開する。Slack事前照合用の起動modeは設けない。
+GitOps #123で専用worker Deployment・旧camera CronJob・専用policy参照・未使用env・旧生成器を撤去した。[構成図](application-simplification-architecture.md)、[運用・復元手順](application-postgresql-cutover.md)、[接続予算](shared-postgresql.md)を最終形へ更新。DB復元時の重複通知は許容し、通常の統合起動で再開する。Slack事前照合用の起動modeは設けない。
 
 対象常駐Pod6→5、container7→6、主処理pool上限18→14、全app最大見積り78→70（app80/cluster100）。09時台の待機時実測はapp接続11（api_hub2/hitomi2/media4/registry3、全idle）であり、ピーク実測とは扱わない。cameraは接続0。
 

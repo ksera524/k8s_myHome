@@ -1,0 +1,19 @@
+name: Setup validation toolchain
+description: miseとPython venvでローカルと共通の検証ツールを導入
+runs:
+  using: composite
+  steps:
+    - name: Install OS prerequisites
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpq-dev postgresql python3-venv jq
+    - uses: jdx/mise-action@v4
+      with:
+        version: 2026.10.8
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        mise run setup
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+        pg_config --bindir >> "$GITHUB_PATH"

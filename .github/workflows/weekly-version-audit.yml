@@ -26,13 +26,13 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
+      - name: Install validation toolchain
+        uses: ./.github/actions/setup-toolchain
 
       - name: Find and apply stable updates
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix develop --command python3 automation/scripts/ci/version-audit.py --apply
+        run: mise exec -- python3 automation/scripts/ci/version-audit.py --apply
 
       - name: Validate the tracked candidate tree
         env:
@@ -42,7 +42,7 @@ jobs:
           git add --all manifests
           candidate_dir="$(mktemp -d)"
           git checkout-index --all --prefix="$candidate_dir/"
-          nix develop --command bash "$candidate_dir/automation/scripts/ci/validate.sh"
+          mise exec -- bash "$candidate_dir/automation/scripts/ci/validate.sh"
 
       - name: Create or update version PR
         id: pr

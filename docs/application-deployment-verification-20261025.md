@@ -22,6 +22,4 @@ Cronは13:55 UTC（22:55 JST）。migrationの初回PodはDB接続poolの取得t
 本確認で実カメラの時間帯設定を変更したり、本番収集Jobを手動起動したり、検証用Slack通知を送ったりしていない。
 Slackの配送結果不明は既存のuncertain手順で照合する。失敗したmediaを一括で再取得していない。
 
-移行・切戻しは [手順](application-postgresql-cutover.md)、
-各段階の詳細は [hitomi](application-cutover-hitomi-20261025.md)、[camera](application-cutover-camera-20261025.md)、
-[viewer](application-cutover-viewer-20261025.md)、[S3計測](performance/20261025/README.md) を参照。
+現行の運用は[運用手順](application-postgresql-cutover.md)、計測結果は[S3計測](performance/20261025/README.md)を参照。

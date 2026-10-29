@@ -18,7 +18,7 @@ PR単位の目標照合、監査で修正した問題、未達成の本番条件
 - viewerにカタログ画面、状態・未読絞り込み、再取得・取得状況表示を追加。従来画面と切替可能。
 - hitomi：初回baseline、項目claim、NG判定の保存、画像S3保存と通知outbox、漫画の更新期間を含めた重複排除。隔離DBでbaseline・再送・古いclaimの拒否を確認。
 - camera：常駐segment録画、PVC上のmanifest、別uploader、DB障害時も録画できる構造、spool容量制御・監視値・アラートを実装済み。
-- migration/workerを含むCI、[切替用マニフェスト](../automation/examples/application-architecture/)、[移行と切戻し手順](application-postgresql-cutover.md)を追加。planner停止・camera 0 replicaで準備し、旧writer終了確認後に順次有効化した。
+- migration/workerを含むCI、[運用手順](application-postgresql-cutover.md)を追加。planner停止・camera 0 replicaで準備し、旧writer終了確認後に順次有効化した。
 
 ## 検証結果
 

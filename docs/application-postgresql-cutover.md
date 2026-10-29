@@ -35,15 +35,4 @@ api-hub/media/hitomiのmigrationはPreSync Jobで、migrationだけを実行す�
 3. 通常の統合api-hubを起動して配送を再開し、hitomi/mediaを再開する。個人サーバーの運用としてDB巻戻りによる通知再送・重複は許容する。Slackとの事前照合やAPI専用modeを再開条件にしない。
 4. 通常の冪等受付とuncertainの手動対応は維持する。sending/uncertainを無条件にpendingへ戻したり、全件再送したりしない。
 
-## 旧imageへの切戻し
-
-Image Updaterの対象を一時停止してから旧digestと対応する設定へ戻す。新旧writer/workerを同時起動しない。
-
-- api-hub: 統合processを先に停止する。旧imageのAPI専用設定へ戻してから、必要な旧専用workerを再開する。最終imageにAPI専用/worker専用の起動flagはない。
-- hitomi: dispatcherを止め、repoの`docs/rollback-acceptance.sql`で新状態を旧dispatcherの選択状態へ変換する。ID/payload/冪等キーを維持し、migration2を知らない旧imageへ戻す際はmigration hookも分離する。バイナリだけを戻さない。
-- camera: 現writer/uploaderを終了してから旧imageとPG設定へ交代する。spool/PVC/S3と退役DBを保持し、新方式の保存済みが旧DBに自動反映されるとは扱わない。
-- media/viewer: catalogの読み取りを維持し、必要なら`MEDIA_DIRECT_DELIVERY=false`とHTTPS proxyへ戻す。新形式動画を旧日付一覧だけで完全表示できるとは扱わない。
-
-過去の初回配備確認は[2026-10-25記録](application-deployment-verification-20261025.md)と各`application-cutover-*.md`に保持する。旧切替exampleは履歴であり、現行manifestは`manifests/apps/`が正本。
-
 mediaの毎時・日次処理分離とローカル一時領域への移行は[測定・反映手順](media-storage-optimization.md)を参照。

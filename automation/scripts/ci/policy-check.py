@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -279,7 +280,7 @@ def default_namespace_for_app(doc: dict[str, Any]) -> str | None:
 
 
 def check_rendered_collision(issues: list[str]) -> None:
-    if subprocess.run(["bash", "-lc", "command -v kustomize >/dev/null 2>&1"], check=False).returncode != 0:
+    if shutil.which("kustomize") is None:
         fail(issues, "R-009", "kustomize not found; rendered collision check cannot run")
         return
 

@@ -35,10 +35,10 @@ GitHub 側の必須チェック設定と、実際の最新 HEAD の検証結果�
 
 ```bash
 # 調査のみ（外部 registry / release 情報へアクセス）
-nix develop --command python3 automation/scripts/ci/version-audit.py
+mise exec -- python3 automation/scripts/ci/version-audit.py
 # 専用ブランチで作業ツリーに候補を反映
-nix develop --command python3 automation/scripts/ci/version-audit.py --apply
-nix develop --command automation/scripts/ci/validate.sh
+mise exec -- python3 automation/scripts/ci/version-audit.py --apply
+mise exec -- automation/scripts/ci/validate.sh
 # GitHub 上で PR 作成まで実行する場合
 gh workflow run weekly-version-audit.yml
 ```

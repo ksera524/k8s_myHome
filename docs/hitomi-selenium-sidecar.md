@@ -30,8 +30,8 @@ Kubernetes 1.33以降の native sidecar を前提とする。実クラスタは�
 ## 検証
 
 ```bash
-nix develop --command automation/scripts/ci/validate.sh
-nix develop --command python3 automation/scripts/ci/selenium-runtime.py
+mise exec -- automation/scripts/ci/validate.sh
+mise exec -- python3 automation/scripts/ci/selenium-runtime.py
 ```
 
 runtime 検証は Docker 上に一時 kind クラスタを作り、専用 kubeconfig / context を使う。
@@ -72,9 +72,3 @@ Git 反映後は次を確認する。
 
 省メモリ量は収集時間に依存する。2026-10-27 の常駐時に約766MiBを観測したが、
 これを24時間一定の削減量として扱わない。
-
-## 切り戻し
-
-変更を Git revert し、root / core の同期で旧 Selenium Application・Service・通信許可を戻す。
-旧 Deployment が Ready になったことを確認してから、旧接続先の収集 Job を開始する。
-sidecar 構成で既に作成された Job はそのまま完了できる。アプリ image と DB schema は変更しない。

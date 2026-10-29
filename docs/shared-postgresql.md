@@ -140,9 +140,6 @@ Terraform の VM CPU mode は `host-model` です。
 マーカーは実データ検証後の判定に使い、待機を迂回するために作成しません。
 
 旧 `harbor` role のバックアップを戻す場合は app への所有権移管と、復元マーカーを読む権限も確認します。
-データ移行後に古い DB へ戻す場合、新 DB への書き込み分が失われない復旧計画が必要です。
-過去の移行記録は [tasks/shared-postgresql.md](../tasks/shared-postgresql.md) を参照し、
-そこに記録された旧 PVC・dump の現在の存在は実環境で再確認します。
 
 ## Grafana から SQL を使う
 

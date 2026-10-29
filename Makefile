@@ -17,7 +17,7 @@ help:
 	@echo "  make kubelet-certificates - serving CSRの自動承認導入と全ノードTLS検証"
 	@echo "  make bootstrap            - GitOps bootstrap（ArgoCD + root Application）"
 	@echo "  make phase5 / make verify       - 確認"
-	@echo "  make validate                   - Dockerized NixでCI相当の検証"
+	@echo "  make validate                   - Docker内のmise toolchainでCI相当の検証"
 	@echo "  make validate-local             - ローカル導入済みtoolchainで検証"
 	@echo "  make recover                    - Ubuntu再起動後のk8s復旧"
 	@echo "  make diagrams                   - クラスタ全体構成図を生成 (cluster-diagram.png)"
@@ -45,7 +45,8 @@ phase5 verify:
 	@./automation/scripts/run.sh phase5
 
 validate:
-	@docker run --rm -v "$$PWD":/work -w /work nixos/nix:2.24.11 nix --extra-experimental-features 'nix-command flakes' develop path:/work#default --command automation/scripts/ci/validate.sh
+	@docker build -f automation/toolchain/Dockerfile --build-arg LOCAL_UID=$$(id -u) --build-arg LOCAL_GID=$$(id -g) -t k8s-myhome-validator .
+	@docker run --rm -v "$$PWD":/work -w /work k8s-myhome-validator
 
 validate-local:
 	@automation/scripts/ci/validate.sh

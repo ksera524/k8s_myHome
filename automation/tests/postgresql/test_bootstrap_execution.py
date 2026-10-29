@@ -12,7 +12,7 @@ from test_credentials import MODULE
 
 
 @unittest.skipUnless(all(shutil.which(tool) for tool in ('initdb', 'pg_ctl', 'psql')),
-                     'requires PostgreSQL binaries (nix develop)')
+                     'requires PostgreSQL binaries (initdb, pg_ctl, psql on PATH)')
 class BootstrapExecutionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
