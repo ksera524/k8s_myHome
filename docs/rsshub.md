@@ -9,7 +9,7 @@
 | Service | `rsshub:1200` |
 | image | `harbor.qroksera.com/sandbox/rsshub-private:latest`、Always pull |
 | URL | `https://rsshub.internal.qroksera.com` |
-| Runner | `harbor-publish-runners`、Application `rsshub-private-runner` |
+| Runner | `harbor-publish-runners`、Application `harbor-publish-runner` |
 | アプリ repo | `home-lab-ksera/RSSHub-private`（共通 runner group の許可対象） |
 
 ## 実行環境
@@ -29,7 +29,7 @@ Runner は [runners-appset.yaml](../manifests/platform/ci-cd/github-actions/runn
 ## 確認
 
 ```bash
-kubectl -n argocd get applications rsshub rsshub-access rsshub-private-runner
+kubectl -n argocd get applications rsshub rsshub-access harbor-publish-runner
 kubectl -n sandbox rollout status deployment/rsshub-private --timeout=300s
 kubectl -n sandbox logs deployment/rsshub-private --tail=50
 curl --fail https://rsshub.internal.qroksera.com/healthz
