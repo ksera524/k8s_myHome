@@ -4,6 +4,6 @@ resources:
   - manifest.yaml
 images:
   - name: harbor.qroksera.com/sandbox/hitomi-upload-viewer
-    newTag: latest
+    newTag: deploy
     newName: harbor.qroksera.com/sandbox/hitomi-upload-viewer
-    digest: sha256:c0bee7cf79aed0dbc47afb31aa620aba6839ca604c90f4be806e61683ceb80da
+    digest: sha256:f5d1c0236dd06916161f334f5b8e97a1a6e3b39e70120de96768859c3537a7b2

@@ -7,4 +7,4 @@ images:
   - name: harbor.qroksera.com/sandbox/hitomi-pdf-batch
     newTag: deploy
     newName: harbor.qroksera.com/sandbox/hitomi-pdf-batch
-    digest: sha256:00c493e9ee33c8905b957057a678ce444325d707e3e914807cb5a2fcd47f83ec
+    digest: sha256:6258f391f37882c390ff84830c18901d28f7b7801bfbb0497e4f6b278a18410b
