@@ -1,0 +1,315 @@
+rule_files:
+- ../../../manifests/platform/observability/config/alert-rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 正常
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 21474836480+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 絶対量の警告
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 53687091200+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が12GiBまたは20%未満です
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 絶対量の重大
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 55834574848+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が12GiBまたは20%未満です
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: critical
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が9GiBまたは15%未満です。大容量取得・CIの一時領域を確認してください
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 警告の境界12GiB・20パーセント
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 51539607552+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 重大の境界9GiB・15パーセント
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 54760833024+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が12GiBまたは20%未満です
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 割合の警告
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 107374182400+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 88046829568+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が12GiBまたは20%未満です
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 割合の重大
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 107374182400+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 92341796864+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が12GiBまたは20%未満です
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: critical
+      exp_annotations:
+        summary: Node worker-1 のルートディスク空き推定値が9GiBまたは15%未満です。大容量取得・CIの一時領域を確認してください
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+- name: 使用量欠損
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク容量を収集できません
+- name: 全メトリクス欠損
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク容量を収集できません
+- name: 無効な容量
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 0+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 0+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda16"}
+    values: 214748364800+0x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts:
+    - exp_labels:
+        node: worker-1
+        severity: warning
+      exp_annotations:
+        summary: Node worker-1 のルートディスク容量を収集できません
+- name: 5分以内の一時的不足と復旧
+  interval: 1m
+  input_series:
+  - series: kube_node_info{node="worker-1"}
+    values: 1+0x20
+  - series: container_fs_limit_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 64424509440+0x20
+  - series: container_fs_usage_bytes{job="kubelet-node-filesystem",node="worker-1",id="/",device="/dev/vda1"}
+    values: 55834574848+0x3 21474836480+0x16
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceLow
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskSpaceCritical
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: KubernetesNodeDiskMetricsUnavailable
+    exp_alerts: []

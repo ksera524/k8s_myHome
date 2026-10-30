@@ -1,4 +1,42 @@
 groups:
+  - name: home-lab-node-storage
+    interval: 1m
+    rules:
+      # capacity - usage は空きの推定値。アプリの f_bavail による4GiB保護は別途維持する。
+      # 5GiBの動画 + 4GiBの保護領域より早く警告し、割合でもkubeletの退避前に検知する。
+      - alert: KubernetesNodeDiskSpaceLow
+        expr: >-
+          ((max by(node) (container_fs_limit_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) > 0)
+          - max by(node) (container_fs_usage_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) < 12 * 1024^3)
+          or (max by(node) (container_fs_usage_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"})
+          / (max by(node) (container_fs_limit_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) > 0) > 0.8)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node }} のルートディスク空き推定値が12GiBまたは20%未満です"
+      - alert: KubernetesNodeDiskSpaceCritical
+        expr: >-
+          ((max by(node) (container_fs_limit_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) > 0)
+          - max by(node) (container_fs_usage_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) < 9 * 1024^3)
+          or (max by(node) (container_fs_usage_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"})
+          / (max by(node) (container_fs_limit_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) > 0) > 0.85)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} のルートディスク空き推定値が9GiBまたは15%未満です。大容量取得・CIの一時領域を確認してください"
+      - alert: KubernetesNodeDiskMetricsUnavailable
+        expr: >-
+          max by(node) (kube_node_info)
+          unless on(node)
+          ((max by(node) (container_fs_limit_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}) > 0)
+          and on(node) max by(node) (container_fs_usage_bytes{job="kubelet-node-filesystem",id="/",device="/dev/vda1"}))
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node }} のルートディスク容量を収集できません"
   - name: home-lab-state
     interval: 30s
     rules:

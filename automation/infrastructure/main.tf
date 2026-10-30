@@ -56,7 +56,8 @@ resource "libvirt_volume" "worker_disk" {
   name           = "k8s-worker${count.index + 1}-${random_id.cluster.hex}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_base.id
   pool           = "default"
-  size           = 32212254720 # 30GB
+  # 動画spool（最大5GiB + 空き4GiB）とpublish runnerの一時領域を確保する。
+  size           = 64424509440 # 60GiB。既存VMの拡張は docs/worker-disk.md を参照。
 }
 
 # 簡素化されたcloud-init設定

@@ -1,9 +1,9 @@
 {
   "uid": "home-lab-storage",
   "title": "03 ストレージ",
-  "description": "GitOps 管理。メトリクスは30秒間隔で収集。上部リンクから詳細へ移動できます。",
+  "description": "GitOps 管理。PVCは30秒、ノードのルートディスクは60秒間隔で収集。上部リンクから詳細へ移動できます。",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "timezone": "browser",
   "time": {
@@ -585,6 +585,159 @@
           }
         }
       ]
+    },
+    {
+      "id": 10,
+      "title": "ノードのルートディスク空き（推定）",
+      "description": "全ノードの /dev/vda1。emptyDir・イメージキャッシュ・ログを含む。Namespace/PVC選択には依存しません。空きはcapacity−usageの推定値で、アプリの空き4GiB保護とは別です。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(node) (container_fs_limit_bytes{job=\"kubelet-node-filesystem\",id=\"/\",device=\"/dev/vda1\"}) - max by(node) (container_fs_usage_bytes{job=\"kubelet-node-filesystem\",id=\"/\",device=\"/dev/vda1\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 9663676416
+              },
+              {
+                "color": "green",
+                "value": 12884901888
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "ノードのルートディスク使用率",
+      "description": "全ノードの /dev/vda1。emptyDir・イメージキャッシュ・ログを含む。Namespace/PVC選択には依存しません。空きはcapacity−usageの推定値で、アプリの空き4GiB保護とは別です。",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * max by(node) (container_fs_usage_bytes{job=\"kubelet-node-filesystem\",id=\"/\",device=\"/dev/vda1\"}) / max by(node) (container_fs_limit_bytes{job=\"kubelet-node-filesystem\",id=\"/\",device=\"/dev/vda1\"})",
+          "legendFormat": "{{node}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "データなし",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }

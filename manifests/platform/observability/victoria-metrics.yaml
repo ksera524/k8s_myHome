@@ -60,6 +60,30 @@ data:
             action: keep
             regex: (node|pod|container)_(cpu_usage_seconds_total|memory_working_set_bytes)|resource_scrape_error
 
+      # root filesystemだけを収集する。PVC・コンテナ単位の系列は保存しない。
+      # 現行cloud imageの / は全ノード /dev/vda1。構成変更時は監視も更新する。
+      - job_name: kubelet-node-filesystem
+        scrape_interval: 60s
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+        metric_relabel_configs:
+          - source_labels: [__name__, id, device]
+            action: keep
+            regex: 'container_fs_(limit|usage)_bytes;/;/dev/vda1'
+
       - job_name: kubernetes-pods-annotated
         kubernetes_sd_configs:
           - role: pod

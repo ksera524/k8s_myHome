@@ -65,6 +65,10 @@ Secret の削除・再生成を既存ユーザーのパスワードリセット�
 
 [VictoriaMetrics](../manifests/platform/observability/victoria-metrics.yaml) は kube-state-metrics、
 kubelet volume stats、kubelet `/metrics/resource`、annotation 付き Pod の metrics を収集します。
+`/metrics/cadvisor` は60秒間隔で収集し、全ノードのルートディスク `/dev/vda1` の
+`container_fs_limit_bytes` / `container_fs_usage_bytes`（`id="/"`）だけを保存します。
+追加のexporterは使いません。Grafana「03 ストレージ」にノードの空き推定値・使用率を表示します。
+Namespace/PVCのフィルタには依存せず、emptyDir・イメージキャッシュ・ノードログを含みます。
 kubelet は各ノードの InternalIP:10250 に直接接続し、ServiceAccount とクラスタ CA で認証・検証します。
 権限は `nodes/metrics` の `get` と探索用の Node / Pod 読み取りだけで、`nodes/proxy` は付与しません。
 初回導入・既存クラスタの切り替えには [kubelet 証明書の準備と検証](kubelet-metrics.md) が必要です。
@@ -96,10 +100,14 @@ Alloy は 167 時間より古いログを転送前に除外し、Loki は Compac
 | ESO / Gateway / Certificate | Ready・Programmed が false / 10 分・10 分・15 分 |
 | volume | 空き 20% 未満・10% 未満 / 15 分 |
 | kubelet volume scrape | 失敗・欠損 / 5 分 |
+| ノードのルートディスク | 空き推定値12GiBまたは20%未満 / 10 分、9GiBまたは15%未満 / 5 分 |
+| ノードのルートディスク計測 | Node台帳にあるノードの容量・使用量が欠損、または容量が0 / 5 分 |
 
 condition や対象時系列そのものの欠損をすべて検出する構成ではありません。
 HTTPRoute metrics はあっても現行 alert rule はありません。URL の外形監視や DB 復元成功は別途確認します。
 NFS の volume stats は共有ファイルシステムの容量で、PVC 固有の使用率ではなく、PVC 間で合算できません。
+ノードの空き推定値はcapacity−usageで、非rootユーザーが使える `f_bavail` と完全一致する保証はありません。
+アプリ側の4GiB空き保護は維持します。rootデバイスを変更するときはscrape・alert・dashboardを併せて変更します。
 
 ## Slack と週次レポート
 
