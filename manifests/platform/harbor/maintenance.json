@@ -5,13 +5,31 @@
       "application": "api-hub",
       "initialPrevious": "sha256:ca619f4908f60cb2ab00e9c801d792171d22a4db1f7bbe11412a0e6e438f0a95"
     },
-    "blog": {"application": "blog"},
-    "cooklog": {"application": "cooklog"},
-    "hitomi": {"application": "hitomi"},
-    "hitomi-pdf-batch": {"application": "hitomi-pdf"},
-    "hitomi-upload-viewer": {"application": "hitomi-upload-viewer"},
-    "home-camera": {"application": "home-camera"},
-    "rsshub-private": {"application": "rsshub"},
-    "slack.rs": {"archive": true}
+    "blog": {
+      "application": "blog"
+    },
+    "cooklog": {
+      "application": "cooklog"
+    },
+    "hitomi": {
+      "application": "hitomi"
+    },
+    "hitomi-pdf-batch": {
+      "application": "hitomi-pdf",
+      "rollbackDigest": "sha256:6258f391f37882c390ff84830c18901d28f7b7801bfbb0497e4f6b278a18410b"
+    },
+    "hitomi-upload-viewer": {
+      "application": "hitomi-upload-viewer",
+      "rollbackDigest": "sha256:f5d1c0236dd06916161f334f5b8e97a1a6e3b39e70120de96768859c3537a7b2"
+    },
+    "home-camera": {
+      "application": "home-camera"
+    },
+    "rsshub-private": {
+      "application": "rsshub"
+    },
+    "slack.rs": {
+      "archive": true
+    }
   }
 }
