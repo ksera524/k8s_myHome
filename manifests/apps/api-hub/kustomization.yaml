@@ -4,6 +4,6 @@ resources:
   - manifest.yaml
 images:
   - name: harbor.qroksera.com/sandbox/api-hub
-    newTag: latest
+    newTag: deploy
     newName: harbor.qroksera.com/sandbox/api-hub
-    digest: sha256:7106c516c588989572cd65d6506fb50bf272a44b322ae665de920d3e4820614f
+    digest: sha256:d2f0b76486c08fe4997c09fb51e3cbeb2bb5313377bed0927f4adf847e15a37d
